@@ -1,0 +1,88 @@
+@import "tailwindcss";
+/* Force refresh */
+
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
+}
+
+:root {
+    --background: #272727;
+    /* gray-900 fallback */
+    --foreground: #ffffff;
+    --card: #000000;
+    --card-foreground: #ffffff;
+    --secondary: #272727;
+    --secondary-foreground: #ffffff;
+    --bg-gradient: linear-gradient(to bottom left, #272727, #000000);
+}
+
+.theme-light {
+    --background: #f3f4f6;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+    --secondary: #e5e7eb;
+    --secondary-foreground: #111827;
+    --bg-gradient: linear-gradient(to bottom left, #f3f4f6, #d1d5db);
+}
+
+.theme-blue {
+    --background: #1e3a8a;
+    --foreground: #ffffff;
+    --card: #172554;
+    --card-foreground: #ffffff;
+    --secondary: #1e40af;
+    --secondary-foreground: #ffffff;
+    --bg-gradient: linear-gradient(to bottom left, #1e3a8a, #0f172a);
+}
+
+.theme-midnight {
+    --background: #0f172a;
+    --foreground: #e2e8f0;
+    --card: #020617;
+    --card-foreground: #e2e8f0;
+    --secondary: #1e293b;
+    --secondary-foreground: #ffffff;
+    --bg-gradient: linear-gradient(to bottom left, #0f172a, #000000);
+}
+
+body {
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+    min-height: 100vh;
+}
+
+@media print {
+    @page {
+        margin: 0mm;
+        size: auto;
+    }
+
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        background: white !important;
+        overflow: hidden !important;
+        height: auto !important;
+    }
+
+    /* Hide scrollbars on everything */
+    * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+
+    *::-webkit-scrollbar {
+        display: none !important;
+    }
+}
