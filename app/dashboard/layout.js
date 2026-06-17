@@ -1,12 +1,18 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar } from 'react-icons/fi';
+import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar, FiBookOpen } from 'react-icons/fi';
 import Link from 'next/link';
 
 export default function DashboardLayout({ children }) {
     const pathname = usePathname();
+    const router = useRouter();
+
+    async function handleLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/login');
+    }
 
     const menuItems = [
         { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true },
@@ -21,6 +27,7 @@ export default function DashboardLayout({ children }) {
         { icon: FiBox, label: 'Items', href: '/dashboard/items' },
         { icon: FiUser, label: 'Users', href: '/dashboard/users' },
         { icon: FiSettings, label: 'Settings', href: '/dashboard/settings' },
+        { icon: FiBookOpen, label: 'Guide', href: '/dashboard/guide' },
     ];
 
     return (
@@ -99,7 +106,7 @@ export default function DashboardLayout({ children }) {
                 </nav>
 
                 <div className="p-4 border-t border-white/10">
-                    <button className="flex items-center gap-3 px-4 py-3 w-full text-white hover:bg-white/10 rounded-lg transition-colors">
+                    <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                         <FiLogOut className="w-5 h-5" />
                         Logout
                     </button>

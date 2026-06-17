@@ -5,3 +5,28 @@ ex - Hard Cover Hard bind book has 2 chip boards
 ex 2 - Hard Cover Hard Bind book has 2 END Pages
 -- option 1 - double the coponent quantity (not recommended for product copying)
 -- option 2 - change the sides to both side, after that you can change the pages count, then double the page count, and make the side count to one side again
+
+If using different sized cut sheet rather than standard, 
+Ex - using 12 x 18 sheets for sm74 when printing A5 sized Hard Cover Print paper.
+use "Cut Sheets / Full sheet" input (how many cutsheets can be get by a full sheet(A1 size sheet))
+
+If using Matieials only for any components(No machine usage),
+Ex - End pages for hard cover books. Chip Board for hard cover books.
+use "Machine" input as "Select Machine", make "Plate Cost/unit" and "Impression Cost" as "0"
+
+Use correct dimentions for get better imposition layout and correct pricings.
+
+Only enable back & back tik for one colour backand backs only. (dont enable for multi colour backand backs)
+
+Enter the Component name as "Cover" for covers, otherwise you will not get the standard input for covers.
+Include the name "Inner" in component name for inner pages, otherwise you will not get the standard input for inner pages.
+Enter the component name as "Finishing" for finishing components, otherwise you will not get the standard input for finishing.
+
+Use "Wastage Cutsheets" when calculate wastage for Covers(covers do not print as sets, it print as individual sheets).
+Use "Sets/ Wastage Sheets" when calculate wastage for other components(Inners,inserts, other materials etc).
+
+
+Do not delete estimations which are used in Quotations!
+
+Email:    admin@pressmatics.com
+Password: admin123
