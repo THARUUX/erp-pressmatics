@@ -6,8 +6,11 @@ import { FiSave, FiArrowLeft, FiPlus, FiCheck } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Link from 'next/link';
+import { useSettings } from '@/components/SettingsContext';
 
 export default function NewQuotationContainerPage() {
+    const { settings } = useSettings();
+    const currency = settings.currency || '$';
     const router = useRouter();
     const [loading, setLoading] = useState(false);
 
@@ -132,11 +135,11 @@ export default function NewQuotationContainerPage() {
             <div className="grid lg:grid-cols-3 gap-8">
                 {/* Left Column: Selection */}
                 <div className="lg:col-span-2 space-y-6">
-                    <section className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10">
+                    <section className="bg-black/40 relative z-20 backdrop-blur-md p-6 rounded-xl border border-white/10">
                         <h2 className="text-lg font-semibold mb-4 border-b border-white/10 pb-2">Client Details</h2>
                         <div>
                             <label className="block text-sm text-gray-400 mb-1">Customer Name</label>
-                            <div className="relative">
+                            <div className="relative z-10">
                                 <Input
                                     value={customerName}
                                     onChange={(e) => {
@@ -178,7 +181,7 @@ export default function NewQuotationContainerPage() {
                         </div>
                     </section>
 
-                    <section className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10">
+                    <section className="bg-black/40 backdrop-blur-md p-6 relative z-10 rounded-xl border border-white/10">
                         <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
                             <h2 className="text-lg font-semibold">Select Job Estimations</h2>
                             <Link href="/dashboard/items/new">
@@ -211,7 +214,7 @@ export default function NewQuotationContainerPage() {
                                             </div>
                                         </div>
                                         <div className="font-mono">
-                                            ${parseFloat(item.total_amount).toFixed(2)}
+                                            {currency}{parseFloat(item.total_amount).toFixed(2)}
                                         </div>
                                     </div>
                                 );
@@ -237,7 +240,7 @@ export default function NewQuotationContainerPage() {
                         </div>
                         <div className="border-t border-white/20 pt-4 flex justify-between text-xl font-bold text-white">
                             <span>Total</span>
-                            <span>${currentTotal.toFixed(2)}</span>
+                            <span>{currency}{currentTotal.toFixed(2)}</span>
                         </div>
                     </div>
                 </div>

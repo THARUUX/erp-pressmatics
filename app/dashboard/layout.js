@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers } from 'react-icons/fi';
+import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar } from 'react-icons/fi';
 import Link from 'next/link';
 
 export default function DashboardLayout({ children }) {
@@ -11,12 +11,15 @@ export default function DashboardLayout({ children }) {
     const menuItems = [
         { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true },
         { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations' },
-        { icon: FiPrinter, label: 'Estimations', href: '/dashboard/items' },
-        { icon: FiUser, label: 'Users', href: '/dashboard/users' },
+        { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders' },
+        { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning' },
+        { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations' },
         { icon: FiBox, label: 'Inventory Items', href: '/dashboard/inventory' }, // Be careful with sub-routes overlapping
         { icon: FiLayers, label: 'Finishings', href: '/dashboard/inventory/finishings' },
         { icon: FiSettings, label: 'Machines', href: '/dashboard/inventory/machines' }, // This might overlap with inventory if check is vague
         { icon: FiUser, label: 'Customers', href: '/dashboard/customers' },
+        { icon: FiBox, label: 'Items', href: '/dashboard/items' },
+        { icon: FiUser, label: 'Users', href: '/dashboard/users' },
         { icon: FiSettings, label: 'Settings', href: '/dashboard/settings' },
     ];
 

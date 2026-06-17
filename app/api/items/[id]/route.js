@@ -96,7 +96,8 @@ export async function PUT(req, { params }) {
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
-                finishings: comp.finishings || []
+                finishings: comp.finishings || [],
+                compName: comp.name
             };
 
             if (comp.type === 'offset') {
@@ -152,15 +153,16 @@ export async function PUT(req, { params }) {
 
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
-            quotation_item_id, component_name, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-            impression_cost_unit, wastage_percent, ups, sides, colors,
+            quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
+            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
             printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
             final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-            paper_id, paper_name
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     id,
                     meta.name || 'Main',
+                    meta.type || 'offset',
                     params.machineId || null,
                     params.pages || 1,
                     params.paperCostPerSheet || 0,
@@ -169,7 +171,12 @@ export async function PUT(req, { params }) {
                     params.wastagePercent || 0,
                     params.ups || 1,
                     params.sides || 1,
-                    params.colors || 4,
+                    params.size || null,
+                    (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
+                    parseInt(params.colorsFront) ?? null,
+                    parseInt(params.colorsBack) ?? null,
+                    params.customImpressions || null,
+                    params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
                     calc.printedSheets || 0,
                     calc.fullSheetsUsed || 0,
                     calc.wastageSheets || 0,
@@ -180,7 +187,18 @@ export async function PUT(req, { params }) {
                     costs.printing || 0,
                     costs.finishing || 0,
                     params.paperId || null,
-                    params.paperName || null
+                    params.paperName || null,
+                    params.paperWidthCm || null,
+                    params.paperHeightCm || null,
+                    params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
+                    params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
+                    params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
+                    params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
+                    params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
+                    params.digitalPricePerSqCm || null,
+                    params.colorQuality || null,
+                    params.isBB ? 1 : 0,
+                    params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
                 ]
             );
             const detailId = detailResult.insertId;
@@ -191,8 +209,8 @@ export async function PUT(req, { params }) {
                 for (const fItem of finishings) {
                     await pool.execute(
                         `INSERT INTO quotation_item_finishings 
-                        (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             id,
                             detailId,
@@ -204,7 +222,8 @@ export async function PUT(req, { params }) {
                             fItem.is_machine ? 1 : 0,
                             fItem.time_per_unit || 0,
                             fItem.total_time || 0,
-                            fItem.cost_unit || 'Unit'
+                            fItem.cost_unit || 'Unit',
+                            fItem.forms != null ? parseInt(fItem.forms) : null
                         ]
                     );
                 }
@@ -216,8 +235,8 @@ export async function PUT(req, { params }) {
             for (const fItem of processedGlobalFinishings) {
                 await pool.execute(
                     `INSERT INTO quotation_item_finishings 
-                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         id,
                         null, // Detail ID is NULL for global
@@ -229,7 +248,8 @@ export async function PUT(req, { params }) {
                         fItem.is_machine ? 1 : 0,
                         fItem.time_per_unit || 0,
                         fItem.total_time || 0,
-                        fItem.cost_unit || 'Unit'
+                        fItem.cost_unit || 'Unit',
+                        fItem.forms != null ? parseInt(fItem.forms) : null
                     ]
                 );
             }
@@ -246,6 +266,7 @@ export async function DELETE(req, { params }) {
     try {
         const { id } = await params;
         // Manual cascading
+        await pool.execute('DELETE FROM quotation_line_items WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_items WHERE id = ?', [id]);

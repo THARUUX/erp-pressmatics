@@ -27,7 +27,9 @@ export default function InventoryPage() {
         uom: 'Sheet',
         unit_cost: 0,
         stock_quantity: 0,
-        min_stock: 0
+        min_stock: 0,
+        width_cm: '',
+        height_cm: ''
     });
 
     const [restockItem, setRestockItem] = useState(null);
@@ -147,7 +149,9 @@ export default function InventoryPage() {
             uom: item.uom || 'Sheet',
             unit_cost: item.unit_cost,
             stock_quantity: item.stock_quantity,
-            min_stock: item.min_stock || 0
+            min_stock: item.min_stock || 0,
+            width_cm: item.width_cm || '',
+            height_cm: item.height_cm || ''
         });
         setShowAdd(true);
     };
@@ -163,7 +167,9 @@ export default function InventoryPage() {
             uom: item.uom || 'Sheet',
             unit_cost: item.unit_cost,
             stock_quantity: item.stock_quantity,
-            min_stock: item.min_stock || 0
+            min_stock: item.min_stock || 0,
+            width_cm: item.width_cm || '',
+            height_cm: item.height_cm || ''
         });
         setShowAdd(true);
     };
@@ -180,7 +186,9 @@ export default function InventoryPage() {
             uom: 'Sheet',
             unit_cost: 0,
             stock_quantity: 0,
-            min_stock: 0
+            min_stock: 0,
+            width_cm: '',
+            height_cm: ''
         });
     };
 
@@ -234,28 +242,62 @@ export default function InventoryPage() {
                         {/* Type Selection */}
                         <div className="flex flex-col gap-2">
                             <label className="text-sm font-medium text-gray-400">Type</label>
-                            <div className="relative">
-                                <input
-                                    list="type-suggestions"
+                            {activeCategory === 'Paper' ? (
+                                <select
                                     className="w-full bg-secondary border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
                                     value={formData.type}
                                     onChange={e => setFormData({ ...formData, type: e.target.value })}
-                                    placeholder="Select or type..."
-                                />
-                                <datalist id="type-suggestions">
-                                    <option value="Art" />
-                                    <option value="Bond" />
-                                    <option value="Gloss" />
-                                    <option value="Matte" />
-                                    <option value="Offset Plate" />
-                                    <option value="Digital Plate" />
-                                    <option value="Cyan" />
-                                    <option value="Magenta" />
-                                    <option value="Yellow" />
-                                    <option value="Black" />
-                                </datalist>
-                            </div>
+                                >
+                                    <option value="">Select Paper Type</option>
+                                    <option value="OFFSET">OFFSET</option>
+                                    <option value="DIGITAL">DIGITAL</option>
+                                    <option value="BOTH">BOTH</option>
+                                </select>
+                            ) : (
+                                <div className="relative">
+                                    <input
+                                        list="type-suggestions"
+                                        className="w-full bg-secondary border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+                                        value={formData.type}
+                                        onChange={e => setFormData({ ...formData, type: e.target.value })}
+                                        placeholder="Select or type..."
+                                    />
+                                    <datalist id="type-suggestions">
+                                        <option value="Art" />
+                                        <option value="Bond" />
+                                        <option value="Gloss" />
+                                        <option value="Matte" />
+                                        <option value="Offset Plate" />
+                                        <option value="Digital Plate" />
+                                        <option value="Cyan" />
+                                        <option value="Magenta" />
+                                        <option value="Yellow" />
+                                        <option value="Black" />
+                                    </datalist>
+                                </div>
+                            )}
                         </div>
+
+                        {activeCategory === 'Paper' && (
+                            <>
+                                <Input
+                                    label="Width (cm)"
+                                    type="number"
+                                    step="0.01"
+                                    className="bg-secondary border-white/10"
+                                    value={formData.width_cm}
+                                    onChange={e => setFormData({ ...formData, width_cm: e.target.value })}
+                                />
+                                <Input
+                                    label="Height (cm)"
+                                    type="number"
+                                    step="0.01"
+                                    className="bg-secondary border-white/10"
+                                    value={formData.height_cm}
+                                    onChange={e => setFormData({ ...formData, height_cm: e.target.value })}
+                                />
+                            </>
+                        )}
 
                         <div className="flex flex-col gap-2">
                             <label className="text-sm font-medium text-gray-400">UoM</label>

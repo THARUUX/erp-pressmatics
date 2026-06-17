@@ -24,7 +24,10 @@ export default function MachinesPage() {
         sheet_factor: 1.0,
         speed: 10000,
         speed_unit: 'Sheets/Hr',
-        plate_id: ''
+        plate_id: '',
+        digital_price_max: 0,
+        digital_price_medium: 0,
+        digital_price_min: 0
     });
 
     useEffect(() => {
@@ -108,7 +111,10 @@ export default function MachinesPage() {
             sheet_factor: item.sheet_factor,
             speed: item.speed,
             speed_unit: item.speed_unit || 'Sheets/Hr',
-            plate_id: item.plate_id || ''
+            plate_id: item.plate_id || '',
+            digital_price_max: item.digital_price_max || 0,
+            digital_price_medium: item.digital_price_medium || 0,
+            digital_price_min: item.digital_price_min || 0
         });
     };
 
@@ -116,7 +122,7 @@ export default function MachinesPage() {
         setIsEditing(false);
         setEditId(null);
         setPlateSearch('');
-        setFormData({ name: '', type: 'offset', sheet_factor: 1.0, speed: 10000, speed_unit: 'Sheets/Hr', plate_id: '' });
+        setFormData({ name: '', type: 'offset', sheet_factor: 1.0, speed: 10000, speed_unit: 'Sheets/Hr', plate_id: '', digital_price_max: 0, digital_price_medium: 0, digital_price_min: 0 });
     };
 
     const filtered = machines.filter(m =>
@@ -167,6 +173,7 @@ export default function MachinesPage() {
                                         <option value="offset">Offset Machine</option>
                                         <option value="digital">Digital Machine</option>
                                         <option value="finishing">Finishing Machine</option>
+                                        <option value="prepress">Prepress</option>
                                     </select>
                                 </div>
                                 {formData.type === 'offset' && (
@@ -181,6 +188,43 @@ export default function MachinesPage() {
                                             className="bg-secondary border-white/10"
                                         />
                                     </div>
+                                )}
+                                {formData.type === 'digital' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Max Colored Price (per sq cm)</label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={formData.digital_price_max}
+                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_max: e.target.value }))}
+                                                placeholder="0.00"
+                                                className="bg-secondary border-white/10"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Medium Coloured Price (per sq cm)</label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={formData.digital_price_medium}
+                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_medium: e.target.value }))}
+                                                placeholder="0.00"
+                                                className="bg-secondary border-white/10"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Min Coloured Price (per sq cm)</label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={formData.digital_price_min}
+                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_min: e.target.value }))}
+                                                placeholder="0.00"
+                                                className="bg-secondary border-white/10"
+                                            />
+                                        </div>
+                                    </>
                                 )}
                             </div>
 
@@ -307,7 +351,12 @@ export default function MachinesPage() {
                                                         )}
                                                         {/* Legacy handle if needed */}
                                                         {item.type === 'image' && <span>Digital Press | {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>}
-                                                        {item.type === 'digital' && <span>Digital Press | {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>}
+                                                        {item.type === 'digital' && (
+                                                            <>
+                                                                <span>Digital Press | {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>
+                                                                <span className="text-yellow-500/80 text-xs">Rates: Max {item.digital_price_max} | Med {item.digital_price_medium} | Min {item.digital_price_min}</span>
+                                                            </>
+                                                        )}
                                                         {item.type === 'finishing' && <span>Finishing Equipment | {item.speed.toLocaleString()} uph</span>}
                                                     </div>
                                                 </td>

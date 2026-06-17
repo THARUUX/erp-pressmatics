@@ -45,8 +45,7 @@ export async function GET(request) {
             countParams.push(`%${search}%`, `%${search}%`);
         }
 
-        query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
+        query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
         const [countRows] = await pool.execute(countQuery, countParams);
         const total = countRows[0].total;

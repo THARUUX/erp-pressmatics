@@ -2,9 +2,9 @@
 
 import { cn } from '@/lib/utils';
 
-export default function Input({ className, label, error, ...props }) {
+export default function Input({ className, label, error, hidden, ...props }) {
     return (
-        <div className="flex flex-col gap-1.5 w-full">
+        <div className={cn(hidden ? "hidden" : "flex flex-col gap-1.5 w-full")}>
             {label && <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>}
             <input
                 className={cn(

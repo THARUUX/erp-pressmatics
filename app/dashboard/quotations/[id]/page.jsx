@@ -25,6 +25,7 @@ export default function QuotationViewPage({ params }) {
             .then(data => {
                 if (data.error) throw new Error(data.error);
                 setQuote(data);
+                console.log(data);
                 if (data.code || data.id) {
                     document.title = data.code || `Quotation-${data.id}`;
                 }
@@ -42,16 +43,14 @@ export default function QuotationViewPage({ params }) {
 
     const subtotal = quote.items ? quote.items.reduce((acc, i) => acc + parseFloat(i.subtotal_amount || i.total_amount || 0), 0) : 0;
     const totalTax = quote.items ? quote.items.reduce((acc, i) => {
-        return i.tax_mode === 'add' ? acc + parseFloat(i.tax_amount || 0)
-            : i.tax_mode === 'deduct' ? acc - parseFloat(i.tax_amount || 0)
-                : acc;
+        return acc + parseFloat(i.tax_amount || 0);
     }, 0) : 0;
     const finalTotal = parseFloat(quote.total_amount);
     // Default to true if undefined, but DB should have it. MySQL returns 1 for true.
     const showSummary = quote.show_grand_total !== 0 && quote.show_grand_total !== false && quote.show_grand_total !== 'false';
 
     return (
-        <div className="min-h-screen bg-transparent text-white p-8 print:bg-white print:text-black print:p-0">
+        <div className="min-h-screen font-sans bg-transparent text-white p-8 print:bg-white print:text-black print:p-0">
             {/* No Print Header */}
             <div className="flex justify-between items-center mb-8 print:hidden">
                 <Link href="/dashboard/quotations">
@@ -113,25 +112,31 @@ export default function QuotationViewPage({ params }) {
                             <tr className="border-b-2 border-gray-900 text-xs font-bold text-gray-900 uppercase tracking-wider">
                                 <th className="py-3 pr-4">Description</th>
                                 <th className="py-3 px-4 text-center">Qty</th>
-                                <th className="py-3 px-4 text-right">Unit Price</th>
+                                <th className="py-3 px-4 text-right">Unit Price ( {currency})</th>
                                 {!showSummary ? (
                                     <>
                                         <th className="py-3 px-4 text-right">Amount (Excl. Tax)</th>
-                                        <th className="py-3 px-4 text-right">Tax</th>
+                                        <th className="py-3 px-4 text-right">Tax </th>
                                         <th className="py-3 pl-4 text-right">Net Total</th>
                                     </>
                                 ) : (
-                                    <th className="py-3 pl-4 text-right">Amount</th>
+                                    <th className="py-3 pl-4 text-right">Amount ( {currency})</th>
                                 )}
                             </tr>
                         </thead>
                         <tbody className="text-sm">
                             {quote.items && quote.items.map((item, idx) => {
-                                // Unit Price Calculation (approx based on subtotal for accuracy)
-                                const subtotal = parseFloat(item.subtotal_amount || item.total_amount);
-                                const unitPrice = subtotal / item.quantity;
+                                // 1. Parse values safely to numbers
+                                const rawSubtotal = parseFloat(item.subtotal_amount || 0);
+                                const rawTotal = parseFloat(item.total_amount || 0);
                                 const taxAmount = parseFloat(item.tax_amount || 0);
-                                const totalAmount = parseFloat(item.total_amount);
+                                
+                                // 2. Fallback to total_amount if the database subtotal is zero or empty
+                                const itemSubtotal = rawSubtotal > 0 ? rawSubtotal : rawTotal;
+                                
+                                // 3. Calculate unit price based on the correct item subtotal
+                                const unitPrice = item.quantity > 0 ? itemSubtotal / item.quantity : 0;
+                                
                                 const isTaxAdd = item.tax_mode === 'add';
                                 const isTaxDeduct = item.tax_mode === 'deduct';
 
@@ -144,28 +149,31 @@ export default function QuotationViewPage({ params }) {
                                             </div>
                                         </td>
                                         <td className="py-4 px-4 text-center font-mono">{item.quantity}</td>
-                                        <td className="py-4 px-4 text-right font-mono text-gray-500">{currency}{unitPrice.toFixed(2)}</td>
+                                        <td className="py-4 px-4 text-center font-mono text-gray-500">
+                                            {unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
 
                                         {!showSummary ? (
                                             <>
                                                 <td className="py-4 px-4 text-right font-mono font-medium text-gray-700">
-                                                    {currency}{subtotal.toFixed(2)}
+                                                    {itemSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
-                                                <td className={`py-4 px-4 text-right font-mono text-xs ${isTaxDeduct ? 'text-green-600' : 'text-gray-500'}`}>
+                                                <td className="py-4 px-4 text-right font-mono text-xs text-gray-500">
                                                     {item.tax_mode !== 'none' ? (
                                                         <>
-                                                            <div>{item.tax_percentage}%</div>
-                                                            <div>{isTaxDeduct ? '-' : '+'}{currency}{Math.abs(taxAmount).toFixed(2)}</div>
+                                                            {/* <div>{item.tax_percentage}%</div> */}
+                                                            <div>+{Math.abs(taxAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                                         </>
                                                     ) : '-'}
                                                 </td>
                                                 <td className="py-4 pl-4 text-right font-mono font-bold text-gray-900">
-                                                    {currency}{totalAmount.toFixed(2)}
+                                                    {currency}{rawTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
                                             </>
                                         ) : (
+                                            /* FIXED: Changed from 'subtotal' to 'itemSubtotal' to prevent variable clashing */
                                             <td className="py-4 pl-4 text-right font-mono font-medium text-gray-900">
-                                                {currency}{subtotal.toFixed(2)}
+                                                {currency}{itemSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
                                         )}
                                     </tr>
@@ -183,17 +191,17 @@ export default function QuotationViewPage({ params }) {
                                 <>
                                     <div className="flex justify-between text-sm text-gray-500">
                                         <span>Subtotal</span>
-                                        <span>{currency}{subtotal.toFixed(2)}</span>
+                                        <span>{currency}{subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className={`flex justify-between text-sm ${totalTax > 0 ? 'text-gray-500' : 'text-green-600'}`}>
                                         <span>Tax Adjustment</span>
-                                        <span>{totalTax > 0 ? '+' : ''}{currency}{totalTax.toFixed(2)}</span>
+                                        <span>{totalTax > 0 ? '+' : ''}{currency}{totalTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 </>
                             )}
                             <div className="flex justify-between items-end border-t-2 border-gray-900 pt-3">
                                 <span className="font-bold text-gray-900">Total</span>
-                                <span className="text-2xl font-bold tracking-tight">{currency}{finalTotal.toFixed(2)}</span>
+                                <span className="  tracking-tight">{currency}{finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                     </div>

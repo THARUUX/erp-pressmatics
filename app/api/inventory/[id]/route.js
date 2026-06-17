@@ -10,8 +10,8 @@ export async function PUT(req, { params }) {
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
         await pool.execute(
-            'UPDATE inventory_items SET name = ?, category = ?, type = ?, unit_cost = ?, stock_quantity = ?, item_code = ?, uom = ?, min_stock = ? WHERE id = ?',
-            [name, category, type, parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code || null, uom || 'Unit', parseInt(body.min_stock) || 0, id]
+            'UPDATE inventory_items SET name = ?, category = ?, type = ?, unit_cost = ?, stock_quantity = ?, item_code = ?, uom = ?, min_stock = ?, width_cm = ?, height_cm = ? WHERE id = ?',
+            [name, category, type, parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code || null, uom || 'Unit', parseInt(body.min_stock) || 0, parseFloat(body.width_cm) || null, parseFloat(body.height_cm) || null, id]
         );
 
         return NextResponse.json({ success: true });

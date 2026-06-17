@@ -31,7 +31,7 @@ export async function POST(req, { params }) {
                 sourceItem.quantity,
                 sourceItem.total_amount,
                 sourceItem.status,
-                false, // not favorite by default
+                false, 
                 code
             ]
         );
@@ -52,24 +52,30 @@ export async function POST(req, { params }) {
             [id]
         );
 
-        // Group finishings by Detail ID
+        // Separate component finishings from global finishings reliably
         const finishingsByDetail = {};
+        const globalFinishings = [];
+
         for (const f of sourceFinishings) {
             const dId = f.quotation_item_detail_id;
-            if (!finishingsByDetail[dId]) finishingsByDetail[dId] = [];
-            finishingsByDetail[dId].push(f);
+            if (dId === null || dId === undefined) {
+                globalFinishings.push(f);
+            } else {
+                if (!finishingsByDetail[dId]) finishingsByDetail[dId] = [];
+                finishingsByDetail[dId].push(f);
+            }
         }
 
-        // 5. Duplicate Details & Finishings
+        // 5. Duplicate Details & Linked Finishings
         for (const detail of sourceDetails) {
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
                     quotation_item_id, component_name, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-                    impression_cost_unit, wastage_percent, ups, sides, colors,
+                    impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
                     printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
                     final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-                    paper_id, paper_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    paper_id, paper_name, type, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     newItemId,
                     detail.component_name,
@@ -81,7 +87,12 @@ export async function POST(req, { params }) {
                     detail.wastage_percent,
                     detail.ups,
                     detail.sides,
+                    detail.size || null,
                     detail.colors,
+                    detail.colors_front ?? null,
+                    detail.colors_back ?? null,
+                    detail.custom_impressions,
+                    detail.custom_wastage_sheets,
                     detail.printed_sheets,
                     detail.full_sheets_used,
                     detail.wastage_sheets,
@@ -92,7 +103,17 @@ export async function POST(req, { params }) {
                     detail.final_printing_cost,
                     detail.final_finishing_cost,
                     detail.paper_id,
-                    detail.paper_name
+                    detail.paper_name,
+                    detail.type,
+                    detail.paper_width_cm,
+                    detail.paper_height_cm,
+                    detail.comp_width_cm,
+                    detail.comp_height_cm,
+                    detail.cut_width_cm,
+                    detail.cut_height_cm,
+                    detail.bleed_mm,
+                    detail.digital_price_per_sq_cm,
+                    detail.color_quality
                 ]
             );
             const newDetailId = detailResult.insertId;
@@ -101,8 +122,8 @@ export async function POST(req, { params }) {
             for (const f of relatedFinishings) {
                 await pool.execute(
                     `INSERT INTO quotation_item_finishings 
-                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         newItemId,
                         newDetailId,
@@ -114,16 +135,40 @@ export async function POST(req, { params }) {
                         f.is_machine,
                         f.time_per_unit,
                         f.total_time,
-                        f.cost_unit
+                        f.cost_unit,
+                        f.forms
                     ]
                 );
             }
+        }
+
+        // 6. Duplicate Global Finishings (Explicitly using the clean array)
+        for (const f of globalFinishings) {
+            await pool.execute(
+                `INSERT INTO quotation_item_finishings 
+                (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    newItemId,
+                    null,
+                    f.name,
+                    f.quantity,
+                    f.unit_cost,
+                    f.total_cost,
+                    f.machine_id,
+                    f.is_machine,
+                    f.time_per_unit,
+                    f.total_time,
+                    f.cost_unit,
+                    f.forms
+                ]
+            );
         }
 
         return NextResponse.json({ success: true, newId: newItemId });
 
     } catch (error) {
         console.error("Duplicate Error:", error);
-        return NextResponse.json({ error: 'Failed to duplicate item' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to duplicate item', details: error.message }, { status: 500 });
     }
 }

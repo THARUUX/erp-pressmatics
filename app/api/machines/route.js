@@ -18,11 +18,21 @@ export async function GET() {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, type, sheet_factor, speed, speed_unit, plate_id } = body;
+        const { name, type, sheet_factor, speed, speed_unit, plate_id, digital_price_max, digital_price_medium, digital_price_min } = body;
 
         await pool.execute(
-            'INSERT INTO machines (name, type, sheet_factor, speed, speed_unit, plate_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [name, type, sheet_factor || 1.0, speed || 0, speed_unit || 'Sheets/Hr', plate_id || null]
+            'INSERT INTO machines (name, type, sheet_factor, speed, speed_unit, plate_id, digital_price_max, digital_price_medium, digital_price_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                name,
+                type,
+                sheet_factor || 1.0,
+                speed || 0,
+                speed_unit || 'Sheets/Hr',
+                plate_id || null,
+                parseFloat(digital_price_max) || 0,
+                parseFloat(digital_price_medium) || 0,
+                parseFloat(digital_price_min) || 0
+            ]
         );
 
         return NextResponse.json({ success: true });

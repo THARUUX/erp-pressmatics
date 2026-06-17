@@ -197,6 +197,9 @@ export default function FinishingsPage() {
                                         <option value="Unit">Per Unit (Job)</option>
                                         <option value="Cut Sheet">Per Cut Sheet (Input)</option>
                                         <option value="Page">Per Page</option>
+                                        <option value="Form">Per Form</option>
+                                        <option value="Impression">Per Impression</option>
+                                        <option value="SqInch">Sq Inch</option>
                                     </select>
                                 </div>
                                 <div className="col-span-2 md:col-span-1">
@@ -249,6 +252,8 @@ export default function FinishingsPage() {
                                         >
                                             <option value="Sheets/Hr">Sheets/Hr</option>
                                             <option value="Units/Hr">Units/Hr</option>
+                                            <option value="Forms/Hr">Forms/Hr</option>
+                                            <option value="Impressions/Hr">Impressions/Hr</option>
                                         </select>
                                     </div>
                                 </div>

@@ -1,0 +1,9 @@
+/* Base styles for the /jobs/* public tracker pages */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.jobs-root,
+.jobs-root * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}

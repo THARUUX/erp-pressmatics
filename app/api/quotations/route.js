@@ -13,7 +13,7 @@ export async function GET(req) {
         const total = countResult[0].total;
 
         // Fetch paginated data
-        const [rows] = await pool.execute('SELECT * FROM quotations ORDER BY created_at DESC LIMIT ? OFFSET ?', [String(limit), String(offset)]);
+        const [rows] = await pool.execute(`SELECT * FROM quotations ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`);
 
         return NextResponse.json({
             data: rows,

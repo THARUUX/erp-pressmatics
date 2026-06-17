@@ -1,0 +1,7 @@
+When creating an estimation
+
+If 1 Unit have 2 quanities of a component,
+ex - Hard Cover Hard bind book has 2 chip boards
+ex 2 - Hard Cover Hard Bind book has 2 END Pages
+-- option 1 - double the coponent quantity (not recommended for product copying)
+-- option 2 - change the sides to both side, after that you can change the pages count, then double the page count, and make the side count to one side again

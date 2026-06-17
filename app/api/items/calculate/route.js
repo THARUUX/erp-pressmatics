@@ -31,7 +31,8 @@ export async function POST(req) {
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
-                finishings: comp.finishings
+                finishings: comp.finishings,
+                compName: comp.name
             };
 
             if (comp.type === 'offset') {

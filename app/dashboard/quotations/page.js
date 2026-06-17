@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSettings } from '@/components/SettingsContext';
-import { FiPlus, FiFileText, FiClock, FiSearch, FiPrinter, FiTrash2, FiEdit2, FiCopy } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiClock, FiSearch, FiPrinter, FiTrash2, FiEdit2, FiCopy, FiShoppingCart } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 
@@ -118,6 +118,31 @@ export default function QuotationsPage() {
         window.open(`/dashboard/quotations/${id}`, '_blank');
     };
 
+    const handleConvertToSalesOrder = async (e, id) => {
+        e.stopPropagation();
+        if (!confirm("Convert this quotation to a Sales Order?")) return;
+
+        try {
+            const res = await fetch(`/api/sales-orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quotation_id: id })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert("Sales Order created successfully!");
+                // Optionally redirect to SO list, or refresh
+                fetchQuotes(page);
+                // window.location.href = `/dashboard/sales-orders/${data.salesOrderId}`;
+            } else {
+                alert("Failed to convert: " + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error converting to sales order");
+        }
+    };
+
     return (
         <div className="min-h-screen bg-transparent text-white p-8">
             <header className="flex justify-between items-center mb-8">
@@ -200,6 +225,15 @@ export default function QuotationsPage() {
                                     >
                                         {deleting === quote.id ? '...' : <FiTrash2 size={18} />}
                                     </button>
+                                    {quote.status !== 'converted' && (
+                                        <button
+                                            onClick={(e) => handleConvertToSalesOrder(e, quote.id)}
+                                            className="p-2 hover:bg-green-500/20 rounded-full text-gray-300 hover:text-green-400 transition-colors"
+                                            title="Convert to Sales Order"
+                                        >
+                                            <FiShoppingCart size={18} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

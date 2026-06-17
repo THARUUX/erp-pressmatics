@@ -74,8 +74,8 @@ export async function POST(req) {
         }
 
         const [result] = await pool.execute(
-            'INSERT INTO inventory_items (name, category, type, unit_cost, stock_quantity, item_code, uom, min_stock, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, category, type || '', parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code, uom || 'Unit', parseInt(body.min_stock) || 0, 1]
+            'INSERT INTO inventory_items (name, category, type, unit_cost, stock_quantity, item_code, uom, min_stock, is_active, width_cm, height_cm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, category, type || '', parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code, uom || 'Unit', parseInt(body.min_stock) || 0, 1, parseFloat(body.width_cm) || null, parseFloat(body.height_cm) || null]
         );
 
         return NextResponse.json({ success: true, id: result.insertId, item_code });

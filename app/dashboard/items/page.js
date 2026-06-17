@@ -113,6 +113,22 @@ export default function ItemsPage() {
         }
     };
 
+    const handleDuplicateFav = async (id) => {
+        if (!confirm("Copy this template?")) return;
+        try {
+            const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.newId) {
+                router.push(`/dashboard/items/temp/${data.newId}`);
+            } else {
+                alert('Failed to duplicate item');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error duplicating item');
+        }
+    };
+
     return (
         <div className="text-white">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -196,7 +212,7 @@ export default function ItemsPage() {
                         </div>
                         <div className="flex items-center gap-6">
                             <div className="text-right">
-                                <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toFixed(2)}</div>
+                                <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()}</div>
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

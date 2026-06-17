@@ -10,7 +10,9 @@ export async function POST(req) {
             customer_id,
             estimation_name, // New field
             job_description,
-            components = []
+            components = [],
+            markup_percent = 0,
+            global_finishings = []
         } = body;
 
         if (!components || components.length === 0) {
@@ -27,7 +29,8 @@ export async function POST(req) {
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
-                finishings: comp.finishings || []
+                finishings: comp.finishings || [],
+                compName: comp.name
             };
 
             if (comp.type === 'offset') {
@@ -45,6 +48,22 @@ export async function POST(req) {
                 calc: result
             });
         }
+
+        // Calculate Global Costs
+        let globalFinishingCost = 0;
+        const processedGlobalFinishings = global_finishings.map(f => {
+            const total = (parseFloat(f.quantity) || 0) * (parseFloat(f.unit_cost) || 0);
+            globalFinishingCost += total;
+            return {
+                ...f,
+                total_cost: total
+            };
+        });
+
+        // Apply Markup
+        const totalBeforeMarkup = grandTotal + globalFinishingCost;
+        const markupAmount = totalBeforeMarkup * ((parseFloat(markup_percent) || 0) / 100);
+        grandTotal = totalBeforeMarkup + markupAmount;
 
         // 2. Save Quotation Item (Header)
         // Item Quantity? Usually the main product quantity.
@@ -74,9 +93,9 @@ export async function POST(req) {
         // For now, assume sequential is safe enough with optimistic locking or just simple increment.
 
         const [itemResult] = await pool.execute(
-            `INSERT INTO quotation_items (customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, code) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
-            [customer_name, customer_id || null, estimation_name || '', job_description, mainType, mainQuantity, grandTotal, code]
+            `INSERT INTO quotation_items (customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, code, markup_percent) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+            [customer_name, customer_id || null, estimation_name || '', job_description, mainType, mainQuantity, grandTotal, code, parseFloat(markup_percent) || 0]
         );
 
         // Increment Sequence
@@ -91,15 +110,16 @@ export async function POST(req) {
 
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
-            quotation_item_id, component_name, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-            impression_cost_unit, wastage_percent, ups, sides, colors,
+            quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
+            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
             printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
             final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-            paper_id, paper_name
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     itemId,
                     meta.name || 'Main',
+                    meta.type || 'offset',
                     params.machineId || null,
                     params.pages || 1,
                     params.paperCostPerSheet || 0,
@@ -108,7 +128,12 @@ export async function POST(req) {
                     params.wastagePercent || 0,
                     params.ups || 1,
                     params.sides || 1,
-                    params.colors || 4,
+                    params.size || null,
+                    (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
+                    parseInt(params.colorsFront) ?? null,
+                    parseInt(params.colorsBack) ?? null,
+                    params.customImpressions || null,
+                    params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
                     calc.printedSheets || 0,
                     calc.fullSheetsUsed || 0,
                     calc.wastageSheets || 0,
@@ -119,7 +144,18 @@ export async function POST(req) {
                     costs.printing || 0,
                     costs.finishing || 0,
                     params.paperId || null,
-                    params.paperName || null
+                    params.paperName || null,
+                    params.paperWidthCm || null,
+                    params.paperHeightCm || null,
+                    params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
+                    params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
+                    params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
+                    params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
+                    params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
+                    params.digitalPricePerSqCm || null,
+                    params.colorQuality || null,
+                    params.isBB ? 1 : 0,
+                    params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
                 ]
             );
             const detailId = detailResult.insertId;
@@ -130,8 +166,8 @@ export async function POST(req) {
                 for (const fItem of finishings) {
                     await pool.execute(
                         `INSERT INTO quotation_item_finishings 
-                        (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             itemId,
                             detailId,
@@ -143,10 +179,36 @@ export async function POST(req) {
                             fItem.is_machine ? 1 : 0,
                             fItem.time_per_unit || 0,
                             fItem.total_time || 0,
-                            fItem.cost_unit || 'Unit'
+                            fItem.cost_unit || 'Unit',
+                            fItem.forms != null ? parseInt(fItem.forms) : null
                         ]
                     );
                 }
+            }
+        }
+
+        // 5. Insert Global Finishings
+        if (processedGlobalFinishings.length > 0) {
+            for (const fItem of processedGlobalFinishings) {
+                await pool.execute(
+                    `INSERT INTO quotation_item_finishings 
+                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        itemId,
+                        null, // Detail ID is NULL for global
+                        fItem.name,
+                        fItem.quantity,
+                        fItem.unit_cost,
+                        fItem.total_cost,
+                        fItem.machine_id || null,
+                        fItem.is_machine ? 1 : 0,
+                        fItem.time_per_unit || 0,
+                        fItem.total_time || 0,
+                        fItem.cost_unit || 'Unit',
+                        fItem.forms != null ? parseInt(fItem.forms) : null
+                    ]
+                );
             }
         }
 
