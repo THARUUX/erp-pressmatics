@@ -26,8 +26,8 @@ function StatPill({ label, value, accent }) {
             background: G.glass, backdropFilter: 'blur(16px)',
             border: `1px solid ${G.border}`, borderRadius: 14,
         }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: accent || G.text, letterSpacing: '-1px' }}>{value}</span>
-            <span style={{ fontSize: 10, color: G.subtle, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>{label}</span>
+            <span style={{ fontSize: 22, fontWeight: 600, fontFamily: 'monospace', color: accent || G.text, letterSpacing: '-1px' }}>{value}</span>
+            <span style={{ fontSize: 10, color: G.subtle, fontWeight: 400, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>{label}</span>
         </div>
     );
 }
@@ -137,7 +137,7 @@ export default function JobPlanningPage() {
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '9px 20px', borderRadius: 9, cursor: 'pointer',
                             border: 'none', fontFamily: 'Inter, sans-serif',
-                            fontWeight: tab === key ? 700 : 500,
+                            fontWeight: tab === key ? 500 : 300,
                             fontSize: 13, letterSpacing: 0.2,
                             color: tab === key ? G.text : G.subtle,
                             background: tab === key ? 'rgba(255,255,255,0.09)' : 'transparent',

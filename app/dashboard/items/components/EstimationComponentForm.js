@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { FiTrash2, FiCopy } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { RiPrinterFill, RiSideBarLine, RiLayoutGridLine, RiPagesLine, RiSpeedUpLine } from 'react-icons/ri'; // Feel free to map your preferred icon library
+
 
 function getCutSheetDimensions(W, H, factor) {
     const f = parseFloat(factor) || 1.0;
@@ -206,7 +208,7 @@ export default function EstimationComponentForm({
                     {type === 'offset' && data.name !== "Finishing" && (
                         <>
                         <div className="grid md:grid-cols-3 gap-4 mb-6">
-                            <div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">Machine</label>
                                 <select
                                     name="machineId"
@@ -236,7 +238,7 @@ export default function EstimationComponentForm({
                                     ))}
                                 </select>
                             </div>
-                            <div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">Sides</label>
                                 <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
                                     <option value="1">One Side</option>
@@ -255,11 +257,24 @@ export default function EstimationComponentForm({
                                     <option value="Custom">Custom</option>
                                 </select>
                             </div>
-                            <div className={parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages</label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                            <div><label className="block text-sm text-gray-400 mb-1">Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                            <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}>
+                                <label className="block text-sm text-gray-400 mb-1">
+                                    Pages 
+                                    <span className={(data.name.includes('Cover') || data.name.includes('Inner')) ? 'text-xs text-red-600' : 'hidden'} >
+                                        {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
+                                    </span>
+                                </label>
+                                <Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
+                            </div>
                             <div>
                                 <label className="block text-sm text-gray-400 mb-1">
-                                    Cut Sheets / Full Sheet
+                                    Ups
+                                </label>
+                                <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
+                            </div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
+                                <label className="block text-sm text-gray-400 mb-1">
+                                    Press Ups
                                     {params.customSheetFactor && (
                                         <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
                                     )}
@@ -267,7 +282,7 @@ export default function EstimationComponentForm({
                                 <Input
                                     type="number"
                                     name="customSheetFactor"
-                                    value={params.customSheetFactor || ''}
+                                    value={data.name.includes("Cover") || data.name.includes("Inner") ? params.customSheetFactor : '1'}
                                     onChange={handleChange}
                                     className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
                                     placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
@@ -275,11 +290,11 @@ export default function EstimationComponentForm({
                                     step="1"
                                 />
                             </div>
-                            <div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
                                 <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
                             </div>
-                            <div className={parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none'}>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'} >
                                 <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
                                 <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
                             </div>
@@ -295,7 +310,7 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
                                 />
                             </div>
-                            <div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">Impressions</label>
                                 <Input
                                     type="number"
@@ -306,6 +321,21 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
                                 />
                             </div>
+                            {data.name?.includes('Inner') && (
+                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
+                                    <div className="flex justify-between items-center w-full">
+                                        <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
+                                        </p>
+                                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                            <RiPagesLine className="text-lg" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* B&B toggle — only for Inner components */}
@@ -529,16 +559,66 @@ export default function EstimationComponentForm({
                                         )}
                                     </div>
                                 </div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Paper Cost/Sheet</label><Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Plate Cost/Unit</label><Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Impression Cost</label><Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Paper Width (cm)</label><Input type="number" name="paperWidthCm" value={params.paperWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Paper Height (cm)</label><Input type="number" name="paperHeightCm" value={params.paperHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Cut Sheet Width (cm)</label><Input type="number" name="cutWidthCm" value={params.cutWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Cut Sheet Height (cm)</label><Input type="number" name="cutHeightCm" value={params.cutHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Finished Comp Width (cm)</label><Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Finished Comp Height (cm)</label><Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Bleed (mm)</label><Input type="number" name="bleedMm" value={params.bleedMm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Paper Cost/Sheet
+                                    </label>
+                                    <Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Plate Cost/Unit
+                                    </label>
+                                    <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Impression Cost
+                                    </label>
+                                    <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Paper Width (cm)
+                                    </label>
+                                    <Input type="number" name="paperWidthCm" value={params.paperWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Paper Height (cm)
+                                    </label>
+                                    <Input type="number" name="paperHeightCm" value={params.paperHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Cut Sheet Width (cm)
+                                    </label>
+                                    <Input type="number" name="cutWidthCm" value={params.cutWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Cut Sheet Height (cm)
+                                    </label>
+                                    <Input type="number" name="cutHeightCm" value={params.cutHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Finished Comp Width (cm)
+                                    </label>
+                                    <Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Finished Comp Height (cm)
+                                    </label>
+                                    <Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">
+                                        Bleed (mm)
+                                    </label>
+                                    <Input type="number" name="bleedMm" value={params.bleedMm || ''} onChange={handleChange} className="bg-secondary border-white/10" 
+                                /></div>
                             </div>
                         </>
                     )}
@@ -628,24 +708,24 @@ export default function EstimationComponentForm({
                                         <div className="flex justify-between text-gray-300">
                                             <span>Impressions:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.printedSheets}
+                                                {calculationResult.printedSheets.toLocaleString()}
                                                 {calculationResult.customImpressions && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount}</span></div>
-                                        <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toFixed(0)}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount.toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toLocaleString()}</span></div>
                                         <div className="flex justify-between text-gray-300">
                                             <span>Wastage Sheets:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.wastageSheets}
+                                                {calculationResult.wastageSheets.toLocaleString()}
                                                 {calculationResult.customWastageSheets != null && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{calculationResult.totalSheetsRequired}</span></div>
+                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{calculationResult.totalSheetsRequired.toLocaleString()}</span></div>
                                     </div>
 
                                     <div className="space-y-2 pt-2">

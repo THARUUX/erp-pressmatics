@@ -45,19 +45,19 @@ export default function NewQuotationPage() {
                  pages: 1,
                  ups: 1,
                  sides: 1,
-                 colorsFront: 4,
+                 colorsFront: 1,
                  colorsBack: 0,
                  paperCostPerSheet: 0,
                  plateCostPerUnit: 0,
                  impressionCostPerUnit: 0,
-                 wastagePercent: 5,
+                 wastagePercent: 0,
                  digitalImpressionCost: 0,
                  paperId: null,
                  paperName: '',
                  paperWidthCm: '',
                  paperHeightCm: '',
-                 compWidthCm: 21.0,
-                 compHeightCm: 29.7,
+                 compWidthCm: 59.4,
+                 compHeightCm: 84.1,
                  cutWidthCm: '',
                  cutHeightCm: '',
                  bleedMm: 0,
@@ -125,17 +125,6 @@ export default function NewQuotationPage() {
             setAvailableFinishings(safeFinishings);
             setPapers(safePapers);
             setCustomers(safeCustomers);
-
-            // Set default machine for first component
-            const firstOffset = safeMachines.find(m => m.type === 'offset');
-            if (firstOffset) {
-                setComponents(prev => {
-                    const newComps = [...prev];
-                    newComps[0].params.machineId = firstOffset.id;
-                    newComps[0].params.plateCostPerUnit = firstOffset.plate_cost;
-                    return newComps;
-                });
-            }
         }).catch(err => console.error("Failed to load data", err));
     }, []);
 
@@ -167,23 +156,23 @@ export default function NewQuotationPage() {
                 type: 'offset',
                 quantity: quantity,
                 params: {
-                    machineId: machines.find(m => m.type === 'offset')?.id || '',
+                    machineId: '',
                     pages: 1,
                     ups: 1,
                     sides: 1,
-                    colorsFront: 4,
+                    colorsFront: 1,
                     colorsBack: 0,
                     paperCostPerSheet: 0,
-                    plateCostPerUnit: machines.find(m => m.type === 'offset')?.plate_cost || 0,
+                    plateCostPerUnit: 0,
                     impressionCostPerUnit: 0,
-                    wastagePercent: 5,
+                    wastagePercent: 0,
                     digitalImpressionCost: 0,
                     paperId: null,
                     paperName: '',
                     paperWidthCm: '',
                     paperHeightCm: '',
-                    compWidthCm: 21.0,
-                    compHeightCm: 29.7,
+                    compWidthCm: 59.4,
+                    compHeightCm: 84.1,
                     cutWidthCm: '',
                     cutHeightCm: '',
                     bleedMm: 0,
@@ -282,21 +271,37 @@ export default function NewQuotationPage() {
         });
     };
 
+    // Zero out printing-specific costs for non-Cover/non-Inner components
+    const normalizeComponent = (c) => {
+        const isCoverOrInner = (c.name || '').includes('Cover') || (c.name || '').includes('Inner');
+        if (isCoverOrInner) return c;
+        return {
+            ...c,
+            params: {
+                ...c.params,
+                machineId: '',
+                plateCostPerUnit: 0,
+                impressionCostPerUnit: 0,
+            }
+        };
+    };
+
     const handleCalculate = async () => {
         setCalculating(true);
         try {
             const payloadComponents = components.map(c => {
-                const selectedMachine = machines.find(m => m.id == c.params.machineId);
-                const selectedPaper = papers.find(m => m.id == c.params.paperId);
+                const norm = normalizeComponent(c);
+                const selectedMachine = machines.find(m => m.id == norm.params.machineId);
+                const selectedPaper = papers.find(m => m.id == norm.params.paperId);
                 return {
-                    ...c,
+                    ...norm,
                     params: {
-                        ...c.params,
+                        ...norm.params,
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
-                        impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit,
-                        pages: c.name === 'Cover' ? c.params.sides : c.params.pages,
+                        impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
+                        pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
                         paperWidthCm: selectedPaper ? selectedPaper.width : 0,
                         paperHeightCm: selectedPaper ? selectedPaper.height : 0
                     }
@@ -339,15 +344,16 @@ export default function NewQuotationPage() {
         setLoading(true);
         try {
             const payloadComponents = components.map(c => {
-                const selectedMachine = machines.find(m => m.id == c.params.machineId);
+                const norm = normalizeComponent(c);
+                const selectedMachine = machines.find(m => m.id == norm.params.machineId);
                 return {
-                    ...c,
+                    ...norm,
                     params: {
-                        ...c.params,
+                        ...norm.params,
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
-                        impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit
+                        impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit
                     }
                 };
             });

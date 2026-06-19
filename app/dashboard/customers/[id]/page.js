@@ -15,7 +15,7 @@ export default function EditCustomerPage({ params }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
-        name: '', email: '', phone: '', address: ''
+        name: '', email: '', phone: '', address: '', is_vat: false, vat_number: ''
     });
 
     useEffect(() => {
@@ -32,7 +32,8 @@ export default function EditCustomerPage({ params }) {
     }, [id, router]);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        setFormData({ ...formData, [e.target.name]: val });
     };
 
     const handleSubmit = async () => {
@@ -87,6 +88,21 @@ export default function EditCustomerPage({ params }) {
                         onChange={handleChange}
                         className="w-full bg-secondary border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-white/30 transition-colors h-24"
                     />
+                </div>
+
+                {/* VAT Section */}
+                <div className="border border-white/10 rounded-lg p-4 space-y-3 bg-white/[0.02]">
+                    <div className="flex items-center gap-3">
+                        <input type="checkbox" id="is_vat" name="is_vat" checked={!!(formData.is_vat)} onChange={handleChange}
+                            className="w-4 h-4 rounded border-white/20 bg-black/20 focus:ring-blue-500 cursor-pointer"/>
+                        <label htmlFor="is_vat" className="text-sm text-gray-300 cursor-pointer font-medium">VAT Registered Customer</label>
+                    </div>
+                    {formData.is_vat && (
+                        <div>
+                            <label className="block text-sm text-gray-400 mb-1">VAT Registration Number</label>
+                            <Input name="vat_number" value={formData.vat_number || ''} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. VAT123456789" />
+                        </div>
+                    )}
                 </div>
 
                 <div className="pt-4">

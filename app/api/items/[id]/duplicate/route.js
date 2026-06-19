@@ -74,8 +74,8 @@ export async function POST(req, { params }) {
                     impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
                     printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
                     final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-                    paper_id, paper_name, type, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    paper_id, paper_name, type, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,  
                 [
                     newItemId,
                     detail.component_name,
@@ -113,7 +113,9 @@ export async function POST(req, { params }) {
                     detail.cut_height_cm,
                     detail.bleed_mm,
                     detail.digital_price_per_sq_cm,
-                    detail.color_quality
+                    detail.color_quality,
+                    detail.is_bb ?? 0,
+                    detail.custom_sheet_factor ?? null
                 ]
             );
             const newDetailId = detailResult.insertId;

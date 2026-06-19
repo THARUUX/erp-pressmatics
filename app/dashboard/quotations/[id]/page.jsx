@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { FiPrinter, FiArrowLeft } from 'react-icons/fi';
+import { FiPrinter, FiArrowLeft, FiDollarSign } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { useSettings } from '@/components/SettingsContext';
@@ -50,7 +50,7 @@ export default function QuotationViewPage({ params }) {
     const showSummary = quote.show_grand_total !== 0 && quote.show_grand_total !== false && quote.show_grand_total !== 'false';
 
     return (
-        <div className="min-h-screen font-sans bg-transparent text-white p-8 print:bg-white print:text-black print:p-0">
+        <div className="min-h-screen bg-transparent text-white p-8 print:bg-white print:text-black print:p-0">
             {/* No Print Header */}
             <div className="flex justify-between items-center mb-8 print:hidden">
                 <Link href="/dashboard/quotations">
@@ -64,6 +64,17 @@ export default function QuotationViewPage({ params }) {
                             Edit Quote
                         </Button>
                     </Link>
+                    {!quote.has_invoice ? (
+                        <Link href={`/dashboard/invoices/new?quotation_id=${id}&customer_name=${encodeURIComponent(quote.customer_name || '')}&customer_id=${quote.customer_id || ''}&amount=${quote.total_amount || 0}&description=${encodeURIComponent(quote.first_item_name || quote.job_description || '')}`}>
+                            <Button className="bg-emerald-600 text-white hover:bg-emerald-500">
+                                <FiDollarSign className="mr-2" /> Create Invoice
+                            </Button>
+                        </Link>
+                    ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                            <FiDollarSign className="w-3.5 h-3.5" /> Invoice Created
+                        </span>
+                    )}
                     <Button onClick={() => window.print()} className="bg-white text-black hover:bg-gray-200">
                         <FiPrinter className="mr-2" /> Print Quote
                     </Button>
@@ -71,7 +82,8 @@ export default function QuotationViewPage({ params }) {
             </div>
 
             {/* Printable Area - A4 Size constrained if needed, or fluid */}
-            <div className="max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8">
+            <div className="max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8"
+                style={{ fontFamily: "'Google Sans', 'Product Sans', Roboto, 'Helvetica Neue', Arial, sans-serif" }}>
 
                 {/* Header */}
                 <div className="flex justify-between items-start mb-12">
@@ -100,9 +112,39 @@ export default function QuotationViewPage({ params }) {
                 {/* Bill To */}
                 <div className="mb-12">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 border-b border-gray-100 pb-1 w-32">Bill To</h3>
-                    <p className="text-xl font-bold text-gray-900">{quote.customer_name}</p>
-                    {/* Customer Code if available */}
-                    {quote.customer_code && <p className="text-sm text-gray-500 font-mono mt-1">{quote.customer_code}</p>}
+
+                    <div className="flex justify-between items-start">
+                        {/* Left: Name + Address */}
+                        <div>
+                            <p className="text-xl font-bold text-gray-900">{quote.customer_name}</p>
+                            
+                            {quote.customer_address && (
+                                <p className="text-sm text-gray-400 mt-0 max-w-xs whitespace-pre-wrap leading-relaxed">
+                                    {quote.customer_address}
+                                </p>
+                            )}
+                            {(quote.customer_phone || quote.customer_email) && (
+                                <div className="flex text-sm text-gray-400 gap-2">
+                                    {quote.customer_phone && (
+                                        <p className="flex items-center justify-end gap-1.5">
+                                            {/* <span className="text-gray-400">☎</span> */}
+                                            {quote.customer_phone}
+                                        </p>
+                                    )}
+                                    <span className="text-gray-400">|</span>
+                                    {quote.customer_email && (
+                                        <p className="flex items-center justify-end gap-1.5">
+                                            {/* <span className="text-gray-400">✉</span> */}
+                                            {quote.customer_email}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right: Contact details */}
+                        
+                    </div>
                 </div>
 
                 {/* Items Table */}

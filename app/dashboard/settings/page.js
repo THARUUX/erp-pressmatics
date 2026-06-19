@@ -25,6 +25,8 @@ export default function SettingsPage() {
     const [companySignature, setCompanySignature] = useState(settings.company_signature || '');
     const [defaultTerms, setDefaultTerms] = useState(settings.default_terms || '');
     const [showGrandTotal, setShowGrandTotal] = useState(settings.show_grand_total === 'false' ? false : true);
+    const [companyVatReg, setCompanyVatReg] = useState(settings.company_vat_reg || '');
+    const [defaultInvoiceNotes, setDefaultInvoiceNotes] = useState(settings.default_invoice_notes || '');
 
     const [saving, setSaving] = useState(false);
 
@@ -47,6 +49,8 @@ export default function SettingsPage() {
         setCompanySignature(settings.company_signature || '');
         setDefaultTerms(settings.default_terms || '');
         setShowGrandTotal(settings.show_grand_total === 'false' ? false : true);
+        setCompanyVatReg(settings.company_vat_reg || '');
+        setDefaultInvoiceNotes(settings.default_invoice_notes || '');
     }, [settings]);
 
     const handleSave = async () => {
@@ -67,7 +71,9 @@ export default function SettingsPage() {
             ['company_logo', companyLogo],
             ['company_signature', companySignature],
             ['default_terms', defaultTerms],
-            ['show_grand_total', showGrandTotal ? 'true' : 'false']
+            ['show_grand_total', showGrandTotal ? 'true' : 'false'],
+            ['company_vat_reg', companyVatReg],
+            ['default_invoice_notes', defaultInvoiceNotes],
         ];
 
         let success = true;
@@ -270,12 +276,34 @@ export default function SettingsPage() {
 
                     <div className="bg-black/40 p-6 rounded-xl border border-white/10 space-y-4">
                         <h2 className="text-xl font-bold border-b border-white/10 pb-4">Document Defaults</h2>
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-gray-400 text-sm mb-1">Company VAT Reg. No.</label>
+                                <input
+                                    type="text"
+                                    value={companyVatReg}
+                                    onChange={(e) => setCompanyVatReg(e.target.value)}
+                                    className="bg-black/20 border border-white/10 rounded-lg p-2 text-sm w-full"
+                                    placeholder="e.g. VAT123456789"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Shown on invoices when customer is VAT registered.</p>
+                            </div>
+                        </div>
                         <div>
-                            <label className="block text-gray-400 text-sm mb-1">Default Terms & Conditions</label>
+                            <label className="block text-gray-400 text-sm mb-1">Default Quotation Terms &amp; Conditions</label>
                             <textarea
                                 value={defaultTerms}
                                 onChange={(e) => setDefaultTerms(e.target.value)}
-                                className="bg-black/20 border border-white/10 rounded-lg p-2 text-sm w-full h-32 font-mono"
+                                className="bg-black/20 border border-white/10 rounded-lg p-2 text-sm w-full h-28 font-mono"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-400 text-sm mb-1">Default Invoice Notes / Terms</label>
+                            <textarea
+                                value={defaultInvoiceNotes}
+                                onChange={(e) => setDefaultInvoiceNotes(e.target.value)}
+                                className="bg-black/20 border border-white/10 rounded-lg p-2 text-sm w-full h-28 font-mono"
+                                placeholder="e.g. Payment due within 30 days of invoice date."
                             />
                         </div>
                         <div className="flex items-center gap-2">

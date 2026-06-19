@@ -172,7 +172,7 @@ export default function EditQuotationPage({ params }) {
             } catch (error) {
                 console.error(error);
                 alert("Failed to load");
-                router.push('/dashboard/items');
+                router.push('/dashboard/estimations');
             }
         };
         loadData();
@@ -279,22 +279,38 @@ export default function EditQuotationPage({ params }) {
         });
     };
 
+    // Zero out printing-specific costs for non-Cover/non-Inner components
+    const normalizeComponent = (c) => {
+        const isCoverOrInner = (c.name || '').includes('Cover') || (c.name || '').includes('Inner');
+        if (isCoverOrInner) return c;
+        return {
+            ...c,
+            params: {
+                ...c.params,
+                machineId: '',
+                plateCostPerUnit: 0,
+                impressionCostPerUnit: 0,
+            }
+        };
+    };
+
     const handleCalculate = async () => {
         setCalculating(true);
         try {
             const payloadComponents = components.map(c => {
-                const selectedMachine = machines.find(m => m.id == c.params.machineId);
-                const selectedPaper = papers.find(m => m.id == c.params.paperId);
-                console.log(c);
+                const norm = normalizeComponent(c);
+                const selectedMachine = machines.find(m => m.id == norm.params.machineId);
+                const selectedPaper = papers.find(m => m.id == norm.params.paperId);
+                console.log(norm);
                 return {
-                    ...c,
+                    ...norm,
                     params: {
-                        ...c.params,
+                        ...norm.params,
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
-                        impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit,
-                        pages: c.name === 'Cover' ? c.params.sides : c.params.pages,
+                        impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
+                        pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
                         paperWidthCm: selectedPaper ? selectedPaper.width : 0,
                         paperHeightCm: selectedPaper ? selectedPaper.height : 0,
                     }
@@ -332,16 +348,17 @@ export default function EditQuotationPage({ params }) {
         setSaving(true);
         try {
             const payloadComponents = components.map(c => {
-                const selectedMachine = machines.find(m => m.id == c.params.machineId);
+                const norm = normalizeComponent(c);
+                const selectedMachine = machines.find(m => m.id == norm.params.machineId);
                 return {
-                    ...c,
+                    ...norm,
                     params: {
-                        ...c.params,
+                        ...norm.params,
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
-                        impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit,
-                        pages: c.name === 'Cover' ? c.params.sides : c.params.pages
+                        impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
+                        pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages
                     }
                 };
             });
@@ -362,7 +379,7 @@ export default function EditQuotationPage({ params }) {
             });
 
             if (res.ok) {
-                router.push('/dashboard/items');
+                router.push('/dashboard/estimations');
             } else {
                 alert("Update Failed");
             }
@@ -380,7 +397,7 @@ export default function EditQuotationPage({ params }) {
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
-                    <Link href="/dashboard/items">
+                    <Link href="/dashboard/estimations">
                         <Button className="bg-transparent border border-white/10 hover:bg-white/10 p-2"><FiArrowLeft /></Button>
                     </Link>
                     <div>

@@ -12,8 +12,19 @@ export async function GET(req) {
         const [countResult] = await pool.execute('SELECT COUNT(*) as total FROM quotations');
         const total = countResult[0].total;
 
-        // Fetch paginated data
-        const [rows] = await pool.execute(`SELECT * FROM quotations ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`);
+        const [rows] = await pool.execute(`
+            SELECT q.*,
+                EXISTS(SELECT 1 FROM invoices WHERE quotation_id = q.id) AS has_invoice,
+                (SELECT qi.estimation_name
+                 FROM quotation_items qi
+                 JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                 WHERE qli.quotation_id = q.id
+                 ORDER BY qli.display_order ASC
+                 LIMIT 1) AS first_item_name
+            FROM quotations q
+            ORDER BY q.created_at DESC
+            LIMIT ${limit} OFFSET ${offset}
+        `);
 
         return NextResponse.json({
             data: rows,

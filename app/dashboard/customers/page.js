@@ -82,10 +82,10 @@ export default function CustomersPage() {
                     <tbody className="divide-y divide-white/5">
                         {loading ? (
                             <tr><td colSpan="4" className="p-8 text-center text-gray-500">Loading...</td></tr>
-                        ) : customers.length === 0 ? (
+                        ) : customers?.length === 0 ? (
                             <tr><td colSpan="4" className="p-8 text-center text-gray-500">No customers found.</td></tr>
                         ) : (
-                            customers.map(c => (
+                            customers?.map(c => (
                                 <tr key={c.id} className="hover:bg-white/5 transition-colors">
                                     <td className="p-4 text-gray-500 font-mono text-xs">{c.code || `#${c.id}`}</td>
                                     <td className="p-4 font-medium">{c.name}</td>

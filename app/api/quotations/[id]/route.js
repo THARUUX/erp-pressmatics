@@ -5,8 +5,24 @@ export async function GET(req, { params }) {
     try {
         const { id } = await params;
 
-        // Fetch Header
-        const [quotes] = await pool.execute('SELECT * FROM quotations WHERE id = ?', [id]);
+        // Fetch Header — JOIN customers to get full contact details
+        const [quotes] = await pool.execute(`
+            SELECT q.*,
+                c.email   AS customer_email,
+                c.phone   AS customer_phone,
+                c.address AS customer_address,
+                c.code    AS customer_code,
+                EXISTS(SELECT 1 FROM invoices WHERE quotation_id = q.id) AS has_invoice,
+                (SELECT qi.estimation_name
+                 FROM quotation_items qi
+                 JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                 WHERE qli.quotation_id = q.id
+                 ORDER BY qli.display_order ASC
+                 LIMIT 1) AS first_item_name
+            FROM quotations q
+            LEFT JOIN customers c ON q.customer_id = c.id
+            WHERE q.id = ?
+        `, [id]);
         if (quotes.length === 0) {
             return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
         }

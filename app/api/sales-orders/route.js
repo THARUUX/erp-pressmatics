@@ -100,10 +100,32 @@ export async function POST(req) {
             [String(seq + 1), String(seq + 1)]
         );
 
-        // Update Quotation Status
-        await pool.execute("UPDATE quotations SET status = 'converted' WHERE id = ?", [q.id]);
+        // ── STOCK DEDUCTION ──────────────────────────────────────────────────
+        // Fetch all quotation_item_details for items linked to this quotation.
+        // For each detail that has a paper_id, deduct full_sheets_used from papers.stock_quantity.
+        const [details] = await pool.execute(`
+            SELECT qid.paper_id, SUM(qid.full_sheets_used) AS sheets_needed
+            FROM quotation_item_details qid
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            WHERE qli.quotation_id = ?
+              AND qid.paper_id IS NOT NULL
+              AND qid.full_sheets_used > 0
+            GROUP BY qid.paper_id
+        `, [quotation_id]); 
 
-        return NextResponse.json({ success: true, salesOrderId: soId });
+        const stockDeductions = [];
+        for (const row of details) {
+            const sheetsToDeduct = Math.ceil(parseFloat(row.sheets_needed));
+            await pool.execute(`
+                UPDATE papers
+                SET stock_quantity = GREATEST(0, stock_quantity - ?)
+                WHERE id = ?
+            `, [sheetsToDeduct, row.paper_id]);
+            stockDeductions.push({ paper_id: row.paper_id, sheets_deducted: sheetsToDeduct });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions });
 
     } catch (error) {
         console.error("Create Sales Order Error:", error);

@@ -201,78 +201,83 @@ export default function EstimationComponentForm({
                 </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                        
-                {/* 1. Print Sides */}
-                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
-                    <div className="flex justify-between items-center w-full">
-                        <span className="text-xs font-medium text-gray-400 tracking-wide">Output Type</span>
-                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                            <RiSideBarLine className="text-lg" />
+
+                {(data.name.includes('Inner') || data.name.includes('Cover')) && (
+                    <>
+                        {/* 1. Print Sides */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Output Type</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiSideBarLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {data.sidesVal === 2 ? 'Double-Sided (2/2)' : 'Single-Sided (1/0)'}
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span> {data.sidesVal} {data.sidesVal === 1 ? 'Surface' : 'Surfaces'}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
-                            {data.sidesVal === 2 ? 'Double-Sided (2/2)' : 'Single-Sided (1/0)'}
-                        </h4>
-                        <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span> {data.sidesVal} {data.sidesVal === 1 ? 'Surface' : 'Surfaces'}
-                        </p>
-                    </div>
-                </div>
-    
-                {/* 2. Ups (Imposition) */}
-                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
-                    <div className="flex justify-between items-center w-full">
-                        <span className="text-xs font-medium text-gray-400 tracking-wide">Imposition Arrangement</span>
-                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                            <RiLayoutGridLine className="text-lg" />
+            
+                        {/* 2. Ups (Imposition) */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Imposition Arrangement</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiLayoutGridLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {params.ups || 1}-Up 
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Layout
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
-                            {params.ups || 1}-Up 
-                        </h4>
-                        <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Layout
-                        </p>
-                    </div>
-                </div>
-    
-                {/* 3. Pages */}
-                {/* <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
-                    <div className="flex justify-between items-center w-full">
-                        <span className="text-xs font-medium text-gray-400 tracking-wide">Document Volume</span>
-                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                            <RiPagesLine className="text-lg" />
+            
+                        {/* 3. Pages */}
+                        {/* <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Document Volume</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiPagesLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {(data.pagesVal || 0).toLocaleString()} Pages
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Content Base
+                                </p>
+                            </div>
+                        </div> */}
+            
+                        {/* 4. Impression Rate */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Unit Pricing</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiSpeedUpLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {parseFloat(params.impressionCostPerUnit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {currency}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
-                            {(data.pagesVal || 0).toLocaleString()} Pages
-                        </h4>
-                        <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Content Base
-                        </p>
-                    </div>
-                </div> */}
-    
-                {/* 4. Impression Rate */}
-                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
-                    <div className="flex justify-between items-center w-full">
-                        <span className="text-xs font-medium text-gray-400 tracking-wide">Unit Pricing</span>
-                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                            <RiSpeedUpLine className="text-lg" />
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
-                            {parseFloat(params.impressionCostPerUnit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
-                        </h4>
-                        <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {currency}
-                        </p>
-                    </div>
-                </div>
+                    </>
+                )}
+
     
             </div>
 
@@ -331,11 +336,11 @@ export default function EstimationComponentForm({
                                     <option value="Custom">Custom</option>
                                 </select>
                             </div>
-                            <div className={parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages</label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                            <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages <span className={(data.name.includes('Cover') || data.name.includes('Inner')) ? 'text-xs text-red-600' : 'hidden'} >{params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}</span></label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                             <div><label className="block text-sm text-gray-400 mb-1">Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                            <div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">
-                                    Cut Sheets / Full Sheet
+                                    Press Ups
                                     {params.customSheetFactor && (
                                         <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
                                     )}
@@ -343,7 +348,7 @@ export default function EstimationComponentForm({
                                 <Input
                                     type="number"
                                     name="customSheetFactor"
-                                    value={params.customSheetFactor || ''}
+                                    value={params.customSheetFactor || '1'}
                                     onChange={handleChange}
                                     className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
                                     placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
@@ -382,6 +387,21 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
                                 />
                             </div>
+                            {data.name?.includes('Inner') && (
+                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
+                                    <div className="flex justify-between items-center w-full">
+                                        <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
+                                        </p>
+                                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                            <RiPagesLine className="text-lg" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* B&B toggle — only for Inner components */}
@@ -704,24 +724,24 @@ export default function EstimationComponentForm({
                                         <div className="flex justify-between text-gray-300">
                                             <span>Impressions:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.printedSheets}
+                                                {calculationResult.printedSheets.toLocaleString()}
                                                 {calculationResult.customImpressions && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount.toLocaleString()}</span></div>
                                         <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toFixed(0)}</span></div>
                                         <div className="flex justify-between text-gray-300">
                                             <span>Wastage Sheets:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.wastageSheets}
+                                                {calculationResult.wastageSheets.toLocaleString()}
                                                 {calculationResult.customWastageSheets != null && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{calculationResult.totalSheetsRequired}</span></div>
+                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{calculationResult.totalSheetsRequired.toLocaleString()}</span></div>
                                     </div>
 
                                     <div className="space-y-2 pt-2">

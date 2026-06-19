@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar, FiBookOpen } from 'react-icons/fi';
+import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign } from 'react-icons/fi';
 import Link from 'next/link';
 
 export default function DashboardLayout({ children }) {
@@ -18,6 +18,7 @@ export default function DashboardLayout({ children }) {
         { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true },
         { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations' },
         { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders' },
+        { icon: FiDollarSign, label: 'Invoices', href: '/dashboard/invoices' },
         { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning' },
         { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations' },
         { icon: FiBox, label: 'Inventory Items', href: '/dashboard/inventory' }, // Be careful with sub-routes overlapping

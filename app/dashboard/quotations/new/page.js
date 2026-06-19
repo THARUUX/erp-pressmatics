@@ -50,7 +50,7 @@ export default function NewQuotationContainerPage() {
         // For now, let's request a high limit to get most items, or we should implement scrolling/pagination in the UI.
         // Let's just default to what the API gives, but maybe boost limit if possible.
         // API defaults to 20. That's small.
-        url += '&limit=100';
+        url += (cId ? '&' : '?') + 'limit=100';
 
         fetch(url)
             .then(res => res.json())
@@ -214,7 +214,7 @@ export default function NewQuotationContainerPage() {
                                             </div>
                                         </div>
                                         <div className="font-mono">
-                                            {currency}{parseFloat(item.total_amount).toFixed(2)}
+                                            {currency}{parseFloat(item.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </div>
                                     </div>
                                 );
@@ -233,14 +233,14 @@ export default function NewQuotationContainerPage() {
                                 .map((item, idx) => (
                                     <div key={item.id} className="flex justify-between text-sm text-gray-300">
                                         <span>{idx + 1}. {item.job_description}</span>
-                                        <span>${parseFloat(item.total_amount).toFixed(2)}</span>
+                                        <span>${parseFloat(item.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 ))
                             }
                         </div>
                         <div className="border-t border-white/20 pt-4 flex justify-between text-xl font-bold text-white">
                             <span>Total</span>
-                            <span>{currency}{currentTotal.toFixed(2)}</span>
+                            <span>{currency}{currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     </div>
                 </div>

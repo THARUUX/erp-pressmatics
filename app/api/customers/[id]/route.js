@@ -16,11 +16,11 @@ export async function PUT(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { name, email, phone, address } = body;
+        const { name, email, phone, address, is_vat, vat_number } = body;
 
         await pool.execute(
-            'UPDATE customers SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?',
-            [name, email || null, phone || null, address || null, id]
+            'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, is_vat = ?, vat_number = ? WHERE id = ?',
+            [name, email || null, phone || null, address || null, is_vat ? 1 : 0, vat_number || null, id]
         );
 
         return NextResponse.json({ success: true });

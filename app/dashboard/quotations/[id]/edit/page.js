@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiCopy, FiTrash2, FiSave, FiRefreshCw, FiShoppingCart } from 'react-icons/fi';
+import { FiArrowLeft, FiCopy, FiTrash2, FiSave, FiRefreshCw, FiShoppingCart, FiDollarSign } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
 
@@ -182,6 +182,19 @@ export default function EditQuotationPage({ params }) {
                         >
                             <FiShoppingCart className="mr-2" /> Convert to SO
                         </Button>
+                    )}
+                    {quote.status !== 'draft' && (
+                        !quote.has_invoice ? (
+                            <Link href={`/dashboard/invoices/new?quotation_id=${id}&customer_name=${encodeURIComponent(quote.customer_name || '')}&customer_id=${quote.customer_id || ''}&amount=${quote.total_amount || 0}&description=${encodeURIComponent(quote.first_item_name || quote.job_description || '')}`}>
+                                <Button className="bg-green-600 hover:bg-emerald-500 text-white">
+                                    <FiDollarSign className="mr-2" /> Create Invoice
+                                </Button>
+                            </Link>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                <FiDollarSign className="w-3.5 h-3.5" /> Invoice Created
+                            </span>
+                        )
                     )}
                     <Button onClick={() => router.push(`/dashboard/quotations/${id}`)} className="bg-white/90 hover:bg-white/70">
                         View / Print

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSettings } from '@/components/SettingsContext';
-import { FiPlus, FiFileText, FiClock, FiSearch, FiPrinter, FiTrash2, FiEdit2, FiCopy, FiShoppingCart } from 'react-icons/fi';
+import { FiPlus, FiFileText, FiClock, FiSearch, FiPrinter, FiTrash2, FiEdit2, FiCopy, FiShoppingCart, FiDollarSign } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 
@@ -190,7 +190,7 @@ export default function QuotationsPage() {
                                         {quote.code ? quote.code : `#${quote.id}`}
                                     </span>
                                 </div>
-                                <p className="text-gray-400 text-sm mt-1">{quote.job_description || 'No Description'}</p>
+                                <p className="text-gray-400 text-sm mt-1">{quote.estimate_naame || 'No Description'}</p>
                                 <div className="flex gap-4 mt-2 text-xs text-gray-500">
                                     <span className="bg-white/10 px-2 py-0.5 rounded uppercase">{quote.type || 'Standard'}</span>
                                     <span className="flex items-center gap-1"><FiClock /> {new Date(quote.created_at).toLocaleDateString()}</span>
@@ -199,7 +199,7 @@ export default function QuotationsPage() {
                             </div>
                             <div className="text-right flex items-center gap-6 relative z-10">
                                 <div>
-                                    <span className="block text-2xl font-bold">{currency}{Number(quote.total_amount).toFixed(2)}</span>
+                                    <span className="block text-2xl font-bold">{currency}{Number(quote.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     <span className="text-xs text-gray-500 uppercase tracking-wider">{quote.status}</span>
                                 </div>
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -233,6 +233,24 @@ export default function QuotationsPage() {
                                         >
                                             <FiShoppingCart size={18} />
                                         </button>
+                                    )}
+                                    {quote.status === 'converted' && !quote.has_invoice && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const url = `/dashboard/invoices/new?quotation_id=${quote.id}&customer_name=${encodeURIComponent(quote.customer_name || '')}&customer_id=${quote.customer_id || ''}&amount=${quote.total_amount || 0}&description=${encodeURIComponent(quote.first_item_name || quote.job_description || '')}`;
+                                                window.location.href = url;
+                                            }}
+                                            className="p-2 hover:bg-emerald-500/20 rounded-full text-gray-300 hover:text-emerald-400 transition-colors"
+                                            title="Create Invoice"
+                                        >
+                                            <FiDollarSign size={18} />
+                                        </button>
+                                    )}
+                                    {quote.status === 'converted' && !!quote.has_invoice && (
+                                        <span className="p-2 text-emerald-500" title="Invoice already created">
+                                            <FiDollarSign size={18} />
+                                        </span>
                                     )}
                                 </div>
                             </div>

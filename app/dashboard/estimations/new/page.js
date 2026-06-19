@@ -378,7 +378,7 @@ export default function NewQuotationPage() {
             });
 
             if (res.ok) {
-                router.push('/dashboard/items');
+                router.push('/dashboard/estimations');
             } else {
                 alert("Save Failed");
             }
@@ -394,7 +394,7 @@ export default function NewQuotationPage() {
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
-                    <Link href="/dashboard/items">
+                    <Link href="/dashboard/estimations">
                         <Button className="bg-transparent border border-white/10 hover:bg-white/10 p-2"><FiArrowLeft /></Button>
                     </Link>
                     <div>

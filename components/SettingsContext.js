@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const SettingsContext = createContext();
 
 export function SettingsProvider({ children }) {
-    const [settings, setSettings] = useState({ currency: '$' });
+    const [settings, setSettings] = useState({ currency: 'LKR' });
     const [loading, setLoading] = useState(true);
 
     const fetchSettings = async () => {

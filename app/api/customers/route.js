@@ -26,26 +26,22 @@ export async function GET(request) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, email, phone, address } = body;
+        const { name, email, phone, address, is_vat, vat_number } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-        // Generate Code
         const [settings] = await pool.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('customer_id_template', 'customer_id_seq')");
         const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
 
         let seq = parseInt(settingsMap['customer_id_seq'] || '1');
         let template = settingsMap['customer_id_template'] || 'CUST-{000}';
-
-        // Handle padding logic roughly
         const code = template.replace('{000}', String(seq).padStart(3, '0')).replace('{SEQ}', String(seq));
 
         const [result] = await pool.execute(
-            'INSERT INTO customers (name, email, phone, address, code) VALUES (?, ?, ?, ?, ?)',
-            [name, email || null, phone || null, address || null, code]
+            'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [name, email || null, phone || null, address || null, code, is_vat ? 1 : 0, vat_number || null]
         );
 
-        // Increment Seq
         await pool.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'customer_id_seq'", [String(seq + 1)]);
 
         return NextResponse.json({ success: true, id: result.insertId });

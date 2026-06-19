@@ -1,17 +1,117 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy, FiFilter } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
 import { useSettings } from '@/components/SettingsContext';
 
+/* ─── React Alert Toast ─────────────────────────────────────────────────────── */
+function Toast({ toasts, dismiss }) {
+    return (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {toasts.map(t => (
+                <div
+                    key={t.id}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        background: t.type === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
+                        border: `1px solid ${t.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+                        color: t.type === 'error' ? '#f87171' : '#4ade80',
+                        borderRadius: 12, padding: '12px 16px',
+                        backdropFilter: 'blur(16px)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                        minWidth: 280, maxWidth: 380,
+                        animation: 'slideIn 0.2s ease',
+                    }}
+                >
+                    {t.type === 'error' ? <FiAlertCircle size={16} /> : <FiCheckCircle size={16} />}
+                    <span style={{ flex: 1, fontSize: 14 }}>{t.message}</span>
+                    <button onClick={() => dismiss(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 2 }}>
+                        <FiX size={14} />
+                    </button>
+                </div>
+            ))}
+            <style>{`@keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`}</style>
+        </div>
+    );
+}
+
+/* ─── React Confirm Dialog ──────────────────────────────────────────────────── */
+function ConfirmDialog({ confirm, onClose }) {
+    if (!confirm) return null;
+    return (
+        <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-md flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-7 max-w-[400px] w-[90%] shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
+                <p className="text-white text-[15px] mb-6 leading-relaxed">{confirm.message}</p>
+                <div className="flex gap-2.5 justify-end">
+                    <button
+                        onClick={() => onClose(false)}
+                        className="px-5 py-2 rounded-auto bg-white/[0.06] border border-white/10 text-[#aaa] cursor-pointer text-sm transition-colors hover:bg-white/10"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onClose(true)}
+                        className={`px-5 py-2 rounded-auto border-none cursor-pointer text-sm font-semibold transition-colors
+                            ${confirm.danger 
+                                ? 'bg-red-500/80 text-white hover:bg-red-500' 
+                                : 'bg-white/90 text-black hover:bg-white'
+                            }`}
+                    >
+                        {confirm.confirmLabel || 'Confirm'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Duplicate Progress Overlay ────────────────────────────────────────────── */
+function DuplicateProgress({ visible, progress, label }) {
+    if (!visible) return null;
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 9997,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+            <div style={{
+                background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 20, padding: '36px 40px', width: 340,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.6)', textAlign: 'center',
+            }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+                    Duplicating Estimation
+                </div>
+                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{label}</div>
+
+                {/* Progress bar track */}
+                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 6, overflow: 'hidden', marginBottom: 12 }}>
+                    <div
+                        style={{
+                            height: '100%',
+                            width: `${progress}%`,
+                            background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
+                            borderRadius: 999,
+                            transition: 'width 0.4s ease',
+                        }}
+                    />
+                </div>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>{progress}%</div>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Main Page ─────────────────────────────────────────────────────────────── */
 export default function ItemsPage() {
     const router = useRouter();
     const { settings } = useSettings();
     const currency = settings.currency || '$';
+
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -20,9 +120,35 @@ export default function ItemsPage() {
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState('all'); // all, favorites
+    const [filterType, setFilterType] = useState('all');
 
-    const fetchItems = () => {
+    // React alert state
+    const [toasts, setToasts] = useState([]);
+    const [confirmState, setConfirmState] = useState(null); // { message, danger, confirmLabel, resolve }
+
+    // Duplicate progress
+    const [duplicating, setDuplicating] = useState(false);
+    const [dupProgress, setDupProgress] = useState(0);
+    const [dupLabel, setDupLabel] = useState('');
+
+    /* Helpers */
+    const showToast = (message, type = 'success') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+    };
+    const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+
+    const reactConfirm = (message, options = {}) =>
+        new Promise(resolve => setConfirmState({ message, ...options, resolve }));
+
+    const handleConfirmClose = (result) => {
+        confirmState?.resolve(result);
+        setConfirmState(null);
+    };
+
+    /* Fetch */
+    const fetchItems = useCallback(() => {
         setLoading(true);
         const params = new URLSearchParams();
         if (searchTerm) params.append('search', searchTerm);
@@ -33,8 +159,6 @@ export default function ItemsPage() {
         fetch(`/api/items?${params.toString()}`)
             .then(res => res.json())
             .then(data => {
-                // If API returns array (backward compatibility or error), handle it often.
-                // But we expect object { items: [], pagination: {} }
                 if (Array.isArray(data)) {
                     setItems(data);
                     setTotalPages(1);
@@ -48,73 +172,105 @@ export default function ItemsPage() {
                 console.error(err);
                 setLoading(false);
             });
-    };
-
-    // Debounce search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchItems();
-        }, 300);
-        return () => clearTimeout(timer);
     }, [searchTerm, filterType, page]);
 
+    useEffect(() => {
+        const timer = setTimeout(fetchItems, 300);
+        return () => clearTimeout(timer);
+    }, [fetchItems]);
+
+    /* Handlers */
     const handleDelete = async (id) => {
-        if (!confirm("Are you sure you want to delete this estimation? This cannot be undone.")) return;
+        const ok = await reactConfirm('Are you sure you want to delete this estimation? This cannot be undone.', { danger: true, confirmLabel: 'Delete' });
+        if (!ok) return;
         try {
             const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 fetchItems();
+                showToast('Estimation deleted.');
             } else {
-                alert('Failed to delete item');
+                showToast('Failed to delete estimation.', 'error');
             }
-        } catch (err) {
-            console.error(err);
-            alert('Error deleting item');
+        } catch {
+            showToast('Error deleting estimation.', 'error');
         }
     };
 
     const handleToggleFavorite = async (id, currentStatus) => {
-        // Confirm before removing from favorites
-        if (currentStatus && !confirm("Are you sure you want to remove this item from favorites?")) {
-            return;
+        if (currentStatus) {
+            const ok = await reactConfirm('Remove this item from templates?', { confirmLabel: 'Remove' });
+            if (!ok) return;
         }
-
-        // Optimistic update
         setItems(prev => prev.map(item =>
             item.id === id ? { ...item, is_favorite: !currentStatus } : item
         ));
-
         try {
             await fetch(`/api/items/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_favorite: !currentStatus }) // Partial update
+                body: JSON.stringify({ is_favorite: !currentStatus }),
             });
-            // No need to refetch if successful
-        } catch (err) {
-            console.error(err);
-            fetchItems(); // Revert on error
+        } catch {
+            fetchItems();
         }
     };
 
     const handleDuplicate = async (id) => {
-        if (!confirm("Copy this template?")) return;
+        const ok = await reactConfirm('Copy this estimation as a new draft?', { confirmLabel: 'Duplicate' });
+        if (!ok) return;
+
+        // Show progress overlay
+        setDuplicating(true);
+        setDupProgress(0);
+        setDupLabel('Copying estimation header…');
+
+        // Simulate staged progress while the API request runs
+        const stages = [
+            { pct: 20, label: 'Copying estimation header…' },
+            { pct: 45, label: 'Duplicating components…' },
+            { pct: 70, label: 'Copying finishings…' },
+            { pct: 88, label: 'Finalising…' },
+        ];
+
+        let stageIndex = 0;
+        const ticker = setInterval(() => {
+            if (stageIndex < stages.length) {
+                setDupProgress(stages[stageIndex].pct);
+                setDupLabel(stages[stageIndex].label);
+                stageIndex++;
+            }
+        }, 400);
+
         try {
             const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
             const data = await res.json();
+
+            clearInterval(ticker);
+            setDupProgress(100);
+            setDupLabel('Done!');
+
+            await new Promise(r => setTimeout(r, 500)); // brief pause to show 100%
+
             if (res.ok && data.newId) {
                 router.push(`/dashboard/estimations/${data.newId}`);
             } else {
-                alert('Failed to duplicate item');
+                setDuplicating(false);
+                showToast(data.error || 'Failed to duplicate estimation.', 'error');
             }
-        } catch (err) {
-            console.error(err);
-            alert('Error duplicating item');
+        } catch {
+            clearInterval(ticker);
+            setDuplicating(false);
+            showToast('Error duplicating estimation.', 'error');
         }
     };
 
     return (
         <div className="text-white">
+            {/* Overlays */}
+            <DuplicateProgress visible={duplicating} progress={dupProgress} label={dupLabel} />
+            <ConfirmDialog confirm={confirmState} onClose={handleConfirmClose} />
+            <Toast toasts={toasts} dismiss={dismissToast} />
+
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Job Estimations</h1>
@@ -156,12 +312,10 @@ export default function ItemsPage() {
                         No estimations found matching criteria.
                     </div>
                 )}
-
                 {loading && items.length === 0 && (
                     <div className="text-center py-12 text-gray-500">Loading...</div>
                 )}
 
-                {/* Items List */}
                 {items.map(item => (
                     <div
                         key={item.id}
@@ -174,24 +328,21 @@ export default function ItemsPage() {
                                 {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
                             </div>
                             <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
-                            <p className="text-gray-400 text-sm ml-0">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
+                            <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
                             <div className="mt-2">
                                 <span className="text-xs text-secondary bg-white px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-6">
                             {!item.is_favorite && (
-                            <div className="text-right">
-                                <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()}</div>
-                            </div>
+                                <div className="text-right">
+                                    <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()}</div>
+                                </div>
                             )}
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDuplicate(item.id);
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); handleDuplicate(item.id); }}
                                     className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
                                     title="Duplicate"
                                 >
@@ -199,16 +350,13 @@ export default function ItemsPage() {
                                 </button>
                                 {!item.is_favorite && (
                                     <>
-                                        <Link href={`/dashboard/items/${item.id}`} onClick={(e) => e.stopPropagation()}>
+                                        <Link href={`/dashboard/estimations/${item.id}`} onClick={(e) => e.stopPropagation()}>
                                             <button className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
                                                 <FiEdit2 />
                                             </button>
                                         </Link>
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDelete(item.id);
-                                            }}
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
                                             className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
                                             title="Delete"
                                         >
@@ -225,21 +373,13 @@ export default function ItemsPage() {
             {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex justify-center mt-8 gap-2">
-                    <Button
-                        disabled={page === 1}
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        className="bg-white/5 hover:bg-white/10 disabled:opacity-50"
-                    >
+                    <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
                         Previous
                     </Button>
                     <span className="flex items-center px-4 text-sm text-gray-400">
                         Page {page} of {totalPages}
                     </span>
-                    <Button
-                        disabled={page === totalPages}
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        className="bg-white/5 hover:bg-white/10 disabled:opacity-50"
-                    >
+                    <Button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
                         Next
                     </Button>
                 </div>
