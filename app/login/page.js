@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FiPrinter, FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 
 export default function LoginPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -34,177 +36,130 @@ export default function LoginPage() {
     }
 
     return (
-        <>
-            <style>{`
-                .login-page {
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%);
-                    padding: 1rem;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                }
-                .login-card {
-                    width: 100%;
-                    max-width: 420px;
-                    background: rgba(255,255,255,0.04);
-                    border: 1px solid rgba(255,255,255,0.08);
-                    border-radius: 20px;
-                    padding: 2.5rem;
-                    backdrop-filter: blur(20px);
-                    box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-                }
-                .login-logo {
-                    text-align: center;
-                    margin-bottom: 2rem;
-                }
-                .login-logo h1 {
-                    font-size: 2rem;
-                    font-weight: 800;
-                    background: linear-gradient(90deg, #ffffff, #a78bfa);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    background-clip: text;
-                    letter-spacing: -0.5px;
-                    margin: 0 0 0.25rem 0;
-                }
-                .login-logo p {
-                    color: rgba(255,255,255,0.4);
-                    font-size: 0.875rem;
-                    margin: 0;
-                }
-                .login-form {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                }
-                .field-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.375rem;
-                }
-                .field-label {
-                    font-size: 0.8rem;
-                    font-weight: 500;
-                    color: rgba(255,255,255,0.6);
-                    letter-spacing: 0.03em;
-                    text-transform: uppercase;
-                }
-                .field-input {
-                    background: rgba(255,255,255,0.06);
-                    border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 10px;
-                    padding: 0.75rem 1rem;
-                    color: #ffffff;
-                    font-size: 0.95rem;
-                    outline: none;
-                    transition: border-color 0.2s, background 0.2s;
-                    width: 100%;
-                    box-sizing: border-box;
-                }
-                .field-input::placeholder {
-                    color: rgba(255,255,255,0.25);
-                }
-                .field-input:focus {
-                    border-color: rgba(167,139,250,0.6);
-                    background: rgba(255,255,255,0.08);
-                }
-                .error-box {
-                    background: rgba(239,68,68,0.1);
-                    border: 1px solid rgba(239,68,68,0.25);
-                    border-radius: 10px;
-                    padding: 0.75rem 1rem;
-                    color: #f87171;
-                    font-size: 0.875rem;
-                    text-align: center;
-                }
-                .submit-btn {
-                    background: linear-gradient(135deg, #7c3aed, #a78bfa);
-                    border: none;
-                    border-radius: 10px;
-                    padding: 0.875rem;
-                    color: #ffffff;
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: opacity 0.2s, transform 0.1s;
-                    margin-top: 0.5rem;
-                    width: 100%;
-                    letter-spacing: 0.02em;
-                }
-                .submit-btn:hover:not(:disabled) {
-                    opacity: 0.9;
-                    transform: translateY(-1px);
-                }
-                .submit-btn:active:not(:disabled) {
-                    transform: translateY(0);
-                }
-                .submit-btn:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-                .spinner {
-                    display: inline-block;
-                    width: 14px;
-                    height: 14px;
-                    border: 2px solid rgba(255,255,255,0.3);
-                    border-top-color: #fff;
-                    border-radius: 50%;
-                    animation: spin 0.7s linear infinite;
-                    margin-right: 8px;
-                    vertical-align: middle;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
+        <div className="min-h-screen flex items-center justify-center bg-black overflow-hidden relative px-4">
+            {/* Ambient background glows */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute -top-48 -left-48 w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[120px]" />
+                <div className="absolute -bottom-48 -right-32 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px]" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/[0.015] rounded-full blur-[80px]" />
+            </div>
 
-            <div className="login-page">
-                <div className="login-card">
-                    <div className="login-logo">
-                        <h1>Pressmatics</h1>
-                        <p>ERP · Sign in to your account</p>
+            {/* Very subtle dot-grid texture */}
+            <div
+                className="pointer-events-none absolute inset-0 opacity-[0.04]"
+                style={{
+                    backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+                    backgroundSize: '28px 28px',
+                }}
+            />
+
+            {/* Glass card */}
+            <div className="relative w-full max-w-[400px] rounded-3xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-2xl shadow-[0_32px_80px_rgba(0,0,0,0.7)] overflow-hidden">
+                {/* Top shimmer line */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+                <div className="px-8 pt-10 pb-9 space-y-7">
+                    {/* Logo */}
+                    <div className="text-center space-y-2">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mb-1">
+                            <FiPrinter className="w-6 h-6 text-white/80" />
+                        </div>
+                        <h1 className="text-2xl font-bold tracking-tighter text-white">
+                            Pressmatics
+                        </h1>
+                        <p className="text-sm text-white/35 font-medium">
+                            Sign in to your workspace
+                        </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="login-form">
-                        <div className="field-group">
-                            <label className="field-label">Email</label>
-                            <input
-                                name="email"
-                                type="email"
-                                placeholder="admin@pressmatics.com"
-                                required
-                                className="field-input"
-                                autoComplete="email"
-                            />
+                    {/* Error Alert */}
+                    {error && (
+                        <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 animate-[fadeUp_0.18s_ease]">
+                            <FiAlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <p className="text-sm text-red-300 leading-relaxed">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Email */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-[0.1em]">
+                                Email address
+                            </label>
+                            <div className="relative">
+                                <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+                                <input
+                                    name="email"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    required
+                                    autoComplete="email"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/[0.05] border border-white/[0.09] rounded-xl text-sm text-white placeholder-white/20 outline-none focus:border-white/25 focus:bg-white/[0.08] transition-all"
+                                />
+                            </div>
                         </div>
 
-                        <div className="field-group">
-                            <label className="field-label">Password</label>
-                            <input
-                                name="password"
-                                type="password"
-                                placeholder="••••••••"
-                                required
-                                className="field-input"
-                                autoComplete="current-password"
-                            />
+                        {/* Password */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-[0.1em]">
+                                Password
+                            </label>
+                            <div className="relative">
+                                <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+                                <input
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="••••••••"
+                                    required
+                                    autoComplete="current-password"
+                                    className="w-full pl-10 pr-12 py-3 bg-white/[0.05] border border-white/[0.09] rounded-xl text-sm text-white placeholder-white/20 outline-none focus:border-white/25 focus:bg-white/[0.08] transition-all"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(v => !v)}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors text-xs font-semibold select-none cursor-pointer"
+                                >
+                                    {showPassword ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
                         </div>
 
-                        {error && <div className="error-box">{error}</div>}
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="submit-btn"
-                        >
-                            {loading && <span className="spinner" />}
-                            {loading ? 'Signing in…' : 'Sign In'}
-                        </button>
+                        {/* Submit */}
+                        <div className="pt-1">
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="relative w-full py-3 rounded-xl font-semibold text-sm text-white bg-white/10 border border-white/15 hover:bg-white/15 hover:border-white/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all overflow-hidden group cursor-pointer"
+                            >
+                                {/* Button shimmer on hover */}
+                                <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                <span className="relative flex items-center justify-center gap-2">
+                                    {loading && (
+                                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    )}
+                                    {loading ? 'Signing in…' : 'Sign In'}
+                                </span>
+                            </button>
+                        </div>
                     </form>
+
+                    {/* Footer note */}
+                    <p className="text-center text-[11px] text-white/20 leading-relaxed">
+                        Pressmatics ERP &middot; Internal Platform
+                    </p>
                 </div>
+
+                {/* Bottom shimmer line */}
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             </div>
-        </>
+
+            <style>{`
+                @keyframes fadeUp {
+                    from { opacity: 0; transform: translateY(6px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
+        </div>
     );
 }

@@ -49,6 +49,38 @@ async function verifyJWT(token) {
     }
 }
 
+// Routes that only admins can access
+const ADMIN_ONLY_ROUTES = [
+    '/dashboard/users',
+    '/dashboard/settings',
+    '/api/admin',
+];
+
+// Routes that require at least manager role
+const MANAGER_ROUTES = [
+    '/dashboard/invoices',
+    '/dashboard/quotations',
+    '/dashboard/customers',
+    '/dashboard/items'
+];
+
+function canAccess(role, pathname) {
+    // Admins can access everything
+    if (role === 'admin') return true;
+
+    // Block operators and managers from admin-only routes
+    if (ADMIN_ONLY_ROUTES.some(r => pathname.startsWith(r))) {
+        return role === 'admin';
+    }
+
+    // Managers and above can access manager routes
+    if (MANAGER_ROUTES.some(r => pathname.startsWith(r))) {
+        return role === 'admin' || role === 'manager';
+    }
+
+    return true;
+}
+
 export async function middleware(request) {
     const { pathname } = request.nextUrl;
 
@@ -67,6 +99,34 @@ export async function middleware(request) {
             return response;
         }
 
+        const role = payload.role || 'operator';
+
+        // Role-based access control
+        if (!canAccess(role, pathname)) {
+            // Redirect to dashboard root with an 'access denied' flag
+            return NextResponse.redirect(new URL('/dashboard?denied=1', request.url));
+        }
+
+        // Forward the user role as a request header so layout can read it
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set('x-user-role', role);
+        requestHeaders.set('x-user-name', payload.name || '');
+        requestHeaders.set('x-user-email', payload.email || '');
+        requestHeaders.set('x-user-id', String(payload.id || ''));
+
+        return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    // Protect admin API routes 
+    if (pathname.startsWith('/api/admin')) {
+        const token = request.cookies.get('token')?.value;
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const payload = await verifyJWT(token);
+        if (!payload || payload.role !== 'admin') {
+            return NextResponse.json({ error: 'Forbidden – Admin only' }, { status: 403 });
+        }
         return NextResponse.next();
     }
 
@@ -84,5 +144,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-    matcher: ['/', '/dashboard/:path*'],
+    matcher: ['/', '/dashboard/:path*', '/api/admin/:path*'],
 };

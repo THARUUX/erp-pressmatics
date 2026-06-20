@@ -11,15 +11,21 @@ export default function Dashboard() {
     const [lowStockItems, setLowStockItems] = useState([]);
     const [user, setUser] = useState(null);
 
-    useEffect(() => {
-        // Fetch User and Low Stock Alerts
-        setUser({ name: 'Admin User', role: 'admin' });
+    function getGreeting() {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good morning';
+        if (hour < 17) return 'Good afternoon';
+        return 'Good evening';
+    }
 
-        // Fetch Inventory to check for low stock
-        // Note: Real app should have specific endpoint /api/inventory/low-stock
-        // But we can just fetch all and filter client side for now, or just /api/inventory (it returns all categories? no, it filters by category if param provided, returns all if not?)
-        // Let's check api/inventory: "if (category) query... else query = 'SELECT * ...' ".
-        // So fetching /api/inventory returns ALL.
+    useEffect(() => {
+        // Fetch real logged-in user
+        fetch('/api/auth/me')
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.id) setUser(data); })
+            .catch(() => {});
+
+        // Fetch inventory for low stock alerts
         fetch('/api/inventory')
             .then(res => res.json())
             .then(data => {
@@ -32,9 +38,9 @@ export default function Dashboard() {
     }, []);
 
     const menuItems = [
-        { icon: FiFileText, label: 'Quotations', href: '/dashboard/items', color: 'bg-purple-500' }, // Updated href based on other files
+        { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations', color: 'bg-purple-500' },
         { icon: FiUser, label: 'Users', href: '#', color: 'bg-blue-500' },
-        { icon: FiBox, label: 'Inventory', href: '/dashboard/inventory', color: 'bg-green-500' }, // Updated href
+        { icon: FiBox, label: 'Inventory', href: '/dashboard/inventory', color: 'bg-green-500' },
         { icon: FiPrinter, label: 'Jobs', href: '#', color: 'bg-indigo-500' },
         { icon: FiSettings, label: 'Settings', href: '#', color: 'bg-gray-500' },
     ];
@@ -43,8 +49,10 @@ export default function Dashboard() {
         <div>
             <header className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-white tracking-tighter">Dashboard</h2>
-                    <p className="text-gray-400">Welcome back, {user?.name}</p>
+                    <p className="text-gray-500 text-sm font-medium mb-1">{getGreeting()}</p>
+                    <h2 className="text-3xl font-bold text-white tracking-tighter">
+                        Welcome back, {user?.name ?? '…'}
+                    </h2>
                 </div>
             </header>
 
