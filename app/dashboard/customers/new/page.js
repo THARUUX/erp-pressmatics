@@ -1,4 +1,5 @@
 'use client';
+import toast from 'react-hot-toast';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -20,7 +21,7 @@ export default function NewCustomerPage() {
     };
 
     const handleSubmit = async () => {
-        if (!formData.name) return alert("Name is required");
+        if (!formData.name) return toast.error("Name is required");
         setLoading(true);
         try {
             const res = await fetch('/api/customers', {
@@ -29,7 +30,7 @@ export default function NewCustomerPage() {
                 body: JSON.stringify(formData)
             });
             if (res.ok) router.push('/dashboard/customers');
-            else alert("Failed to create customer");
+            else toast.error("Failed to create customer");
         } catch (e) {
             console.error(e);
         } finally {

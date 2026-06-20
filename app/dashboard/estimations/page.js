@@ -1,389 +1,345 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+    useReactTable, getCoreRowModel, getSortedRowModel,
+    getFilteredRowModel, getPaginationRowModel, flexRender,
+} from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import Button from '@/components/ui/Button';
+import Link from 'next/link';
+import {
+    FiPlus, FiSearch, FiEdit2, FiTrash2, FiCopy, FiStar,
+    FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
+    FiChevronRight, FiChevronsRight, FiFileText,
+} from 'react-icons/fi';
 import { useSettings } from '@/components/SettingsContext';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
 
-/* ─── React Alert Toast ─────────────────────────────────────────────────────── */
-function Toast({ toasts, dismiss }) {
-    return (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {toasts.map(t => (
-                <div
-                    key={t.id}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        background: t.type === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
-                        border: `1px solid ${t.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
-                        color: t.type === 'error' ? '#f87171' : '#4ade80',
-                        borderRadius: 12, padding: '12px 16px',
-                        backdropFilter: 'blur(16px)',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                        minWidth: 280, maxWidth: 380,
-                        animation: 'slideIn 0.2s ease',
-                    }}
-                >
-                    {t.type === 'error' ? <FiAlertCircle size={16} /> : <FiCheckCircle size={16} />}
-                    <span style={{ flex: 1, fontSize: 14 }}>{t.message}</span>
-                    <button onClick={() => dismiss(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 2 }}>
-                        <FiX size={14} />
-                    </button>
-                </div>
-            ))}
-            <style>{`@keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`}</style>
-        </div>
-    );
-}
-
-/* ─── React Confirm Dialog ──────────────────────────────────────────────────── */
-function ConfirmDialog({ confirm, onClose }) {
-    if (!confirm) return null;
-    return (
-        <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-md flex items-center justify-center">
-            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-7 max-w-[400px] w-[90%] shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
-                <p className="text-white text-[15px] mb-6 leading-relaxed">{confirm.message}</p>
-                <div className="flex gap-2.5 justify-end">
-                    <button
-                        onClick={() => onClose(false)}
-                        className="px-5 py-2 rounded-auto bg-white/[0.06] border border-white/10 text-[#aaa] cursor-pointer text-sm transition-colors hover:bg-white/10"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => onClose(true)}
-                        className={`px-5 py-2 rounded-auto border-none cursor-pointer text-sm font-semibold transition-colors
-                            ${confirm.danger 
-                                ? 'bg-red-500/80 text-white hover:bg-red-500' 
-                                : 'bg-white/90 text-black hover:bg-white'
-                            }`}
-                    >
-                        {confirm.confirmLabel || 'Confirm'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ─── Duplicate Progress Overlay ────────────────────────────────────────────── */
+/* ── Duplicate progress overlay ───────────────────────────────────────────── */
 function DuplicateProgress({ visible, progress, label }) {
     if (!visible) return null;
     return (
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 9997,
-            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-            <div style={{
-                background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 20, padding: '36px 40px', width: 340,
-                boxShadow: '0 24px 64px rgba(0,0,0,0.6)', textAlign: 'center',
-            }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
-                    Duplicating Estimation
+        <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <div className="text-white font-bold text-base mb-1">Duplicating Estimation</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-violet-600 to-violet-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
                 </div>
-                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{label}</div>
-
-                {/* Progress bar track */}
-                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 6, overflow: 'hidden', marginBottom: 12 }}>
-                    <div
-                        style={{
-                            height: '100%',
-                            width: `${progress}%`,
-                            background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
-                            borderRadius: 999,
-                            transition: 'width 0.4s ease',
-                        }}
-                    />
-                </div>
-                <div style={{ color: '#6b7280', fontSize: 12 }}>{progress}%</div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
             </div>
         </div>
     );
 }
 
-/* ─── Main Page ─────────────────────────────────────────────────────────────── */
-export default function ItemsPage() {
+function SortIcon({ dir }) {
+    if (!dir) return <span className="opacity-20 text-xs">⇅</span>;
+    return dir === 'asc' ? <FiChevronUp className="w-3 h-3" /> : <FiChevronDown className="w-3 h-3" />;
+}
+function ColumnFilter({ column }) {
+    const val = column.getFilterValue() ?? '';
+    return (
+        <input value={val} onChange={e => column.setFilterValue(e.target.value)} placeholder="Filter…"
+            className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30" />
+    );
+}
+function PagBtn({ children, onClick, disabled }) {
+    return (
+        <button onClick={onClick} disabled={disabled}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            {children}
+        </button>
+    );
+}
+function ActionBtn({ icon, onClick, title, cls = 'hover:text-white hover:bg-white/10', disabled = false }) {
+    return (
+        <button onClick={e => { e.stopPropagation(); onClick(); }} disabled={disabled} title={title}
+            className={`p-1.5 rounded-lg text-gray-500 transition-colors disabled:opacity-40 ${cls}`}>
+            {icon}
+        </button>
+    );
+}
+
+export default function EstimationsPage() {
     const router = useRouter();
     const { settings } = useSettings();
-    const currency = settings.currency || '$';
+    const currency = settings.currency || 'LKR';
 
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const limit = 10;
-
-    // Filters
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState('all');
-
-    // React alert state
-    const [toasts, setToasts] = useState([]);
-    const [confirmState, setConfirmState] = useState(null); // { message, danger, confirmLabel, resolve }
-
-    // Duplicate progress
+    const [data, setData]               = useState([]);
+    const [loading, setLoading]         = useState(true);
+    const [filterType, setFilterType]   = useState('all');
+    const [globalFilter, setGlobalFilter] = useState('');
+    const [columnVisibility, setColumnVisibility] = useState({});
     const [duplicating, setDuplicating] = useState(false);
     const [dupProgress, setDupProgress] = useState(0);
-    const [dupLabel, setDupLabel] = useState('');
+    const [dupLabel, setDupLabel]       = useState('');
 
-    /* Helpers */
-    const showToast = (message, type = 'success') => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, message, type }]);
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-    };
-    const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
-
-    const reactConfirm = (message, options = {}) =>
-        new Promise(resolve => setConfirmState({ message, ...options, resolve }));
-
-    const handleConfirmClose = (result) => {
-        confirmState?.resolve(result);
-        setConfirmState(null);
-    };
-
-    /* Fetch */
-    const fetchItems = useCallback(() => {
+    const fetchAll = useCallback(() => {
         setLoading(true);
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
+        const params = new URLSearchParams({ page: 1, limit: 500 });
         if (filterType === 'favorites') params.append('is_favorite', 'true');
-        params.append('page', page);
-        params.append('limit', limit);
-
-        fetch(`/api/items?${params.toString()}`)
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) {
-                    setItems(data);
-                    setTotalPages(1);
-                } else {
-                    setItems(data.items || []);
-                    setTotalPages(data.pagination?.totalPages || 1);
-                }
+        fetch(`/api/items?${params}`)
+            .then(r => r.json())
+            .then(res => {
+                setData(Array.isArray(res) ? res : (res.items ?? []));
                 setLoading(false);
             })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-    }, [searchTerm, filterType, page]);
+            .catch(() => setLoading(false));
+    }, [filterType]);
 
-    useEffect(() => {
-        const timer = setTimeout(fetchItems, 300);
-        return () => clearTimeout(timer);
-    }, [fetchItems]);
+    useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    /* Handlers */
-    const handleDelete = async (id) => {
-        const ok = await reactConfirm('Are you sure you want to delete this estimation? This cannot be undone.', { danger: true, confirmLabel: 'Delete' });
-        if (!ok) return;
-        try {
-            const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                fetchItems();
-                showToast('Estimation deleted.');
-            } else {
-                showToast('Failed to delete estimation.', 'error');
-            }
-        } catch {
-            showToast('Error deleting estimation.', 'error');
-        }
+    const handleToggleFav = async (id, cur) => {
+        if (cur && !(await confirmDialog('Remove from templates?', { confirmLabel: 'Remove' }))) return;
+        setData(prev => prev.map(i => i.id === id ? { ...i, is_favorite: !cur } : i));
+        await fetch(`/api/items/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_favorite: !cur }),
+        }).catch(fetchAll);
     };
 
-    const handleToggleFavorite = async (id, currentStatus) => {
-        if (currentStatus) {
-            const ok = await reactConfirm('Remove this item from templates?', { confirmLabel: 'Remove' });
-            if (!ok) return;
-        }
-        setItems(prev => prev.map(item =>
-            item.id === id ? { ...item, is_favorite: !currentStatus } : item
-        ));
+    const runDuplicate = async (id, makeUrl) => {
+        setDuplicating(true); setDupProgress(0); setDupLabel('Copying header…');
+        const stages = [
+            { pct: 20, label: 'Copying header…' }, { pct: 45, label: 'Duplicating components…' },
+            { pct: 70, label: 'Copying finishings…' }, { pct: 88, label: 'Finalising…' },
+        ];
+        let si = 0;
+        const tick = setInterval(() => {
+            if (si < stages.length) { setDupProgress(stages[si].pct); setDupLabel(stages[si].label); si++; }
+        }, 400);
         try {
-            await fetch(`/api/items/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_favorite: !currentStatus }),
-            });
-        } catch {
-            fetchItems();
-        }
+            const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
+            const d = await res.json();
+            clearInterval(tick); setDupProgress(100); setDupLabel('Done!');
+            await new Promise(r => setTimeout(r, 500));
+            if (res.ok && d.newId) router.push(makeUrl(d.newId));
+            else { setDuplicating(false); toast.error(d.error || 'Duplicate failed'); }
+        } catch { clearInterval(tick); setDuplicating(false); toast.error('Error duplicating'); }
     };
 
     const handleDuplicate = async (id) => {
-        const ok = await reactConfirm('Copy this estimation as a new draft?', { confirmLabel: 'Duplicate' });
-        if (!ok) return;
-
-        // Show progress overlay
-        setDuplicating(true);
-        setDupProgress(0);
-        setDupLabel('Copying estimation header…');
-
-        // Simulate staged progress while the API request runs
-        const stages = [
-            { pct: 20, label: 'Copying estimation header…' },
-            { pct: 45, label: 'Duplicating components…' },
-            { pct: 70, label: 'Copying finishings…' },
-            { pct: 88, label: 'Finalising…' },
-        ];
-
-        let stageIndex = 0;
-        const ticker = setInterval(() => {
-            if (stageIndex < stages.length) {
-                setDupProgress(stages[stageIndex].pct);
-                setDupLabel(stages[stageIndex].label);
-                stageIndex++;
-            }
-        }, 400);
-
-        try {
-            const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
-            const data = await res.json();
-
-            clearInterval(ticker);
-            setDupProgress(100);
-            setDupLabel('Done!');
-
-            await new Promise(r => setTimeout(r, 500)); // brief pause to show 100%
-
-            if (res.ok && data.newId) {
-                router.push(`/dashboard/estimations/${data.newId}`);
-            } else {
-                setDuplicating(false);
-                showToast(data.error || 'Failed to duplicate estimation.', 'error');
-            }
-        } catch {
-            clearInterval(ticker);
-            setDuplicating(false);
-            showToast('Error duplicating estimation.', 'error');
-        }
+        if (!(await confirmDialog('Copy this estimation as a new draft?', { confirmLabel: 'Duplicate' }))) return;
+        await runDuplicate(id, newId => `/dashboard/estimations/${newId}`);
     };
+
+    const handleDelete = async (id) => {
+        if (!(await confirmDialog('Delete this estimation? This cannot be undone.', { danger: true, confirmLabel: 'Delete' }))) return;
+        const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+        if (res.ok) { toast.success('Estimation deleted'); fetchAll(); }
+        else toast.error('Failed to delete');
+    };
+
+    const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+    const columns = useMemo(() => [
+        {
+            id: 'fav', header: '', size: 40,
+            enableSorting: false, enableColumnFilter: false,
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <button onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
+                        title="Toggle Template"
+                        className={`text-lg ${item.is_favorite ? 'text-yellow-400' : 'text-gray-700 hover:text-gray-500'}`}>
+                        <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
+                    </button>
+                );
+            },
+        },
+        {
+            accessorKey: 'code', header: 'Code', size: 120,
+            cell: ({ getValue }) => <span className="font-mono text-xs text-blue-400">{getValue()}</span>,
+        },
+        {
+            id: 'name',
+            accessorFn: row => row.estimation_name || row.customer_name || 'Untitled',
+            header: 'Name',
+            cell: ({ getValue, row }) => (
+                <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">{getValue()}</span>
+                    {!!row.original.is_favorite && (
+                        <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            accessorKey: 'customer_name', header: 'Customer',
+            cell: ({ getValue }) => <span className="text-gray-400 text-sm">{getValue() || '—'}</span>,
+        },
+        {
+            accessorKey: 'type', header: 'Type', size: 100,
+            cell: ({ getValue }) => (
+                <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{getValue()}</span>
+            ),
+        },
+        {
+            accessorKey: 'quantity', header: 'Qty', size: 80,
+            cell: ({ getValue }) => <span className="text-gray-400">{getValue()}</span>,
+        },
+        {
+            accessorKey: 'total_amount', header: 'Amount', size: 140,
+            cell: ({ getValue, row }) => row.original.is_favorite ? (
+                <span className="text-gray-600 text-xs">Template</span>
+            ) : (
+                <span className="font-mono font-bold text-white">{currency} {fmt(getValue())}</span>
+            ),
+        },
+        {
+            accessorKey: 'created_at', header: 'Date', size: 110,
+            cell: ({ getValue }) => (
+                <span className="text-gray-500 text-xs">{new Date(getValue()).toLocaleDateString('en-GB')}</span>
+            ),
+        },
+        {
+            id: 'actions', header: 'Actions', size: 120,
+            enableSorting: false, enableColumnFilter: false,
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <ActionBtn title="Duplicate" icon={<FiCopy size={14} />}
+                            cls="hover:text-blue-400 hover:bg-blue-500/10"
+                            onClick={() => handleDuplicate(item.id)} />
+                        {!item.is_favorite && (
+                            <ActionBtn title="Edit" icon={<FiEdit2 size={14} />}
+                                onClick={() => router.push(`/dashboard/estimations/${item.id}`)} />
+                        )}
+                        <ActionBtn title="Delete" icon={<FiTrash2 size={14} />}
+                            cls="hover:text-red-400 hover:bg-red-500/10"
+                            onClick={() => handleDelete(item.id)} />
+                    </div>
+                );
+            },
+        },
+    ], [currency]);
+
+    const table = useReactTable({
+        data, columns,
+        state: { globalFilter, columnVisibility },
+        onGlobalFilterChange: setGlobalFilter,
+        onColumnVisibilityChange: setColumnVisibility,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        initialState: { pagination: { pageSize: 15 } },
+    });
+
+    const { pageIndex, pageSize } = table.getState().pagination;
+    const pageCount = table.getPageCount();
 
     return (
         <div className="text-white">
-            {/* Overlays */}
             <DuplicateProgress visible={duplicating} progress={dupProgress} label={dupLabel} />
-            <ConfirmDialog confirm={confirmState} onClose={handleConfirmClose} />
-            <Toast toasts={toasts} dismiss={dismissToast} />
 
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <header className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Job Estimations</h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage, search, and duplicate your quotes</p>
+                    <p className="text-gray-500 text-sm mt-0.5">{table.getFilteredRowModel().rows.length} of {data.length} records</p>
+                </div>
+                <div className="flex gap-3 items-center">
+                    <div className="flex bg-black/30 border border-white/10 rounded-xl p-1">
+                        {['all', 'favorites'].map(f => (
+                            <button key={f} onClick={() => setFilterType(f)}
+                                className={`px-4 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1.5 ${filterType === f ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>
+                                {f === 'favorites' && <FiStar className={filterType === 'favorites' ? 'fill-white' : ''} size={13} />}
+                                {f === 'all' ? 'All' : 'Templates'}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="relative">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                        <input value={globalFilter} onChange={e => setGlobalFilter(e.target.value)}
+                            placeholder="Search all columns…"
+                            className="bg-black/30 backdrop-blur border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm w-64 outline-none focus:border-white/30 placeholder-gray-600" />
+                    </div>
+                    <ColumnToggle table={table} />
                 </div>
             </header>
 
-            {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
-                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by customer or description..."
-                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-white/30 outline-none transition-colors"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <div className="flex bg-black/40 border border-white/10 rounded-lg p-1">
-                    <button
-                        onClick={() => setFilterType('all')}
-                        className={`px-4 py-1.5 rounded-md text-sm transition-colors ${filterType === 'all' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        All
-                    </button>
-                    <button
-                        onClick={() => setFilterType('favorites')}
-                        className={`px-4 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${filterType === 'favorites' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        <FiStar className={filterType === 'favorites' ? "fill-white" : ""} /> Templates
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid gap-4">
-                {items.length === 0 && !loading && (
-                    <div className="text-center py-12 text-gray-500 bg-black/40 rounded-xl border border-white/10">
-                        No estimations found matching criteria.
+            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                {loading ? (
+                    <div className="py-24 text-center text-gray-500 animate-pulse">Loading estimations…</div>
+                ) : data.length === 0 ? (
+                    <div className="py-24 text-center">
+                        <FiFileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                        <p className="text-gray-500">No estimations found</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                            <thead>
+                                {table.getHeaderGroups().map(hg => (
+                                    <tr key={hg.id} className="border-b border-white/[0.06]">
+                                        {hg.headers.map(h => (
+                                            <th key={h.id} style={{ width: h.getSize() }}
+                                                className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-gray-500 bg-black/20 select-none">
+                                                {h.column.getCanSort() ? (
+                                                    <button onClick={h.column.getToggleSortingHandler()}
+                                                        className="flex items-center gap-1 hover:text-white transition-colors">
+                                                        {flexRender(h.column.columnDef.header, h.getContext())}
+                                                        <SortIcon dir={h.column.getIsSorted()} />
+                                                    </button>
+                                                ) : flexRender(h.column.columnDef.header, h.getContext())}
+                                                {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </thead>
+                            <tbody>
+                                {table.getRowModel().rows.map((row, i) => (
+                                    <tr key={row.id}
+                                        onClick={() => {
+                                            const item = row.original;
+                                            if (item.is_favorite) handleDuplicate(item.id);
+                                            else router.push(`/dashboard/estimations/${item.id}`);
+                                        }}
+                                        className={`border-b border-white/[0.04] cursor-pointer transition-colors hover:bg-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''} ${row.original.is_favorite ? 'border-l-2 border-l-yellow-500/40' : ''}`}>
+                                        {row.getVisibleCells().map(cell => (
+                                            <td key={cell.id} className="px-4 py-3.5 align-middle">
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
-                {loading && items.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">Loading...</div>
-                )}
-
-                {items.map(item => (
-                    <div
-                        key={item.id}
-                        onClick={() => item.is_favorite ? handleDuplicate(item.id) : router.push(`/dashboard/estimations/${item.id}`)}
-                        className={`bg-black/40 backdrop-blur-md p-6 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}
-                    >
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
-                                {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
-                            </div>
-                            <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
-                            <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
-                            <div className="mt-2">
-                                <span className="text-xs text-secondary bg-white px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
-                            </div>
+                {!loading && data.length > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-black/20 flex-wrap gap-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>Rows:</span>
+                            <select value={pageSize} onChange={e => table.setPageSize(Number(e.target.value))}
+                                className="bg-white/5 border border-white/10 rounded px-2 py-1 text-gray-300 outline-none">
+                                {[10, 15, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
                         </div>
-                        <div className="flex items-center gap-6">
-                            {!item.is_favorite && (
-                                <div className="text-right">
-                                    <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()}</div>
-                                </div>
-                            )}
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleDuplicate(item.id); }}
-                                    className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Duplicate"
-                                >
-                                    <FiCopy />
+                        <span className="text-xs text-gray-500">
+                            Page <strong className="text-gray-300">{pageIndex + 1}</strong> of <strong className="text-gray-300">{pageCount || 1}</strong>
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <PagBtn onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}><FiChevronsLeft className="w-3.5 h-3.5" /></PagBtn>
+                            <PagBtn onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><FiChevronLeft className="w-3.5 h-3.5" /></PagBtn>
+                            {Array.from({ length: pageCount }, (_, i) => i).filter(i => Math.abs(i - pageIndex) <= 2).map(i => (
+                                <button key={i} onClick={() => table.setPageIndex(i)}
+                                    className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${i === pageIndex ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}>
+                                    {i + 1}
                                 </button>
-                                {!item.is_favorite && (
-                                    <>
-                                        <Link href={`/dashboard/estimations/${item.id}`} onClick={(e) => e.stopPropagation()}>
-                                            <button className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
-                                                <FiEdit2 />
-                                            </button>
-                                        </Link>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                            className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-                                            title="Delete"
-                                        >
-                                            <FiTrash2 />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
+                            ))}
+                            <PagBtn onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><FiChevronRight className="w-3.5 h-3.5" /></PagBtn>
+                            <PagBtn onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()}><FiChevronsRight className="w-3.5 h-3.5" /></PagBtn>
                         </div>
                     </div>
-                ))}
+                )}
             </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="flex justify-center mt-8 gap-2">
-                    <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
-                        Previous
-                    </Button>
-                    <span className="flex items-center px-4 text-sm text-gray-400">
-                        Page {page} of {totalPages}
-                    </span>
-                    <Button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
-                        Next
-                    </Button>
-                </div>
-            )}
         </div>
     );
 }

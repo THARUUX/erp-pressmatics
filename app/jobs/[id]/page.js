@@ -2,130 +2,116 @@
 
 import { use, useState, useEffect, useCallback } from 'react';
 
-// ─── Design Tokens ───────────────────────────────────────────────────────────
-const G = {
-    bg: '#07070f',
-    surface: 'rgba(255,255,255,0.03)',
-    surfaceHov: 'rgba(255,255,255,0.06)',
-    glass: 'rgba(255,255,255,0.05)',
-    border: 'rgba(255,255,255,0.07)',
-    borderStr: 'rgba(255,255,255,0.12)',
-    text: '#f1f5f9',
-    muted: '#94a3b8',
-    subtle: '#475569',
-    dim: '#334155',
+/* ── Task status config ───────────────────────────────────────────────────── */
+const STATUS_CFG = {
+    pending:     { label: 'Pending',     dot: 'bg-slate-500',  ring: 'border-slate-500',  badge: 'bg-slate-500/10 text-slate-400 border-slate-500/20',  btn: 'border-slate-500/60 bg-slate-500/10 text-slate-300' },
+    in_progress: { label: 'In Progress', dot: 'bg-amber-400',  ring: 'border-amber-400',  badge: 'bg-amber-400/10  text-amber-300  border-amber-400/20',  btn: 'border-amber-400/60  bg-amber-400/10  text-amber-200' },
+    done:        { label: 'Done',        dot: 'bg-emerald-500',ring: 'border-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',btn: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300' },
 };
 
-const STATUS = {
-    pending: { dot: '#64748b', glow: '#64748b22', text: '#94a3b8', label: 'Pending' },
-    in_progress: { dot: '#f59e0b', glow: '#f59e0b22', text: '#fbbf24', label: 'In Progress' },
-    done: { dot: '#10b981', glow: '#10b98122', text: '#34d399', label: 'Done' },
+const SO_STATUS_PILL = {
+    Pending:        'bg-amber-500/10 text-amber-400 border-amber-500/25',
+    'In Production':'bg-indigo-500/10 text-indigo-400 border-indigo-500/25',
+    Ready:          'bg-emerald-500/10 text-emerald-400 border-emerald-500/25',
+    Delivered:      'bg-violet-500/10 text-violet-400 border-violet-500/25',
+    Cancelled:      'bg-red-500/10 text-red-400 border-red-500/25',
 };
 
-const ORDER_STATUS_COLOR = {
-    Pending: '#f59e0b', 'In Production': '#818cf8', Ready: '#10b981',
-    Delivered: '#a78bfa', Cancelled: '#f87171',
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 function toLocalDt(isoStr) {
     if (!isoStr) return '';
     const d = new Date(isoStr);
     const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 function nowDt() { return toLocalDt(new Date().toISOString()); }
 
-// ─── TaskItem ─────────────────────────────────────────────────────────────────
-function TaskItem({ task, orderId, onUpdated }) {
-    const [open, setOpen] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [status, setStatus] = useState(task.status);
-    const [completedAt, setCompletedAt] = useState(toLocalDt(task.completed_at) || nowDt());
-    const [completedBy, setCompletedBy] = useState(task.completed_by || '');
+/* ── Cell (spec detail box) ───────────────────────────────────────────────── */
+function Cell({ label, val }) {
+    return (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-1.5">
+            <span className="block text-[9px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">{label}</span>
+            <span className="text-xs font-semibold text-slate-200">{val}</span>
+        </div>
+    );
+}
 
-    const st = STATUS[status] || STATUS.pending;
+/* ── TaskItem ─────────────────────────────────────────────────────────────── */
+function TaskItem({ task, orderId, onUpdated }) {
+    const [open, setOpen]           = useState(false);
+    const [saving, setSaving]       = useState(false);
+    const [status, setStatus]       = useState(task.status);
+    const [completedAt, setCA]      = useState(toLocalDt(task.completed_at) || nowDt());
+    const [completedBy, setCB]      = useState(task.completed_by || '');
+    const [dtError, setDtError]     = useState(false);
+
+    const st = STATUS_CFG[status] || STATUS_CFG.pending;
 
     const save = async (forceStatus) => {
-        setSaving(true);
         const s = forceStatus || status;
+        // Require date/time for any status change
+        if (!completedAt) {
+            setDtError(true);
+            return;
+        }
+        setDtError(false);
+        setSaving(true);
         try {
             const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status: s,
-                    completed_at: s === 'done' ? new Date(completedAt).toISOString() : null,
+                    completed_at: new Date(completedAt).toISOString(),
                     completed_by: completedBy || null,
-                })
+                }),
             });
             const updated = await res.json();
             if (updated.error) throw new Error(updated.error);
             setStatus(updated.status);
             setOpen(false);
             onUpdated(updated);
-        } catch (e) {
-            console.error('Save error:', e);
-        } finally {
-            setSaving(false);
-        }
+        } catch (e) { console.error('Save error:', e); }
+        finally { setSaving(false); }
     };
 
     const toggle = () => {
         if (open) {
             setOpen(false);
+            setDtError(false);
             setStatus(task.status);
-            setCompletedAt(toLocalDt(task.completed_at) || nowDt());
-            setCompletedBy(task.completed_by || '');
-        } else if (task.status === 'done') {
-            save('pending');
+            setCA(toLocalDt(task.completed_at) || nowDt());
+            setCB(task.completed_by || '');
         } else {
+            // Always open the panel — never auto-undo
             setOpen(true);
         }
     };
 
     return (
-        <div style={{ marginBottom: 8 }}>
+        <div className="mb-2">
             {/* Row */}
-            <button onClick={toggle} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 14,
-                background: open ? 'rgba(255,255,255,0.06)' : G.surface,
-                border: `1px solid ${open ? G.borderStr : G.border}`,
-                borderRadius: open ? '14px 14px 0 0' : 14,
-                padding: '14px 18px', cursor: 'pointer', textAlign: 'left',
-                transition: 'all 0.2s', backdropFilter: 'blur(12px)',
-            }}>
+            <button onClick={toggle}
+                className={`w-full flex items-center gap-3.5 px-4 py-3.5 text-left backdrop-blur-xl transition-all duration-200 border
+                    ${open ? 'bg-white/[0.06] border-white/[0.12] rounded-t-2xl' : 'bg-white/[0.03] border-white/[0.07] rounded-2xl hover:bg-white/[0.05]'}`}>
+
                 {/* Status dot */}
-                <div style={{
-                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${st.dot}`,
-                    background: status === 'done' ? st.dot : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: status === 'done' ? `0 0 8px ${st.dot}66` : 'none',
-                    transition: 'all 0.25s',
-                }}>
-                    {status === 'done' && <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>✓</span>}
-                    {status === 'in_progress' && (
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: st.dot, boxShadow: `0 0 6px ${st.dot}` }} />
-                    )}
+                <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all duration-200
+                    ${st.ring} ${status === 'done' ? st.dot : 'bg-transparent'} ${status === 'done' ? 'shadow-[0_0_8px_rgba(16,185,129,0.5)]' : ''}`}>
+                    {status === 'done'  && <span className="text-white text-[10px] font-black">✓</span>}
+                    {status === 'in_progress' && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />}
                 </div>
 
                 {/* Name + meta */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                        color: status === 'done' ? G.subtle : G.text,
-                        fontWeight: 600, fontSize: 14,
-                        textDecoration: status === 'done' ? 'line-through' : 'none',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
+                <div className="flex-1 min-w-0">
+                    <div className={`font-semibold text-sm truncate transition-colors
+                        ${status === 'done' ? 'text-slate-500 line-through' : 'text-slate-100'}`}>
                         {task.name}
                     </div>
                     {task.description && (
-                        <div style={{ color: G.subtle, fontSize: 11, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {task.description}
-                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5 truncate">{task.description}</div>
                     )}
                     {task.status === 'done' && task.completed_by && (
-                        <div style={{ color: STATUS.done.text, fontSize: 11, marginTop: 2 }}>
+                        <div className="text-[11px] text-emerald-500 mt-0.5">
                             ✓ {task.completed_by}
                             {task.completed_at && ` · ${new Date(task.completed_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
                         </div>
@@ -133,93 +119,57 @@ function TaskItem({ task, orderId, onUpdated }) {
                 </div>
 
                 {/* Badge + chevron */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                    <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                        background: st.glow, color: st.text,
-                        border: `1px solid ${st.dot}33`,
-                        textTransform: 'uppercase', letterSpacing: 0.6,
-                    }}>
+                <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${st.badge}`}>
                         {st.label}
                     </span>
                     {open
-                        ? <span style={{ color: G.subtle, fontSize: 13 }}>✕</span>
-                        : status !== 'done' && <span style={{ color: G.dim, fontSize: 16 }}>⌄</span>
+                        ? <span className="text-slate-500 text-sm">✕</span>
+                        : <span className="text-slate-700 text-base">⌄</span>
                     }
                 </div>
             </button>
 
-            {/* Expansion Panel */}
+            {/* Expansion panel */}
             {open && (
-                <div style={{
-                    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)',
-                    border: `1px solid ${G.borderStr}`, borderTop: 'none',
-                    borderRadius: '0 0 14px 14px', padding: '18px 18px 16px',
-                    display: 'flex', flexDirection: 'column', gap: 14,
-                }}>
-                    {/* Status selector */}
+                <div className="bg-black/50 backdrop-blur-xl border border-white/[0.12] border-t-0 rounded-b-2xl px-4 pt-4 pb-4 flex flex-col gap-3.5">
+                    {/* Status buttons */}
                     <div>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-                            Set Status
-                        </p>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            {Object.entries(STATUS).map(([s, st]) => (
-                                <button key={s} onClick={() => setStatus(s)} style={{
-                                    flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer',
-                                    fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5,
-                                    border: `1px solid ${status === s ? st.dot : 'transparent'}`,
-                                    background: status === s ? `${st.dot}22` : 'rgba(255,255,255,0.03)',
-                                    color: status === s ? st.text : G.subtle,
-                                    transition: 'all 0.15s', boxShadow: status === s ? `0 0 10px ${st.dot}33` : 'none',
-                                }}>
-                                    {st.label}
+                        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2">Set Status</p>
+                        <div className="flex gap-2">
+                            {Object.entries(STATUS_CFG).map(([s, cfg]) => (
+                                <button key={s} onClick={() => setStatus(s)}
+                                    className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all duration-150 border
+                                        ${status === s ? cfg.btn : 'border-transparent bg-white/[0.03] text-slate-500 hover:bg-white/[0.06]'}`}>
+                                    {cfg.label}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Date/Time + Completed By */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {/* Date + Completed By */}
+                    <div className="grid grid-cols-2 gap-2.5">
                         <div>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                                Date &amp; Time
+                            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1.5 ${dtError ? 'text-red-400' : 'text-slate-600'}`}>
+                                Date & Time {dtError && '— required'}
                             </label>
                             <input type="datetime-local" value={completedAt}
-                                onChange={e => setCompletedAt(e.target.value)}
-                                style={{
-                                    width: '100%', background: 'rgba(255,255,255,0.04)',
-                                    border: `1px solid ${G.border}`, borderRadius: 10,
-                                    padding: '10px 12px', color: G.text, fontSize: 13,
-                                    outline: 'none', boxSizing: 'border-box',
-                                    colorScheme: 'dark',
-                                }}
-                            />
+                                onChange={e => { setCA(e.target.value); if (e.target.value) setDtError(false); }}
+                                required
+                                className={`w-full bg-white/[0.04] border rounded-xl px-3 py-2.5 text-slate-100 text-sm outline-none [color-scheme:dark] transition-colors
+                                    ${dtError ? 'border-red-500/60 focus:border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.3)]' : 'border-white/[0.07] focus:border-white/20'}`} />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                                Completed By
-                            </label>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Completed By</label>
                             <input type="text" value={completedBy} placeholder="Name / Team"
-                                onChange={e => setCompletedBy(e.target.value)}
-                                style={{
-                                    width: '100%', background: 'rgba(255,255,255,0.04)',
-                                    border: `1px solid ${G.border}`, borderRadius: 10,
-                                    padding: '10px 12px', color: G.text, fontSize: 13,
-                                    outline: 'none', boxSizing: 'border-box',
-                                }}
-                            />
+                                onChange={e => setCB(e.target.value)}
+                                className="w-full bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5 text-slate-100 text-sm outline-none focus:border-white/20 placeholder-slate-600" />
                         </div>
                     </div>
 
                     {/* Save */}
-                    <button onClick={() => save()} disabled={saving} style={{
-                        padding: '13px 0', borderRadius: 10, border: `1px solid ${G.borderStr}`,
-                        cursor: saving ? 'not-allowed' : 'pointer',
-                        background: saving ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
-                        backdropFilter: 'blur(12px)',
-                        color: G.text, fontWeight: 700, fontSize: 14,
-                        transition: 'all 0.2s', letterSpacing: 0.3,
-                    }}>
+                    <button onClick={() => save()} disabled={saving}
+                        className="py-3 rounded-xl border border-white/[0.12] bg-white/[0.08] hover:bg-white/[0.12] text-slate-100 font-bold text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-xl">
                         {saving ? 'Saving…' : 'Save Changes'}
                     </button>
                 </div>
@@ -228,13 +178,13 @@ function TaskItem({ task, orderId, onUpdated }) {
     );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+/* ── Main Page ────────────────────────────────────────────────────────────── */
 export default function JobTrackerPage({ params }) {
     const { id } = use(params);
-    const [data, setData] = useState(null);
+    const [data, setData]     = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [tab, setTab] = useState('tasks');
+    const [error, setError]   = useState(null);
+    const [tab, setTab]       = useState('tasks');
 
     const load = useCallback(async () => {
         try {
@@ -251,119 +201,101 @@ export default function JobTrackerPage({ params }) {
     const handleTaskUpdated = (updated) =>
         setData(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === updated.id ? updated : t) }));
 
+    /* Loading */
     if (loading) return (
-        <div style={{ minHeight: '100vh', background: G.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', border: `2px solid ${G.border}`, borderTop: `2px solid ${G.muted}`, margin: '0 auto 16px', animation: 'spin 0.9s linear infinite' }} />
-                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-                <p style={{ color: G.subtle, fontFamily: 'Inter,sans-serif', fontSize: 13 }}>Loading…</p>
+        <div className="min-h-screen bg-[#07070f] flex items-center justify-center">
+            <div className="text-center">
+                <div className="w-10 h-10 rounded-full border-2 border-white/[0.07] border-t-slate-400 mx-auto mb-4 animate-spin" />
+                <p className="text-slate-600 text-sm">Loading…</p>
             </div>
         </div>
     );
 
+    /* Error */
     if (error || !data) return (
-        <div style={{ minHeight: '100vh', background: G.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ color: '#f87171', fontFamily: 'Inter,sans-serif' }}>{error || 'Not found'}</p>
+        <div className="min-h-screen bg-[#07070f] flex items-center justify-center">
+            <p className="text-red-400 text-sm">{error || 'Not found'}</p>
         </div>
     );
 
     const { order, items, tasks } = data;
-    console.log(items[0]);
     const done = tasks.filter(t => t.status === 'done').length;
-    const pct = tasks.length > 0 ? Math.round(done / tasks.length * 100) : 0;
-    const soColor = ORDER_STATUS_COLOR[order.status] || '#64748b';
+    const pct  = tasks.length > 0 ? Math.round(done / tasks.length * 100) : 0;
+    const soPill = SO_STATUS_PILL[order.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/25';
 
     return (
-        <div style={{ fontFamily: 'Inter,sans-serif', background: G.bg, minHeight: '100vh', color: G.text }}>
+        <div className="font-sans bg-[#07070f] min-h-screen text-slate-100">
 
             {/* Top gradient wash */}
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 300, background: 'radial-gradient(ellipse at 50% -20%, rgba(99,102,241,0.12) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+            <div className="fixed top-0 left-0 right-0 h-72 bg-[radial-gradient(ellipse_at_50%_-20%,rgba(99,102,241,0.12)_0%,transparent_70%)] pointer-events-none z-0" />
 
-            <div style={{ position: 'relative', zIndex: 1 }}>
-                {/* Header */}
-                <div style={{ padding: '28px 20px 0', borderBottom: `1px solid ${G.border}`, backdropFilter: 'blur(20px)', background: 'rgba(7,7,15,0.8)' }}>
-                    <div style={{ maxWidth: 620, margin: '0 auto' }}>
-                        {/* Brand + status */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+            <div className="relative z-10">
+                {/* ── Header ──────────────────────────────────────────────── */}
+                <div className="px-5 pt-7 pb-0 border-b border-white/[0.07] backdrop-blur-xl bg-[rgba(7,7,15,0.8)]">
+                    <div className="max-w-[620px] mx-auto">
+                        {/* Brand row */}
+                        <div className="flex justify-between items-start mb-5">
                             <div>
-                                <p style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-1.5">
                                     Production Job Tracker
                                 </p>
-                                <h1 style={{ fontSize: 26, fontWeight: 800, color: G.text, margin: 0, letterSpacing: '-0.5px' }}>
+                                <h1 className="text-[26px] font-extrabold text-slate-100 m-0 tracking-tight">
                                     {order.code}
                                 </h1>
-                                <p style={{ color: G.muted, margin: '4px 0 0', fontSize: 13 }}>{order.customer_name}</p>
+                                <p className="text-slate-400 mt-1 text-sm">{order.customer_name}</p>
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{
-                                    display: 'inline-block', padding: '5px 14px', borderRadius: 20,
-                                    fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
-                                    background: `${soColor}18`, color: soColor,
-                                    border: `1px solid ${soColor}33`,
-                                }}>
+                            <div className="text-right">
+                                <span className={`inline-block px-3.5 py-1.5 rounded-full text-[11px] font-bold tracking-wide border ${soPill}`}>
                                     {order.status}
                                 </span>
                                 {order.delivery_date && (
-                                    <p style={{ color: G.subtle, fontSize: 11, marginTop: 6 }}>
+                                    <p className="text-slate-600 text-[11px] mt-1.5">
                                         📅 {new Date(order.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </p>
                                 )}
                             </div>
                         </div>
 
-                        {/* Progress */}
+                        {/* Progress bar */}
                         {tasks.length > 0 && (
-                            <div style={{ paddingBottom: 20 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <span style={{ fontSize: 10, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1 }}>
-                                        Progress
-                                    </span>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: pct === 100 ? STATUS.done.text : G.muted }}>
+                            <div className="pb-5">
+                                <div className="flex justify-between mb-2">
+                                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Progress</span>
+                                    <span className={`text-xs font-bold ${pct === 100 ? 'text-emerald-400' : 'text-slate-400'}`}>
                                         {done}/{tasks.length} · {pct}%
                                     </span>
                                 </div>
-                                <div style={{ height: 4, background: G.surface, borderRadius: 2, overflow: 'hidden', border: `1px solid ${G.border}` }}>
-                                    <div style={{
-                                        height: '100%', width: `${pct}%`, borderRadius: 2, transition: 'width 0.5s ease',
-                                        background: pct === 100 ? STATUS.done.dot : 'linear-gradient(90deg, #818cf8, #10b981)'
-                                    }} />
+                                <div className="h-1 bg-white/[0.03] border border-white/[0.07] rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{
+                                            width: `${pct}%`,
+                                            background: pct === 100 ? '#10b981' : 'linear-gradient(90deg,#818cf8,#10b981)',
+                                        }}
+                                    />
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Tab Bar */}
-                <div style={{
-                    position: 'sticky', top: 0, zIndex: 10,
-                    backdropFilter: 'blur(20px)', background: 'rgba(7,7,15,0.85)',
-                    borderBottom: `1px solid ${G.border}`,
-                }}>
-                    <div style={{ maxWidth: 620, margin: '0 auto', display: 'flex', padding: '0 20px' }}>
+                {/* ── Tab bar ─────────────────────────────────────────────── */}
+                <div className="sticky top-0 z-10 backdrop-blur-xl bg-[rgba(7,7,15,0.85)] border-b border-white/[0.07]">
+                    <div className="max-w-[620px] mx-auto flex px-5">
                         {[
-                            { key: 'tasks', label: 'Tasks', badge: `${done}/${tasks.length}` },
+                            { key: 'tasks',   label: 'Tasks',   badge: `${done}/${tasks.length}` },
                             { key: 'details', label: 'Details', badge: items.length },
                         ].map(({ key, label, badge }) => (
-                            <button key={key} onClick={() => setTab(key)} style={{
-                                flex: 1, padding: '14px 0', cursor: 'pointer',
-                                background: 'transparent', border: 'none',
-                                borderBottom: `2px solid ${tab === key ? '#818cf8' : 'transparent'}`,
-                                color: tab === key ? G.text : G.subtle,
-                                fontFamily: 'Inter,sans-serif',
-                                fontWeight: tab === key ? 700 : 500,
-                                fontSize: 13, letterSpacing: 0.2,
-                                transition: 'all 0.2s',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                            }}>
+                            <button key={key} onClick={() => setTab(key)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all duration-200 border-b-2
+                                    ${tab === key
+                                        ? 'border-indigo-400 text-slate-100 font-bold'
+                                        : 'border-transparent text-slate-600 hover:text-slate-400'}`}>
                                 {label}
-                                <span style={{
-                                    fontSize: 10, fontWeight: 700,
-                                    padding: '2px 7px', borderRadius: 20,
-                                    background: tab === key ? 'rgba(129,140,248,0.15)' : G.surface,
-                                    color: tab === key ? '#818cf8' : G.dim,
-                                    border: `1px solid ${tab === key ? 'rgba(129,140,248,0.3)' : G.border}`,
-                                    transition: 'all 0.2s',
-                                }}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-all duration-200
+                                    ${tab === key
+                                        ? 'bg-indigo-400/15 text-indigo-400 border-indigo-400/30'
+                                        : 'bg-white/[0.03] text-slate-700 border-white/[0.07]'}`}>
                                     {badge}
                                 </span>
                             </button>
@@ -371,10 +303,10 @@ export default function JobTrackerPage({ params }) {
                     </div>
                 </div>
 
-                {/* Content */}
-                <div style={{ maxWidth: 620, margin: '0 auto', padding: '20px 20px 60px' }}>
+                {/* ── Content ─────────────────────────────────────────────── */}
+                <div className="max-w-[620px] mx-auto px-5 pt-5 pb-16">
 
-                    {/* ── Tasks tab ── */}
+                    {/* Tasks tab */}
                     {tab === 'tasks' && (
                         <>
                             {tasks.length > 0
@@ -382,48 +314,45 @@ export default function JobTrackerPage({ params }) {
                                     <TaskItem key={task.id} task={task} orderId={id} onUpdated={handleTaskUpdated} />
                                 ))
                                 : (
-                                    <div style={{
-                                        textAlign: 'center', padding: '48px 24px',
-                                        background: G.surface, border: `1px dashed ${G.border}`,
-                                        borderRadius: 16, backdropFilter: 'blur(12px)',
-                                    }}>
-                                        <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-                                        <p style={{ fontSize: 13, color: G.subtle }}>No tasks assigned yet</p>
+                                    <div className="text-center py-12 px-6 bg-white/[0.03] border border-dashed border-white/[0.07] rounded-2xl backdrop-blur-xl">
+                                        <div className="text-3xl mb-2.5">📋</div>
+                                        <p className="text-slate-600 text-sm">No tasks assigned yet</p>
                                     </div>
                                 )
                             }
                         </>
                     )}
 
-                    {/* ── Details tab ── */}
+                    {/* Details tab */}
                     {tab === 'details' && (
                         <>
                             {items.length > 0
                                 ? items.map((item, i) => (
-                                    <div key={i} style={{
-                                        background: G.surface, border: `1px solid ${G.border}`,
-                                        borderRadius: 14, marginBottom: 10, overflow: 'hidden',
-                                        backdropFilter: 'blur(12px)',
-                                    }}>
-                                        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${G.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontWeight: 700, fontSize: 13, color: G.text }}>{item.estimation_name || item.job_description}</span>
-                                            <span style={{ fontSize: 11, color: G.subtle, background: G.surface, border: `1px solid ${G.border}`, borderRadius: 20, padding: '2px 10px' }}>× {item.quantity}</span>
+                                    <div key={i} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl mb-2.5 overflow-hidden backdrop-blur-xl">
+                                        {/* Item header */}
+                                        <div className="flex justify-between items-center px-4 py-3 border-b border-white/[0.07]">
+                                            <span className="font-bold text-sm text-slate-100">{item.estimation_name || item.job_description}</span>
+                                            <span className="text-[11px] text-slate-600 bg-white/[0.03] border border-white/[0.07] rounded-full px-2.5 py-0.5">
+                                                × {item.quantity}
+                                            </span>
                                         </div>
-                                        <div style={{ padding: '12px 16px' }}>
+
+                                        {/* Spec details */}
+                                        <div className="px-4 py-3">
                                             {item.details?.map((d, di) => (
                                                 d.component_name !== 'Finishing' && (
-                                                    <div key={di} style={{ marginBottom: di < item.details.length - 1 ? 14 : 0 }}>
-                                                        <p style={{ fontSize: 10, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                                                    <div key={di} className={di < item.details.length - 1 ? 'mb-3.5' : ''}>
+                                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2">
                                                             {d.component_name} · {d.type}
                                                         </p>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                                                            {d.machine_name && <Cell label="Machine" val={d.machine_name} />}
-                                                            {d.paper_name && <Cell label="Paper" val={d.paper_name} />}
-                                                            {d.colors_front > 0 && <Cell label="Front" val={`${d.colors_front ?? d.colors} clr`} />}
-                                                            {d.colors_back > 0 && <Cell label="Back" val={`${d.colors_back} clr`} />}
-                                                            {d.plate_count > 0 && <Cell label="Plates" val={d.plate_count} />}
-                                                            {d.printed_sheets > 0 && <Cell label="Sheets" val={d.printed_sheets.toLocaleString()} />}
-                                                            {d.wastage_sheets > 0 && <Cell label="Wastage" val={d.wastage_sheets.toLocaleString()} />}
+                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                            {d.machine_name        && <Cell label="Machine"     val={d.machine_name} />}
+                                                            {d.paper_name          && <Cell label="Paper"       val={d.paper_name} />}
+                                                            {d.colors_front > 0    && <Cell label="Front"       val={`${d.colors_front ?? d.colors} clr`} />}
+                                                            {d.colors_back  > 0    && <Cell label="Back"        val={`${d.colors_back} clr`} />}
+                                                            {d.plate_count  > 0    && <Cell label="Plates"      val={d.plate_count} />}
+                                                            {d.printed_sheets > 0  && <Cell label="Sheets"      val={d.printed_sheets.toLocaleString()} />}
+                                                            {d.wastage_sheets > 0  && <Cell label="Wastage"     val={d.wastage_sheets.toLocaleString()} />}
                                                             {d.full_sheets_used > 0 && <Cell label="Total Sheets" val={d.full_sheets_used.toLocaleString()} />}
                                                         </div>
                                                     </div>
@@ -432,25 +361,21 @@ export default function JobTrackerPage({ params }) {
 
                                             {/* Finishings */}
                                             {item.finishings?.length > 0 && (
-                                                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${G.border}` }}>
-                                                    <p style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                                                <div className="mt-3.5 pt-3.5 border-t border-white/[0.07]">
+                                                    <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-2">
                                                         Finishings
                                                     </p>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    <div className="flex flex-col gap-1.5">
                                                         {item.finishings.map((f, fi) => (
-                                                            <div key={fi} style={{
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                                                background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.12)',
-                                                                borderRadius: 8, padding: '8px 12px',
-                                                            }}>
+                                                            <div key={fi} className="flex items-center justify-between bg-amber-500/[0.05] border border-amber-500/[0.12] rounded-lg px-3 py-2">
                                                                 <div>
-                                                                    <span style={{ fontSize: 13, fontWeight: 600, color: G.text }}>{f.name}</span>
+                                                                    <span className="text-sm font-semibold text-slate-100">{f.name}</span>
                                                                     {f.machine_name && (
-                                                                        <span style={{ fontSize: 11, color: G.subtle, marginLeft: 8 }}>· {f.machine_name}</span>
+                                                                        <span className="text-[11px] text-slate-600 ml-2">· {f.machine_name}</span>
                                                                     )}
                                                                 </div>
                                                                 {f.quantity > 0 && (
-                                                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24', padding: '2px 8px', background: 'rgba(245,158,11,0.12)', borderRadius: 20 }}>
+                                                                    <span className="text-[11px] font-bold text-amber-300 px-2 py-0.5 bg-amber-400/10 rounded-full">
                                                                         ×{f.quantity}
                                                                     </span>
                                                                 )}
@@ -463,7 +388,7 @@ export default function JobTrackerPage({ params }) {
                                     </div>
                                 ))
                                 : (
-                                    <div style={{ textAlign: 'center', padding: '48px 24px', color: G.subtle, fontSize: 13 }}>
+                                    <div className="text-center py-12 px-6 text-slate-600 text-sm">
                                         No components found
                                     </div>
                                 )
@@ -471,25 +396,11 @@ export default function JobTrackerPage({ params }) {
                         </>
                     )}
 
-                    <p style={{ textAlign: 'center', marginTop: 32, fontSize: 10, color: G.dim, letterSpacing: 1 }}>
-                        PRESSMATICS ERP · PRODUCTION TRACKING
+                    <p className="text-center mt-8 text-[10px] text-slate-800 tracking-widest uppercase">
+                        Pressmatics ERP · Production Tracking
                     </p>
                 </div>
             </div>
-        </div>
-    );
-}
-
-function Cell({ label, val }) {
-    return (
-        <div style={{
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 8, padding: '7px 10px',
-        }}>
-            <span style={{ display: 'block', fontSize: 9, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 }}>
-                {label}
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{val}</span>
         </div>
     );
 }

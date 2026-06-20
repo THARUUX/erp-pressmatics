@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { FiPlus, FiBox, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
@@ -53,20 +55,20 @@ export default function PapersPage() {
                 resetForm();
                 fetchPapers();
             } else {
-                alert('Operation failed');
+                toast.error('Operation failed');
             }
         } catch (error) {
             console.error(error);
-            alert('An error occurred');
+            toast.error('An error occurred');
         }
     };
 
     const handleDelete = async (id) => {
-        if (!confirm("Delete this paper?")) return;
+        if (!(await confirmDialog("Delete this paper?"))) return;
         try {
             const res = await fetch(`/api/papers/${id}`, { method: 'DELETE' });
             if (res.ok) fetchPapers();
-            else alert('Failed to delete');
+            else toast.error('Failed to delete');
         } catch (error) { console.error(error); }
     };
 
@@ -94,7 +96,7 @@ export default function PapersPage() {
             <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold tracking-tighter">Paper Inventory</h1>
                 {!showAdd && (
-                    <Button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-white text-black hover:bg-gray-200">
+                    <Button onClick={async () => setShowAdd(true)} className="flex items-center gap-2 bg-white text-black hover:bg-gray-200">
                         <FiPlus /> Add New Paper
                     </Button>
                 )}
@@ -161,8 +163,8 @@ export default function PapersPage() {
                                 <td className="p-4 font-mono">{paper.stock_quantity}</td>
                                 <td className="p-4 font-mono text-right text-green-400">{currency}{parseFloat(paper.cost_per_sheet).toFixed(4)}</td>
                                 <td className="p-4 text-right flex justify-end gap-2">
-                                    <button onClick={() => handleEdit(paper)} className="p-2 text-gray-400 hover:text-white transition-colors"><FiEdit2 /></button>
-                                    <button onClick={() => handleDelete(paper.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors"><FiTrash2 /></button>
+                                    <button onClick={async () => handleEdit(paper)} className="p-2 text-gray-400 hover:text-white transition-colors"><FiEdit2 /></button>
+                                    <button onClick={async () => handleDelete(paper.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors"><FiTrash2 /></button>
                                 </td>
                             </tr>
                         ))}

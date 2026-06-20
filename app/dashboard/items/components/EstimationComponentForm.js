@@ -339,7 +339,7 @@ export default function EstimationComponentForm({
                         </div>
 
                         {/* B&B toggle — only for Inner components */}
-                        {data.name?.includes('Inner') && (
+                        {(data.name?.includes('Inner') || data.name?.includes('Cover')) && (
                             <div className="flex items-center gap-3 mt-2">
                                 <button
                                     type="button"

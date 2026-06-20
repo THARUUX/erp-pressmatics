@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { FiPlus, FiEdit2, FiTrash2, FiX, FiFilter, FiCopy, FiAlertTriangle, FiClock } from 'react-icons/fi';
@@ -92,11 +94,11 @@ export default function InventoryPage() {
                 resetForm();
                 fetchItems();
             } else {
-                alert('Operation failed');
+                toast.error('Operation failed');
             }
         } catch (error) {
             console.error(error);
-            alert('An error occurred');
+            toast.error('An error occurred');
         }
     };
 
@@ -118,22 +120,22 @@ export default function InventoryPage() {
                 setRestockData({ quantity: 0, notes: '' });
                 fetchItems();
             } else {
-                alert('Restock failed');
+                toast.error('Restock failed');
             }
         } catch (error) {
             console.error(error);
-            alert('Restock error');
+            toast.error('Restock error');
         }
     };
 
     const handleDelete = async (id) => {
-        if (!confirm("Delete this item?")) return;
+        if (!(await confirmDialog("Delete this item?"))) return;
         try {
             const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
             if (res.ok) fetchItems();
             else {
                 const data = await res.json();
-                alert(data.error || 'Failed to delete');
+                toast.error(data.error || 'Failed to delete');
             }
         } catch (error) { console.error(error); }
     };
@@ -197,7 +199,7 @@ export default function InventoryPage() {
             <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold tracking-tighter">Inventory</h1>
                 {!showAdd && (
-                    <Button onClick={() => { resetForm(); setShowAdd(true); }} className="flex items-center gap-2 bg-white text-black hover:bg-gray-200">
+                    <Button onClick={async () => { resetForm(); setShowAdd(true); }} className="flex items-center gap-2 bg-white text-black hover:bg-gray-200">
                         <FiPlus /> Add Item
                     </Button>
                 )}
@@ -208,7 +210,7 @@ export default function InventoryPage() {
                 {CATEGORIES.map(cat => (
                     <button
                         key={cat}
-                        onClick={() => setActiveCategory(cat)}
+                        onClick={async () => setActiveCategory(cat)}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeCategory === cat
                             ? 'bg-white text-black'
                             : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
@@ -376,7 +378,7 @@ export default function InventoryPage() {
                                 />
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <Button onClick={() => setRestockItem(null)} className="flex-1 bg-transparent border border-white/10 hover:bg-white/5">Cancel</Button>
+                                <Button onClick={async () => setRestockItem(null)} className="flex-1 bg-transparent border border-white/10 hover:bg-white/5">Cancel</Button>
                                 <Button onClick={handleRestock} className="flex-1 bg-green-600 hover:bg-green-500 text-white">Save Issue Note</Button>
                             </div>
                         </div>
@@ -390,7 +392,7 @@ export default function InventoryPage() {
                     <div className="bg-[#1a1a1a] p-6 rounded-xl border border-white/10 w-full max-w-2xl shadow-2xl animate-in zoom-in-95 max-h-[80vh] flex flex-col">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Transaction History: {historyItem.name}</h2>
-                            <button onClick={() => setHistoryItem(null)}><FiX className="text-gray-400 hover:text-white" /></button>
+                            <button onClick={async () => setHistoryItem(null)}><FiX className="text-gray-400 hover:text-white" /></button>
                         </div>
 
                         <div className="overflow-y-auto flex-1 pr-2">
@@ -475,15 +477,15 @@ export default function InventoryPage() {
                                         <td className="p-4 font-mono text-right text-green-400">{currency}{parseFloat(item.unit_cost).toFixed(5)}</td>
                                         <td className="p-4 text-right flex justify-end gap-2">
                                             <Button
-                                                onClick={() => setRestockItem(item)}
+                                                onClick={async () => setRestockItem(item)}
                                                 className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 mr-2"
                                             >
                                                 Restock
                                             </Button>
-                                            <button onClick={() => handleViewHistory(item)} className="p-2 text-gray-400 hover:text-purple-400 transition-colors" title="History"><FiClock /></button>
-                                            <button onClick={() => handleCopy(item)} className="p-2 text-gray-400 hover:text-blue-400 transition-colors" title="Copy"><FiCopy /></button>
-                                            <button onClick={() => handleEdit(item)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Edit"><FiEdit2 /></button>
-                                            <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors" title="Delete"><FiTrash2 /></button>
+                                            <button onClick={async () => handleViewHistory(item)} className="p-2 text-gray-400 hover:text-purple-400 transition-colors" title="History"><FiClock /></button>
+                                            <button onClick={async () => handleCopy(item)} className="p-2 text-gray-400 hover:text-blue-400 transition-colors" title="Copy"><FiCopy /></button>
+                                            <button onClick={async () => handleEdit(item)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Edit"><FiEdit2 /></button>
+                                            <button onClick={async () => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors" title="Delete"><FiTrash2 /></button>
                                         </td>
                                     </tr>
                                 );

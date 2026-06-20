@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
@@ -58,7 +60,7 @@ export default function InvoiceDetailPage({ params }) {
     };
 
     const handlePay = async () => {
-        if (!payForm.amount || parseFloat(payForm.amount) <= 0) return alert('Enter a valid amount');
+        if (!payForm.amount || parseFloat(payForm.amount) <= 0) return toast.error('Enter a valid amount');
         setRecordingPay(true);
         await fetch(`/api/invoices/${id}/payments`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payForm) });
         setRecordingPay(false); setShowPayForm(false);
@@ -67,7 +69,7 @@ export default function InvoiceDetailPage({ params }) {
     };
 
     const handleDelPay = async (pid) => {
-        if (!confirm('Delete this payment?')) return;
+        if (!(await confirmDialog('Delete this payment?'))) return;
         await fetch(`/api/invoices/${id}/payments/${pid}`, { method: 'DELETE' });
         load();
     };
@@ -97,11 +99,11 @@ export default function InvoiceDetailPage({ params }) {
                 </div>
                 <div className="flex items-center gap-2">
                     {!editMode ? (<>
-                        <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"><FiEdit2 className="w-3.5 h-3.5"/>Edit</button>
-                        <button onClick={() => setShowPayForm(v=>!v)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-500"><FiPlus className="w-3.5 h-3.5"/>Record Payment</button>
-                        <button onClick={() => window.print()} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white text-black rounded-xl font-semibold hover:bg-gray-100"><FiPrinter className="w-3.5 h-3.5"/>Print</button>
+                        <button onClick={async () => setEditMode(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"><FiEdit2 className="w-3.5 h-3.5"/>Edit</button>
+                        <button onClick={async () => setShowPayForm(v=>!v)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-500"><FiPlus className="w-3.5 h-3.5"/>Record Payment</button>
+                        <button onClick={async () => window.print()} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white text-black rounded-xl font-semibold hover:bg-gray-100"><FiPrinter className="w-3.5 h-3.5"/>Print</button>
                     </>) : (<>
-                        <button onClick={() => setEditMode(false)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"><FiX className="w-3.5 h-3.5"/>Cancel</button>
+                        <button onClick={async () => setEditMode(false)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"><FiX className="w-3.5 h-3.5"/>Cancel</button>
                         <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 disabled:opacity-50"><FiSave className="w-3.5 h-3.5"/>{saving?'Saving...':'Save'}</button>
                     </>)}
                 </div>
@@ -227,7 +229,7 @@ export default function InvoiceDetailPage({ params }) {
                             <button onClick={handlePay} disabled={recordingPay} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-500 flex items-center justify-center gap-1.5 disabled:opacity-50">
                                 <FiCheckCircle className="w-3.5 h-3.5"/>{recordingPay?'Saving...':'Record'}
                             </button>
-                            <button onClick={()=>setShowPayForm(false)} className="py-2 px-3 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:bg-white/10"><FiX className="w-3.5 h-3.5"/></button>
+                            <button onClick={async () =>setShowPayForm(false)} className="py-2 px-3 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:bg-white/10"><FiX className="w-3.5 h-3.5"/></button>
                         </div>
                     </div>
                 </div>
@@ -257,7 +259,7 @@ export default function InvoiceDetailPage({ params }) {
                                 >
                                     <FiFileText className="w-3.5 h-3.5"/>
                                 </Link>
-                                <button onClick={()=>handleDelPay(p.id)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"><FiTrash2 className="text-sm"/></button>
+                                <button onClick={async () =>handleDelPay(p.id)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"><FiTrash2 className="text-sm"/></button>
                             </div>
                         </div>
                     ))}

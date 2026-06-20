@@ -1,4 +1,5 @@
 'use client';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -53,8 +54,8 @@ function NewInvoiceForm() {
     };
 
     const handleSave = async () => {
-        if (!form.customer_name) return alert('Customer name is required');
-        if (!form.amount_due || parseFloat(form.amount_due) <= 0) return alert('Amount due must be > 0');
+        if (!form.customer_name) return toast.error('Customer name is required');
+        if (!form.amount_due || parseFloat(form.amount_due) <= 0) return toast.error('Amount due must be > 0');
 
         setSaving(true);
         try {
@@ -67,11 +68,11 @@ function NewInvoiceForm() {
             if (res.ok) {
                 router.push(`/dashboard/invoices/${data.id}`);
             } else {
-                alert('Failed to create invoice: ' + data.error);
+                toast.error('Failed to create invoice: ' + data.error);
             }
         } catch (e) {
             console.error(e);
-            alert('Error saving invoice');
+            toast.error('Error saving invoice');
         } finally {
             setSaving(false);
         }

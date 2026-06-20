@@ -4,6 +4,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome, FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign } from 'react-icons/fi';
 import Link from 'next/link';
+import { Toaster } from 'react-hot-toast';
+import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
 
 export default function DashboardLayout({ children }) {
     const pathname = usePathname();
@@ -116,6 +118,21 @@ export default function DashboardLayout({ children }) {
 
             {/* Main Content Wrapper */}
             <main className="flex-1 p-8 overflow-y-auto relative z-10 h-full">
+                <Toaster
+                    position="top-right"
+                    toastOptions={{
+                        style: {
+                            background: '#1a1a2e',
+                            color: '#fff',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            fontSize: '14px',
+                        },
+                        success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+                        error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+                    }}
+                />
+                <ConfirmDialogContainer />
                 {children}
             </main>
         </div>

@@ -1,4 +1,5 @@
 'use client';
+import toast from 'react-hot-toast';
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -35,7 +36,7 @@ export default function SalesOrderDetailPage({ params }) {
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
-            alert('Failed to generate PDF: ' + err.message);
+            toast.error('Failed to generate PDF: ' + err.message);
         } finally {
             setPdfLoading(false);
         }
@@ -132,14 +133,14 @@ export default function SalesOrderDetailPage({ params }) {
                 body: JSON.stringify({ status, delivery_date: deliveryDate || null })
             });
             if (res.ok) {
-                alert('Sales Order updated successfully');
+                toast.success('Sales Order updated successfully');
                 fetchOrder();
             } else {
-                alert('Failed to update sales order');
+                toast.error('Failed to update sales order');
             }
         } catch (error) {
             console.error(error);
-            alert('Error updating sales order');
+            toast.error('Error updating sales order');
         } finally {
             setSaving(false);
         }
@@ -309,12 +310,10 @@ export default function SalesOrderDetailPage({ params }) {
             </div>
 
             {/* All printable pages wrapped together so page-break works correctly */}
-            <div className="print-pages">
+            {/* <div className="print-pages">
 
-            {/* Job Ticket (Printable Area) — Page 1 */}
             <div className="bg-white text-black p-8 rounded-xl print:m-0 print:shadow-none shadow-xl mx-auto max-w-[21cm] min-h-[29.7cm] job-ticket-container">
 
-                {/* Job Ticket Header */}
                 <div className="border-b-4 border-black pb-4 mb-6 relative">
                     <h1 className="text-3xl font-black uppercase tracking-tight mb-1">Production Job Ticket</h1>
                     <div className="flex justify-between items-end">
@@ -331,7 +330,6 @@ export default function SalesOrderDetailPage({ params }) {
                     </div>
                 </div>
 
-                {/* Iterate through Line Items */}
                 <div className="space-y-10">
                     {order.items?.map((item, idx) => (
                         <div key={item.id} className="relative">
@@ -341,7 +339,6 @@ export default function SalesOrderDetailPage({ params }) {
                             </div>
 
                             <div className="grid grid-cols-1 gap-6">
-                                {/* Print Details */}
                                 {item.details?.map((detail, dIdx) => (
                                     <div key={detail.id} className="border border-gray-300 rounded p-4 text-sm relative">
                                         <div className="absolute -top-3 left-4 bg-white px-2 font-bold text-gray-500 uppercase text-xs">
@@ -425,7 +422,6 @@ export default function SalesOrderDetailPage({ params }) {
                                 ))}
                             </div>
 
-                            {/* Global Finishings for this item */}
                             {item.globalFinishings && item.globalFinishings.length > 0 && (
                                 <div className="mt-6 border-l-4 border-gray-800 pl-4 py-2 bg-gray-50">
                                     <div className="text-sm font-black uppercase mb-3 text-gray-800">Final Item Finishings (Global)</div>
@@ -452,7 +448,6 @@ export default function SalesOrderDetailPage({ params }) {
                                 </div>
                             )}
 
-                            {/* Signoff block per item */}
                             <div className="flex justify-end mt-4 text-xs">
                                 <div className="w-48 text-center pt-8 border-t border-gray-400 mt-4">
                                     QC / Operator Sign-off
@@ -462,16 +457,11 @@ export default function SalesOrderDetailPage({ params }) {
                     ))}
                 </div>
 
-                {/* Footer Notes */}
                 <div className="mt-12 pt-4 border-t-2 border-dashed border-gray-300 text-xs text-gray-500 text-center">
                     Auto-generated Job Ticket by Pressmatics ERP • {new Date().toLocaleString()}
                 </div>
             </div>
 
-            {/* ─────────────────────────────────────────────────────────────────────────────
-                 Dedicated Imposition Layouts Page
-                 This section always starts on a new printed page.
-            ───────────────────────────────────────────────────────────────────────────── */}
             {order.items?.some(item =>
                 item.details?.some(d => d.type !== 'digital' && d.comp_width_cm && d.comp_height_cm)
             ) && (
@@ -479,7 +469,6 @@ export default function SalesOrderDetailPage({ params }) {
                     className="bg-white text-black p-8 rounded-xl print:m-0 print:p-8 shadow-xl mx-auto max-w-[29.7cm] min-h-[21cm] mt-8 job-ticket-container imposition-layouts-container"
                     style={{ pageBreakBefore: 'always' }}
                 >
-                    {/* Layouts page header */}
                     <div className="border-b-4 border-black pb-4 mb-8">
                         <h1 className="text-2xl font-black uppercase tracking-tight">Imposition Layout Plans</h1>
                         <div className="flex justify-between items-end mt-2">
@@ -488,14 +477,12 @@ export default function SalesOrderDetailPage({ params }) {
                         </div>
                     </div>
 
-                    {/* 2-column grid — 2 layouts per row */}
                     <div className="grid grid-cols-2 gap-8">
                         {order.items?.map((item, itemIdx) =>
                             item.details
                                 ?.filter(d => d.type !== 'digital' && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
                                 .map((detail, dIdx) => (
                                     <div key={`${item.id}-${detail.id || dIdx}`} className="break-inside-avoid">
-                                        {/* Layout title */}
                                         <div className="flex justify-between items-baseline mb-1">
                                             <h2 className="font-black text-sm uppercase leading-tight">
                                                 {itemIdx + 1}.{dIdx + 1}&nbsp; {item.estimation_name || item.job_description}
@@ -508,7 +495,6 @@ export default function SalesOrderDetailPage({ params }) {
                                             </span>
                                         </div>
 
-                                        {/* Compact dimensions strip */}
                                         <div className="flex flex-wrap gap-3 text-[10px] text-gray-500 mb-2 pb-2 border-b border-gray-200">
                                             <span>Sheet: <strong className="text-black">{detail.paper_width_cm}×{detail.paper_height_cm} cm</strong></span>
                                             <span>Cut: <strong className="text-black">{detail.cut_width_cm}×{detail.cut_height_cm} cm</strong></span>
@@ -516,7 +502,6 @@ export default function SalesOrderDetailPage({ params }) {
                                             <span className="text-gray-400">{detail.paper_name}</span>
                                         </div>
 
-                                        {/* Imposition SVG */}
                                         <ImpositionVisualizer
                                             ups={detail.ups}
                                             paperWidthCm={detail.paper_width_cm}
@@ -536,7 +521,7 @@ export default function SalesOrderDetailPage({ params }) {
                     </div>
                 </div>
             )}
-            </div> {/* /print-pages wrapper */}
+            </div>  */}
 
             <style dangerouslySetInnerHTML={{
                 __html: `

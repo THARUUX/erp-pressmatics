@@ -1,4 +1,5 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -60,7 +61,7 @@ export default function PlatesPage() {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm("Are you sure you want to delete this plate?")) return;
+        if (!(await confirmDialog("Are you sure you want to delete this plate?"))) return;
         try {
             const res = await fetch(`/api/plates/${id}`, { method: 'DELETE' });
             if (res.ok) fetchPlates();
@@ -175,14 +176,14 @@ export default function PlatesPage() {
                                                 <td className="p-4 text-right font-mono">{currency}{parseFloat(item.unit_cost).toFixed(2)}</td>
                                                 <td className="p-4 text-right flex justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleEdit(item)}
+                                                        onClick={async () => handleEdit(item)}
                                                         className="p-2 text-gray-400 hover:text-white transition-colors"
                                                         title="Edit"
                                                     >
                                                         <FiEdit2 />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(item.id)}
+                                                        onClick={async () => handleDelete(item.id)}
                                                         className="p-2 text-gray-500 hover:text-red-400 transition-colors"
                                                         title="Delete"
                                                     >

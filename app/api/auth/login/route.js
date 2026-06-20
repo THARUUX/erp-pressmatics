@@ -18,6 +18,10 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
         }
 
+        if (user.is_banned === 1) {
+            return NextResponse.json({ error: 'Your account has been banned. Please contact the administrator.' }, { status: 403 });
+        }
+
         const isValid = await comparePassword(password, user.password);
 
         if (!isValid) {

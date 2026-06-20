@@ -1,4 +1,5 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -110,7 +111,7 @@ export default function FinishingsPage() {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm("Are you sure you want to delete this service?")) return;
+        if (!(await confirmDialog("Are you sure you want to delete this service?"))) return;
         try {
             const res = await fetch(`/api/finishings/${id}`, { method: 'DELETE' });
             if (res.ok) fetchFinishings();
@@ -284,7 +285,7 @@ export default function FinishingsPage() {
                                                 onChange={e => updateVariant(index, 'unit_cost', e.target.value)}
                                                 className="bg-secondary border-white/10 w-24 text-sm py-1"
                                             />
-                                            <button type="button" onClick={() => removeVariant(index)} className="text-gray-500 hover:text-red-400 p-1">
+                                            <button type="button" onClick={async () => removeVariant(index)} className="text-gray-500 hover:text-red-400 p-1">
                                                 <FiTrash2 />
                                             </button>
                                         </div>
@@ -364,14 +365,14 @@ export default function FinishingsPage() {
                                                 </td>
                                                 <td className="p-4 text-right flex justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleEdit(item)}
+                                                        onClick={async () => handleEdit(item)}
                                                         className="p-2 text-gray-400 hover:text-white transition-colors"
                                                         title="Edit"
                                                     >
                                                         <FiEdit2 />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(item.id)}
+                                                        onClick={async () => handleDelete(item.id)}
                                                         className="p-2 text-gray-500 hover:text-red-400 transition-colors"
                                                         title="Delete"
                                                     >

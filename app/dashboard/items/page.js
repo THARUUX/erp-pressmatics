@@ -119,7 +119,7 @@ export default function ItemsPage() {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const limit = 10;
+    const limit = 5;
 
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('all');
@@ -387,13 +387,13 @@ export default function ItemsPage() {
 
             {totalPages > 1 && (
                 <div className="flex justify-center mt-8 gap-2">
-                    <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
+                    <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="bg-white hover:bg-white/70 disabled:opacity-50">
                         Previous
                     </Button>
                     <span className="flex items-center px-4 text-sm text-gray-400">
                         Page {page} of {totalPages}
                     </span>
-                    <Button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="bg-white/5 hover:bg-white/10 disabled:opacity-50">
+                    <Button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="bg-white hover:bg-white/70 disabled:opacity-50">
                         Next
                     </Button>
                 </div>

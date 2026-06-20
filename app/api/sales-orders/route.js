@@ -117,7 +117,7 @@ export async function POST(req) {
         for (const row of details) {
             const sheetsToDeduct = Math.ceil(parseFloat(row.sheets_needed));
             await pool.execute(`
-                UPDATE papers
+                UPDATE inventory_items
                 SET stock_quantity = GREATEST(0, stock_quantity - ?)
                 WHERE id = ?
             `, [sheetsToDeduct, row.paper_id]);

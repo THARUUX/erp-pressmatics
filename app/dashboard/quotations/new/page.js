@@ -1,4 +1,5 @@
 'use client';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -82,7 +83,7 @@ export default function NewQuotationContainerPage() {
 
     const handleSave = async () => {
         if (!customerName || selectedItemIds.length === 0) {
-            alert("Please enter customer name and select at least one item.");
+            toast.error("Please enter customer name and select at least one item.");
             return;
         }
 
@@ -102,7 +103,7 @@ export default function NewQuotationContainerPage() {
                 const data = await res.json();
                 router.push(`/dashboard/quotations/${data.quotationId}/edit`);
             } else {
-                alert('Failed to save quotation.');
+                toast.error('Failed to save quotation.');
             }
         } catch (error) {
             console.error(error);

@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -59,23 +61,23 @@ export default function ItemsPage() {
     }, [searchTerm, filterType, page]);
 
     const handleDelete = async (id) => {
-        if (!confirm("Are you sure you want to delete this estimation? This cannot be undone.")) return;
+        if (!(await confirmDialog("Are you sure you want to delete this estimation? This cannot be undone."))) return;
         try {
             const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 fetchItems();
             } else {
-                alert('Failed to delete item');
+                toast.error('Failed to delete item');
             }
         } catch (err) {
             console.error(err);
-            alert('Error deleting item');
+            toast.error('Error deleting item');
         }
     };
 
     const handleToggleFavorite = async (id, currentStatus) => {
         // Confirm before removing from favorites
-        if (currentStatus && !confirm("Are you sure you want to remove this item from favorites?")) {
+        if (currentStatus && !(await confirmDialog("Are you sure you want to remove this item from favorites?"))) {
             return;
         }
 
@@ -98,34 +100,34 @@ export default function ItemsPage() {
     };
 
     const handleDuplicate = async (id) => {
-        if (!confirm("Duplicate this estimation?")) return;
+        if (!(await confirmDialog("Duplicate this estimation?"))) return;
         try {
             const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.newId) {
                 router.push(`/dashboard/estimations/${data.newId}`);
             } else {
-                alert('Failed to duplicate item');
+                toast.error('Failed to duplicate item');
             }
         } catch (err) {
             console.error(err);
-            alert('Error duplicating item');
+            toast.error('Error duplicating item');
         }
     };
 
     const handleDuplicateFav = async (id) => {
-        if (!confirm("Copy this template?")) return;
+        if (!(await confirmDialog("Copy this template?"))) return;
         try {
             const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.newId) {
                 router.push(`/dashboard/estimations/temp/${data.newId}`);
             } else {
-                alert('Failed to duplicate item');
+                toast.error('Failed to duplicate item');
             }
         } catch (err) {
             console.error(err);
-            alert('Error duplicating item');
+            toast.error('Error duplicating item');
         }
     };
 
@@ -157,13 +159,13 @@ export default function ItemsPage() {
                 </div>
                 <div className="flex bg-black/40 border border-white/10 rounded-lg p-1">
                     <button
-                        onClick={() => setFilterType('all')}
+                        onClick={async () => setFilterType('all')}
                         className={`px-4 py-1.5 rounded-md text-sm transition-colors ${filterType === 'all' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
                     >
                         All
                     </button>
                     <button
-                        onClick={() => setFilterType('favorites')}
+                        onClick={async () => setFilterType('favorites')}
                         className={`px-4 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${filterType === 'favorites' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
                     >
                         <FiStar className={filterType === 'favorites' ? "fill-white" : ""} /> Favorites
@@ -186,13 +188,13 @@ export default function ItemsPage() {
                 {items.map(item => (
                     <div
                         key={item.id}
-                        onClick={() => item.is_favorite ? handleDuplicateFav(item.id) : router.push(`/dashboard/estimations/temp/${item.id}`)}
+                        onClick={async () => item.is_favorite ? handleDuplicateFav(item.id) : router.push(`/dashboard/estimations/temp/${item.id}`)}
                         className={`bg-black/40 backdrop-blur-md p-6 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}
                     >
                         <div>
                             <div className="flex hidden items-center gap-3">
                                 <button
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                         e.stopPropagation();
                                         handleToggleFavorite(item.id, item.is_favorite);
                                     }}
@@ -217,7 +219,7 @@ export default function ItemsPage() {
                             </div>
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                         e.stopPropagation();
                                         if (item.is_favorite){
                                             handleDuplicateFav(item.id);
@@ -232,13 +234,13 @@ export default function ItemsPage() {
                                 </button>
                                 {!item.is_favorite && (
                                     <>
-                                        <Link href={`/dashboard/items/${item.id}`} onClick={(e) => e.stopPropagation()}>
+                                        <Link href={`/dashboard/items/${item.id}`} onClick={async (e) => e.stopPropagation()}>
                                             <button className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
                                                 <FiEdit2 />
                                             </button>
                                         </Link>
                                         <button
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                                 e.stopPropagation();
                                                 handleDelete(item.id);
                                             }}
@@ -260,7 +262,7 @@ export default function ItemsPage() {
                 <div className="flex justify-center mt-8 gap-2">
                     <Button
                         disabled={page === 1}
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        onClick={async () => setPage(p => Math.max(1, p - 1))}
                         className="bg-white/5 hover:bg-white/10 disabled:opacity-50"
                     >
                         Previous
@@ -270,7 +272,7 @@ export default function ItemsPage() {
                     </span>
                     <Button
                         disabled={page === totalPages}
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        onClick={async () => setPage(p => Math.min(totalPages, p + 1))}
                         className="bg-white/5 hover:bg-white/10 disabled:opacity-50"
                     >
                         Next

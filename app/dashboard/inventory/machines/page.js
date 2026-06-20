@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX } from 'react-icons/fi';
@@ -76,27 +78,27 @@ export default function MachinesPage() {
                 resetForm();
             } else {
                 const data = await res.json();
-                alert(data.error || 'Operation failed');
+                toast.error(data.error || 'Operation failed');
             }
         } catch (error) {
             console.error(error);
-            alert('An error occurred');
+            toast.error('An error occurred');
         }
     };
 
     const handleDelete = async (id) => {
-        if (!confirm("Are you sure you want to delete this machine?")) return;
+        if (!(await confirmDialog("Are you sure you want to delete this machine?"))) return;
         try {
             const res = await fetch(`/api/machines/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 fetchMachines();
             } else {
                 const data = await res.json();
-                alert(data.error || 'Failed to delete');
+                toast.error(data.error || 'Failed to delete');
             }
         } catch (error) {
             console.error(error);
-            alert('Failed to delete');
+            toast.error('Failed to delete');
         }
     };
 
@@ -277,7 +279,7 @@ export default function MachinesPage() {
                                                         .map(p => (
                                                             <li
                                                                 key={p.id}
-                                                                onClick={() => {
+                                                                onClick={async () => {
                                                                     setFormData(prev => ({ ...prev, plate_id: p.id }));
                                                                     setPlateSearch(p.name);
                                                                     setShowPlateSuggestions(false);
@@ -362,14 +364,14 @@ export default function MachinesPage() {
                                                 </td>
                                                 <td className="p-4 text-right flex justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleEdit(item)}
+                                                        onClick={async () => handleEdit(item)}
                                                         className="p-2 text-gray-400 hover:text-white transition-colors"
                                                         title="Edit"
                                                     >
                                                         <FiEdit2 />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(item.id)}
+                                                        onClick={async () => handleDelete(item.id)}
                                                         className="p-2 text-gray-500 hover:text-red-400 transition-colors"
                                                         title="Delete"
                                                     >

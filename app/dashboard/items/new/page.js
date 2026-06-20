@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -329,7 +331,7 @@ export default function NewQuotationPage() {
 
         } catch (error) {
             console.error("Calc Error:", error);
-            alert("Calculation failed");
+            toast.error("Calculation failed");
         } finally {
             setCalculating(false);
         }
@@ -377,11 +379,11 @@ export default function NewQuotationPage() {
             if (res.ok) {
                 router.push('/dashboard/items');
             } else {
-                alert("Save Failed");
+                toast.error("Save Failed");
             }
         } catch (error) {
             console.error(error);
-            alert("Save Failed");
+            toast.error("Save Failed");
         } finally {
             setLoading(false);
         }
@@ -429,7 +431,7 @@ export default function NewQuotationPage() {
                                                 .map(c => (
                                                     <li
                                                         key={c.id}
-                                                        onClick={() => {
+                                                        onClick={async () => {
                                                             setCustomerName(c.name);
                                                             setCustomerId(c.id);
                                                             setShowCustomerSuggestions(false);
@@ -480,7 +482,7 @@ export default function NewQuotationPage() {
                                         return tags.map((t, i) => (
                                             <span
                                                 key={`${idx}-${i}`}
-                                                onClick={() => {
+                                                onClick={async () => {
                                                     setJobDescription(prev => prev ? `${prev}, ${t}` : t);
                                                 }}
                                                 className="px-2 py-0.5 bg-white/5 rounded text-[10px] uppercase tracking-wider text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
@@ -499,7 +501,7 @@ export default function NewQuotationPage() {
                         {components.map((comp, idx) => (
                             <button
                                 key={comp.id || idx}
-                                onClick={() => setActiveTab(idx)}
+                                onClick={async () => setActiveTab(idx)}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
                                     activeTab === idx
                                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 border border-blue-500'
@@ -509,9 +511,9 @@ export default function NewQuotationPage() {
                                 <span>{comp.name || `Component ${idx + 1}`}</span>
                                 {components.length > 1 && (
                                     <span
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.stopPropagation();
-                                            if (confirm(`Are you sure you want to delete ${comp.name || `Component ${idx + 1}`}?`)) {
+                                            if (await confirmDialog(`Are you sure you want to delete ${comp.name || `Component ${idx + 1}`}?`)) {
                                                 removeComponent(idx);
                                             }
                                         }}
@@ -640,7 +642,7 @@ export default function NewQuotationPage() {
                                                     {availableFinishings.filter(f => f.name.toLowerCase().includes(globalFinishingSearch.toLowerCase())).map(f => (
                                                         <div
                                                             key={f.id}
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 addGlobalFinishing(f);
                                                                 setGlobalFinishingSearch('');
                                                                 setShowGlobalFinishingSuggestions(false);
@@ -663,7 +665,7 @@ export default function NewQuotationPage() {
                                             {globalFinishings.map(gf => (
                                                 <div key={gf.id} className="flex justify-between items-center text-xs text-gray-300">
                                                     <div className="flex gap-2 items-center">
-                                                        <button onClick={() => removeGlobalFinishing(gf.id)} className="text-red-400 hover:text-red-300">x</button>
+                                                        <button onClick={async () => removeGlobalFinishing(gf.id)} className="text-red-400 hover:text-red-300">x</button>
                                                         <span>{gf.name}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">

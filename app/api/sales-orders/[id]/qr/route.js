@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 
 export async function GET(req, { params }) {
     const { id } = await params;
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://erp.neo.lk/';
     const url = `${baseUrl}/jobs/${id}`;
 
     const png = await QRCode.toBuffer(url, {

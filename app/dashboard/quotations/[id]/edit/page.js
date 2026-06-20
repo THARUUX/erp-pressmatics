@@ -1,4 +1,6 @@
 'use client';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -29,13 +31,18 @@ export default function EditQuotationPage({ params }) {
     const fetchQuote = async () => {
         try {
             const res = await fetch(`/api/quotations/${id}`);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Server error (${res.status})`);
+            }
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             setQuote(data);
             setItems(data.items || []);
             setLoading(false);
         } catch (error) {
-            console.error("Failed to load quotation data:", error);
+            console.error('Failed to load quotation data:', error);
+            toast.error('Failed to load quotation: ' + error.message);
             setLoading(false);
         }
     };
@@ -45,7 +52,7 @@ export default function EditQuotationPage({ params }) {
     }, [id]);
 
     const handleDeleteItem = async (itemId) => {
-        if (!confirm("Are you sure you want to remove this item from the quotation?")) return;
+        if (!(await confirmDialog("Are you sure you want to remove this item from the quotation?"))) return;
         setSaveStatus('saving');
         setProcessing(true);
         try {
@@ -58,7 +65,7 @@ export default function EditQuotationPage({ params }) {
                 markSaved();
             } else {
                 setSaveStatus('idle');
-                alert('Failed to delete item');
+                toast.error('Failed to delete item');
             }
         } catch (error) {
             console.error(error);
@@ -68,7 +75,7 @@ export default function EditQuotationPage({ params }) {
     };
 
     const handleDuplicateItem = async (itemId) => {
-        if (!confirm("Duplicate this item?")) return;
+        if (!(await confirmDialog("Duplicate this item?"))) return;
         setSaveStatus('saving');
         setProcessing(true);
         try {
@@ -81,7 +88,7 @@ export default function EditQuotationPage({ params }) {
                 fetchQuote();
                 markSaved();
             } else {
-                alert('Failed to duplicate');
+                toast.error('Failed to duplicate');
             }
         } catch (error) {
             console.error(error);
@@ -105,7 +112,7 @@ export default function EditQuotationPage({ params }) {
                 body: JSON.stringify({ tax_mode: newMode })
             });
             if (res.ok) { fetchQuote(); markSaved(); }
-            else alert('Failed to update tax mode');
+            else toast.error('Failed to update tax mode');
         } catch (error) {
             console.error(error);
         } finally {
@@ -127,7 +134,7 @@ export default function EditQuotationPage({ params }) {
                 markSaved();
             } else {
                 setSaveStatus('idle');
-                alert('Recalculation failed');
+                toast.error('Recalculation failed');
             }
         } catch (error) {
             console.error(error);
@@ -158,7 +165,7 @@ export default function EditQuotationPage({ params }) {
                     {quote.status !== 'converted' && (
                         <Button
                             onClick={async () => {
-                                if (!confirm("Convert this quotation to a Sales Order?")) return;
+                                if (!(await confirmDialog("Convert this quotation to a Sales Order?"))) return;
                                 setProcessing(true);
                                 try {
                                     const res = await fetch(`/api/sales-orders`, {
@@ -167,13 +174,13 @@ export default function EditQuotationPage({ params }) {
                                         body: JSON.stringify({ quotation_id: quote.id })
                                     });
                                     if (res.ok) {
-                                        alert("Sales Order created successfully!");
+                                        toast.success("Sales Order created successfully!");
                                         router.push('/dashboard/sales-orders');
                                     } else {
-                                        alert("Failed to convert quotation");
+                                        toast.error("Failed to convert quotation");
                                     }
                                 } catch (error) {
-                                    alert("Error converting file context");
+                                    toast.error("Error converting file context");
                                 } finally {
                                     setProcessing(false);
                                 }
@@ -196,7 +203,7 @@ export default function EditQuotationPage({ params }) {
                             </span>
                         )
                     )}
-                    <Button onClick={() => router.push(`/dashboard/quotations/${id}`)} className="bg-white/90 hover:bg-white/70">
+                    <Button onClick={async () => router.push(`/dashboard/quotations/${id}`)} className="bg-white/90 hover:bg-white/70">
                         View / Print
                     </Button>
                     <div
@@ -251,7 +258,7 @@ export default function EditQuotationPage({ params }) {
                                     </div>
                                     <div className="flex gap-2 items-center">
                                         <button
-                                            onClick={() => handleRecalculateItem(item.id)}
+                                            onClick={async () => handleRecalculateItem(item.id)}
                                             disabled={processing}
                                             className="p-2 hover:bg-white/10 rounded transition-colors text-yellow-400 text-xs flex items-center gap-1"
                                             title="Recalculate using saved parameters"
@@ -259,7 +266,7 @@ export default function EditQuotationPage({ params }) {
                                             <FiRefreshCw className={processing ? 'animate-spin' : ''} />
                                         </button>
                                         <button
-                                            onClick={() => handleDuplicateItem(item.id)}
+                                            onClick={async () => handleDuplicateItem(item.id)}
                                             disabled={processing}
                                             className="p-2 hover:bg-white/10 rounded transition-colors text-blue-400"
                                             title="Duplicate Item"
@@ -267,7 +274,7 @@ export default function EditQuotationPage({ params }) {
                                             <FiCopy />
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteItem(item.id)}
+                                            onClick={async () => handleDeleteItem(item.id)}
                                             disabled={processing}
                                             className="p-2 hover:bg-white/10 rounded transition-colors text-red-400"
                                             title="Remove Item"
