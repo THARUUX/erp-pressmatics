@@ -64,7 +64,8 @@ export default function NewQuotationPage() {
                  cutHeightCm: '',
                  bleedMm: 0,
                  customImpressions: '',
-                 customWastageSheets: ''
+                 customWastageSheets: '',
+                 customPlateCount: ''
             },
             finishings: []
         }
@@ -181,7 +182,8 @@ export default function NewQuotationPage() {
                     digitalPricePerSqCm: '',
                     colorQuality: '',
                     customImpressions: '',
-                    customWastageSheets: ''
+                    customWastageSheets: '',
+                    customPlateCount: ''
                 },
                 finishings: []
             }];

@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
-    FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign, FiAlertTriangle, FiUsers, FiBarChart2
+    FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign, FiAlertTriangle, FiUsers, FiBarChart2, FiTarget
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -24,7 +24,8 @@ const ALL_MENU_ITEMS = [
     { icon: FiSettings,     label: 'Machines',       href: '/dashboard/inventory/machines' },
     { icon: FiUser,         label: 'Customers',      href: '/dashboard/customers',           roles: ['admin', 'manager'] },
     { icon: FiBox,          label: 'Items',          href: '/dashboard/items',               roles: ['admin', 'manager'] },
-    { icon: FiBarChart2,    label: 'Analytics',      href: '/dashboard/analytics',           roles: ['admin', 'manager'] },
+    { icon: FiBarChart2,    label: 'Analytics',          href: '/dashboard/analytics',                roles: ['admin', 'manager'] },
+    { icon: FiTarget,       label: 'Competitor Analysis', href: '/dashboard/competitor-analysis',      roles: ['admin', 'manager'] },
     { icon: FiUsers,        label: 'Users',          href: '/dashboard/users',               roles: ['admin'] },
     { icon: FiSettings,     label: 'Settings',       href: '/dashboard/settings',            roles: ['admin'] },
     { icon: FiBookOpen,     label: 'Guide',          href: '/dashboard/guide' },

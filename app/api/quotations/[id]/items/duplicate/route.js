@@ -102,6 +102,7 @@ export async function POST(req, { params }) {
                 wastagePercent:         detail.wastage_percent,
                 customImpressions:      detail.custom_impressions,
                 customWastageSheets:    detail.custom_wastage_sheets,
+                customPlateCount:       detail.custom_plate_count,
                 machineSheetFactor:     machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0,
                 machineSpeed:           machine ? parseFloat(machine.speed)        || 0   : 0,
                 machineSpeedUnit:       machine ? machine.speed_unit || 'Sheets/Hr'       : 'Sheets/Hr',
@@ -130,13 +131,13 @@ export async function POST(req, { params }) {
                 `INSERT INTO quotation_item_details (
                     quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet,
                     plate_cost_unit, impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back,
-                    custom_impressions, custom_wastage_sheets,
+                    custom_impressions, custom_wastage_sheets, custom_plate_count,
                     printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
                     final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
                     paper_id, paper_name, paper_width_cm, paper_height_cm,
                     comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm,
                     bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     newItemId,
                     detail.component_name || 'Main',
@@ -155,6 +156,7 @@ export async function POST(req, { params }) {
                     detail.colors_back ?? null,
                     detail.custom_impressions || null,
                     detail.custom_wastage_sheets != null ? parseInt(detail.custom_wastage_sheets) : null,
+                    detail.custom_plate_count != null ? parseInt(detail.custom_plate_count) : null,
                     result.printedSheets    || 0,
                     result.fullSheetsUsed   || 0,
                     result.wastageSheets    || 0,

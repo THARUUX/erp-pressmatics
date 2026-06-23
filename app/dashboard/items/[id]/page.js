@@ -156,6 +156,7 @@ export default function EditQuotationPage({ params }) {
                         colorQuality: comp.color_quality || '',
                         customImpressions: comp.custom_impressions || '',
                         customWastageSheets: comp.custom_wastage_sheets != null ? comp.custom_wastage_sheets : '',
+                        customPlateCount: comp.custom_plate_count != null ? comp.custom_plate_count : '',
                         isBB: !!comp.is_bb,
                         customSheetFactor: comp.custom_sheet_factor != null ? comp.custom_sheet_factor : ''
                     },
@@ -206,7 +207,8 @@ export default function EditQuotationPage({ params }) {
                     bleedMm: 0,
                     digitalPricePerSqCm: '', colorQuality: '',
                     customImpressions: '',
-                    customWastageSheets: ''
+                    customWastageSheets: '',
+                    customPlateCount: ''
                 },
                 finishings: []
             }];

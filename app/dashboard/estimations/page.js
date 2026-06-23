@@ -173,6 +173,10 @@ export default function EstimationsPage() {
             cell: ({ getValue }) => <span className="text-gray-400 text-sm">{getValue() || '—'}</span>,
         },
         {
+            accessorKey: 'job_description', header: 'Description',
+            cell: ({ getValue }) => <span className="text-gray-400 text-sm">{getValue() || '—'}</span>,
+        },
+        {
             accessorKey: 'type', header: 'Type', size: 100,
             cell: ({ getValue }) => (
                 <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{getValue()}</span>
@@ -210,9 +214,11 @@ export default function EstimationsPage() {
                             <ActionBtn title="Edit" icon={<FiEdit2 size={14} />}
                                 onClick={() => router.push(`/dashboard/estimations/${item.id}`)} />
                         )}
-                        <ActionBtn title="Delete" icon={<FiTrash2 size={14} />}
-                            cls="hover:text-red-400 hover:bg-red-500/10"
-                            onClick={() => handleDelete(item.id)} />
+                        {!item.is_favorite && (
+                            <ActionBtn title="Delete" icon={<FiTrash2 size={14} />}
+                                cls="hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() => handleDelete(item.id)} />
+                        )}
                     </div>
                 );
             },

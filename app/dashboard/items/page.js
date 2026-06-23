@@ -333,7 +333,7 @@ export default function ItemsPage() {
                 {items.map(item => (
                     <div
                         key={item.id}
-                        onClick={() => item.is_favorite ? handleDuplicateFav(item.id) : router.push(`/dashboard/items/${item.id}`)}
+                        onClick={() => router.push(`/dashboard/items/${item.id}`)}
                         className={`bg-black/40 backdrop-blur-md p-6 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}
                     >
                         <div>

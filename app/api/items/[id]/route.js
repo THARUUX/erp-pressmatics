@@ -154,11 +154,11 @@ export async function PUT(req, { params }) {
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
             quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
+            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
             printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
             final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
             paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     id,
                     meta.name || 'Main',
@@ -177,6 +177,7 @@ export async function PUT(req, { params }) {
                     parseInt(params.colorsBack) ?? null,
                     params.customImpressions || null,
                     params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
+                    params.customPlateCount != null && params.customPlateCount !== '' ? parseInt(params.customPlateCount) : null,
                     calc.printedSheets || 0,
                     calc.fullSheetsUsed || 0,
                     calc.wastageSheets || 0,

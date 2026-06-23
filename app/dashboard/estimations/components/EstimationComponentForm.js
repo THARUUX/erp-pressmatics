@@ -387,8 +387,21 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
                                 />
                             </div>
+                            {(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner')) && (
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
+                                    <Input
+                                        type="number"
+                                        name="customPlateCount"
+                                        value={params.customPlateCount != null ? params.customPlateCount : ''}
+                                        onChange={handleChange}
+                                        className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                        placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
+                                    />
+                                </div>
+                            )}
                             {data.name?.includes('Inner') && (
-                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
+                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
                                     <div className="flex justify-between items-center w-full">
                                         <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms

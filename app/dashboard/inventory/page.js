@@ -15,8 +15,10 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useSettings } from '@/components/SettingsContext';
 import BulkUploadModal from '@/components/inventory/BulkUploadModal';
+import BomEditor from './components/BomEditor';
 
-const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SF', 'RM', 'FG'];
+const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG'];
+const BOM_CATEGORIES = ['SFG', 'FG'];
 const EMPTY_FORM = { name: '', item_code: '', category: 'Paper', type: '', uom: 'Sheet', unit_cost: 0, stock_quantity: 0, min_stock: 0, width_cm: '', height_cm: '' };
 
 export default function InventoryPage() {
@@ -37,6 +39,8 @@ export default function InventoryPage() {
     const [historyItem, setHistoryItem] = useState(null);
     const [historyData, setHistoryData] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [bomLines, setBomLines] = useState([]);
+    const [restockBom, setRestockBom] = useState([]);
 
     const fetchItems = () => {
         setLoading(true);
@@ -89,7 +93,7 @@ export default function InventoryPage() {
                 const item = row.original;
                 return (
                     <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setRestockItem(item)} className="px-2 py-1 text-[11px] rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/50 hover:text-white transition-all">Restock</button>
+                        <button onClick={() => handleOpenRestock(item)} className="px-2 py-1 text-[11px] rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/50 hover:text-white transition-all">Restock</button>
                         <button onClick={() => handleViewHistory(item)} className="p-1.5 text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/[0.05]"><FiClock className="w-3.5 h-3.5" /></button>
                         <button onClick={() => handleCopy(item)}  className="p-1.5 text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/[0.05]"><FiCopy className="w-3.5 h-3.5" /></button>
                         <button onClick={() => handleEdit(item)}  className="p-1.5 text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/[0.05]"><FiEdit2 className="w-3.5 h-3.5" /></button>
@@ -122,21 +126,55 @@ export default function InventoryPage() {
     };
     const handleSubmit = async () => {
         const url = isEditing ? `/api/inventory/${editId}` : '/api/inventory';
-        const res = await fetch(url, { method: isEditing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, category: isEditing ? formData.category : activeCategory }) });
-        if (res.ok) { resetForm(); fetchItems(); } else toast.error('Operation failed');
+        const cat = isEditing ? formData.category : activeCategory;
+        const res = await fetch(url, { method: isEditing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, category: cat }) });
+        if (!res.ok) { toast.error('Operation failed'); return; }
+        const data = await res.json();
+        const savedId = isEditing ? editId : data.id;
+        // Save BOM for SF/FG items
+        if (BOM_CATEGORIES.includes(cat) && savedId) {
+            await fetch(`/api/inventory/${savedId}/bom`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lines: bomLines })
+            });
+        }
+        resetForm();
+        fetchItems();
     };
     const handleRestock = async () => {
         const res = await fetch('/api/inventory/restock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemId: restockItem.id, ...restockData }) });
-        if (res.ok) { setRestockItem(null); setRestockData({ quantity: 0, notes: '' }); fetchItems(); } else toast.error('Restock failed');
+        if (res.ok) {
+            const d = await res.json();
+            if (d.bomWarnings?.length > 0) toast.error('Warning: ' + d.bomWarnings[0], { duration: 6000 });
+            setRestockItem(null); setRestockData({ quantity: 0, notes: '' }); setRestockBom([]);
+            fetchItems();
+        } else toast.error('Restock failed');
     };
     const handleDelete = async (id) => {
         if (!(await confirmDialog('Delete this item?'))) return;
         const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
         if (res.ok) fetchItems(); else { const d = await res.json(); toast.error(d.error || 'Failed'); }
     };
-    const handleEdit = (item) => { setIsEditing(true); setEditId(item.id); setFormData({ name: item.name, item_code: item.item_code || '', category: item.category, type: item.type, uom: item.uom || 'Sheet', unit_cost: item.unit_cost, stock_quantity: item.stock_quantity, min_stock: item.min_stock || 0, width_cm: item.width_cm || '', height_cm: item.height_cm || '' }); setShowAdd(true); };
-    const handleCopy = (item) => { setIsEditing(false); setEditId(null); setFormData({ ...item, name: `${item.name} (Copy)`, item_code: '' }); setShowAdd(true); };
-    const resetForm = () => { setShowAdd(false); setIsEditing(false); setEditId(null); setFormData({ ...EMPTY_FORM, category: activeCategory }); };
+    const handleEdit = (item) => {
+        setIsEditing(true); setEditId(item.id);
+        setFormData({ name: item.name, item_code: item.item_code || '', category: item.category, type: item.type, uom: item.uom || 'Sheet', unit_cost: item.unit_cost, stock_quantity: item.stock_quantity, min_stock: item.min_stock || 0, width_cm: item.width_cm || '', height_cm: item.height_cm || '' });
+        setBomLines([]);
+        if (BOM_CATEGORIES.includes(item.category)) {
+            fetch(`/api/inventory/${item.id}/bom`).then(r => r.json()).then(d => setBomLines(Array.isArray(d) ? d : []));
+        }
+        setShowAdd(true);
+    };
+    const handleCopy = (item) => { setIsEditing(false); setEditId(null); setFormData({ ...item, name: `${item.name} (Copy)`, item_code: '' }); setBomLines([]); setShowAdd(true); };
+    const resetForm = () => { setShowAdd(false); setIsEditing(false); setEditId(null); setFormData({ ...EMPTY_FORM, category: activeCategory }); setBomLines([]); };
+    const handleOpenRestock = async (item) => {
+        setRestockItem(item);
+        setRestockBom([]);
+        if (BOM_CATEGORIES.includes(item.category)) {
+            const r = await fetch(`/api/inventory/${item.id}/bom`);
+            if (r.ok) setRestockBom(await r.json());
+        }
+    };
     const f = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
     const lowStockCount = items.filter(i => i.stock_quantity < (i.min_stock || 0)).length;
@@ -209,6 +247,12 @@ export default function InventoryPage() {
                             <Button onClick={handleSubmit} className="w-full bg-white text-black hover:bg-gray-100 h-[44px] text-sm font-semibold">{isEditing ? 'Update' : 'Save'}</Button>
                         </div>
                     </div>
+                    {/* BOM Editor — only for SF / FG */}
+                    {BOM_CATEGORIES.includes(isEditing ? formData.category : activeCategory) && (
+                        <div className="mt-5 pt-5 border-t border-white/[0.06]">
+                            <BomEditor bomLines={bomLines} onChange={setBomLines} />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -293,6 +337,25 @@ export default function InventoryPage() {
                         <div className="space-y-4">
                             <Input label="Quantity to Add" type="number" autoFocus value={restockData.quantity} onChange={e => setRestockData(p => ({ ...p, quantity: e.target.value }))} className="bg-black/40 border-white/10" />
                             <Input label="Notes / Reference" value={restockData.notes} onChange={e => setRestockData(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. PO #123" className="bg-black/40 border-white/10" />
+                            {/* BOM deduction preview */}
+                            {restockBom.length > 0 && (
+                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
+                                    <p className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">BOM — Components to deduct</p>
+                                    {restockBom.map((line, i) => {
+                                        const deduct = parseFloat(line.quantity) * (parseFloat(restockData.quantity) || 0);
+                                        const insufficient = deduct > parseFloat(line.component_stock || 0);
+                                        return (
+                                            <div key={i} className="flex justify-between items-center text-sm">
+                                                <span className="text-white/70">{line.component_name}</span>
+                                                <span className={`font-mono ${insufficient ? 'text-red-400' : 'text-white/50'}`}>
+                                                    -{deduct.toFixed(4)} {line.component_uom}
+                                                    {insufficient && <span className="ml-1 text-[10px] text-red-400">(low!)</span>}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-3 mt-6">
                             <Button onClick={() => setRestockItem(null)} className="flex-1 bg-transparent border border-white/10 hover:bg-white/5">Cancel</Button>

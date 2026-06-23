@@ -148,6 +148,7 @@ export async function POST(req, { params }) {
                 wastagePercent:         detail.wastage_percent,
                 customImpressions:      detail.custom_impressions,
                 customWastageSheets:    detail.custom_wastage_sheets,
+                customPlateCount:       detail.custom_plate_count,
                 // Machine data fetched live from DB — same as selectedMachine in UI
                 machineSheetFactor:     machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0,
                 machineSpeed:           machine ? parseFloat(machine.speed)        || 0   : 0,
@@ -197,12 +198,12 @@ export async function POST(req, { params }) {
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
                     quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit,
-                    impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets,
+                    impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
                     printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
                     final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
                     paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm,
                     cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     itemId,
                     params.component_name || 'Main',
@@ -221,6 +222,7 @@ export async function POST(req, { params }) {
                     params.colors_back ?? null,
                     params.custom_impressions || null,
                     params.custom_wastage_sheets != null ? parseInt(params.custom_wastage_sheets) : null,
+                    params.custom_plate_count != null ? parseInt(params.custom_plate_count) : null,
                     result.printedSheets    || 0,
                     result.fullSheetsUsed   || 0,
                     result.wastageSheets    || 0,
