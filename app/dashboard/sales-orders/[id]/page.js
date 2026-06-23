@@ -4,11 +4,55 @@ import toast from 'react-hot-toast';
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink } from 'react-icons/fi';
+import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu } from 'react-icons/fi';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Button from '@/components/ui/Button';
 import ImpositionVisualizer from '@/app/dashboard/items/components/ImpositionVisualizer';
 
+function SortableTaskItem({ task, idx }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+    const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
+
+    const statusColor = task.status === 'done' ? 'border-white/60 bg-white/10 text-white'
+        : task.status === 'in_progress' ? 'border-white/30 bg-white/[0.05] text-white/70'
+        : 'border-white/[0.10] bg-transparent text-white/30';
+
+    return (
+        <div ref={setNodeRef} style={style} className={`flex items-start gap-4 ${isDragging ? 'opacity-50' : ''}`}>
+            {/* Step node */}
+            <div className={`relative z-10 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${statusColor}`}>
+                {task.status === 'done' ? <FiCheckCircle className="w-4 h-4" /> : idx + 1}
+            </div>
+            {/* Card */}
+            <div className="flex-1 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] rounded-xl px-4 py-3 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className={`text-sm font-semibold truncate ${task.status === 'done' ? 'line-through text-white/40' : 'text-white'}`}>{task.name}</p>
+                        {task.description && <p className="text-xs text-white/25 mt-0.5 truncate">{task.description}</p>}
+                        {task.machine_name && <p className="text-[11px] text-white/20 mt-0.5">{task.machine_name}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            task.status === 'done' ? 'bg-white/[0.06] text-white/50 border-white/[0.10]' :
+                            task.status === 'in_progress' ? 'bg-white/[0.04] text-white/40 border-white/[0.07]' :
+                            'bg-transparent text-white/20 border-white/[0.06]'
+                        }`}>{task.status?.replace('_', ' ')}</span>
+                        {/* Drag handle */}
+                        <button {...attributes} {...listeners}
+                            className="p-1.5 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.05] cursor-grab active:cursor-grabbing transition-colors touch-none">
+                            <FiMenu className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SalesOrderDetailPage({ params }) {
+
     const { id } = use(params);
     const router = useRouter();
 
@@ -22,6 +66,38 @@ export default function SalesOrderDetailPage({ params }) {
     const [newTaskName, setNewTaskName] = useState('');
     const [addingTask, setAddingTask] = useState(false);
     const [generatingTasks, setGeneratingTasks] = useState(false);
+    const [showBOM, setShowBOM] = useState(true);
+    const [showRouting, setShowRouting] = useState(true);
+    const [showTimeline, setShowTimeline] = useState(true);
+    const [linkCopied, setLinkCopied] = useState(false);
+    const [showAllTasks, setShowAllTasks] = useState(false);
+    const TASK_PREVIEW = 5;
+
+    const publicTimelineUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/timeline/${id}` : '';
+
+    const copyLink = () => {
+        navigator.clipboard.writeText(publicTimelineUrl);
+        setLinkCopied(true);
+        toast.success('Link copied!');
+        setTimeout(() => setLinkCopied(false), 2500);
+    };
+
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+    const handleDragEnd = async (event) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const oldIdx = tasks.findIndex(t => t.id === active.id);
+        const newIdx = tasks.findIndex(t => t.id === over.id);
+        const reordered = arrayMove(tasks, oldIdx, newIdx);
+        setTasks(reordered);
+        await fetch(`/api/sales-orders/${id}/tasks/reorder`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: reordered.map(t => t.id) }),
+        });
+    };
 
     const handleDownloadPdf = async () => {
         setPdfLoading(true);
@@ -244,7 +320,7 @@ export default function SalesOrderDetailPage({ params }) {
 
                     {/* Task List */}
                     <div className="divide-y divide-white/5">
-                        {tasks.map(task => (
+                        {(showAllTasks ? tasks : tasks.slice(0, TASK_PREVIEW)).map(task => (
                             <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/5 transition-colors group">
                                 <button onClick={() => handleToggleTaskStatus(task)}
                                     className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
@@ -274,6 +350,19 @@ export default function SalesOrderDetailPage({ params }) {
                                 </button>
                             </div>
                         ))}
+
+                        {/* Show more / Show less toggle */}
+                        {tasks.length > TASK_PREVIEW && (
+                            <button
+                                onClick={() => setShowAllTasks(v => !v)}
+                                className="w-full flex items-center justify-center gap-2 py-3 text-xs text-white/35 hover:text-white/60 hover:bg-white/[0.03] transition-all border-t border-white/[0.04]">
+                                {showAllTasks ? (
+                                    <><FiChevronUp className="w-3.5 h-3.5" /> Show less</>
+                                ) : (
+                                    <><FiChevronDown className="w-3.5 h-3.5" /> Show {tasks.length - TASK_PREVIEW} more tasks</>
+                                )}
+                            </button>
+                        )}
 
                         {tasks.length === 0 && (
                             <div className="text-center py-8 text-gray-500 text-sm">
@@ -309,7 +398,280 @@ export default function SalesOrderDetailPage({ params }) {
                 </div>
             </div>
 
-            {/* All printable pages wrapped together so page-break works correctly */}
+            {/* ─── Timeline ────────────────────────────────────────────────────────── */}
+            <div className="print:hidden mb-4">
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4">
+                        <button onClick={() => setShowTimeline(v => !v)} className="flex items-center gap-2.5 cursor-pointer">
+                            <FiActivity className="w-4 h-4 text-white/40" />
+                            <span className="text-sm font-semibold text-white">Production Timeline</span>
+                            <span className="text-xs text-white/30 ml-1">— drag to reorder tasks</span>
+                            {showTimeline ? <FiChevronUp className="w-4 h-4 text-white/30" /> : <FiChevronDown className="w-4 h-4 text-white/30" />}
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <a href={publicTimelineUrl} target="_blank" rel="noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white/70 text-xs transition-all">
+                                <FiExternalLink className="w-3.5 h-3.5" /> Open
+                            </a>
+                            <button onClick={copyLink}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${linkCopied ? 'bg-white/10 border-white/20 text-white/80' : 'bg-white/[0.04] border-white/[0.08] text-white/40 hover:text-white/70'}`}>
+                                <FiLink className="w-3.5 h-3.5" />
+                                {linkCopied ? 'Copied!' : 'Copy Link'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {showTimeline && (
+                        <div className="border-t border-white/[0.05]">
+                            {tasks.length === 0 ? (
+                                <p className="text-center text-white/25 text-sm py-10">No tasks yet — generate tasks above first.</p>
+                            ) : (
+                                <div className="p-5">
+                                    {/* Progress */}
+                                    <div className="mb-6">
+                                        <div className="flex items-center justify-between text-xs text-white/30 mb-2">
+                                            <span>{tasks.filter(t => t.status === 'done').length}/{tasks.length} completed</span>
+                                            <span className="font-mono font-semibold text-white/50">
+                                                {tasks.length ? Math.round(tasks.filter(t => t.status === 'done').length / tasks.length * 100) : 0}%
+                                            </span>
+                                        </div>
+                                        <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                                            <div className="h-full bg-white/40 rounded-full transition-all duration-500"
+                                                style={{ width: `${tasks.length ? Math.round(tasks.filter(t => t.status === 'done').length / tasks.length * 100) : 0}%` }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Draggable list */}
+                                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                                            <div className="relative">
+                                                <div className="absolute left-[18px] top-5 bottom-5 w-px bg-white/[0.05]" />
+                                                <div className="space-y-2">
+                                                    {tasks.map((task, idx) => (
+                                                        <SortableTaskItem key={task.id} task={task} idx={idx} />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </SortableContext>
+                                    </DndContext>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ─── BOM (Bill of Materials) ─────────────────────────────────────────── */}
+
+            <div className="print:hidden mb-4">
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden">
+                    <button
+                        onClick={() => setShowBOM(v => !v)}
+                        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <FiLayers className="w-4 h-4 text-white/40" />
+                            <span className="text-sm font-semibold text-white">Bill of Materials</span>
+                            <span className="text-xs text-white/30 ml-1">— paper &amp; materials consumed per component</span>
+                        </div>
+                        {showBOM ? <FiChevronUp className="w-4 h-4 text-white/30" /> : <FiChevronDown className="w-4 h-4 text-white/30" />}
+                    </button>
+
+                    {showBOM && (
+                        <div className="border-t border-white/[0.05]">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm border-collapse">
+                                    <thead>
+                                        <tr className="bg-white/[0.02] border-b border-white/[0.05]">
+                                            <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Component</th>
+                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Type</th>
+                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Paper</th>
+                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Sheet Size</th>
+                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Ups</th>
+                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Printed Sheets</th>
+                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Wastage</th>
+                                            <th className="text-right px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Total Sheets</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04]">
+                                        {order.items?.flatMap((item, iIdx) =>
+                                            item.details
+                                                ?.filter(d => d.component_name !== 'Finishing')
+                                                .map((d, dIdx) => (
+                                                    <tr key={`${item.id}-${d.id || dIdx}`} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="px-5 py-3">
+                                                            <p className="font-semibold text-white text-sm">
+                                                                {iIdx + 1}.{dIdx + 1} {item.estimation_name || item.job_description}
+                                                            </p>
+                                                            {item.details.filter(x => x.component_name !== 'Finishing').length > 1 && (
+                                                                <p className="text-xs text-white/30 mt-0.5">{d.component_name}</p>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                                                d.type === 'digital'
+                                                                    ? 'bg-white/[0.05] text-white/50 border-white/[0.10]'
+                                                                    : 'bg-white/[0.04] text-white/40 border-white/[0.08]'
+                                                            }`}>{d.type || 'offset'}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <p className="text-white text-sm font-medium">{d.paper_name || <span className="text-white/25 italic">Not specified</span>}</p>
+                                                            {d.paper_width_cm && (
+                                                                <p className="text-xs text-white/30 mt-0.5">Stock: {d.paper_width_cm} × {d.paper_height_cm} cm</p>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-white/70 text-sm font-mono">
+                                                            {d.cut_width_cm && d.cut_height_cm
+                                                                ? `${d.cut_width_cm} × ${d.cut_height_cm} cm`
+                                                                : d.paper_width_cm
+                                                                    ? `${d.paper_width_cm} × ${d.paper_height_cm} cm`
+                                                                    : '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-white font-semibold font-mono">{d.ups ?? '—'}</td>
+                                                        <td className="px-4 py-3 text-right text-white font-mono">{d.printed_sheets ?? '—'}</td>
+                                                        <td className="px-4 py-3 text-right text-red-400/70 font-mono">{d.wastage_sheets ?? '—'}</td>
+                                                        <td className="px-5 py-3 text-right">
+                                                            <span className="font-bold text-white font-mono">{d.total_sheets ?? '—'}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Global Finishings material note */}
+                            {order.items?.some(i => i.globalFinishings?.length > 0) && (
+                                <div className="px-5 py-3 border-t border-white/[0.05] bg-white/[0.01]">
+                                    <p className="text-xs text-white/25 font-medium">Note: Global finishings (applied to full item) are listed in the Routing section below.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ─── Routing (Operation Sequence) ────────────────────────────────────── */}
+            <div className="print:hidden mb-8">
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden">
+                    <button
+                        onClick={() => setShowRouting(v => !v)}
+                        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <FiCpu className="w-4 h-4 text-white/40" />
+                            <span className="text-sm font-semibold text-white">Routing</span>
+                            <span className="text-xs text-white/30 ml-1">— machine &amp; operation sequence</span>
+                        </div>
+                        {showRouting ? <FiChevronUp className="w-4 h-4 text-white/30" /> : <FiChevronDown className="w-4 h-4 text-white/30" />}
+                    </button>
+
+                    {showRouting && (
+                        <div className="border-t border-white/[0.05] divide-y divide-white/[0.04]">
+                            {order.items?.map((item, iIdx) => {
+                                // Build ordered operation list: component details (printing) + their per-component finishings + global finishings
+                                const ops = [];
+                                let step = 1;
+
+                                item.details
+                                    ?.filter(d => d.component_name !== 'Finishing')
+                                    .forEach(d => {
+                                        ops.push({
+                                            step: step++,
+                                            kind: 'print',
+                                            label: d.component_name || 'Print',
+                                            machine: d.machine_name || '—',
+                                            detail: [
+                                                d.type === 'digital' ? 'Digital print' : `${d.colors} color${d.colors > 1 ? 's' : ''} · ${d.sides === 2 ? 'double-sided' : 'single-sided'}`,
+                                                d.total_sheets ? `${d.total_sheets} sheets` : '',
+                                                d.machine_speed ? `${d.machine_speed} ${d.machine_speed_unit || 'sph'}` : '',
+                                            ].filter(Boolean).join(' · '),
+                                        });
+                                        // Per-component finishings
+                                        (d.finishings || []).forEach(f => {
+                                            ops.push({
+                                                step: step++,
+                                                kind: 'finishing',
+                                                label: f.name,
+                                                machine: f.machine_name || '—',
+                                                detail: [
+                                                    f.quantity ? `${f.quantity} ${f.cost_unit || ''}` : '',
+                                                    f.total_time > 0 ? `${parseFloat(f.total_time).toFixed(1)} min` : '',
+                                                ].filter(Boolean).join(' · '),
+                                            });
+                                        });
+                                    });
+
+                                // Global finishings last
+                                (item.globalFinishings || []).forEach(f => {
+                                    ops.push({
+                                        step: step++,
+                                        kind: 'global',
+                                        label: f.name,
+                                        machine: f.machine_name || '—',
+                                        detail: [
+                                            f.quantity ? `${f.quantity} ${f.cost_unit || ''}` : '',
+                                            f.total_time > 0 ? `${parseFloat(f.total_time).toFixed(1)} min` : '',
+                                        ].filter(Boolean).join(' · '),
+                                    });
+                                });
+
+                                if (ops.length === 0) return null;
+
+                                return (
+                                    <div key={item.id} className="p-5">
+                                        <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+                                            {iIdx + 1}. {item.estimation_name || item.job_description}
+                                            <span className="ml-2 text-white/20 normal-case font-normal">Qty: {item.quantity}</span>
+                                        </p>
+
+                                        <div className="relative">
+                                            {/* Vertical connector line */}
+                                            <div className="absolute left-[18px] top-6 bottom-0 w-px bg-white/[0.06]" />
+
+                                            <div className="space-y-3">
+                                                {ops.map(op => (
+                                                    <div key={op.step} className="flex items-start gap-4 group">
+                                                        {/* Step badge */}
+                                                        <div className={`relative z-10 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${
+                                                            op.kind === 'print'
+                                                                ? 'bg-white/[0.07] border-white/[0.12] text-white/70'
+                                                                : op.kind === 'global'
+                                                                ? 'bg-white/[0.04] border-white/[0.08] text-white/40'
+                                                                : 'bg-white/[0.04] border-white/[0.07] text-white/40'
+                                                        }`}>
+                                                            {op.step}
+                                                        </div>
+                                                        {/* Step info */}
+                                                        <div className="flex-1 min-w-0 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] rounded-xl px-4 py-3 transition-colors">
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-white truncate">{op.label}</p>
+                                                                    {op.detail && <p className="text-xs text-white/30 mt-0.5">{op.detail}</p>}
+                                                                </div>
+                                                                <div className="shrink-0 text-right">
+                                                                    <p className="text-xs font-medium text-white/50">{op.machine}</p>
+                                                                    <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border mt-1 ${
+                                                                        op.kind === 'print'
+                                                                            ? 'bg-white/[0.06] text-white/50 border-white/[0.10]'
+                                                                            : 'bg-white/[0.03] text-white/30 border-white/[0.06]'
+                                                                    }`}>
+                                                                        {op.kind === 'print' ? 'Print' : op.kind === 'global' ? 'Finishing (Global)' : 'Finishing'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
             {/* <div className="print-pages">
 
             <div className="bg-white text-black p-8 rounded-xl print:m-0 print:shadow-none shadow-xl mx-auto max-w-[21cm] min-h-[29.7cm] job-ticket-container">

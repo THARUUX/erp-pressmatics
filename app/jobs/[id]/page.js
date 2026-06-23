@@ -133,18 +133,34 @@ function TaskItem({ task, orderId, onUpdated }) {
             {/* Expansion panel */}
             {open && (
                 <div className="bg-black/50 backdrop-blur-xl border border-white/[0.12] border-t-0 rounded-b-2xl px-4 pt-4 pb-4 flex flex-col gap-3.5">
-                    {/* Status buttons */}
+                    {/* Status buttons — enforces pending → in_progress → done */}
                     <div>
                         <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2">Set Status</p>
                         <div className="flex gap-2">
-                            {Object.entries(STATUS_CFG).map(([s, cfg]) => (
-                                <button key={s} onClick={() => setStatus(s)}
-                                    className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all duration-150 border
-                                        ${status === s ? cfg.btn : 'border-transparent bg-white/[0.03] text-slate-500 hover:bg-white/[0.06]'}`}>
-                                    {cfg.label}
-                                </button>
-                            ))}
+                            {/* Show current status as a non-clickable indicator */}
+                            <span className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide text-center border ${STATUS_CFG[task.status]?.btn}`}>
+                                {STATUS_CFG[task.status]?.label} ✓
+                            </span>
+                            {Object.entries(STATUS_CFG).map(([s, cfg]) => {
+                                // Hide the current status (already there, no point pressing it)
+                                if (s === task.status) return null;
+                                // Block pending → done (must go through in_progress first)
+                                if (task.status === 'pending' && s === 'done') return null;
+                                // Block going backwards: done → in_progress or done → pending, in_progress → pending
+                                if (task.status === 'done') return null;
+                                if (task.status === 'in_progress' && s === 'pending') return null;
+                                return (
+                                    <button key={s} onClick={() => setStatus(s)}
+                                        className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all duration-150 border
+                                            ${status === s ? cfg.btn : 'border-transparent bg-white/[0.03] text-slate-500 hover:bg-white/[0.06]'}`}>
+                                        {cfg.label}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        {task.status === 'done' && (
+                            <p className="text-[10px] text-slate-700 mt-2 text-center">This task is complete — no further status changes allowed.</p>
+                        )}
                     </div>
 
                     {/* Date + Completed By */}

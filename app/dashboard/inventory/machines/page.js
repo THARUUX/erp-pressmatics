@@ -1,9 +1,8 @@
 'use client';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
-
-import { useState, useEffect } from 'react';
-import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX } from 'react-icons/fi';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiActivity, FiClock, FiBarChart2 } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
@@ -12,6 +11,46 @@ export default function MachinesPage() {
     const [plates, setPlates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [perfMachine, setPerfMachine] = useState(null);   // machine whose panel is open
+    const [perfData, setPerfData]       = useState(null);
+    const [perfLoading, setPerfLoading] = useState(false);
+    const chartRef = useRef(null);
+    const chartInstance = useRef(null);
+
+    const openPerf = useCallback(async (machine) => {
+        setPerfMachine(machine);
+        setPerfData(null);
+        setPerfLoading(true);
+        try {
+            const res  = await fetch(`/api/machines/${machine.id}/performance`);
+            const data = await res.json();
+            setPerfData(data);
+        } catch { toast.error('Failed to load analytics'); }
+        finally { setPerfLoading(false); }
+    }, []);
+
+    // Render ECharts bar chart when perfData changes
+    useEffect(() => {
+        if (!perfData?.monthly?.length || !chartRef.current) return;
+        import('echarts').then(echarts => {
+            if (chartInstance.current) chartInstance.current.dispose();
+            chartInstance.current = echarts.init(chartRef.current, null, { renderer: 'svg' });
+            const months = perfData.monthly.map(m => m.month);
+            chartInstance.current.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', backgroundColor: '#111', borderColor: '#333', textStyle: { color: '#ccc' } },
+                grid: { left: 10, right: 10, top: 10, bottom: 30, containLabel: true },
+                xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#333' } }, axisLabel: { color: '#555', fontSize: 10 } },
+                yAxis: { type: 'value', splitLine: { lineStyle: { color: '#1a1a1a' } }, axisLabel: { color: '#555', fontSize: 10 } },
+                series: [
+                    { name: 'Tasks Done', type: 'bar', data: perfData.monthly.map(m => m.tasks_done), itemStyle: { color: 'rgba(255,255,255,0.4)', borderRadius: [4,4,0,0] } },
+                    { name: 'Avg Mins', type: 'line', yAxisIndex: 0, data: perfData.monthly.map(m => m.avg_mins), lineStyle: { color: 'rgba(255,255,255,0.2)' }, itemStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true, symbol: 'circle', symbolSize: 5 },
+                ],
+            });
+        });
+        return () => { if (chartInstance.current) { chartInstance.current.dispose(); chartInstance.current = null; } };
+    }, [perfData]);
+
 
     // Plate Autocomplete State
     const [plateSearch, setPlateSearch] = useState('');
@@ -195,36 +234,15 @@ export default function MachinesPage() {
                                     <>
                                         <div>
                                             <label className="block text-sm text-gray-400 mb-1">Max Colored Price (per sq cm)</label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={formData.digital_price_max}
-                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_max: e.target.value }))}
-                                                placeholder="0.00"
-                                                className="bg-secondary border-white/10"
-                                            />
+                                            <Input type="number" step="0.01" value={formData.digital_price_max} onChange={e => setFormData(prev => ({ ...prev, digital_price_max: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
                                         </div>
                                         <div>
                                             <label className="block text-sm text-gray-400 mb-1">Medium Coloured Price (per sq cm)</label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={formData.digital_price_medium}
-                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_medium: e.target.value }))}
-                                                placeholder="0.00"
-                                                className="bg-secondary border-white/10"
-                                            />
+                                            <Input type="number" step="0.01" value={formData.digital_price_medium} onChange={e => setFormData(prev => ({ ...prev, digital_price_medium: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
                                         </div>
                                         <div>
                                             <label className="block text-sm text-gray-400 mb-1">Min Coloured Price (per sq cm)</label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={formData.digital_price_min}
-                                                onChange={e => setFormData(prev => ({ ...prev, digital_price_min: e.target.value }))}
-                                                placeholder="0.00"
-                                                className="bg-secondary border-white/10"
-                                            />
+                                            <Input type="number" step="0.01" value={formData.digital_price_min} onChange={e => setFormData(prev => ({ ...prev, digital_price_min: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
                                         </div>
                                     </>
                                 )}
@@ -237,19 +255,9 @@ export default function MachinesPage() {
                                     </label>
                                     <div className="flex flex-col gap-1.5">
                                         <div className="flex w-full items-center rounded-lg border border-white/10 bg-secondary focus-within:ring-2 focus-within:ring-white/20 transition-all">
-                                            <input
-                                                type="number"
-                                                value={formData.speed}
-                                                onChange={e => setFormData(prev => ({ ...prev, speed: e.target.value }))}
-                                                placeholder="10000"
-                                                className="flex-1 bg-transparent border-none px-4 py-2.5 text-white outline-none placeholder:text-gray-500"
-                                            />
+                                            <input type="number" value={formData.speed} onChange={e => setFormData(prev => ({ ...prev, speed: e.target.value }))} placeholder="10000" className="flex-1 bg-transparent border-none px-4 py-2.5 text-white outline-none placeholder:text-gray-500" />
                                             <div className="h-6 w-px bg-white/10"></div>
-                                            <select
-                                                className="bg-transparent border-none text-sm text-gray-300 focus:text-white outline-none px-3 py-2 cursor-pointer hover:text-white transition-colors"
-                                                value={formData.speed_unit}
-                                                onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}
-                                            >
+                                            <select className="bg-transparent border-none text-sm text-gray-300 focus:text-white outline-none px-3 py-2 cursor-pointer hover:text-white transition-colors" value={formData.speed_unit} onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}>
                                                 <option value="Sheets/Hr" className="bg-[#1a1a1a] text-white">Sheets/Hr</option>
                                                 <option value="Units/Hr" className="bg-[#1a1a1a] text-white">Units/Hr</option>
                                             </select>
@@ -260,37 +268,15 @@ export default function MachinesPage() {
                                     <div className="relative">
                                         <label className="block text-sm text-gray-400 mb-1">Default Plate</label>
                                         <div className="relative">
-                                            <Input
-                                                value={plateSearch}
-                                                onChange={(e) => {
-                                                    setPlateSearch(e.target.value);
-                                                    setShowPlateSuggestions(true);
-                                                    if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' }));
-                                                }}
-                                                onFocus={() => setShowPlateSuggestions(true)}
-                                                onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)}
-                                                placeholder="Search plate..."
-                                                className="bg-secondary border-white/10"
-                                            />
+                                            <Input value={plateSearch} onChange={(e) => { setPlateSearch(e.target.value); setShowPlateSuggestions(true); if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' })); }} onFocus={() => setShowPlateSuggestions(true)} onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)} placeholder="Search plate..." className="bg-secondary border-white/10" />
                                             {showPlateSuggestions && (
                                                 <ul className="absolute z-50 w-full bg-[#1a1a1a] border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                    {plates
-                                                        .filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase()))
-                                                        .map(p => (
-                                                            <li
-                                                                key={p.id}
-                                                                onClick={async () => {
-                                                                    setFormData(prev => ({ ...prev, plate_id: p.id }));
-                                                                    setPlateSearch(p.name);
-                                                                    setShowPlateSuggestions(false);
-                                                                }}
-                                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between"
-                                                            >
-                                                                <span>{p.name}</span>
-                                                                <span className="text-gray-400 text-xs mt-0.5">Cost: {p.unit_cost}</span>
-                                                            </li>
-                                                        ))
-                                                    }
+                                                    {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).map(p => (
+                                                        <li key={p.id} onClick={async () => { setFormData(prev => ({ ...prev, plate_id: p.id })); setPlateSearch(p.name); setShowPlateSuggestions(false); }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
+                                                            <span>{p.name}</span>
+                                                            <span className="text-gray-400 text-xs mt-0.5">Cost: {p.unit_cost}</span>
+                                                        </li>
+                                                    ))}
                                                     {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).length === 0 && (
                                                         <li className="px-4 py-2 text-gray-500 text-sm">No plates found</li>
                                                     )}
@@ -314,13 +300,8 @@ export default function MachinesPage() {
                         <div className="p-4 border-b border-white/10 flex gap-4">
                             <div className="relative flex-1">
                                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search machines..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full bg-secondary/50 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-white/30"
-                                />
+                                <input type="text" placeholder="Search machines..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-white/30" />
                             </div>
                         </div>
 
@@ -345,38 +326,20 @@ export default function MachinesPage() {
                                                 <td className="p-4 text-sm text-gray-400">
                                                     <div className="flex flex-col gap-1">
                                                         <span className="text-xs uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded w-max opacity-70 mb-1">{item.type?.replace('_', ' ')}</span>
-                                                        {item.type === 'offset' && (
-                                                            <>
-                                                                <span>Factor: {item.sheet_factor} | Speed: {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>
-                                                                {item.plate_name && <span className="text-yellow-500/80 text-xs">Plate: {item.plate_name}</span>}
-                                                            </>
-                                                        )}
-                                                        {/* Legacy handle if needed */}
-                                                        {item.type === 'image' && <span>Digital Press | {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>}
-                                                        {item.type === 'digital' && (
-                                                            <>
-                                                                <span>Digital Press | {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>
-                                                                <span className="text-yellow-500/80 text-xs">Rates: Max {item.digital_price_max} | Med {item.digital_price_medium} | Min {item.digital_price_min}</span>
-                                                            </>
-                                                        )}
+                                                        {item.type === 'offset' && (<><span>Factor: {item.sheet_factor} | Speed: {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>{item.plate_name && <span className="text-yellow-500/80 text-xs">Plate: {item.plate_name}</span>}</>)}
+                                                        {item.type === 'digital' && (<><span>Digital Press | {item.speed.toLocaleString()} sph</span><span className="text-yellow-500/80 text-xs">Rates: Max {item.digital_price_max} | Med {item.digital_price_medium} | Min {item.digital_price_min}</span></>)}
                                                         {item.type === 'finishing' && <span>Finishing Equipment | {item.speed.toLocaleString()} uph</span>}
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right flex justify-end gap-2">
-                                                    <button
-                                                        onClick={async () => handleEdit(item)}
-                                                        className="p-2 text-gray-400 hover:text-white transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <FiEdit2 />
-                                                    </button>
-                                                    <button
-                                                        onClick={async () => handleDelete(item.id)}
-                                                        className="p-2 text-gray-500 hover:text-red-400 transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <FiTrash2 />
-                                                    </button>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        <button onClick={() => openPerf(item)}
+                                                            className="p-2 text-white/30 hover:text-white/70 transition-colors" title="Performance Analytics">
+                                                            <FiBarChart2 />
+                                                        </button>
+                                                        <button onClick={() => handleEdit(item)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Edit"><FiEdit2 /></button>
+                                                        <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors" title="Delete"><FiTrash2 /></button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -387,6 +350,123 @@ export default function MachinesPage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Performance Analytics Panel ─────────────────────────────────────── */}
+            {perfMachine && (
+                <div className="fixed inset-0 z-50 flex">
+                    {/* Backdrop */}
+                    <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => { setPerfMachine(null); setPerfData(null); }} />
+                    {/* Slide-in panel */}
+                    <div className="w-full max-w-2xl bg-[#0a0a0a] border-l border-white/[0.08] flex flex-col overflow-hidden shadow-2xl">
+                        {/* Panel header */}
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
+                                    <FiActivity className="w-4 h-4 text-white/50" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">{perfMachine.name}</p>
+                                    <p className="text-xs text-white/30 capitalize">{perfMachine.type} · Performance Analytics</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setPerfMachine(null); setPerfData(null); }} className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white transition-all"><FiX /></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                            {perfLoading ? (
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="w-5 h-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+                                </div>
+                            ) : perfData ? (
+                                <>
+                                    {/* Currently running */}
+                                    {perfData.currentTask && (
+                                        <div className="bg-white/[0.04] border border-white/[0.10] rounded-2xl p-4">
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-1.5"><FiActivity className="w-3 h-3" />Currently Running</p>
+                                            <p className="text-sm font-semibold text-white">{perfData.currentTask.name}</p>
+                                            <p className="text-xs text-white/40 mt-0.5">{perfData.currentTask.order_code} · {perfData.currentTask.customer_name}</p>
+                                            {perfData.currentTask.started_at && (
+                                                <p className="text-xs text-white/30 mt-1 flex items-center gap-1">
+                                                    <FiClock className="w-3 h-3" />
+                                                    Started {new Date(perfData.currentTask.started_at).toLocaleString()}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* KPI cards */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {[
+                                            { label: 'Total Tasks', value: perfData.summary.total_tasks, sub: 'assigned' },
+                                            { label: 'Completed', value: perfData.summary.completed, sub: `${perfData.summary.total_tasks > 0 ? Math.round(perfData.summary.completed / perfData.summary.total_tasks * 100) : 0}% done` },
+                                            { label: 'Avg Active Time', value: perfData.summary.avg_active_mins ? `${perfData.summary.avg_active_mins}m` : '—', sub: 'started → done' },
+                                            { label: 'Total Active', value: perfData.summary.total_active_mins ? `${Math.round(perfData.summary.total_active_mins / 60)}h` : '—', sub: 'machine hours' },
+                                        ].map(({ label, value, sub }) => (
+                                            <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">{label}</p>
+                                                <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
+                                                <p className="text-[11px] text-white/25 mt-1">{sub}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Status breakdown */}
+                                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                        <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Task Status Breakdown</p>
+                                        <div className="space-y-2">
+                                            {[['Completed', perfData.summary.completed, 'bg-white/50'],['In Progress', perfData.summary.in_progress, 'bg-white/25'],['Pending', perfData.summary.pending, 'bg-white/10']].map(([label, count, bar]) => (
+                                                <div key={label} className="flex items-center gap-3">
+                                                    <span className="text-xs text-white/40 w-20 shrink-0">{label}</span>
+                                                    <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                                                        <div className={`h-full ${bar} rounded-full transition-all`} style={{ width: `${perfData.summary.total_tasks > 0 ? Math.round(count / perfData.summary.total_tasks * 100) : 0}%` }} />
+                                                    </div>
+                                                    <span className="text-xs font-mono text-white/40 w-6 text-right">{count}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Monthly chart */}
+                                    {perfData.monthly?.length > 0 && (
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Monthly Output (last 6 months)</p>
+                                            <div ref={chartRef} style={{ height: 180 }} />
+                                        </div>
+                                    )}
+
+                                    {/* Recent tasks */}
+                                    {perfData.recent?.length > 0 && (
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Recent Completed Tasks</p>
+                                            <div className="space-y-1.5">
+                                                {perfData.recent.map(t => (
+                                                    <div key={t.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium text-white/70 truncate">{t.name}</p>
+                                                            <p className="text-[11px] text-white/25 mt-0.5">{t.order_code} · {t.customer_name}</p>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            {t.active_mins != null ? (
+                                                                <p className="text-xs font-mono text-white/50">{t.active_mins}m active</p>
+                                                            ) : (
+                                                                <p className="text-xs text-white/20">—</p>
+                                                            )}
+                                                            <p className="text-[10px] text-white/20 mt-0.5">{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ''}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-center text-white/25 text-sm py-12">No analytics data available.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+

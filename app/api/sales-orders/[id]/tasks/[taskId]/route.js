@@ -19,14 +19,21 @@ export async function PUT(req, { params }) {
         const body = await req.json();
         const { name, status, completed_at, completed_by, assigned_to, description, machine_id, machine_name } = body;
 
-        // Handle machine_id separately — allow explicit null to unassign
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
+
+        // Fetch current task to detect in_progress transition
+        const [current] = await pool.execute('SELECT status, started_at FROM job_tasks WHERE id = ?', [taskId]);
+        const prevStatus = current[0]?.status;
+        const alreadyStarted = current[0]?.started_at;
+        // Record started_at when moving to in_progress for the first time
+        const setStartedAt = status === 'in_progress' && prevStatus !== 'in_progress' && !alreadyStarted;
 
         await pool.execute(
             `UPDATE job_tasks
              SET name         = COALESCE(?, name),
                  status       = COALESCE(?, status),
                  completed_at = ?,
+                 ${ setStartedAt ? 'started_at = NOW(),' : '' }
                  completed_by = COALESCE(?, completed_by),
                  assigned_to  = COALESCE(?, assigned_to),
                  description  = COALESCE(?, description),
