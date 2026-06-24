@@ -13,6 +13,7 @@
     --font-mono: var(--font-geist-mono);
     --blur-md:  12px;
     --blur-xl: 8px; 
+    --color-black:   #0a0a0a55;
 }
 
 :root {
