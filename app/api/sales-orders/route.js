@@ -125,7 +125,32 @@ export async function POST(req) {
         }
         // ─────────────────────────────────────────────────────────────────────
 
-        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions });
+        // ── SFG / ASSETS STOCK DEDUCTION ─────────────────────────────────────
+        // Aggregate all SFG lines for components in this quotation's items
+        const [sfgLines] = await pool.execute(`
+            SELECT sl.inventory_item_id, SUM(sl.quantity) AS qty_needed
+            FROM quotation_item_sfg_lines sl
+            JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            WHERE qli.quotation_id = ?
+            GROUP BY sl.inventory_item_id
+        `, [quotation_id]);
+
+        const sfgDeductions = [];
+        for (const row of sfgLines) {
+            const qty = parseFloat(row.qty_needed) || 0;
+            if (qty > 0) {
+                await pool.execute(`
+                    UPDATE inventory_items
+                    SET stock_quantity = GREATEST(0, stock_quantity - ?)
+                    WHERE id = ?
+                `, [qty, row.inventory_item_id]);
+                sfgDeductions.push({ inventory_item_id: row.inventory_item_id, qty_deducted: qty });
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions, sfgDeductions });
 
     } catch (error) {
         console.error("Create Sales Order Error:", error);

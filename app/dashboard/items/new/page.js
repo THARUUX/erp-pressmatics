@@ -24,6 +24,7 @@ export default function NewQuotationPage() {
     const [machines, setMachines] = useState([]);
     const [papers, setPapers] = useState([]);
     const [availableFinishings, setAvailableFinishings] = useState([]);
+    const [sfgInventory, setSfgInventory] = useState([]); // SFG/Assets items
     const [customers, setCustomers] = useState([]); // List of all customers
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -67,7 +68,8 @@ export default function NewQuotationPage() {
                  customWastageSheets: '',
                  customPlateCount: ''
             },
-            finishings: []
+            finishings: [],
+            sfgLines: []
         }
     ]);
     const [activeTab, setActiveTab] = useState(0);
@@ -116,18 +118,21 @@ export default function NewQuotationPage() {
             fetch('/api/machines').then(res => res.json()),
             fetch('/api/finishings').then(res => res.json()),
             fetch('/api/inventory?category=Paper').then(res => res.json()),
-            fetch('/api/customers').then(res => res.json())
-        ]).then(([machinesData, finishingsData, papersData, customersData]) => {
+            fetch('/api/customers').then(res => res.json()),
+            fetch('/api/inventory?category=SFG').then(res => res.json())
+        ]).then(([machinesData, finishingsData, papersData, customersData, sfgData]) => {
             // Safety check: ensure data are arrays
             const safeMachines = Array.isArray(machinesData) ? machinesData : [];
             const safeFinishings = Array.isArray(finishingsData) ? finishingsData : [];
             const safePapers = Array.isArray(papersData) ? papersData : [];
             const safeCustomers = Array.isArray(customersData) ? customersData : [];
+            const safeSFG = Array.isArray(sfgData) ? sfgData : [];
 
             setMachines(safeMachines);
             setAvailableFinishings(safeFinishings);
             setPapers(safePapers);
             setCustomers(safeCustomers);
+            setSfgInventory(safeSFG);
         }).catch(err => console.error("Failed to load data", err));
     }, []);
 
@@ -544,6 +549,7 @@ export default function NewQuotationPage() {
                             machines={machines}
                             papers={papers}
                             finishings={availableFinishings}
+                            sfgInventory={sfgInventory}
                             onChange={updateComponent}
                             onRemove={removeComponent}
                             onCopy={copyComponent}
@@ -733,7 +739,7 @@ export default function NewQuotationPage() {
                             </div>
                         </section>
 
-                        {components[activeTab].type === 'offset'  && components[activeTab].name !== "Finishing" && (
+                        {components[activeTab].type === 'offset'  && !components[activeTab].name?.includes("Finishing") && (
                             <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>

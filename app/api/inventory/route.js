@@ -10,8 +10,14 @@ export async function GET(req) {
         const params = [];
 
         if (category) {
-            query += ' WHERE category = ?';
-            params.push(category);
+            // For SFG, use flexible matching to catch 'SF', 'SFG', 'Semi-Finished', etc.
+            // For Assets, also use flexible matching.
+            if (category === 'SFG') {
+                query += " WHERE (category = 'SFG' OR category = 'SF' OR category LIKE '%SFG%' OR category LIKE '%Semi%' OR category LIKE '%Asset%')";
+            } else {
+                query += ' WHERE category = ?';
+                params.push(category);
+            }
         }
 
         query += ' ORDER BY name ASC';

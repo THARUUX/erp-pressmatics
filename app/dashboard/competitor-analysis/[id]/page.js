@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { FiArrowLeft, FiPlus, FiTrash2, FiSave, FiTrendingDown, FiTrendingUp, FiMinus, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiArrowLeft, FiPlus, FiTrash2, FiSave, FiTrendingDown, FiTrendingUp, FiMinus, FiChevronDown, FiChevronUp, FiDownload } from 'react-icons/fi';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
@@ -16,12 +16,12 @@ function DiffBadge({ ours, theirs }) {
     const diff = ((theirs - ours) / ours) * 100;
     if (diff > 0) return (
         <span className="flex items-center gap-1 text-emerald-400 font-semibold text-sm">
-            <FiTrendingDown className="w-3.5 h-3.5" /> +{diff.toFixed(1)}%
+            <FiTrendingDown className="w-3.5 h-3.5" /> +{diff.toFixed(3)}%
         </span>
     );
     if (diff < 0) return (
         <span className="flex items-center gap-1 text-red-400 font-semibold text-sm">
-            <FiTrendingUp className="w-3.5 h-3.5" /> {diff.toFixed(1)}%
+            <FiTrendingUp className="w-3.5 h-3.5" /> {diff.toFixed(3)}%
         </span>
     );
     return <span className="flex items-center gap-1 text-white/40 text-sm"><FiMinus className="w-3 h-3" /> At par</span>;
@@ -52,8 +52,10 @@ export default function CompetitorAnalysisDetailPage() {
                 setUsdRate(d.usd_rate?.toString() || '');
                 setCompetitors((d.competitors || []).map(c => ({
                     ...c,
-                    quoted_price: c.quoted_price?.toString() || '',
-                    usd_rate: c.usd_rate?.toString() || '',
+                    competitor_name: c.competitor_name || '',
+                    quoted_price: c.quoted_price != null ? c.quoted_price.toString() : '',
+                    usd_rate: c.usd_rate != null ? c.usd_rate.toString() : '',
+                    notes: c.notes || '',
                 })));
                 setLoading(false);
             })
@@ -94,7 +96,7 @@ export default function CompetitorAnalysisDetailPage() {
     const ourUnitPrice = (ours && qty) ? ours / qty : null;
 
     return (
-        <div className="text-white space-y-6 max-w-4xl">
+        <div className="text-white space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -106,8 +108,12 @@ export default function CompetitorAnalysisDetailPage() {
                         <p className="text-xs text-white/30 mt-0.5">Created {new Date(analysis.created_at).toLocaleDateString()}</p>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={handleDelete} className="px-3 py-2 rounded-xl border border-red-500/20 text-red-400/70 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 text-sm transition-all">Delete</button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <a href={`/api/competitor-analysis/${id}/pdf`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-white/60 hover:text-white hover:border-white/20 hover:bg-white/[0.04] text-sm transition-all whitespace-nowrap">
+                        <FiDownload className="w-3.5 h-3.5" /> Export PDF
+                    </a>
+                    <button onClick={handleDelete} className="px-3 py-2 rounded-xl border border-red-500/20 text-red-400/70 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 text-sm transition-all whitespace-nowrap">Delete</button>
                     <Button onClick={handleSave} disabled={saving} className="bg-white text-black hover:bg-white/90 font-semibold text-sm h-[36px] px-4">
                         <FiSave className="w-4 h-4 mr-1.5" />{saving ? 'Saving…' : 'Save'}
                     </Button>
@@ -248,7 +254,7 @@ export default function CompetitorAnalysisDetailPage() {
                             <p className="font-mono font-bold text-white text-base">
                                 {currency}{ourUnitPrice.toFixed(2)}<span className="text-white/30 text-xs font-normal ml-1">/unit</span>
                             </p>
-                            {ours && qty && <p className="text-[11px] text-white/30 font-mono mt-0.5">{currency}{ours.toFixed(2)} total · {qty.toLocaleString()} units</p>}
+                            {ours && qty && <p className="text-[11px] text-white/30 font-mono mt-0.5">{currency}{ours.toFixed(2)} total · {qty.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} units</p>}
                         </div>
                     </div>
                 )}

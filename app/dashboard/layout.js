@@ -1,34 +1,67 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { motion } from 'framer-motion';
 import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
-    FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign, FiAlertTriangle, FiUsers, FiBarChart2, FiTarget
+    FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
+    FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
 
-// Each menu item has an optional `roles` array — if absent, all roles may see it
-const ALL_MENU_ITEMS = [
-    { icon: FiHome,         label: 'Dashboard',      href: '/dashboard',                    exact: true },
-    { icon: FiFileText,     label: 'Quotations',     href: '/dashboard/quotations',          roles: ['admin', 'manager'] },
-    { icon: FiShoppingCart, label: 'Sales Orders',   href: '/dashboard/sales-orders',        roles: ['admin', 'manager'] },
-    { icon: FiDollarSign,   label: 'Invoices',       href: '/dashboard/invoices',            roles: ['admin', 'manager'] },
-    { icon: FiCalendar,     label: 'Planning',       href: '/dashboard/job-planning' },
-    { icon: FiPrinter,      label: 'Estimations',    href: '/dashboard/estimations',         roles: ['admin', 'manager'] },
-    { icon: FiBox,          label: 'Inventory Items',href: '/dashboard/inventory' },
-    { icon: FiLayers,       label: 'Finishings',     href: '/dashboard/inventory/finishings' },
-    { icon: FiSettings,     label: 'Machines',       href: '/dashboard/inventory/machines' },
-    { icon: FiUser,         label: 'Customers',      href: '/dashboard/customers',           roles: ['admin', 'manager'] },
-    { icon: FiBox,          label: 'Items',          href: '/dashboard/items',               roles: ['admin', 'manager'] },
-    { icon: FiBarChart2,    label: 'Analytics',          href: '/dashboard/analytics',                roles: ['admin', 'manager'] },
-    { icon: FiTarget,       label: 'Competitor Analysis', href: '/dashboard/competitor-analysis',      roles: ['admin', 'manager'] },
-    { icon: FiUsers,        label: 'Users',          href: '/dashboard/users',               roles: ['admin'] },
-    { icon: FiSettings,     label: 'Settings',       href: '/dashboard/settings',            roles: ['admin'] },
-    { icon: FiBookOpen,     label: 'Guide',          href: '/dashboard/guide' },
+// Grouped nav — each group has a label and its items
+const NAV_GROUPS = [
+    {
+        label: 'Overview',
+        items: [
+            { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true },
+        ],
+    },
+    {
+        label: 'Sales',
+        items: [
+            { icon: FiUser,         label: 'Customers',    href: '/dashboard/customers',    roles: ['admin', 'manager'] },
+            { icon: FiFileText,     label: 'Quotations',   href: '/dashboard/quotations',   roles: ['admin', 'manager'] },
+            { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders', roles: ['admin', 'manager'] },
+            { icon: FiDollarSign,   label: 'Invoices',     href: '/dashboard/invoices',     roles: ['admin', 'manager'] },
+        ],
+    },
+    {
+        label: 'Production',
+        items: [
+            { icon: FiPrinter,  label: 'Estimations', href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
+            { icon: FiBox,      label: 'Items',        href: '/dashboard/items',        roles: ['admin', 'manager'] },
+            { icon: FiCalendar, label: 'Planning',     href: '/dashboard/job-planning' },
+        ],
+    },
+    {
+        label: 'Inventory',
+        items: [
+            { icon: FiBox,      label: 'Stock Items',  href: '/dashboard/inventory' },
+            { icon: FiLayers,   label: 'Finishings',   href: '/dashboard/inventory/finishings' },
+            { icon: FiSettings, label: 'Machines',     href: '/dashboard/inventory/machines' },
+        ],
+    },
+    {
+        label: 'Intelligence',
+        items: [
+            { icon: FiBarChart2, label: 'Analytics',          href: '/dashboard/analytics',           roles: ['admin', 'manager'] },
+            { icon: FiTarget,    label: 'Competitor Analysis', href: '/dashboard/competitor-analysis', roles: ['admin', 'manager'] },
+        ],
+    },
+    {
+        label: 'System',
+        items: [
+            { icon: FiUsers,    label: 'Users',       href: '/dashboard/users',        roles: ['admin'] },
+            { icon: FiSettings, label: 'Settings',    href: '/dashboard/settings',     roles: ['admin'] },
+            { icon: FiBookOpen, label: 'Guide',       href: '/dashboard/guide' },
+            { icon: FiInfo,     label: 'System Info', href: '/dashboard/system-info',  roles: ['admin'] },
+        ],
+    },
 ];
 
 const ROLE_BADGE = {
@@ -87,18 +120,64 @@ function LayoutInner({ children }) {
 
     const role = currentUser?.role || 'operator';
 
-    // Filter nav items visible to this role
-    const menuItems = ALL_MENU_ITEMS.filter(item =>
-        !item.roles || item.roles.includes(role)
-    );
+    // Filter groups — remove items by role, hide entire group if empty
+    const visibleGroups = NAV_GROUPS.map(group => ({
+        ...group,
+        items: group.items.filter(item => !item.roles || item.roles.includes(role))
+    })).filter(group => group.items.length > 0);
 
     const badge = ROLE_BADGE[role] || ROLE_BADGE.operator;
+
+    // Collapsed state: initialize so the active group is open, rest closed
+    const getInitialCollapsed = () => {
+        const state = {};
+        visibleGroups.forEach(group => {
+            const hasActive = group.items.some(item => {
+                if (item.exact) return pathname === item.href;
+                if (item.href === '/dashboard/inventory') return pathname === '/dashboard/inventory' || pathname.startsWith('/dashboard/inventory/items');
+                return pathname.startsWith(item.href);
+            });
+            state[group.label] = !hasActive;
+        });
+        return state;
+    };
+    const [collapsed, setCollapsed] = useState(getInitialCollapsed);
+
+    const toggleGroup = (label) =>
+        setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
+
+    const isItemActive = (item) => {
+        if (item.exact) return pathname === item.href;
+        if (item.href === '/dashboard/inventory') return pathname === '/dashboard/inventory' || pathname.startsWith('/dashboard/inventory/items');
+        return pathname.startsWith(item.href);
+    };
+
+    const renderNavItem = (item) => {
+        const active = isItemActive(item);
+        return (
+            <Link key={item.href} href={item.href} className="relative block">
+                {active && (
+                    <motion.div
+                        layoutId="activeTab"
+                        className="absolute inset-0 bg-white/10 rounded-lg"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                )}
+                <div className={`relative flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
+                    active ? 'text-white font-medium' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}>
+                    <item.icon className="w-4 h-4 shrink-0" />
+                    <span className="text-sm">{item.label}</span>
+                </div>
+            </Link>
+        );
+    };
 
     return (
         <div className="h-screen bg-transparent text-white flex overflow-hidden">
             {/* Sidebar */}
             <aside className="w-64 bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto">
-                <div className="p-6">
+                <div className="p-6 pb-4">
                     <Link href="/dashboard">
                         <h1 className="text-2xl font-bold text-white flex items-center gap-2 tracking-tighter cursor-pointer">
                             <FiPrinter className="text-white" />
@@ -110,33 +189,49 @@ function LayoutInner({ children }) {
                 {/* Access-denied banner (inside sidebar) */}
                 {showDenied && <DeniedBanner onDismiss={() => setShowDenied(false)} />}
 
-                <nav className="flex-1 px-4 space-y-1 mt-2">
-                    {menuItems.map((item) => {
-                        let active = false;
-                        if (item.exact) {
-                            active = pathname === item.href;
-                        } else if (item.href === '/dashboard/inventory') {
-                            active = pathname === '/dashboard/inventory' || pathname.startsWith('/dashboard/inventory/items');
-                        } else {
-                            active = pathname.startsWith(item.href);
-                        }
-
+                <nav className="flex-1 px-3 mt-2 pb-4 space-y-1">
+                    {visibleGroups.map((group) => {
+                        const isOpen = !collapsed[group.label];
+                        const hasActive = group.items.some(isItemActive);
                         return (
-                            <Link key={item.href} href={item.href} className="relative block">
-                                {active && (
-                                    <motion.div
-                                        layoutId="activeTab"
-                                        className="absolute inset-0 bg-white/10 rounded-lg"
-                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                    />
-                                )}
-                                <div className={`relative flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-                                    active ? 'text-white font-medium' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                }`}>
-                                    <item.icon className="w-4 h-4" />
-                                    <span className="text-sm">{item.label}</span>
-                                </div>
-                            </Link>
+                            <div key={group.label}>
+                                {/* Group header — clickable to toggle */}
+                                <button
+                                    onClick={() => toggleGroup(group.label)}
+                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-colors group ${
+                                        hasActive ? 'text-white/60' : 'text-white/25 hover:text-white/50'
+                                    }`}
+                                >
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest select-none">
+                                        {group.label}
+                                    </span>
+                                    <motion.span
+                                        animate={{ rotate: isOpen ? 90 : 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="text-current"
+                                    >
+                                        <FiChevronRight className="w-3 h-3" />
+                                    </motion.span>
+                                </button>
+
+                                {/* Collapsible items */}
+                                <AnimatePresence initial={false}>
+                                    {isOpen && (
+                                        <motion.div
+                                            key="content"
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="space-y-0.5 pt-0.5 pb-1">
+                                                {group.items.map(renderNavItem)}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         );
                     })}
                 </nav>

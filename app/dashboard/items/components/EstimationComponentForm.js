@@ -55,6 +55,7 @@ export default function EstimationComponentForm({
     machines,
     papers,
     finishings: availableFinishings,
+    sfgInventory = [], // SFG/Assets inventory items
     onChange, // (index, field, value)
     onRemove, // (index)
     onCopy, // (index)
@@ -64,6 +65,8 @@ export default function EstimationComponentForm({
     currency
 }) {
     const { params, type, finishings: selectedFinishings } = data;
+    const sfgLines = data.sfgLines || [];
+    const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
 
     // Local state for searches (keep UI responsive)
     const [paperSearch, setPaperSearch] = useState(params.paperName || '');
@@ -71,6 +74,39 @@ export default function EstimationComponentForm({
 
     const [finishingSearch, setFinishingSearch] = useState('');
     const [showFinishingSuggestions, setShowFinishingSuggestions] = useState(false);
+
+    // SFG line search
+    const [sfgSearch, setSfgSearch] = useState('');
+    const [showSfgSuggestions, setShowSfgSuggestions] = useState(false);
+
+    const addSfgLine = (item) => {
+        const newLine = {
+            id: `sfg-${Date.now()}-${Math.random()}`,
+            inventory_item_id: item.id,
+            item_name: item.name,
+            item_code: item.item_code || '',
+            quantity: 1,
+            unit_price: parseFloat(item.unit_cost) || 0,
+            total_price: parseFloat(item.unit_cost) || 0,
+            stock_quantity: item.stock_quantity,
+            uom: item.uom || 'Unit',
+        };
+        onChange(index, 'sfgLines', [...sfgLines, newLine]);
+    };
+
+    const updateSfgLine = (lineId, field, value) => {
+        const updated = sfgLines.map(l => {
+            if (l.id !== lineId) return l;
+            const qty = field === 'quantity' ? (parseFloat(value) || 0) : (parseFloat(l.quantity) || 0);
+            const price = field === 'unit_price' ? (parseFloat(value) || 0) : (parseFloat(l.unit_price) || 0);
+            return { ...l, [field]: value, total_price: qty * price };
+        });
+        onChange(index, 'sfgLines', updated);
+    };
+
+    const removeSfgLine = (lineId) => {
+        onChange(index, 'sfgLines', sfgLines.filter(l => l.id !== lineId));
+    };
     const [pendingFinishing, setPendingFinishing] = useState({
         id: null, name: '', time_per_unit: 0, unit_cost: 0,
         is_machine: false, machine_id: null, cost_unit: 'Unit', variants: [],
@@ -205,7 +241,7 @@ export default function EstimationComponentForm({
             <div className="grid lg:grid-cols-3 gap-8">
                 {/* Left: Input Form */}
                 <div className="lg:col-span-2 space-y-6">
-                    {type === 'offset' && data.name !== "Finishing" && (
+                    {type === 'offset' && !data.name.includes("Finishing") && (
                         <>
                         <div className="grid md:grid-cols-3 gap-4 mb-6">
                             <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
@@ -260,7 +296,7 @@ export default function EstimationComponentForm({
                             <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}>
                                 <label className="block text-sm text-gray-400 mb-1">
                                     Pages 
-                                    <span className={(data.name.includes('Cover') || data.name.includes('Inner')) ? 'text-xs text-red-600' : 'hidden'} >
+                                    <span className={(data.name.includes('Cover') || data.name.includes('Inner') && !isBB) ? 'text-xs text-red-600' : 'hidden'} >
                                         {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
                                     </span>
                                 </label>
@@ -519,7 +555,7 @@ export default function EstimationComponentForm({
                             </div>
                         </>
                     )}
-                    {type === 'offset' && data.name !== "Finishing" && (
+                    {type === 'offset' && !data.name.includes("Finishing") && (
                         <>
                             <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials & Dimensions</h3>
                             <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -638,7 +674,7 @@ export default function EstimationComponentForm({
                     )}
 
                     <div>
-                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name === "Finishing" ? 'hidden' : ''}`}>Finishings</h3>
+                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name.includes('Finishing') ? 'hidden' : ''}`}>Finishings</h3>
                         <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
                             <div className="grid md:grid-cols-12  gap-3 mb-3">
                                 <div className="md:col-span-8 relative">
@@ -706,6 +742,132 @@ export default function EstimationComponentForm({
                             </div>
                         </div>
                     </div>
+
+                    {/* ── SFG / Assets Section ── */}
+                    {isSFGComponent && (
+                        <div className="mt-6 border-t border-amber-500/20 pt-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <span className="text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">SFG / Assets</span>
+                                <h3 className="text-md font-semibold text-gray-300">Inventory Stock Lines</h3>
+                            </div>
+
+                            {/* Search & Add */}
+                            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-3">
+                                <div className="relative">
+                                    <Input
+                                        value={sfgSearch}
+                                        onChange={(e) => { setSfgSearch(e.target.value); setShowSfgSuggestions(true); }}
+                                        onFocus={() => setShowSfgSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSfgSuggestions(false), 200)}
+                                        placeholder="Search SFG / Asset inventory item..."
+                                        className="bg-black/30 border-amber-500/30 text-sm"
+                                    />
+                                    {showSfgSuggestions && (
+                                        <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
+                                            {sfgInventory
+                                                .filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase()))
+                                                .map(item => (
+                                                    <li
+                                                        key={item.id}
+                                                        onClick={() => {
+                                                            addSfgLine(item);
+                                                            setSfgSearch('');
+                                                            setShowSfgSuggestions(false);
+                                                        }}
+                                                        className="px-4 py-2.5 hover:bg-amber-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
+                                                    >
+                                                        <div>
+                                                            <div className="text-white font-medium">{item.name}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-amber-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
+                                                            <div className="text-[10px] text-gray-500">Stock: {item.stock_quantity} {item.uom}</div>
+                                                        </div>
+                                                    </li>
+                                                ))
+                                            }
+                                            {sfgInventory.filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase())).length === 0 && (
+                                                <li className="px-4 py-3 text-gray-500 text-sm italic">No SFG items found</li>
+                                            )}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Lines Table */}
+                            {sfgLines.length > 0 ? (
+                                <div className="space-y-2">
+                                    {/* Header */}
+                                    <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
+                                        <span className="col-span-4">Item</span>
+                                        <span className="col-span-2 text-center">Stock</span>
+                                        <span className="col-span-2 text-center">Qty</span>
+                                        <span className="col-span-2 text-right">Unit Price</span>
+                                        <span className="col-span-1 text-right">Total</span>
+                                        <span className="col-span-1"></span>
+                                    </div>
+                                    {sfgLines.map((line) => (
+                                        <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-amber-500/10 rounded-lg px-3 py-2">
+                                            <div className="col-span-4">
+                                                <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
+                                                {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
+                                            </div>
+                                            <div className="col-span-2 text-center">
+                                                <span className={`text-xs font-mono ${
+                                                    (line.stock_quantity || 0) <= 0 ? 'text-red-400' :
+                                                    (line.stock_quantity || 0) < (line.quantity || 0) ? 'text-amber-400' : 'text-emerald-400'
+                                                }`}>{line.stock_quantity ?? '–'} {line.uom}</span>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    value={line.quantity}
+                                                    onChange={e => updateSfgLine(line.id, 'quantity', e.target.value)}
+                                                    className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
+                                                />
+                                            </div>
+                                            <div className="col-span-2">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.0001"
+                                                    value={line.unit_price}
+                                                    onChange={e => updateSfgLine(line.id, 'unit_price', e.target.value)}
+                                                    className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
+                                                />
+                                            </div>
+                                            <div className="col-span-1 text-right">
+                                                <span className="text-sm text-amber-300 font-mono">
+                                                    {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-1 flex justify-end">
+                                                <button
+                                                    onClick={() => removeSfgLine(line.id)}
+                                                    className="text-red-400 hover:text-red-300 transition-colors p-1"
+                                                    title="Remove"
+                                                >&times;</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Subtotal */}
+                                    <div className="flex justify-between items-center px-3 pt-2 border-t border-amber-500/20">
+                                        <span className="text-xs text-amber-400/70 uppercase tracking-widest">SFG Subtotal</span>
+                                        <span className="text-sm font-bold text-amber-300 font-mono">
+                                            {currency}{sfgLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-amber-500/15 rounded-xl">
+                                    No SFG/Asset items added yet — search above to add stock lines
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Right: Calculation Stats */}

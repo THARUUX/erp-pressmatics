@@ -29,7 +29,7 @@ export default function NewQuotationContainerPage() {
 
     useEffect(() => {
         // Fetch Customers
-        fetch('/api/customers').then(res => res.json()).then(setCustomers).catch(console.error);
+        fetch('/api/customers').then(res => res.json()).then(d => setCustomers(Array.isArray(d) ? d : [])).catch(console.error);
 
         // Initial Fetch of Items (Optional: or wait for selection?)
         // Let's fetch all initially if no customer selected, or empty?

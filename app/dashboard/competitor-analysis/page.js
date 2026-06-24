@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiPlus, FiTrendingDown, FiTrendingUp, FiMinus, FiTrash2, FiEdit2, FiTarget } from 'react-icons/fi';
+import { FiPlus, FiTrendingDown, FiTrendingUp, FiMinus, FiTrash2, FiTarget, FiSearch } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
@@ -9,14 +9,14 @@ import { useSettings } from '@/components/SettingsContext';
 function PriceBadge({ ours, theirs }) {
     if (!ours || !theirs) return null;
     const diff = ((theirs - ours) / ours) * 100;
-    if (diff > 5) return (
+    if (diff > 0) return (
         <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
-            <FiTrendingDown className="w-3 h-3" /> {diff.toFixed(1)}% cheaper
+            <FiTrendingDown className="w-3 h-3" /> {diff.toFixed(3)}% cheaper
         </span>
     );
-    if (diff < -5) return (
+    if (diff < 0) return (
         <span className="flex items-center gap-1 text-red-400 text-xs font-semibold">
-            <FiTrendingUp className="w-3 h-3" /> {Math.abs(diff).toFixed(1)}% more expensive
+            <FiTrendingUp className="w-3 h-3" /> {Math.abs(diff).toFixed(3)}% more expensive
         </span>
     );
     return <span className="flex items-center gap-1 text-white/40 text-xs"><FiMinus className="w-3 h-3" /> At par</span>;
@@ -27,6 +27,7 @@ export default function CompetitorAnalysisListPage() {
     const currency = settings.currency || '';
     const [analyses, setAnalyses] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
 
     const fetchData = () => {
         setLoading(true);
@@ -47,15 +48,27 @@ export default function CompetitorAnalysisListPage() {
     return (
         <div className="text-white space-y-6">
             {/* Header */}
-            <div className="flex items-end justify-between">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Competitor Analysis</h1>
                     <p className="text-sm text-white/40 mt-1">Compare your pricing against the market</p>
                 </div>
-                <Link href="/dashboard/competitor-analysis/new"
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all">
-                    <FiPlus className="w-4 h-4" /> New Analysis
-                </Link>
+                <div className="flex items-center gap-3 flex-1 justify-end">
+                    <div className="relative">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search analyses…"
+                            className="pl-9 pr-4 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/20 w-56 transition-all"
+                        />
+                    </div>
+                    <Link href="/dashboard/competitor-analysis/new"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all whitespace-nowrap">
+                        <FiPlus className="w-4 h-4" /> New Analysis
+                    </Link>
+                </div>
             </div>
 
             {loading ? (
@@ -68,9 +81,19 @@ export default function CompetitorAnalysisListPage() {
                         <FiPlus className="w-4 h-4" /> Create your first analysis
                     </Link>
                 </div>
-            ) : (
+            ) : (() => {
+                const filtered = analyses.filter(a =>
+                    a.name?.toLowerCase().includes(search.toLowerCase())
+                );
+                if (filtered.length === 0) return (
+                    <div className="py-24 text-center space-y-2">
+                        <FiSearch className="w-8 h-8 text-white/10 mx-auto" />
+                        <p className="text-white/25 text-sm">No analyses match “{search}”</p>
+                    </div>
+                );
+                return (
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {analyses.map(a => {
+                    {filtered.map(a => {
                         const minComp = parseFloat(a.min_competitor_price);
                         const maxComp = parseFloat(a.max_competitor_price);
                         const ours = parseFloat(a.our_total);
@@ -124,7 +147,8 @@ export default function CompetitorAnalysisListPage() {
                         );
                     })}
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

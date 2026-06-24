@@ -70,6 +70,46 @@ export async function POST(req) {
                 invRows.forEach(r => { inventoryMap[r.id] = r; });
             }
 
+            // Fetch all finishings for this estimation (with machine name)
+            const [finishings] = await pool.execute(`
+                SELECT qif.*, m.name AS machine_name
+                FROM quotation_item_finishings qif
+                LEFT JOIN machines m ON qif.machine_id = m.id
+                WHERE qif.quotation_item_id = ?
+                ORDER BY qif.id ASC
+            `, [estimation_id]);
+
+            // Group finishings by detail_id (null = global)
+            const finishingsByDetail = {};
+            const globalFinishings = [];
+            for (const f of finishings) {
+                const key = f.quotation_item_detail_id;
+                if (key) {
+                    if (!finishingsByDetail[key]) finishingsByDetail[key] = [];
+                    finishingsByDetail[key].push({
+                        name: f.name,
+                        quantity: f.quantity,
+                        unit_cost: parseFloat(f.unit_cost) || 0,
+                        total_cost: parseFloat(f.total_cost) || 0,
+                        cost_unit: f.cost_unit || 'Unit',
+                        machine_name: f.machine_name || null,
+                        is_machine: !!f.is_machine,
+                        forms: f.forms || null,
+                    });
+                } else {
+                    globalFinishings.push({
+                        name: f.name,
+                        quantity: f.quantity,
+                        unit_cost: parseFloat(f.unit_cost) || 0,
+                        total_cost: parseFloat(f.total_cost) || 0,
+                        cost_unit: f.cost_unit || 'Unit',
+                        machine_name: f.machine_name || null,
+                        is_machine: !!f.is_machine,
+                        forms: f.forms || null,
+                    });
+                }
+            }
+
             // Build snapshot — record both estimation-time prices AND current live prices
             snapshot = {
                 linked_at: new Date().toISOString(),
@@ -92,7 +132,7 @@ export async function POST(req) {
                         current_paper_unit_cost: invItem ? parseFloat(invItem.unit_cost) : null,
                         current_paper_uom: invItem?.uom || null,
                         current_machine_plate_cost: machine?.plate_cost != null ? parseFloat(machine.plate_cost) : null,
-                        current_machine_impression_cost: null, // stored per-component in impression_cost_unit
+                        current_machine_impression_cost: null,
                         // Paper identity
                         paper_id: d.paper_id || null,
                         paper_name: d.paper_name || invItem?.name || null,
@@ -107,8 +147,11 @@ export async function POST(req) {
                         final_plate_cost: parseFloat(d.final_plate_cost) || 0,
                         final_printing_cost: parseFloat(d.final_printing_cost) || 0,
                         final_finishing_cost: parseFloat(d.final_finishing_cost) || 0,
+                        // Component-level finishings
+                        finishings: finishingsByDetail[d.id] || [],
                     };
                 }),
+                global_finishings: globalFinishings,
                 total_amount: parseFloat(est.total_amount) || 0
             };
             our_total = parseFloat(est.total_amount) || 0;

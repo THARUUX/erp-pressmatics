@@ -26,6 +26,7 @@ export async function POST(req) {
 
         for (const comp of components) {
             let result;
+            const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -37,9 +38,15 @@ export async function POST(req) {
                 result = calculateOffset(compParams);
             } else if (comp.type === 'digital') {
                 result = calculateDigital(compParams);
+            } else if (isSFGComp) {
+                // SFG/Asset components don't need print calculation — use zero-cost result
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: 0 },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0
+                };
             } else {
-                // Skip or error?
-                continue;
+                continue; // Skip unrecognised types
             }
 
             grandTotal += result.costs.total;
@@ -60,8 +67,16 @@ export async function POST(req) {
             };
         });
 
+        // Add SFG lines cost from each component (server-side, since isSFGComp returns zero from calculateOffset)
+        let sfgTotal = 0;
+        for (const comp of components) {
+            for (const sl of (comp.sfgLines || [])) {
+                sfgTotal += (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0);
+            }
+        }
+
         // Apply Markup
-        const totalBeforeMarkup = grandTotal + globalFinishingCost;
+        const totalBeforeMarkup = grandTotal + sfgTotal + globalFinishingCost;
         const markupAmount = totalBeforeMarkup * ((parseFloat(markup_percent) || 0) / 100);
         grandTotal = totalBeforeMarkup + markupAmount;
 
@@ -185,6 +200,27 @@ export async function POST(req) {
                         ]
                     );
                 }
+            }
+
+            // Insert SFG Lines
+            const sfgLines = meta.sfgLines || [];
+            for (const sl of sfgLines) {
+                const qty = parseFloat(sl.quantity) || 0;
+                const price = parseFloat(sl.unit_price) || 0;
+                await pool.execute(
+                    `INSERT INTO quotation_item_sfg_lines
+                    (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        detailId,
+                        sl.inventory_item_id,
+                        sl.item_name || '',
+                        sl.item_code || '',
+                        qty,
+                        price,
+                        qty * price
+                    ]
+                );
             }
         }
 

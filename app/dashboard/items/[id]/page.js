@@ -27,6 +27,7 @@ export default function EditQuotationPage({ params }) {
     const [machines, setMachines] = useState([]);
     const [papers, setPapers] = useState([]);
     const [availableFinishings, setAvailableFinishings] = useState([]);
+    const [sfgInventory, setSfgInventory] = useState([]); // SFG/Assets items
     const [customers, setCustomers] = useState([]); // List of all customers
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -83,17 +84,19 @@ export default function EditQuotationPage({ params }) {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [machinesRes, finishingsRes, papersRes, customersRes] = await Promise.all([
+                const [machinesRes, finishingsRes, papersRes, customersRes, sfgRes] = await Promise.all([
                     fetch('/api/machines').then(r => r.json()),
                     fetch('/api/finishings').then(r => r.json()),
                     fetch('/api/inventory?category=Paper').then(r => r.json()),
-                    fetch('/api/customers').then(r => r.json())
+                    fetch('/api/customers').then(r => r.json()),
+                    fetch('/api/inventory?category=SFG').then(r => r.json())
                 ]);
 
                 setMachines(Array.isArray(machinesRes) ? machinesRes : []);
                 setAvailableFinishings(Array.isArray(finishingsRes) ? finishingsRes : []);
                 setPapers(Array.isArray(papersRes) ? papersRes : (papersRes?.items ?? []));
                 setCustomers(Array.isArray(customersRes) ? customersRes : []);
+                setSfgInventory(Array.isArray(sfgRes) ? sfgRes : []);
 
                 // Fetch Item
                 const itemRes = await fetch(`/api/items/${id}`);
@@ -165,7 +168,15 @@ export default function EditQuotationPage({ params }) {
                         id: f.id || `f-${i}`,
                         unit_cost: parseFloat(f.unit_cost),
                         time_per_unit: parseFloat(f.time_per_unit),
+                    })),
+                    sfgLines: (comp.sfgLines || []).map(sl => ({
+                        ...sl,
+                        id: sl.id || `sfg-db-${sl.db_id || Math.random()}`,
+                        quantity: parseFloat(sl.quantity) || 0,
+                        unit_price: parseFloat(sl.unit_price) || 0,
+                        total_price: parseFloat(sl.total_price) || 0,
                     }))
+
                 }));
 
                 setComponents(mappedComps);
@@ -546,6 +557,7 @@ export default function EditQuotationPage({ params }) {
                             machines={machines}
                             papers={papers}
                             finishings={availableFinishings}
+                            sfgInventory={sfgInventory}
                             onChange={updateComponent}
                             onRemove={removeComponent}
                             onCopy={copyComponent}
@@ -748,7 +760,7 @@ export default function EditQuotationPage({ params }) {
                                 <ImpositionVisualizer ups={comp.params.ups} />
                             </section>
                         ))} */}
-                        {components[activeTab].type === 'offset'  && components[activeTab].name !== "Finishing" && (
+                        {components[activeTab].type === 'offset'  && !components[activeTab].name?.includes("Finishing") && (
                             <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>

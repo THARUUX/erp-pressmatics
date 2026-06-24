@@ -11,17 +11,31 @@
     --color-secondary-foreground: var(--secondary-foreground);
     --font-sans: var(--font-geist-sans);
     --font-mono: var(--font-geist-mono);
+    --blur-md:  12px;
+    --blur-xl: 8px; 
 }
 
 :root {
-    --background: #272727;
+    --background: #0a0a0a;
     /* gray-900 fallback */
     --foreground: #ffffff;
     --card: #000000;
     --card-foreground: #ffffff;
-    --secondary: #272727;
+    --secondary: #161616;
     --secondary-foreground: #ffffff;
-    --bg-gradient: linear-gradient(to bottom left, #272727, #000000);
+    --bg-gradient: #0a0a0a;
+
+    /* ── Glassmorphism — change these to adjust globally ── */
+    --glass-blur: 5px;
+    /* backdrop blur amount    */
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    /* card fill               */
+    --glass-border: rgba(255, 255, 255, 0.12);
+    /* border color            */
+    --glass-shine: rgba(255, 255, 255, 0.08);
+    /* top-edge inner glow     */
+    --glass-shadow: rgba(0, 0, 0, 0.35);
+    /* drop shadow darkness    */
 }
 
 .theme-light {
@@ -55,11 +69,41 @@
 }
 
 body {
-    background: var(--bg-gradient);
-    background-attachment: fixed;
+    background: #0a0a0a;
     color: var(--foreground);
     font-family: Arial, Helvetica, sans-serif;
     min-height: 100vh;
+}
+
+/* ── Reusable glass utility class ──
+   Add className="glass" to any element to get glassmorphism.
+   Tweak the variables in :root above to change all glass elements at once. */
+.glass {
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: linear-gradient(135deg, var(--glass-bg) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+        inset 0 1px 0 var(--glass-shine),
+        0 8px 32px var(--glass-shadow);
+}
+
+/* ─ bg.svg background — change opacity below to adjust visibility ─ */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: url('/bg.svg') center / cover no-repeat;
+    opacity: 0.5;
+    /* ← adjust this (0 = invisible, 1 = full) */
+    pointer-events: none;
+}
+
+/* Push all page content above the bg layer */
+body>* {
+    position: relative;
+    z-index: 1;
 }
 
 @media print {

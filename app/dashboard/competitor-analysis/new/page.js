@@ -76,7 +76,7 @@ export default function NewCompetitorAnalysisPage() {
     };
 
     return (
-        <div className="text-white space-y-6 max-w-3xl">
+        <div className="text-white space-y-6">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/dashboard/competitor-analysis" className="p-2 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-all">

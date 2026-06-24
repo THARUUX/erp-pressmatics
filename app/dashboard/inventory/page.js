@@ -241,7 +241,7 @@ export default function InventoryPage() {
                             <datalist id="uom-list"><option value="Sheet"/><option value="Kg"/><option value="Ltr"/><option value="Unit"/><option value="Packet"/></datalist>
                         </div>
                         <Input label="Unit Cost" type="number" step="0.00001" value={formData.unit_cost} onChange={e => f('unit_cost', e.target.value)} className="bg-black/40 border-white/10" />
-                        <Input label="Stock Qty" type="number" value={formData.stock_quantity} onChange={e => f('stock_quantity', e.target.value)} className="bg-black/40 border-white/10" />
+                        {isEditing?null:<Input label="Stock Qty" type="number" value={formData.stock_quantity} onChange={e => f('stock_quantity', e.target.value)} className="bg-black/40 border-white/10" />}
                         <Input label="Min Stock" type="number" value={formData.min_stock} onChange={e => f('min_stock', e.target.value)} className="bg-black/40 border-white/10" />
                         <div className="flex items-end">
                             <Button onClick={handleSubmit} className="w-full bg-white text-black hover:bg-gray-100 h-[44px] text-sm font-semibold">{isEditing ? 'Update' : 'Save'}</Button>

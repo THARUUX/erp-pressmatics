@@ -24,6 +24,7 @@ export default function NewQuotationPage() {
     const [machines, setMachines] = useState([]);
     const [papers, setPapers] = useState([]);
     const [availableFinishings, setAvailableFinishings] = useState([]);
+    const [sfgInventory, setSfgInventory] = useState([]); // SFG/Assets items
     const [customers, setCustomers] = useState([]); // List of all customers
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -67,7 +68,8 @@ export default function NewQuotationPage() {
                  customWastageSheets: '',
                  customPlateCount: ''
             },
-            finishings: []
+            finishings: [],
+            sfgLines: []
         }
     ]);
     const [activeTab, setActiveTab] = useState(0);
@@ -116,18 +118,21 @@ export default function NewQuotationPage() {
             fetch('/api/machines').then(res => res.json()),
             fetch('/api/finishings').then(res => res.json()),
             fetch('/api/inventory?category=Paper').then(res => res.json()),
-            fetch('/api/customers').then(res => res.json())
-        ]).then(([machinesData, finishingsData, papersData, customersData]) => {
+            fetch('/api/customers').then(res => res.json()),
+            fetch('/api/inventory?category=SFG').then(res => res.json())
+        ]).then(([machinesData, finishingsData, papersData, customersData, sfgData]) => {
             // Safety check: ensure data are arrays
             const safeMachines = Array.isArray(machinesData) ? machinesData : [];
             const safeFinishings = Array.isArray(finishingsData) ? finishingsData : [];
             const safePapers = Array.isArray(papersData) ? papersData : [];
             const safeCustomers = Array.isArray(customersData) ? customersData : [];
+            const safeSFG = Array.isArray(sfgData) ? sfgData : [];
 
             setMachines(safeMachines);
             setAvailableFinishings(safeFinishings);
             setPapers(safePapers);
             setCustomers(safeCustomers);
+            setSfgInventory(safeSFG);
 
             // Set default machine for first component
             const firstOffset = safeMachines.find(m => m.type === 'offset');
@@ -547,6 +552,7 @@ export default function NewQuotationPage() {
                             machines={machines}
                             papers={papers}
                             finishings={availableFinishings}
+                            sfgInventory={sfgInventory}
                             onChange={updateComponent}
                             onRemove={removeComponent}
                             onCopy={copyComponent}
@@ -623,6 +629,20 @@ export default function NewQuotationPage() {
                             ) : (
                                 <div className="text-center text-gray-500 py-8">Click calculate to see result</div>
                             )}
+
+                            {/* SFG / Assets Subtotal (always visible if any lines exist) */}
+                            {(() => {
+                                const sfgTotal = components.reduce((acc, c) =>
+                                    acc + (c.sfgLines || []).reduce((s, l) => s + (parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0), 0), 0);
+                                return sfgTotal > 0 ? (
+                                    <div className="pt-3 border-t border-amber-500/20">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-amber-400 font-medium">SFG / Assets Total</span>
+                                            <span className="text-amber-300 font-semibold">{currency}{sfgTotal.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                ) : null;
+                            })()}
 
                             {/* Grand Total & Global Finishings (Always Visible) */}
                             <div className="bg-white/10 p-4 rounded-lg mt-4 border border-white/20">
@@ -708,7 +728,7 @@ export default function NewQuotationPage() {
                                     {parseFloat(markupPercent) > 0 && (
                                         <div className="flex justify-between text-gray-300">
                                             <span>Markup Amount</span>
-                                            <span>{currency}{((grandTotal + globalFinishings.reduce((a, b) => a + b.total_cost, 0)) * (parseFloat(markupPercent) / 100 || 0)).toFixed(2)}</span>
+                                            <span>{currency}{((grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0)) * (parseFloat(markupPercent) / 100 || 0)).toFixed(2)}</span>
                                         </div>
                                     )}
                                 </div>
@@ -719,7 +739,7 @@ export default function NewQuotationPage() {
                                     <span>
                                         {currency}
                                         {(
-                                            (grandTotal + globalFinishings.reduce((a, b) => a + b.total_cost, 0)) *
+                                            (grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0)) *
                                             (1 + (parseFloat(markupPercent) / 100 || 0))
                                         ).toFixed(2)}
                                     </span>
@@ -737,22 +757,22 @@ export default function NewQuotationPage() {
                         </section>
 
                         {/* Imposition Plans */}
-                        {components.filter(c => c.type === 'offset' && c.params.ups > 0).map((comp, i) => (
-                            <section key={comp.id || i} className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
+                        {components[activeTab].type === 'offset'  && !components[activeTab].name?.includes("Finishing") && (
+                            <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
-                                    <span>Planning: {comp.name}</span>
-                                    <span className="text-xs font-normal text-gray-500 self-center">{comp.params.paperName}</span>
+                                    <span>Planning: {components[activeTab].name}</span>
+                                    <span className="text-xs font-normal text-gray-500 self-center">{components[activeTab].params.paperName}</span>
                                 </h3>
                                 <ImpositionVisualizer 
-                                    ups={comp.params.ups}
-                                    sheetWidthCm={comp.params.cutWidthCm || comp.params.paperWidthCm}
-                                    sheetHeightCm={comp.params.cutHeightCm || comp.params.paperHeightCm}
-                                    compWidthCm={comp.params.compWidthCm}
-                                    compHeightCm={comp.params.compHeightCm}
-                                    bleedMm={comp.params.bleedMm}
+                                    ups={components[activeTab].params.ups}
+                                    sheetWidthCm={components[activeTab].params.cutWidthCm || components[activeTab].params.paperWidthCm}
+                                    sheetHeightCm={components[activeTab].params.cutHeightCm || components[activeTab].params.paperHeightCm}
+                                    compWidthCm={components[activeTab].params.compWidthCm}
+                                    compHeightCm={components[activeTab].params.compHeightCm}
+                                    bleedMm={components[activeTab].params.bleedMm}
                                 />
                             </section>
-                        ))}
+                        )}
                     </div>
                 </div>
             </div>
