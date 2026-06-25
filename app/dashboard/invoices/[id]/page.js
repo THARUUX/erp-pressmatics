@@ -275,7 +275,7 @@ export default function InvoiceDetailPage({ params }) {
                 {/* Header */}
                 <div className="flex justify-between items-start mb-12">
                     <div className="flex gap-4 items-start">
-                        {settings.company_logo && <img src={settings.company_logo} alt="Logo" className="h-full object-contain"/>}
+                        {settings.company_logo && <img src={settings.company_logo} alt="Logo" className="h-19 object-contain"/>}
                         <div>
                             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{settings.company_name || 'Pressmatics'}</h1>
                             <div className="text-sm text-gray-500 max-w-[250px] whitespace-pre-wrap mt-1">{settings.company_address || ''}</div>

@@ -94,6 +94,12 @@ export async function POST(req) {
 
         const soId = result.insertId;
 
+        // Update Quotation Status to 'converted'
+        await pool.execute(
+            "UPDATE quotations SET status = 'converted' WHERE id = ?",
+            [quotation_id]
+        );
+
         // Update Setting seq safely
         await pool.execute(
             "INSERT INTO settings (setting_key, setting_value) VALUES ('so_id_seq', ?) ON DUPLICATE KEY UPDATE setting_value = ?",

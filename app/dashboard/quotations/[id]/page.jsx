@@ -89,7 +89,7 @@ export default function QuotationViewPage({ params }) {
                 <div className="flex justify-between items-start mb-12">
                     <div className="flex gap-4 items-start">
                         {settings.company_logo && (
-                            <img src={settings.company_logo} alt="Company Logo" className="h-full object-contain" />
+                            <img src={settings.company_logo} alt="Company Logo" className="h-19 object-contain" />
                         )}
                         <div className=''>
                             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{settings.company_name || 'Pressmatics Printing'}</h1>
@@ -154,7 +154,7 @@ export default function QuotationViewPage({ params }) {
                             <tr className="border-b-2 border-gray-900 text-xs font-bold text-gray-900 uppercase tracking-wider">
                                 <th className="py-3 pr-4">Description</th>
                                 <th className="py-3 px-4 text-center">Qty</th>
-                                <th className="py-3 px-4 text-right">Unit Price ( {currency})</th>
+                                <th className="py-3 px-4 text-right">Unit Price <span>( {currency})</span></th>
                                 {!showSummary ? (
                                     <>
                                         <th className="py-3 px-4 text-right">Amount (Excl. Tax)</th>
@@ -162,7 +162,7 @@ export default function QuotationViewPage({ params }) {
                                         <th className="py-3 pl-4 text-right">Net Total</th>
                                     </>
                                 ) : (
-                                    <th className="py-3 pl-4 text-right">Amount ( {currency})</th>
+                                    <th className="py-3 pl-4 text-right">Amount <span>( {currency})</span></th>
                                 )}
                             </tr>
                         </thead>
@@ -250,21 +250,22 @@ export default function QuotationViewPage({ params }) {
                 )}
 
                 {/* Footer: Terms & Signature */}
-                <div className="grid grid-cols-2 gap-12 border-t border-gray-100 pt-8 break-inside-avoid">
-                    <div>
+                <div className="grid grid-cols-3 gap-12 border-t border-gray-100 pt-8 break-inside-avoid">
+                    <div className='col-span-2'>
                         <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Terms & Conditions</h4>
                         <div className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed">
                             {quote.terms_and_conditions || settings.default_terms || 'No specific terms.'}
                         </div>
                     </div>
-                    <div className="flex flex-col items-end justify-end text-center">
-                        <div className="flex flex-col items-center">
-                            {settings.company_signature && (
-                                <img src={settings.company_signature} alt="Signature" className="h-5 mb-2 object-contain" />
-                            )}
-                            <div className="border-t border-gray-300 w-48 mt-0 pt-1">
-                                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Authorized Signature</p>
-                            </div>
+                </div>
+                <div className="flex w-full"/>
+                <div className="flex flex-col items-end justify-end text-center mt-10">
+                    <div className="flex flex-col items-center">
+                        {settings.company_signature && (
+                            <img src={settings.company_signature} alt="Signature" className="h-15 mb-[-10px] object-contain" />
+                        )}
+                        <div className="border-t border-gray-300 w-48 mt-0 pt-1">
+                            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Authorized Signature</p>
                         </div>
                     </div>
                 </div>

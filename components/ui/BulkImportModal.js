@@ -41,10 +41,14 @@ const FIELD_ALIASES = {
     address:    ['address', 'street', 'location', 'street address'],
     is_vat:     ['vat', 'is_vat', 'tax', 'vat registered', 'vat status'],
     vat_number: ['vat number', 'vat_number', 'vat no', 'tax number', 'tax id'],
+    contact_name:  ['contact name', 'contact person', 'contact_name', 'contact_person', 'representative'],
+    contact_phone: ['contact phone', 'contact_phone', 'contact mobile', 'contact_phone_number'],
+    contact_email: ['contact email', 'contact_email', 'contact e-mail'],
+    contact_role:  ['contact role', 'contact_role', 'designation', 'role', 'contact designation'],
 };
 
 function autoMap(headers) {
-    const mapping = { name: '', email: '', phone: '', address: '', is_vat: '', vat_number: '' };
+    const mapping = { name: '', email: '', phone: '', address: '', is_vat: '', vat_number: '', contact_name: '', contact_phone: '', contact_email: '', contact_role: '' };
     for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
         const match = headers.find(h => aliases.includes(h.toLowerCase()));
         if (match) mapping[field] = match;
@@ -54,7 +58,7 @@ function autoMap(headers) {
 
 /* ── Template CSV ─────────────────────────────────────────────────────────── */
 function downloadTemplate() {
-    const csv = 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,\n';
+    const csv = 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number,Contact Name,Contact Role,Contact Email,Contact Phone\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456,John Doe,Purchasing Manager,john@acme.com,+1 555-0199\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,,,,,\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = Object.assign(document.createElement('a'), { href: url, download: 'customers_template.csv' });
     a.click(); URL.revokeObjectURL(url);
@@ -68,6 +72,10 @@ const FIELDS = [
     { key: 'address',    label: 'Address',      required: false },
     { key: 'is_vat',     label: 'VAT Status',   required: false },
     { key: 'vat_number', label: 'VAT Number',   required: false },
+    { key: 'contact_name',  label: 'Contact Name',  required: false },
+    { key: 'contact_role',  label: 'Contact Role',  required: false },
+    { key: 'contact_email', label: 'Contact Email', required: false },
+    { key: 'contact_phone', label: 'Contact Phone', required: false },
 ];
 
 const STEPS = ['Upload', 'Map Columns', 'Preview & Import'];
@@ -111,6 +119,10 @@ export function BulkImportModal({ onClose, onComplete }) {
         address:    mapping.address    ? row[mapping.address]    : '',
         is_vat:     mapping.is_vat     ? /^(yes|true|1)$/i.test(row[mapping.is_vat]) : false,
         vat_number: mapping.vat_number ? row[mapping.vat_number] : '',
+        contact_name:  mapping.contact_name  ? row[mapping.contact_name]  : '',
+        contact_role:  mapping.contact_role  ? row[mapping.contact_role]  : '',
+        contact_email: mapping.contact_email ? row[mapping.contact_email] : '',
+        contact_phone: mapping.contact_phone ? row[mapping.contact_phone] : '',
     })) ?? [];
 
     const validRows    = mapped.filter(r => r.name?.trim());

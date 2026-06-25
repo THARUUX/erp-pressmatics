@@ -137,20 +137,20 @@ export default function EstimationsPage() {
     const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 
     const columns = useMemo(() => [
-        {
-            id: 'fav', header: '', size: 40,
-            enableSorting: false, enableColumnFilter: false,
-            cell: ({ row }) => {
-                const item = row.original;
-                return (
-                    <button onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
-                        title="Toggle Template"
-                        className={`text-lg ${item.is_favorite ? 'text-yellow-400' : 'text-gray-700 hover:text-gray-500'}`}>
-                        <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
-                    </button>
-                );
-            },
-        },
+        // {
+        //     id: 'fav', header: '', size: 40,
+        //     enableSorting: false, enableColumnFilter: false,
+        //     cell: ({ row }) => {
+        //         const item = row.original;
+        //         return (
+        //             <button onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
+        //                 title="Toggle Template"
+        //                 className={`text-lg ${item.is_favorite ? 'text-yellow-400' : 'text-gray-700 hover:text-gray-500'}`}>
+        //                 <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
+        //             </button>
+        //         );
+        //     },
+        // },
         {
             accessorKey: 'code', header: 'Code', size: 120,
             cell: ({ getValue }) => <span className="font-mono text-xs text-blue-400">{getValue()}</span>,

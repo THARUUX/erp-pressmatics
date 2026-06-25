@@ -13,7 +13,7 @@
     --font-mono: var(--font-geist-mono);
     --blur-md:  12px;
     --blur-xl: 8px; 
-    --color-black:   #0a0a0a55;
+    --color-black:   #0a0a0add;
 }
 
 :root {
@@ -37,6 +37,11 @@
     /* top-edge inner glow     */
     --glass-shadow: rgba(0, 0, 0, 0.35);
     /* drop shadow darkness    */
+
+    /* ── Scrollbar Customization ── */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
 }
 
 .theme-light {
@@ -47,6 +52,11 @@
     --secondary: #e5e7eb;
     --secondary-foreground: #111827;
     --bg-gradient: linear-gradient(to bottom left, #f3f4f6, #d1d5db);
+
+    /* ── Scrollbar Customization ── */
+    --scrollbar-track: rgba(0, 0, 0, 0.02);
+    --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
 }
 
 .theme-blue {
@@ -57,6 +67,11 @@
     --secondary: #1e40af;
     --secondary-foreground: #ffffff;
     --bg-gradient: linear-gradient(to bottom left, #1e3a8a, #0f172a);
+
+    /* ── Scrollbar Customization ── */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
 }
 
 .theme-midnight {
@@ -67,6 +82,11 @@
     --secondary: #1e293b;
     --secondary-foreground: #ffffff;
     --bg-gradient: linear-gradient(to bottom left, #0f172a, #000000);
+
+    /* ── Scrollbar Customization ── */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
 }
 
 body {
@@ -106,6 +126,34 @@ body>* {
     position: relative;
     z-index: 1;
 }
+
+/* ── Custom Scrollbar styling ── */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* For Webkit browsers (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+}
+
 
 @media print {
     @page {

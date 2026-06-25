@@ -469,25 +469,33 @@ export default function NewQuotationPage() {
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm text-gray-400 mb-1">Description</label>
-                                <Input value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} className="bg-secondary border-white/10" />
-                                {/* Tags Generator */}
+                                <textarea rows={4}  value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} className="bg-secondary w-full px-4 py-3 rounded-lg border-white/10" />
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {components.map((comp, idx) => {
-                                        // Generate summary tags for each component
                                         const tags = [];
-                                        const machine = machines.find(m => m.id == comp.params.machineId);
+                                        // const machine = machines.find(m => m.id == comp.params.machineId);
                                         const compName = comp.name || `Component ${idx + 1}`;
 
-                                        // Limit tags to avoid clutter
-                                        if (machine && comp.params.ups > 0) {
-                                            const factor = (machine.sheet_factor || 1) * (parseInt(comp.params.ups) || 1);
-                                            const sizeMap = { 1: 'A1', 2: 'A2', 4: 'A3', 8: 'A4', 16: 'A5', 32: 'A6', 64: 'A7', 128: 'A8' };
-                                            if (sizeMap[factor]) tags.push(`${compName} - ${sizeMap[factor]}`);
+                                        // if (machine && comp.params.ups > 0) {
+                                        //     const factor = (machine.sheet_factor || 1) * (parseInt(comp.params.ups) || 1);
+                                        //     const sizeMap = { 1: 'A1', 2: 'A2', 4: 'A3', 8: 'A4', 16: 'A5', 32: 'A6', 64: 'A7', 128: 'A8' };
+                                        //     if (sizeMap[factor]) tags.push(`${compName} - ${sizeMap[factor]}`);
+                                        // }
+                                        if (!comp.name.includes("Cover")){
+                                            if (comp.params.size) tags.push(`Size - ${comp.params.size}`);
                                         }
                                         if (comp.params.paperName) tags.push(`${compName} - ${comp.params.paperName}`);
-                                        if (parseInt(comp.params.pages) > 1) tags.push(`${compName} - ${comp.params.pages} Pages`);
-                                        const totalColors = (parseInt(comp.params.colorsFront) || 0) + (parseInt(comp.params.colorsBack) || 0) || parseInt(comp.params.colors) || 0;
-                                        if (totalColors > 0) tags.push(`${compName} - ${totalColors} Colors`);
+                                        if(!comp.name.includes("Cover")){
+                                            if (parseInt(comp.params.pages) > 1) tags.push(`${comp.params.pages} Pages`);
+                                        }
+                                        const totalColors = (parseInt(comp.params.colorsFront) || 0) || parseInt(comp.params.colors) || 0;
+                                        if (totalColors > 0) tags.push(`${totalColors} Colors`);
+                                        if (comp.params.sides) tags.push(`${comp.params.sides == 1 ? "Single Side" : "Both sides"}`);
+                                        if (comp.finishings){
+                                            comp.finishings.forEach(f => {
+                                                tags.push(f.name);
+                                            });
+                                        }
 
                                         return tags.map((t, i) => (
                                             <span

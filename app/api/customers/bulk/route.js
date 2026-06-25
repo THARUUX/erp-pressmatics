@@ -35,7 +35,7 @@ export async function POST(req) {
 
             try {
                 await pool.execute(
-                    'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         name,
                         (c.email || '').trim() || null,
@@ -44,6 +44,10 @@ export async function POST(req) {
                         code,
                         c.is_vat ? 1 : 0,
                         (c.vat_number || '').trim() || null,
+                        (c.contact_name || '').trim() || null,
+                        (c.contact_phone || '').trim() || null,
+                        (c.contact_email || '').trim() || null,
+                        (c.contact_role || '').trim() || null,
                     ]
                 );
                 imported.push(name);

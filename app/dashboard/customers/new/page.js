@@ -12,7 +12,8 @@ export default function NewCustomerPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        name: '', email: '', phone: '', address: '', is_vat: false, vat_number: ''
+        name: '', email: '', phone: '', address: '', is_vat: false, vat_number: '',
+        contact_name: '', contact_phone: '', contact_email: '', contact_role: ''
     });
 
     const handleChange = (e) => {
@@ -70,6 +71,29 @@ export default function NewCustomerPage() {
                         onChange={handleChange}
                         className="w-full bg-secondary border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-white/30 transition-colors h-24"
                     />
+                </div>
+
+                {/* Contact Person Section */}
+                <div className="border-t border-white/5 pt-4 mt-4 space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-300">Contact Person Details</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Contact Name</label>
+                            <Input name="contact_name" value={formData.contact_name} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. John Doe" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Role / Designation</label>
+                            <Input name="contact_role" value={formData.contact_role} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. Purchasing Manager" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Contact Email</label>
+                            <Input name="contact_email" type="email" value={formData.contact_email} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. john@acme.com" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Contact Phone</label>
+                            <Input name="contact_phone" value={formData.contact_phone} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. +1 555-0199" />
+                        </div>
+                    </div>
                 </div>
 
                 {/* VAT Section */}

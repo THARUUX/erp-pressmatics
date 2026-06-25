@@ -148,6 +148,29 @@ export default function CustomerProfilePage({ params }) {
                             <input type="checkbox" id="is_vat_edit" checked={!!form.is_vat} onChange={e => setForm(f => ({ ...f, is_vat: e.target.checked }))} className="rounded" />
                             <label htmlFor="is_vat_edit" className="text-sm text-gray-300 cursor-pointer">VAT Registered</label>
                         </div>
+                        
+                        {/* Contact Person Details Section (Edit) */}
+                        <div className="md:col-span-2 border-t border-white/5 pt-4 mt-2">
+                            <h3 className="text-sm font-semibold text-gray-300 mb-3">Contact Person Details</h3>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Contact Name</label>
+                                    <Input value={form.contact_name || ''} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className="bg-black/40 border-white/10" placeholder="e.g. John Doe" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Role / Designation</label>
+                                    <Input value={form.contact_role || ''} onChange={e => setForm(f => ({ ...f, contact_role: e.target.value }))} className="bg-black/40 border-white/10" placeholder="e.g. Purchasing Manager" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Contact Email</label>
+                                    <Input type="email" value={form.contact_email || ''} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className="bg-black/40 border-white/10" placeholder="e.g. john@acme.com" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Contact Phone</label>
+                                    <Input value={form.contact_phone || ''} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className="bg-black/40 border-white/10" placeholder="e.g. +1 555-0199" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className="flex flex-wrap gap-6 items-start">
@@ -180,6 +203,33 @@ export default function CustomerProfilePage({ params }) {
                                 Since {fmtDate(customer.created_at)}
                             </span>
                         </div>
+                        
+                        {(customer.contact_name || customer.contact_phone || customer.contact_email || customer.contact_role) && (
+                            <div className="w-full mt-6 pt-4 border-t border-white/5">
+                                <h3 className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3">Primary Contact Person</h3>
+                                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-wrap gap-x-12 gap-y-4 items-center">
+                                    {customer.contact_name && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-500 block uppercase tracking-wider">Name</span>
+                                            <span className="text-sm font-semibold text-white">{customer.contact_name}</span>
+                                            {customer.contact_role && <span className="text-xs text-gray-400 block mt-0.5">{customer.contact_role}</span>}
+                                        </div>
+                                    )}
+                                    {customer.contact_email && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-500 block uppercase tracking-wider">Email</span>
+                                            <a href={`mailto:${customer.contact_email}`} className="text-sm text-blue-400 hover:underline">{customer.contact_email}</a>
+                                        </div>
+                                    )}
+                                    {customer.contact_phone && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-500 block uppercase tracking-wider">Phone</span>
+                                            <a href={`tel:${customer.contact_phone}`} className="text-sm text-gray-300">{customer.contact_phone}</a>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
