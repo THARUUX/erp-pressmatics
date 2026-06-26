@@ -41,12 +41,17 @@ export default function InvoiceDetailPage({ params }) {
             setPayments(data.payments || []);
             setEditForm({ 
                 customer_name: data.customer_name, 
-                description: data.description, 
-                amount_due: data.amount_due, 
-                due_date: data.due_date?.slice(0,10) || '', 
-                notes: data.notes, 
+                description:   data.description, 
+                amount_due:    data.amount_due,
+                qty:           data.qty        != null ? data.qty        : (data.qty_from_quotation        != null ? data.qty_from_quotation        : ''),
+                unit_price:    data.unit_price != null ? data.unit_price : (data.unit_price_from_quotation  != null ? data.unit_price_from_quotation  : ''),
+                subtotal_amount:  data.subtotal_amount  != null ? data.subtotal_amount  : (data.subtotal_from_quotation   != null ? data.subtotal_from_quotation   : ''),
+                tax_amount:       data.tax_amount       != null ? data.tax_amount       : (data.tax_amount_from_quotation  != null ? data.tax_amount_from_quotation  : ''),
+                tax_percentage:   data.tax_percentage   != null ? data.tax_percentage   : (data.tax_percentage_from_quotation != null ? data.tax_percentage_from_quotation : ''),
+                due_date:      data.due_date?.slice(0,10) || '', 
+                notes:         data.notes, 
                 invoice_notes: data.invoice_notes || '',
-                status: data.status 
+                status:        data.status 
             });
         } finally { setLoading(false); }
     };
@@ -78,6 +83,16 @@ export default function InvoiceDetailPage({ params }) {
 
     if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
     if (!invoice) return <div className="p-8 text-red-400">Invoice not found</div>;
+
+    // ── Resolve effective display values: stored on invoice OR from quotation ──
+    const effQty        = invoice.qty        ?? invoice.qty_from_quotation        ?? null;
+    const effUnitPrice  = invoice.unit_price ?? invoice.unit_price_from_quotation ?? null;
+    const effSubtotal   = invoice.subtotal_amount  ?? invoice.subtotal_from_quotation   ?? null;
+    const effTaxAmt     = invoice.tax_amount       ?? invoice.tax_amount_from_quotation  ?? null;
+    const effTaxPct     = invoice.tax_percentage   ?? invoice.tax_percentage_from_quotation ?? null;
+    const hasTax        = effTaxAmt != null && parseFloat(effTaxAmt) > 0;
+    const hasQtyPrice   = effQty != null || effUnitPrice != null;
+    const fromQuotation = (effQty != null && invoice.qty == null) || (effTaxAmt != null && invoice.tax_amount == null);
 
     const balance = parseFloat(invoice.amount_due) - parseFloat(invoice.amount_paid);
     const paidPct = invoice.amount_due > 0 ? Math.min(100, (invoice.amount_paid / invoice.amount_due) * 100) : 0;
@@ -153,7 +168,7 @@ export default function InvoiceDetailPage({ params }) {
                 <div className="print:hidden mb-5 bg-black/40 backdrop-blur-xl border border-blue-500/20 rounded-xl p-5">
                     <p className="text-xs text-blue-300 uppercase tracking-wider font-semibold mb-4">Edit Invoice</p>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {[['Customer Name','customer_name','text'],['Amount Due','amount_due','number'],['Due Date','due_date','date']].map(([label,key,type])=>(
+                        {[['Customer Name','customer_name','text'],['Due Date','due_date','date']].map(([label,key,type])=>(
                             <div key={key}>
                                 <label className="block text-xs text-gray-400 mb-1">{label}</label>
                                 <input type={type} value={editForm[key]||''} onChange={e=>setEditForm(p=>({...p,[key]:e.target.value}))}
@@ -166,6 +181,25 @@ export default function InvoiceDetailPage({ params }) {
                                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none">
                                 {Object.entries(STATUS_CONFIG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                             </select>
+                        </div>
+                        {/* Qty + Unit Price row */}
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+                            <input type="number" value={editForm.qty} onChange={e=>setEditForm(p=>({...p,qty:e.target.value}))}
+                                placeholder="e.g. 500"
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400"/>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Unit Price ({currency})</label>
+                            <input type="number" value={editForm.unit_price} onChange={e=>setEditForm(p=>({...p,unit_price:e.target.value}))}
+                                placeholder="e.g. 12.50"
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400"/>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Amount Due ({currency})</label>
+                            <input type="number" value={editForm.amount_due} onChange={e=>setEditForm(p=>({...p,amount_due:e.target.value}))}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400"/>
+                            <p className="text-[10px] text-gray-600 mt-0.5">Leave as-is or override manually.</p>
                         </div>
                         <div className="sm:col-span-2">
                             <label className="block text-xs text-gray-400 mb-1">Description</label>
@@ -318,6 +352,12 @@ export default function InvoiceDetailPage({ params }) {
                         <thead>
                             <tr className="border-b-2 border-gray-900 text-xs font-bold text-gray-900 uppercase tracking-wider">
                                 <th className="py-3 pr-4">Description</th>
+                                {hasQtyPrice && (
+                                    <>
+                                        <th className="py-3 px-4 text-right whitespace-nowrap">Qty</th>
+                                        <th className="py-3 px-4 text-right whitespace-nowrap">Unit Price ({currency})</th>
+                                    </>
+                                )}
                                 <th className="py-3 pl-4 text-right">Amount ({currency})</th>
                             </tr>
                         </thead>
@@ -327,23 +367,57 @@ export default function InvoiceDetailPage({ params }) {
                                     <div className="font-bold text-gray-900">{invoice.description || 'Services Rendered'}</div>
                                     {invoice.quotation_code && <div className="text-xs text-gray-400 mt-1">Quotation Ref: {invoice.quotation_code}</div>}
                                 </td>
+                                {hasQtyPrice && (
+                                    <>
+                                        <td className="py-5 px-4 text-right font-mono text-gray-700">
+                                            {effQty != null ? parseFloat(effQty).toLocaleString('en-US', {maximumFractionDigits: 0}) : '—'}
+                                        </td>
+                                        <td className="py-5 px-4 text-right font-mono text-gray-700">
+                                            {effUnitPrice != null ? fmt(effUnitPrice) : '—'}
+                                        </td>
+                                    </>
+                                )}
                                 <td className="py-5 pl-4 text-right font-mono font-bold text-gray-900">{fmt(invoice.amount_due)}</td>
                             </tr>
                         </tbody>
                     </table>
+                    {fromQuotation && (
+                        <p className="text-[10px] text-gray-400 mt-1 text-right">* Qty, unit price &amp; tax sourced from linked quotation</p>
+                    )}
                 </div>
 
                 {/* Totals */}
                 <div className="flex justify-end mb-10">
-                    <div className="w-64 space-y-2">
-                        {parseFloat(invoice.amount_paid) > 0 && <>
+                    <div className="w-72 space-y-2">
+                        {/* Subtotal row — only shown when tax exists */}
+                        {hasTax && effSubtotal != null && (
                             <div className="flex justify-between text-sm text-gray-500">
-                                <span>Invoice Amount</span><span className="font-mono">{fmt(invoice.amount_due)}</span>
+                                <span>Subtotal</span>
+                                <span className="font-mono">{fmt(effSubtotal)}</span>
                             </div>
+                        )}
+                        {/* Tax row */}
+                        {hasTax && (
+                            <div className="flex justify-between text-sm text-gray-500">
+                                <span>Tax{effTaxPct ? ` (${parseFloat(effTaxPct).toFixed(0)}%)` : ''}</span>
+                                <span className="font-mono">+ {fmt(effTaxAmt)}</span>
+                            </div>
+                        )}
+                        {/* Invoice total */}
+                        {(hasTax || parseFloat(invoice.amount_paid) > 0) && (
+                            <div className="flex justify-between text-sm text-gray-700 font-semibold border-t border-gray-200 pt-2">
+                                <span>Invoice Total</span>
+                                <span className="font-mono">{fmt(invoice.amount_due)}</span>
+                            </div>
+                        )}
+                        {/* Amount paid */}
+                        {parseFloat(invoice.amount_paid) > 0 && (
                             <div className="flex justify-between text-sm text-emerald-600">
-                                <span>Amount Paid</span><span className="font-mono">− {fmt(invoice.amount_paid)}</span>
+                                <span>Amount Paid</span>
+                                <span className="font-mono">− {fmt(invoice.amount_paid)}</span>
                             </div>
-                        </>}
+                        )}
+                        {/* Balance due */}
                         <div className="flex justify-between items-end border-t-2 border-gray-900 pt-3">
                             <span className="font-bold text-gray-900">{parseFloat(invoice.amount_paid) > 0 ? 'Balance Due' : 'Total Due'}</span>
                             <span className={`font-bold font-mono text-lg ${balance <= 0 ? 'text-emerald-600' : 'text-gray-900'}`}>{fmt(balance > 0 ? balance : invoice.amount_due)}</span>
@@ -401,7 +475,7 @@ export default function InvoiceDetailPage({ params }) {
                     </div>
                     {/* Authorized Signature */}
                     <div className="flex flex-col justify-end items-center">
-                        {settings.company_signature && <img src={settings.company_signature} alt="Signature" className="h-10 mb-2 object-contain"/>}
+                        {settings.company_signature && <img src={settings.company_signature} alt="Signature" className="h-12 mb-[-10] object-contain"/>}
                         {!settings.company_signature && <div className="h-10 mb-2 w-full"/>}
                         <div className="border-t border-gray-300 w-full pt-1 text-center">
                             <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Authorized Signature</p>
