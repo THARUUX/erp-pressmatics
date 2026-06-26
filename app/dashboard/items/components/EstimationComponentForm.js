@@ -134,6 +134,9 @@ export default function EstimationComponentForm({
         if (name === 'sides' && parseInt(value) === 2 && !parseInt(params.colorsBack)) {
             newParams.colorsBack = params.colorsFront ?? 4;
         }
+        if(name === 'sides' && parseInt(value) === 1){
+            newParams.colorsBack = 0
+        }
         if (name === 'paperWidthCm' || name === 'paperHeightCm') {
             const paperW = parseFloat(name === 'paperWidthCm' ? value : params.paperWidthCm) || 0;
             const paperH = parseFloat(name === 'paperHeightCm' ? value : params.paperHeightCm) || 0;
