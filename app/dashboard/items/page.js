@@ -1,401 +1,451 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import {
+    useReactTable, getCoreRowModel, getSortedRowModel,
+    getFilteredRowModel, getPaginationRowModel, flexRender,
+} from '@tanstack/react-table';
+import {
+    FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy,
+    FiX, FiCheckCircle, FiAlertCircle, FiList, FiGrid,
+    FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
+    FiChevronRight, FiChevronsRight,
+} from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
-/* ─── React Alert Toast ─────────────────────────────────────────────────────── */
-function Toast({ toasts, dismiss }) {
-    return (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {toasts.map(t => (
-                <div
-                    key={t.id}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        background: t.type === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
-                        border: `1px solid ${t.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
-                        color: t.type === 'error' ? '#f87171' : '#4ade80',
-                        borderRadius: 12, padding: '12px 16px',
-                        backdropFilter: 'blur(16px)',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                        minWidth: 280, maxWidth: 380,
-                        animation: 'slideIn 0.2s ease',
-                    }}
-                >
-                    {t.type === 'error' ? <FiAlertCircle size={16} /> : <FiCheckCircle size={16} />}
-                    <span style={{ flex: 1, fontSize: 14 }}>{t.message}</span>
-                    <button onClick={() => dismiss(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 2 }}>
-                        <FiX size={14} />
-                    </button>
-                </div>
-            ))}
-            <style>{`@keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`}</style>
-        </div>
-    );
-}
-
-/* ─── React Confirm Dialog ──────────────────────────────────────────────────── */
-function ConfirmDialog({ confirm, onClose }) {
-    if (!confirm) return null;
-    return (
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 9998,
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-            <div style={{
-                background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 16, padding: '28px 32px', maxWidth: 400, width: '90%',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-            }}>
-                <p style={{ color: '#fff', fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>{confirm.message}</p>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                    <button
-                        onClick={() => onClose(false)}
-                        style={{ padding: '8px 20px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', cursor: 'pointer', fontSize: 14 }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => onClose(true)}
-                        style={{
-                            padding: '8px 20px', borderRadius: 8,
-                            background: confirm.danger ? 'rgba(239,68,68,0.8)' : 'rgba(255,255,255,0.9)',
-                            border: 'none', color: confirm.danger ? '#fff' : '#000',
-                            cursor: 'pointer', fontSize: 14, fontWeight: 600
-                        }}
-                    >
-                        {confirm.confirmLabel || 'Confirm'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ─── Duplicate Progress Overlay ────────────────────────────────────────────── */
+/* ── Duplicate Progress ─────────────────────────────────────────────────────── */
 function DuplicateProgress({ visible, progress, label }) {
     if (!visible) return null;
     return (
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 9997,
-            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-            <div style={{
-                background: 'rgba(15,15,15,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 20, padding: '36px 40px', width: 340,
-                boxShadow: '0 24px 64px rgba(0,0,0,0.6)', textAlign: 'center',
-            }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
-                    Duplicating Estimation
+        <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-2xl text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <div className="text-white font-bold text-base mb-1">Duplicating Estimation</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-violet-600 to-violet-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
                 </div>
-                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 24 }}>{label}</div>
-                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 6, overflow: 'hidden', marginBottom: 12 }}>
-                    <div style={{
-                        height: '100%', width: `${progress}%`,
-                        background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
-                        borderRadius: 999, transition: 'width 0.4s ease',
-                    }} />
-                </div>
-                <div style={{ color: '#6b7280', fontSize: 12 }}>{progress}%</div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
             </div>
         </div>
     );
 }
 
-/* ─── Main Page ─────────────────────────────────────────────────────────────── */
+/* ── TanStack helpers ───────────────────────────────────────────────────────── */
+function SortIcon({ dir }) {
+    if (!dir) return <span className="opacity-20 text-xs">⇅</span>;
+    return dir === 'asc' ? <FiChevronUp className="w-3 h-3" /> : <FiChevronDown className="w-3 h-3" />;
+}
+function ColumnFilter({ column }) {
+    const val = column.getFilterValue() ?? '';
+    return (
+        <input value={val} onChange={e => column.setFilterValue(e.target.value)} placeholder="Filter…"
+            className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30" />
+    );
+}
+function PagBtn({ children, onClick, disabled }) {
+    return (
+        <button onClick={onClick} disabled={disabled}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            {children}
+        </button>
+    );
+}
+function ActionBtn({ icon, onClick, title, cls = 'hover:text-white hover:bg-white/10', disabled = false }) {
+    return (
+        <button onClick={e => { e.stopPropagation(); onClick(); }} disabled={disabled} title={title}
+            className={`p-1.5 rounded-lg text-gray-500 transition-colors disabled:opacity-40 ${cls}`}>
+            {icon}
+        </button>
+    );
+}
+
+/* ── Main Page ──────────────────────────────────────────────────────────────── */
 export default function ItemsPage() {
     const router = useRouter();
     const { settings } = useSettings();
     const currency = settings.currency || '$';
 
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const limit = 5;
-
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState('all');
-
-    // React alert state
-    const [toasts, setToasts] = useState([]);
-    const [confirmState, setConfirmState] = useState(null);
-
-    // Duplicate progress
+    const [data, setData]               = useState([]);
+    const [loading, setLoading]         = useState(true);
+    const [filterType, setFilterType]   = useState('all');
+    const [globalFilter, setGlobalFilter] = useState('');
+    const [columnVisibility, setColumnVisibility] = useState({});
+    const [sorting, setSorting]         = useState([]);
+    const [viewMode, setViewMode]       = useState('card'); // 'card' | 'table'
     const [duplicating, setDuplicating] = useState(false);
     const [dupProgress, setDupProgress] = useState(0);
-    const [dupLabel, setDupLabel] = useState('');
+    const [dupLabel, setDupLabel]       = useState('');
 
-    /* Helpers */
-    const showToast = (message, type = 'success') => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, message, type }]);
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-    };
-    const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
-
-    const reactConfirm = (message, options = {}) =>
-        new Promise(resolve => setConfirmState({ message, ...options, resolve }));
-
-    const handleConfirmClose = (result) => {
-        confirmState?.resolve(result);
-        setConfirmState(null);
-    };
-
-    /* Fetch */
-    const fetchItems = useCallback(() => {
+    /* ── Fetch all ────────────────────────────────────────────────────────────── */
+    const fetchAll = useCallback(() => {
         setLoading(true);
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
+        const params = new URLSearchParams({ page: 1, limit: 500 });
         if (filterType === 'favorites') params.append('is_favorite', 'true');
-        params.append('page', page);
-        params.append('limit', limit);
+        fetch(`/api/items?${params}`)
+            .then(r => r.json())
+            .then(res => { setData(Array.isArray(res) ? res : (res.items ?? [])); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, [filterType]);
 
-        fetch(`/api/items?${params.toString()}`)
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) {
-                    setItems(data);
-                    setTotalPages(1);
-                } else {
-                    setItems(data.items || []);
-                    setTotalPages(data.pagination?.totalPages || 1);
-                }
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-    }, [searchTerm, filterType, page]);
+    useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    useEffect(() => {
-        const timer = setTimeout(fetchItems, 300);
-        return () => clearTimeout(timer);
-    }, [fetchItems]);
-
-    /* Handlers */
-    const handleDelete = async (id) => {
-        const ok = await reactConfirm('Are you sure you want to delete this estimation? This cannot be undone.', { danger: true, confirmLabel: 'Delete' });
-        if (!ok) return;
-        try {
-            const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                fetchItems();
-                showToast('Estimation deleted.');
-            } else {
-                showToast('Failed to delete estimation.', 'error');
-            }
-        } catch {
-            showToast('Error deleting estimation.', 'error');
-        }
+    /* ── Actions ──────────────────────────────────────────────────────────────── */
+    const handleToggleFav = async (id, cur) => {
+        if (cur && !(await confirmDialog('Remove from templates?', { confirmLabel: 'Remove' }))) return;
+        setData(prev => prev.map(i => i.id === id ? { ...i, is_favorite: !cur } : i));
+        await fetch(`/api/items/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_favorite: !cur }),
+        }).catch(fetchAll);
     };
 
-    const handleToggleFavorite = async (id, currentStatus) => {
-        if (currentStatus) {
-            const ok = await reactConfirm('Remove this item from favourites?', { confirmLabel: 'Remove' });
-            if (!ok) return;
-        }
-        setItems(prev => prev.map(item =>
-            item.id === id ? { ...item, is_favorite: !currentStatus } : item
-        ));
-        try {
-            await fetch(`/api/items/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_favorite: !currentStatus }),
-            });
-        } catch {
-            fetchItems();
-        }
-    };
-
-    const runDuplicate = async (id, redirectPath) => {
-        setDuplicating(true);
-        setDupProgress(0);
-        setDupLabel('Copying estimation header…');
-
+    const runDuplicate = async (id, makeUrl) => {
+        setDuplicating(true); setDupProgress(0); setDupLabel('Copying header…');
         const stages = [
-            { pct: 20, label: 'Copying estimation header…' },
-            { pct: 45, label: 'Duplicating components…' },
-            { pct: 70, label: 'Copying finishings…' },
-            { pct: 88, label: 'Finalising…' },
+            { pct: 20, label: 'Copying header…' }, { pct: 45, label: 'Duplicating components…' },
+            { pct: 70, label: 'Copying finishings…' }, { pct: 88, label: 'Finalising…' },
         ];
-
-        let stageIndex = 0;
-        const ticker = setInterval(() => {
-            if (stageIndex < stages.length) {
-                setDupProgress(stages[stageIndex].pct);
-                setDupLabel(stages[stageIndex].label);
-                stageIndex++;
-            }
+        let si = 0;
+        const tick = setInterval(() => {
+            if (si < stages.length) { setDupProgress(stages[si].pct); setDupLabel(stages[si].label); si++; }
         }, 400);
-
         try {
             const res = await fetch(`/api/items/${id}/duplicate`, { method: 'POST' });
-            const data = await res.json();
-
-            clearInterval(ticker);
-            setDupProgress(100);
-            setDupLabel('Done!');
-
+            const d = await res.json();
+            clearInterval(tick); setDupProgress(100); setDupLabel('Done!');
             await new Promise(r => setTimeout(r, 500));
-
-            if (res.ok && data.newId) {
-                router.push(redirectPath(data.newId));
-            } else {
-                setDuplicating(false);
-                showToast(data.error || 'Failed to duplicate estimation.', 'error');
-            }
-        } catch {
-            clearInterval(ticker);
-            setDuplicating(false);
-            showToast('Error duplicating estimation.', 'error');
-        }
+            if (res.ok && d.newId) router.push(makeUrl(d.newId));
+            else { setDuplicating(false); toast.error(d.error || 'Duplicate failed'); }
+        } catch { clearInterval(tick); setDuplicating(false); toast.error('Error duplicating'); }
     };
 
     const handleDuplicate = async (id) => {
-        const ok = await reactConfirm('Copy this estimation as a new draft?', { confirmLabel: 'Duplicate' });
-        if (!ok) return;
-        await runDuplicate(id, (newId) => `/dashboard/items/${newId}`);
+        if (!(await confirmDialog('Copy this estimation as a new draft?', { confirmLabel: 'Duplicate' }))) return;
+        await runDuplicate(id, newId => `/dashboard/items/${newId}`);
     };
 
-    const handleDuplicateFav = async (id) => {
-        const ok = await reactConfirm('Copy this template as a new draft?', { confirmLabel: 'Copy Template' });
-        if (!ok) return;
-        await runDuplicate(id, (newId) => `/dashboard/items/temp/${newId}`);
+    const handleDelete = async (id) => {
+        if (!(await confirmDialog('Delete this estimation? This cannot be undone.', { danger: true, confirmLabel: 'Delete' }))) return;
+        const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+        if (res.ok) { toast.success('Estimation deleted'); fetchAll(); }
+        else toast.error('Failed to delete');
     };
+
+    const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    /* ── TanStack columns ─────────────────────────────────────────────────────── */
+    const columns = useMemo(() => [
+        {
+            accessorKey: 'code', header: 'Code', size: 120,
+            cell: ({ getValue }) => <span className="font-mono text-xs text-blue-400">{getValue()}</span>,
+        },
+        {
+            id: 'name',
+            accessorFn: row => row.estimation_name || row.customer_name || 'Untitled',
+            header: 'Name',
+            cell: ({ getValue, row }) => (
+                <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">{getValue()}</span>
+                    {!!row.original.is_favorite && (
+                        <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            accessorKey: 'customer_name', header: 'Customer',
+            cell: ({ getValue }) => <span className="text-gray-400 text-sm">{getValue() || '—'}</span>,
+        },
+        {
+            accessorKey: 'job_description', header: 'Description',
+            cell: ({ getValue }) => <span className="text-gray-400 text-sm truncate max-w-[200px] block">{getValue() || '—'}</span>,
+        },
+        {
+            accessorKey: 'type', header: 'Type', size: 100,
+            cell: ({ getValue }) => (
+                <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{getValue()}</span>
+            ),
+        },
+        {
+            accessorKey: 'quantity', header: 'Qty', size: 80,
+            cell: ({ getValue }) => <span className="text-gray-400">{getValue()}</span>,
+        },
+        {
+            accessorKey: 'total_amount', header: 'Amount', size: 140,
+            cell: ({ getValue, row }) => row.original.is_favorite ? (
+                <span className="text-gray-600 text-xs">Template</span>
+            ) : (
+                <span className="font-mono font-bold text-white">{currency} {fmt(getValue())}</span>
+            ),
+        },
+        {
+            accessorKey: 'created_at', header: 'Date', size: 110,
+            cell: ({ getValue }) => (
+                <span className="text-gray-500 text-xs">{new Date(getValue()).toLocaleDateString('en-GB')}</span>
+            ),
+        },
+        {
+            id: 'actions', header: '', size: 110,
+            enableSorting: false, enableColumnFilter: false,
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <ActionBtn title="Toggle Template" icon={<FiStar size={14} className={item.is_favorite ? 'fill-yellow-400 text-yellow-400' : ''} />}
+                            onClick={() => handleToggleFav(item.id, item.is_favorite)} />
+                        <ActionBtn title="Duplicate" icon={<FiCopy size={14} />}
+                            cls="hover:text-blue-400 hover:bg-blue-500/10"
+                            onClick={() => handleDuplicate(item.id)} />
+                        <ActionBtn title="Edit" icon={<FiEdit2 size={14} />}
+                            onClick={() => router.push(`/dashboard/items/${item.id}`)} />
+                        {!item.is_favorite && (
+                            <ActionBtn title="Delete" icon={<FiTrash2 size={14} />}
+                                cls="hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() => handleDelete(item.id)} />
+                        )}
+                    </div>
+                );
+            },
+        },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ], [currency]);
+
+    /* ── Table instance ───────────────────────────────────────────────────────── */
+    const table = useReactTable({
+        data,
+        columns,
+        state: { globalFilter, columnVisibility, sorting },
+        onGlobalFilterChange: setGlobalFilter,
+        onColumnVisibilityChange: setColumnVisibility,
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        initialState: { pagination: { pageSize: 15 } },
+    });
+
+    const { pageIndex, pageSize } = table.getState().pagination;
+    const pageCount = table.getPageCount();
+
+    /* ── Filtered data for card view ──────────────────────────────────────────── */
+    const filteredCards = useMemo(() => {
+        const q = globalFilter.toLowerCase();
+        return data.filter(item => {
+            const matchFav = filterType !== 'favorites' || item.is_favorite;
+            const matchQ = !q || [item.code, item.estimation_name, item.customer_name, item.job_description, item.type]
+                .some(v => (v || '').toLowerCase().includes(q));
+            return matchFav && matchQ;
+        });
+    }, [data, globalFilter, filterType]);
 
     return (
         <div className="text-white">
-            {/* Overlays */}
             <DuplicateProgress visible={duplicating} progress={dupProgress} label={dupLabel} />
-            <ConfirmDialog confirm={confirmState} onClose={handleConfirmClose} />
-            <Toast toasts={toasts} dismiss={dismissToast} />
 
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            {/* ── Header ─────────────────────────────────────────────────────── */}
+            <header className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Job Estimations</h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage, search, and duplicate your quotes</p>
+                    <p className="text-gray-500 text-sm mt-0.5">
+                        {viewMode === 'table'
+                            ? `${table.getFilteredRowModel().rows.length} of ${data.length} records`
+                            : `${filteredCards.length} of ${data.length} records`}
+                    </p>
                 </div>
-                <Link href="/dashboard/items/new">
-                    <Button className="flex items-center gap-2 bg-white text-black hover:bg-gray-200">
-                        <FiPlus /> New Estimate
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-3">
+                    {/* Filter: All / Favorites */}
+                    <div className="flex bg-black/30 border border-white/10 rounded-xl p-1">
+                        {['all', 'favorites'].map(f => (
+                            <button key={f} onClick={() => setFilterType(f)}
+                                className={`px-4 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1.5 ${filterType === f ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>
+                                {f === 'favorites' && <FiStar className={filterType === 'favorites' ? 'fill-white' : ''} size={13} />}
+                                {f === 'all' ? 'All' : 'Templates'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Global search */}
+                    <div className="relative">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                        <input value={globalFilter} onChange={e => setGlobalFilter(e.target.value)}
+                            placeholder="Search all columns…"
+                            className="bg-black/30 backdrop-blur border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm w-64 outline-none focus:border-white/30 placeholder-gray-600" />
+                    </div>
+
+                    {/* Column visibility (table mode only) */}
+                    {viewMode === 'table' && <ColumnToggle table={table} />}
+
+                    {/* View toggle */}
+                    <div className="flex bg-black/30 border border-white/10 rounded-xl p-1">
+                        <button onClick={() => setViewMode('card')}
+                            title="Card view"
+                            className={`p-2 rounded-lg transition-colors ${viewMode === 'card' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>
+                            <FiGrid size={15} />
+                        </button>
+                        <button onClick={() => setViewMode('table')}
+                            title="Table view"
+                            className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>
+                            <FiList size={15} />
+                        </button>
+                    </div>
+
+                    <Link href="/dashboard/items/new">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold text-sm hover:bg-gray-100 transition-colors">
+                            <FiPlus /> New Estimate
+                        </button>
+                    </Link>
+                </div>
             </header>
 
-            {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
-                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by customer or description..."
-                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-white/30 outline-none transition-colors"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <div className="flex bg-black/40 border border-white/10 rounded-lg p-1">
-                    <button
-                        onClick={() => setFilterType('all')}
-                        className={`px-4 py-1.5 rounded-md text-sm transition-colors ${filterType === 'all' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        All
-                    </button>
-                    <button
-                        onClick={() => setFilterType('favorites')}
-                        className={`px-4 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${filterType === 'favorites' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        <FiStar className={filterType === 'favorites' ? "fill-white" : ""} /> Favorites
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid gap-4">
-                {items.length === 0 && !loading && (
-                    <div className="text-center py-12 text-gray-500 bg-black/40 rounded-xl border border-white/10">
-                        No estimations found matching criteria.
-                    </div>
-                )}
-                {loading && items.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">Loading...</div>
-                )}
-
-                {items.map(item => (
-                    <div
-                        key={item.id}
-                        onClick={() => router.push(`/dashboard/items/${item.id}`)}
-                        className={`bg-black/40 backdrop-blur-md p-6 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}
-                    >
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.id, item.is_favorite); }}
-                                    className={`text-lg transition-colors ${item.is_favorite ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'}`}
-                                    title="Toggle Favourite"
-                                >
-                                    <FiStar className={item.is_favorite ? "fill-yellow-400" : ""} />
-                                </button>
-                                <h3 className="text-lg font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
-                                {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">FAV</span>}
-                            </div>
-                            <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
-                            <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
-                            <div className="mt-2">
-                                <span className="text-xs text-secondary bg-white px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
-                            </div>
+            {/* ══════════════════════════════════════════════════════════════════
+                  CARD VIEW
+                ══════════════════════════════════════════════════════════════════ */}
+            {viewMode === 'card' && (
+                <div className="grid gap-3">
+                    {loading && (
+                        <div className="text-center py-12 text-gray-500 animate-pulse">Loading estimations…</div>
+                    )}
+                    {!loading && filteredCards.length === 0 && (
+                        <div className="text-center py-12 text-gray-500 bg-black/40 rounded-xl border border-white/10">
+                            No estimations found.
                         </div>
-                        <div className="flex items-center gap-6">
-                            <div className="text-right">
-                                <div className="text-xl font-bold">{currency}{parseFloat(item.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()}</div>
+                    )}
+                    {filteredCards.map(item => (
+                        <div key={item.id}
+                            onClick={() => router.push(`/dashboard/items/${item.id}`)}
+                            className={`bg-black/40 backdrop-blur-md px-6 py-5 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}>
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
+                                        className={`text-lg transition-colors ${item.is_favorite ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'}`}
+                                        title="Toggle Template">
+                                        <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
+                                    </button>
+                                    <h3 className="text-base font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
+                                    {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
+                                </div>
+                                <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
+                                <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
+                                <div className="mt-2">
+                                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
+                                </div>
                             </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleDuplicate(item.id); }}
-                                    className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Duplicate"
-                                >
-                                    <FiCopy />
-                                </button>
-                                <Link href={`/dashboard/items/${item.id}`} onClick={(e) => e.stopPropagation()}>
-                                    <button className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
+                            <div className="flex items-center gap-6">
+                                <div className="text-right">
+                                    <div className="text-xl font-bold">{currency} {fmt(item.total_amount)}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
+                                </div>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={e => { e.stopPropagation(); handleDuplicate(item.id); }}
+                                        className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Duplicate">
+                                        <FiCopy />
+                                    </button>
+                                    <button onClick={e => { e.stopPropagation(); router.push(`/dashboard/items/${item.id}`); }}
+                                        className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
                                         <FiEdit2 />
                                     </button>
-                                </Link>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                    className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
-                                    title="Delete"
-                                >
-                                    <FiTrash2 />
-                                </button>
+                                    {!item.is_favorite && (
+                                        <button onClick={e => { e.stopPropagation(); handleDelete(item.id); }}
+                                            className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Delete">
+                                            <FiTrash2 />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
 
-            {totalPages > 1 && (
-                <div className="flex justify-center mt-8 gap-2">
-                    <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} className="bg-white hover:bg-white/70 disabled:opacity-50">
-                        Previous
-                    </Button>
-                    <span className="flex items-center px-4 text-sm text-gray-400">
-                        Page {page} of {totalPages}
-                    </span>
-                    <Button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} className="bg-white hover:bg-white/70 disabled:opacity-50">
-                        Next
-                    </Button>
+            {/* ══════════════════════════════════════════════════════════════════
+                  TABLE VIEW (TanStack)
+                ══════════════════════════════════════════════════════════════════ */}
+            {viewMode === 'table' && (
+                <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                    {loading ? (
+                        <div className="py-24 text-center text-gray-500 animate-pulse">Loading estimations…</div>
+                    ) : data.length === 0 ? (
+                        <div className="py-24 text-center text-gray-500">No estimations found.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm border-collapse">
+                                <thead>
+                                    {table.getHeaderGroups().map(hg => (
+                                        <tr key={hg.id} className="border-b border-white/[0.06]">
+                                            {hg.headers.map(h => (
+                                                <th key={h.id} style={{ width: h.getSize() }}
+                                                    className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-gray-500 bg-black/20 select-none">
+                                                    {h.column.getCanSort() ? (
+                                                        <button onClick={h.column.getToggleSortingHandler()}
+                                                            className="flex items-center gap-1 hover:text-white transition-colors">
+                                                            {flexRender(h.column.columnDef.header, h.getContext())}
+                                                            <SortIcon dir={h.column.getIsSorted()} />
+                                                        </button>
+                                                    ) : flexRender(h.column.columnDef.header, h.getContext())}
+                                                    {h.column.getCanFilter() && <ColumnFilter column={h.column} />}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </thead>
+                                <tbody>
+                                    {table.getRowModel().rows.map((row, i) => (
+                                        <tr key={row.id}
+                                            onClick={() => {
+                                                const item = row.original;
+                                                router.push(`/dashboard/items/${item.id}`);
+                                            }}
+                                            className={`border-b border-white/[0.04] cursor-pointer transition-colors hover:bg-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''} ${row.original.is_favorite ? 'border-l-2 border-l-yellow-500/40' : ''}`}>
+                                            {row.getVisibleCells().map(cell => (
+                                                <td key={cell.id} className="px-4 py-3.5 align-middle">
+                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* ── Pagination footer ─────────────────────────────────── */}
+                    {!loading && data.length > 0 && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-black/20 flex-wrap gap-3">
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>Rows:</span>
+                                <select value={pageSize} onChange={e => table.setPageSize(Number(e.target.value))}
+                                    className="bg-white/5 border border-white/10 rounded px-2 py-1 text-gray-300 outline-none">
+                                    {[10, 15, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                                Page <strong className="text-gray-300">{pageIndex + 1}</strong> of <strong className="text-gray-300">{pageCount || 1}</strong>
+                                {' '}— {table.getFilteredRowModel().rows.length} results
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <PagBtn onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}><FiChevronsLeft className="w-3.5 h-3.5" /></PagBtn>
+                                <PagBtn onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><FiChevronLeft className="w-3.5 h-3.5" /></PagBtn>
+                                {Array.from({ length: pageCount }, (_, i) => i).filter(i => Math.abs(i - pageIndex) <= 2).map(i => (
+                                    <button key={i} onClick={() => table.setPageIndex(i)}
+                                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${i === pageIndex ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}>
+                                        {i + 1}
+                                    </button>
+                                ))}
+                                <PagBtn onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><FiChevronRight className="w-3.5 h-3.5" /></PagBtn>
+                                <PagBtn onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()}><FiChevronsRight className="w-3.5 h-3.5" /></PagBtn>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
