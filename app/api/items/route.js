@@ -24,7 +24,7 @@ export async function GET(request) {
         const countParams = [];
 
         if (isFavorite === 'true') {
-            const condition = ` AND is_favorite = TRUE`;
+            const condition = ` AND is_favorite = 1`;
             query += condition;
             countQuery += condition;
         }
@@ -62,7 +62,7 @@ export async function GET(request) {
             }
         });
     } catch (error) {
-        console.error(error);
+        console.error('[/api/items GET]', error?.message || error);
         return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
     }
 }

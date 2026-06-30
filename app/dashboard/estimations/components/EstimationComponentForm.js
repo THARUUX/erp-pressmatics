@@ -241,7 +241,7 @@ export default function EstimationComponentForm({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
-                {(data.name.includes('Inner') || data.name.includes('Cover')) && (
+                {(data.name.includes('Inner') || data.name.includes('Cover')) || data.name.includes('Main') && (
                     <>
                         {/* 1. Print Sides */}
                         <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
@@ -375,7 +375,7 @@ export default function EstimationComponentForm({
                                     <option value="Custom">Custom</option>
                                 </select>
                             </div>
-                            <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages <span className={(data.name.includes('Cover') || data.name.includes('Inner') && !isBB) ? 'text-xs text-red-600' : 'hidden'} >{params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}</span></label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                            <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages <span className={(data.name.includes('Cover') || data.name.includes('Inner') && !isBB && !data.name.includes('Main')) ? 'text-xs text-red-600' : 'hidden'} >{params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}</span></label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                             <div><label className="block text-sm text-gray-400 mb-1">Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                             <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">
@@ -439,7 +439,7 @@ export default function EstimationComponentForm({
                                     />
                                 </div>
                             )}
-                            {data.name?.includes('Inner') && (
+                            {data.name?.includes('Inner') || data.name?.includes('Main') && (
                                 <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
                                     <div className="flex justify-between items-center w-full">
                                         <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
@@ -457,7 +457,7 @@ export default function EstimationComponentForm({
                         </div>
 
                         {/* B&B toggle — only for Inner components */}
-                        {(data.name?.includes('Inner') || data.name?.includes('Cover')) && (
+                        {(data.name?.includes('Inner') || data.name?.includes('Cover')) || data.name?.includes('Main') && (
                             <div className="flex items-center gap-3 mt-2">
                                 <button
                                     type="button"
@@ -554,7 +554,7 @@ export default function EstimationComponentForm({
                                 <div><label className="block text-sm text-gray-400 mb-1">Copies/Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                    <select name="size" value={params.size || ''} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                    <select name="size" value={params.size || 'A1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
                                         <option value="">Custom</option>
                                         <option value="A1">A1</option>
                                         <option value="A2">A2</option>

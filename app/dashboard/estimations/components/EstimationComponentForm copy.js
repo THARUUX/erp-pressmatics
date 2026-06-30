@@ -6,7 +6,6 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { RiPrinterFill, RiSideBarLine, RiLayoutGridLine, RiPagesLine, RiSpeedUpLine } from 'react-icons/ri'; // Feel free to map your preferred icon library
 
-
 function getCutSheetDimensions(W, H, factor) {
     const f = parseFloat(factor) || 1.0;
     if (f <= 1.0) return { width: W, height: H };
@@ -141,7 +140,7 @@ export default function EstimationComponentForm({
             const paperW = parseFloat(name === 'paperWidthCm' ? value : params.paperWidthCm) || 0;
             const paperH = parseFloat(name === 'paperHeightCm' ? value : params.paperHeightCm) || 0;
             const machine = machines.find(m => m.id == params.machineId);
-            const factor = machine ? parseFloat(machine.sheet_factor) : null;
+            const factor = machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0;
             const cutDims = getCutSheetDimensions(paperW, paperH, factor);
             newParams.cutWidthCm = cutDims.width;
             newParams.cutHeightCm = cutDims.height;
@@ -240,14 +239,94 @@ export default function EstimationComponentForm({
                     </div>
                 </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+                {(data.name.includes('Inner') || data.name.includes('Cover')) || data.name.includes('Main') && (
+                    <>
+                        {/* 1. Print Sides */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Output Type</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiSideBarLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {data.sidesVal === 2 ? 'Double-Sided (2/2)' : 'Single-Sided (1/0)'}
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span> {data.sidesVal} {data.sidesVal === 1 ? 'Surface' : 'Surfaces'}
+                                </p>
+                            </div>
+                        </div>
+            
+                        {/* 2. Ups (Imposition) */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Imposition Arrangement</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiLayoutGridLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {params.ups || 1}-Up 
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Layout
+                                </p>
+                            </div>
+                        </div>
+            
+                        {/* 3. Pages */}
+                        {/* <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Document Volume</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiPagesLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {(data.pagesVal || 0).toLocaleString()} Pages
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> Content Base
+                                </p>
+                            </div>
+                        </div> */}
+            
+                        {/* 4. Impression Rate */}
+                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
+                            <div className="flex justify-between items-center w-full">
+                                <span className="text-xs font-medium text-gray-400 tracking-wide">Unit Pricing</span>
+                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                    <RiSpeedUpLine className="text-lg" />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-2xl font-semibold text-white tracking-tight truncate">
+                                    {parseFloat(params.impressionCostPerUnit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
+                                </h4>
+                                <p className="text-[11px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {currency}
+                                </p>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+    
+            </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
                 {/* Left: Input Form */}
                 <div className="lg:col-span-2 space-y-6">
-                    {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
+                    {type === 'offset' && !data.name.includes("Finishing") && (
                         <>
                         <div className="grid md:grid-cols-3 gap-4 mb-6">
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                            <div>
                                 <label className="block text-sm text-gray-400 mb-1">Machine</label>
                                 <select
                                     name="machineId"
@@ -257,7 +336,7 @@ export default function EstimationComponentForm({
                                         const machine = machines.find(m => m.id == mId);
                                         const paperW = parseFloat(params.paperWidthCm) || 0;
                                         const paperH = parseFloat(params.paperHeightCm) || 0;
-                                        const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                                        const factor = machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0;
                                         const cutDims = getCutSheetDimensions(paperW, paperH, factor);
 
                                         // Update both params in one go to avoid race conditions with closure state
@@ -277,7 +356,7 @@ export default function EstimationComponentForm({
                                     ))}
                                 </select>
                             </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                            <div>
                                 <label className="block text-sm text-gray-400 mb-1">Sides</label>
                                 <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
                                     <option value="1">One Side</option>
@@ -296,22 +375,9 @@ export default function EstimationComponentForm({
                                     <option value="Custom">Custom</option>
                                 </select>
                             </div>
-                            <div className={!data.name?.toLowerCase().includes('main') ? "" : 'opacity-40 pointer-events-none'}>
-                                <label className="block text-sm text-gray-400 mb-1">
-                                    Pages 
-                                    <span className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') && !isBB && !data.name?.toLowerCase().includes('main')) ? 'text-xs text-red-600' : 'hidden'} >
-                                        {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
-                                    </span>
-                                </label>
-                                <Input  type="number" name="pages" value={params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
-                            </div>
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">
-                                    Ups
-                                </label>
-                                <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                            <div className={!data.name.includes("Cover") ? "" : 'opacity-40 pointer-events-none'}><label className="block text-sm text-gray-400 mb-1">Pages <span className={(data.name.includes('Cover') || data.name.includes('Inner') && !isBB && !data.name.includes('Main')) ? 'text-xs text-red-600' : 'hidden'} >{params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}</span></label><Input disabled={data.name === "Cover"} type="number" name="pages" value={data.name === "Cover" ? params.sides : params.pages} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                            <div><label className="block text-sm text-gray-400 mb-1">Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                            <div className={(data.name.includes('Cover') || data.name.includes('Inner')) ? '' : 'hidden'}>
                                 <label className="block text-sm text-gray-400 mb-1">
                                     Press Ups
                                     {params.customSheetFactor && (
@@ -321,7 +387,7 @@ export default function EstimationComponentForm({
                                 <Input
                                     type="number"
                                     name="customSheetFactor"
-                                    value={data.name?.toLowerCase().includes('main') || data.name?.toLowerCase().includes('main') || data.name?.toLowerCase().includes('main') ? params.customSheetFactor : null}
+                                    value={params.customSheetFactor || '1'}
                                     onChange={handleChange}
                                     className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
                                     placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
@@ -329,11 +395,11 @@ export default function EstimationComponentForm({
                                     step="1"
                                 />
                             </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                            <div>
                                 <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
                                 <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
                             </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'} >
+                            <div className={parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none'}>
                                 <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
                                 <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
                             </div>
@@ -349,7 +415,7 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
                                 />
                             </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                            <div>
                                 <label className="block text-sm text-gray-400 mb-1">Impressions</label>
                                 <Input
                                     type="number"
@@ -360,19 +426,21 @@ export default function EstimationComponentForm({
                                     placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
                                 />
                             </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
-                                <Input
-                                    type="number"
-                                    name="customPlateCount"
-                                    value={params.customPlateCount != null ? params.customPlateCount : ''}
-                                    onChange={handleChange}
-                                    className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
-                                    placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
-                                />
-                            </div>
-                            {(data.name?.includes('Inner') || data.name?.includes('Main')) && (
-                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
+                            {(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner')) && (
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
+                                    <Input
+                                        type="number"
+                                        name="customPlateCount"
+                                        value={params.customPlateCount != null ? params.customPlateCount : ''}
+                                        onChange={handleChange}
+                                        className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                        placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
+                                    />
+                                </div>
+                            )}
+                            {data.name?.includes('Inner') || data.name?.includes('Main') && (
+                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
                                     <div className="flex justify-between items-center w-full">
                                         <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
@@ -389,7 +457,7 @@ export default function EstimationComponentForm({
                         </div>
 
                         {/* B&B toggle — only for Inner components */}
-                        {(data.name?.includes('Inner') || data.name?.includes('Cover') || data.name?.includes('Main')) && (
+                        {(data.name?.includes('Inner') || data.name?.includes('Cover')) || data.name?.includes('Main') && (
                             <div className="flex items-center gap-3 mt-2">
                                 <button
                                     type="button"
@@ -486,7 +554,7 @@ export default function EstimationComponentForm({
                                 <div><label className="block text-sm text-gray-400 mb-1">Copies/Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                    <select name="size" value={params.size || 'A1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                    <select name="size" value={params.size || ''} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
                                         <option value="">Custom</option>
                                         <option value="A1">A1</option>
                                         <option value="A2">A2</option>
@@ -558,7 +626,7 @@ export default function EstimationComponentForm({
                             </div>
                         </>
                     )}
-                    {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
+                    {type === 'offset' && !data.name.includes("Finishing") && (
                         <>
                             <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials & Dimensions</h3>
                             <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -609,66 +677,16 @@ export default function EstimationComponentForm({
                                         )}
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Cost/Sheet
-                                    </label>
-                                    <Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Plate Cost/Unit
-                                    </label>
-                                    <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Impression Cost
-                                    </label>
-                                    <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Width (cm)
-                                    </label>
-                                    <Input type="number" name="paperWidthCm" value={params.paperWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Height (cm)
-                                    </label>
-                                    <Input type="number" name="paperHeightCm" value={params.paperHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Cut Sheet Width (cm)
-                                    </label>
-                                    <Input type="number" name="cutWidthCm" value={params.cutWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Cut Sheet Height (cm)
-                                    </label>
-                                    <Input type="number" name="cutHeightCm" value={params.cutHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Finished Comp Width (cm)
-                                    </label>
-                                    <Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Finished Comp Height (cm)
-                                    </label>
-                                    <Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Bleed (mm)
-                                    </label>
-                                    <Input type="number" name="bleedMm" value={params.bleedMm || ''} onChange={handleChange} className="bg-secondary border-white/10" 
-                                /></div>
+                                <div className=""><label className="block text-sm text-gray-400 mb-1">Paper Cost/Sheet</label><Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div className=''><label className="block text-sm text-gray-400 mb-1">Plate Cost/Unit</label><Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Impression Cost</label><Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Paper Width (cm)</label><Input type="number" name="paperWidthCm" value={params.paperWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Paper Height (cm)</label><Input type="number" name="paperHeightCm" value={params.paperHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Cut Sheet Width (cm)</label><Input type="number" name="cutWidthCm" value={params.cutWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Cut Sheet Height (cm)</label><Input type="number" name="cutHeightCm" value={params.cutHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Finished Comp Width (cm)</label><Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div><label className="block text-sm text-gray-400 mb-1">Finished Comp Height (cm)</label><Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                <div className="hidden"><label className="block text-sm text-gray-400 mb-1">Bleed (mm)</label><Input type="number" name="bleedMm" value={params.bleedMm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
                             </div>
                         </>
                     )}
@@ -677,7 +695,7 @@ export default function EstimationComponentForm({
                     )}
 
                     <div>
-                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name?.toLowerCase().includes('finishing') ? 'hidden' : ''}`}>Finishings</h3>
+                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name.includes("Finishing") ? 'hidden' : ''}`}>Finishings</h3>
                         <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
                             <div className="grid md:grid-cols-12  gap-3 mb-3">
                                 <div className="md:col-span-8 relative">
@@ -801,7 +819,6 @@ export default function EstimationComponentForm({
                             {/* Lines Table */}
                             {sfgLines.length > 0 ? (
                                 <div className="space-y-2">
-                                    {/* Header */}
                                     <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
                                         <span className="col-span-4">Item</span>
                                         <span className="col-span-2 text-center">Stock</span>
@@ -824,9 +841,7 @@ export default function EstimationComponentForm({
                                             </div>
                                             <div className="col-span-2">
                                                 <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
+                                                    type="number" min="0" step="1"
                                                     value={line.quantity}
                                                     onChange={e => updateSfgLine(line.id, 'quantity', e.target.value)}
                                                     className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
@@ -834,9 +849,7 @@ export default function EstimationComponentForm({
                                             </div>
                                             <div className="col-span-2">
                                                 <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.0001"
+                                                    type="number" min="0" step="0.0001"
                                                     value={line.unit_price}
                                                     onChange={e => updateSfgLine(line.id, 'unit_price', e.target.value)}
                                                     className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
@@ -848,15 +861,10 @@ export default function EstimationComponentForm({
                                                 </span>
                                             </div>
                                             <div className="col-span-1 flex justify-end">
-                                                <button
-                                                    onClick={() => removeSfgLine(line.id)}
-                                                    className="text-red-400 hover:text-red-300 transition-colors p-1"
-                                                    title="Remove"
-                                                >&times;</button>
+                                                <button onClick={() => removeSfgLine(line.id)} className="text-red-400 hover:text-red-300 transition-colors p-1" title="Remove">&times;</button>
                                             </div>
                                         </div>
                                     ))}
-                                    {/* Subtotal */}
                                     <div className="flex justify-between items-center px-3 pt-2 border-t border-amber-500/20">
                                         <span className="text-xs text-amber-400/70 uppercase tracking-widest">SFG Subtotal</span>
                                         <span className="text-sm font-bold text-amber-300 font-mono">
@@ -891,7 +899,7 @@ export default function EstimationComponentForm({
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount.toLocaleString()}</span></div>
-                                        <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toFixed(0)}</span></div>
                                         <div className="flex justify-between text-gray-300">
                                             <span>Wastage Sheets:</span>
                                             <span className="font-mono text-white text-right">
@@ -905,9 +913,9 @@ export default function EstimationComponentForm({
                                     </div>
 
                                     <div className="space-y-2 pt-2">
+                                        <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                         <div className="flex justify-between text-gray-400"><span>Plate Cost:</span> <span>{currency}{(calculationResult.costs.plate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                         <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                     </div>
                                 </>
                             )}

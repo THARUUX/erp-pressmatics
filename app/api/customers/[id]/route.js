@@ -15,6 +15,7 @@ export async function GET(req, { params }) {
 export async function PUT(req, { params }) {
     try {
         const { id } = await params;
+        const body = await req.json();
         const { name, email, phone, address, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role } = body;
 
         await pool.execute(

@@ -46,9 +46,19 @@ export default function EditQuotationPage({ params }) {
 
     // Global Extras
     const [markupPercent, setMarkupPercent] = useState(0);
+    const [markupAmountInput, setMarkupAmountInput] = useState('');
     const [globalFinishings, setGlobalFinishings] = useState([]);
     const [globalFinishingSearch, setGlobalFinishingSearch] = useState('');
     const [showGlobalFinishingSuggestions, setShowGlobalFinishingSuggestions] = useState(false);
+
+    useEffect(() => {
+        if (typeof document !== 'undefined' && document.activeElement?.id === 'markup-amount-input') {
+            return;
+        }
+        const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
+        const calculated = baseTotal * (parseFloat(markupPercent) / 100 || 0);
+        setMarkupAmountInput(calculated > 0 ? calculated.toFixed(2) : '');
+    }, [grandTotal, globalFinishings, markupPercent]);
 
     const addGlobalFinishing = (item) => {
         const qty = parseInt(quantity) || 1; // Default to global quantity
@@ -110,7 +120,7 @@ export default function EditQuotationPage({ params }) {
                 setEstimationName(item.estimation_name || ''); // Load
                 setJobDescription(item.job_description);
                 setQuantity(item.quantity);
-                setMarkupPercent(item.markup_percent || 0);
+                setMarkupPercent(item.markup_percent != null ? parseFloat(item.markup_percent).toFixed(5) : '0.00000');
 
                 // Map Global Finishings
                 if (fetchedGlobalFinishings && Array.isArray(fetchedGlobalFinishings)) {
@@ -295,7 +305,7 @@ export default function EditQuotationPage({ params }) {
 
     // Zero out printing-specific costs for non-Cover/non-Inner components
     const normalizeComponent = (c) => {
-        const isCoverOrInner = (c.name || '').includes('Cover') || (c.name || '').includes('Inner');
+        const isCoverOrInner = (c.name || '').toLowerCase().includes('cover') || (c.name || '').toLowerCase().includes('inner') || (c.name || '').toLowerCase().includes('main');
         if (isCoverOrInner) return c;
         return {
             ...c,
@@ -731,22 +741,48 @@ export default function EditQuotationPage({ params }) {
                                 </div>
 
                                 {/* Markup Section */}
-                                <div className="mb-4 text-xs">
-                                    <div className="flex justify-between items-center w-full mb-1">
-                                        <label className="text-gray-400 uppercase tracking-widest text-nowrap">Markup %</label>
+                                <div className="mb-4 text-xs space-y-3">
+                                    <div className="flex items-center gap-5 w-full">
+                                        <label className="text-gray-400 uppercase tracking-widest text-nowrap w-24">Markup %</label>
                                         <Input
-                                            type="number"
+                                            type="text"
                                             value={markupPercent}
                                             onChange={e => setMarkupPercent(e.target.value)}
-                                            className="w-16 h-6 text-right text-xs bg-black/20 border-white/10 p-1"
+                                            onBlur={() => {
+                                                const pct = parseFloat(markupPercent) || 0;
+                                                setMarkupPercent(pct.toFixed(5));
+                                            }}
+                                            className="w-1/2 h-8 text-left text-xs bg-black/20 p-1"
                                         />
                                     </div>
-                                    {parseFloat(markupPercent) > 0 && (
-                                        <div className="flex justify-between text-gray-300">
-                                            <span>Markup Amount</span>
-                                            <span>{currency}{((grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0)) * (parseFloat(markupPercent) / 100 || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <div className="flex items-center gap-5 w-full">
+                                        <label className="text-gray-400 uppercase tracking-widest text-nowrap w-24">Markup Amt</label>
+                                        <div className="flex items-center w-1/2 bg-black/20 rounded border border-white/10 px-2 h-8">
+                                            <span className="text-gray-500 mr-1">{currency}</span>
+                                            <input
+                                                id="markup-amount-input"
+                                                type="text"
+                                                value={markupAmountInput}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setMarkupAmountInput(val);
+                                                    const amt = parseFloat(val) || 0;
+                                                    const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
+                                                    if (baseTotal > 0) {
+                                                        const pct = (amt / baseTotal) * 100;
+                                                        setMarkupPercent(pct.toFixed(5));
+                                                    } else {
+                                                        setMarkupPercent('0.00000');
+                                                    }
+                                                }}
+                                                onBlur={() => {
+                                                    const amt = parseFloat(markupAmountInput) || 0;
+                                                    setMarkupAmountInput(amt > 0 ? amt.toFixed(2) : '');
+                                                }}
+                                                className="w-full bg-transparent text-left text-xs outline-none text-white py-1"
+                                            />
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
 
                                 <div className="text-xs text-gray-400 uppercase tracking-widest mb-1">Grand Total</div>
@@ -784,7 +820,7 @@ export default function EditQuotationPage({ params }) {
                                 <ImpositionVisualizer ups={comp.params.ups} />
                             </section>
                         ))} */}
-                        {components[activeTab].type === 'offset'  && !components[activeTab].name?.includes("Finishing") && (
+                        {components[activeTab]?.type === 'offset'  && !components[activeTab]?.name?.includes("Finishing") && (
                             <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>

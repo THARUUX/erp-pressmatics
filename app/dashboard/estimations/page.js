@@ -23,7 +23,24 @@ function DuplicateProgress({ visible, progress, label }) {
     return (
         <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
             <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
-                <div className="text-4xl mb-3">📋</div>
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        {/* Spinning ring */}
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#dupGrad)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="dupGrad" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#7c3aed" />
+                                    <stop offset="100%" stopColor="#a78bfa" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        {/* Icon center */}
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+                            <FiCopy size={18} className="text-violet-400" />
+                        </div>
+                    </div>
+                </div>
                 <div className="text-white font-bold text-base mb-1">Duplicating Estimation</div>
                 <div className="text-gray-500 text-sm mb-6">{label}</div>
                 <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">

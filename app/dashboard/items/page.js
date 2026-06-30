@@ -24,8 +24,23 @@ function DuplicateProgress({ visible, progress, label }) {
     if (!visible) return null;
     return (
         <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
-            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-2xl text-center">
-                <div className="text-4xl mb-3">📋</div>
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#dupGradItems)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="dupGradItems" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#7c3aed" />
+                                    <stop offset="100%" stopColor="#a78bfa" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+                            <FiCopy size={18} className="text-violet-400" />
+                        </div>
+                    </div>
+                </div>
                 <div className="text-white font-bold text-base mb-1">Duplicating Estimation</div>
                 <div className="text-gray-500 text-sm mb-6">{label}</div>
                 <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
@@ -256,9 +271,7 @@ export default function ItemsPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Job Estimations</h1>
                     <p className="text-gray-500 text-sm mt-0.5">
-                        {viewMode === 'table'
-                            ? `${table.getFilteredRowModel().rows.length} of ${data.length} records`
-                            : `${filteredCards.length} of ${data.length} records`}
+                        {table.getFilteredRowModel().rows.length} of {data.length} records
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -310,60 +323,94 @@ export default function ItemsPage() {
                   CARD VIEW
                 ══════════════════════════════════════════════════════════════════ */}
             {viewMode === 'card' && (
-                <div className="grid gap-3">
-                    {loading && (
-                        <div className="text-center py-12 text-gray-500 animate-pulse">Loading estimations…</div>
-                    )}
-                    {!loading && filteredCards.length === 0 && (
-                        <div className="text-center py-12 text-gray-500 bg-black/40 rounded-xl border border-white/10">
-                            No estimations found.
+                <div className="space-y-4">
+                    <div className="grid gap-3">
+                        {loading && (
+                            <div className="text-center py-12 text-gray-500 animate-pulse">Loading estimations…</div>
+                        )}
+                        {!loading && table.getRowModel().rows.length === 0 && (
+                            <div className="text-center py-12 text-gray-500 bg-black/40 rounded-xl border border-white/10">
+                                No estimations found.
+                            </div>
+                        )}
+                        {table.getRowModel().rows.map(row => {
+                            const item = row.original;
+                            return (
+                                <div key={item.id}
+                                    onClick={() => router.push(`/dashboard/items/${item.id}`)}
+                                    className={`bg-black/40 backdrop-blur-md px-6 py-5 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}>
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
+                                                className={`text-lg transition-colors ${item.is_favorite ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'}`}
+                                                title="Toggle Template">
+                                                <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
+                                            </button>
+                                            <h3 className="text-base font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
+                                            {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
+                                        </div>
+                                        <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
+                                        <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
+                                        <div className="mt-2">
+                                            <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-right">
+                                            <div className="text-xl font-bold">{currency} {fmt(item.total_amount)}</div>
+                                            <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={e => { e.stopPropagation(); handleDuplicate(item.id); }}
+                                                className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Duplicate">
+                                                <FiCopy />
+                                            </button>
+                                            <button onClick={e => { e.stopPropagation(); router.push(`/dashboard/items/${item.id}`); }}
+                                                className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
+                                                <FiEdit2 />
+                                            </button>
+                                            {!item.is_favorite && (
+                                                <button onClick={e => { e.stopPropagation(); handleDelete(item.id); }}
+                                                    className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Delete">
+                                                    <FiTrash2 />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* ── Pagination footer for Card View ─────────────────── */}
+                    {!loading && data.length > 0 && (
+                        <div className="flex items-center justify-between px-6 py-4 border border-white/10 bg-black/40 rounded-xl flex-wrap gap-3">
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>Rows:</span>
+                                <select value={pageSize} onChange={e => table.setPageSize(Number(e.target.value))}
+                                    className="bg-white/5 border border-white/10 rounded px-2 py-1 text-gray-300 outline-none">
+                                    {[10, 15, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                                Page <strong className="text-gray-300">{pageIndex + 1}</strong> of <strong className="text-gray-300">{pageCount || 1}</strong>
+                                {' '}— {table.getFilteredRowModel().rows.length} results
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <PagBtn onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}><FiChevronsLeft className="w-3.5 h-3.5" /></PagBtn>
+                                <PagBtn onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><FiChevronLeft className="w-3.5 h-3.5" /></PagBtn>
+                                {Array.from({ length: pageCount }, (_, i) => i).filter(i => Math.abs(i - pageIndex) <= 2).map(i => (
+                                    <button key={i} onClick={() => table.setPageIndex(i)}
+                                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${i === pageIndex ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}>
+                                        {i + 1}
+                                    </button>
+                                ))}
+                                <PagBtn onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><FiChevronRight className="w-3.5 h-3.5" /></PagBtn>
+                                <PagBtn onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()}><FiChevronsRight className="w-3.5 h-3.5" /></PagBtn>
+                            </div>
                         </div>
                     )}
-                    {filteredCards.map(item => (
-                        <div key={item.id}
-                            onClick={() => router.push(`/dashboard/items/${item.id}`)}
-                            className={`bg-black/40 backdrop-blur-md px-6 py-5 rounded-xl border hover:bg-white/5 transition-all flex justify-between items-center group cursor-pointer ${item.is_favorite ? 'border-yellow-500/30' : 'border-white/10'}`}>
-                            <div>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={e => { e.stopPropagation(); handleToggleFav(item.id, item.is_favorite); }}
-                                        className={`text-lg transition-colors ${item.is_favorite ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'}`}
-                                        title="Toggle Template">
-                                        <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
-                                    </button>
-                                    <h3 className="text-base font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
-                                    {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
-                                </div>
-                                <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
-                                <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
-                                <div className="mt-2">
-                                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <div className="text-right">
-                                    <div className="text-xl font-bold">{currency} {fmt(item.total_amount)}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
-                                </div>
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={e => { e.stopPropagation(); handleDuplicate(item.id); }}
-                                        className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Duplicate">
-                                        <FiCopy />
-                                    </button>
-                                    <button onClick={e => { e.stopPropagation(); router.push(`/dashboard/items/${item.id}`); }}
-                                        className="p-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Edit">
-                                        <FiEdit2 />
-                                    </button>
-                                    {!item.is_favorite && (
-                                        <button onClick={e => { e.stopPropagation(); handleDelete(item.id); }}
-                                            className="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Delete">
-                                            <FiTrash2 />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
                 </div>
             )}
 
