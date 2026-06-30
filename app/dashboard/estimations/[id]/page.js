@@ -28,6 +28,7 @@ export default function EditQuotationPage({ params }) {
     const [papers, setPapers] = useState([]);
     const [availableFinishings, setAvailableFinishings] = useState([]);
     const [sfgInventory, setSfgInventory] = useState([]); // SFG/Assets items
+    const [staticsInventory, setStaticsInventory] = useState([]); // Statics items
     const [customers, setCustomers] = useState([]); // List of all customers
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -94,12 +95,13 @@ export default function EditQuotationPage({ params }) {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [machinesRes, finishingsRes, papersRes, customersRes, sfgRes] = await Promise.all([
+                const [machinesRes, finishingsRes, papersRes, customersRes, sfgRes, staticsRes] = await Promise.all([
                     fetch('/api/machines').then(r => r.json()),
                     fetch('/api/finishings').then(r => r.json()),
                     fetch('/api/inventory?category=Paper').then(r => r.json()),
                     fetch('/api/customers').then(r => r.json()),
-                    fetch('/api/inventory?category=SFG').then(r => r.json())
+                    fetch('/api/inventory?category=SFG').then(r => r.json()),
+                    fetch('/api/inventory?category=Statics').then(r => r.json())
                 ]);
 
                 setMachines(Array.isArray(machinesRes) ? machinesRes : []);
@@ -107,6 +109,7 @@ export default function EditQuotationPage({ params }) {
                 setPapers(Array.isArray(papersRes) ? papersRes : (papersRes?.items ?? []));
                 setCustomers(Array.isArray(customersRes) ? customersRes : []);
                 setSfgInventory(Array.isArray(sfgRes) ? sfgRes : []);
+                setStaticsInventory(Array.isArray(staticsRes) ? staticsRes : []);
 
                 // Fetch Item
                 const itemRes = await fetch(`/api/items/${id}`);
@@ -578,6 +581,7 @@ export default function EditQuotationPage({ params }) {
                             papers={papers}
                             finishings={availableFinishings}
                             sfgInventory={sfgInventory}
+                            staticsInventory={staticsInventory}
                             onChange={updateComponent}
                             onRemove={removeComponent}
                             onCopy={copyComponent}
@@ -821,7 +825,7 @@ export default function EditQuotationPage({ params }) {
                             </section>
                         ))} */}
                         {components[activeTab]?.type === 'offset'  && !components[activeTab]?.name?.includes("Finishing") && (
-                            <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
+                            <section className="bg-black/60 p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>
                                     <span className="text-xs font-normal text-gray-500 self-center">{components[activeTab].params.paperName}</span>

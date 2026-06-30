@@ -45,6 +45,8 @@ export default function CustomersPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
     const [showImport, setShowImport]   = useState(false);
+    const [rowSelection, setRowSelection] = useState({});
+    const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
 
     const fetchAll = () => {
         setLoading(true);
@@ -65,6 +67,32 @@ export default function CustomersPage() {
     };
 
     const columns = useMemo(() => [
+        {
+            id: 'select',
+            header: ({ table }) => (
+                <input
+                    type="checkbox"
+                    checked={table.getIsAllPageRowsSelected()}
+                    ref={(el) => {
+                        if (el) el.indeterminate = table.getIsSomePageRowsSelected();
+                    }}
+                    onChange={table.getToggleAllPageRowsSelectedHandler()}
+                    className="rounded border-white/10 bg-white/5 text-white focus:ring-0 focus:ring-offset-0 focus:outline-none cursor-pointer"
+                />
+            ),
+            cell: ({ row }) => (
+                <input
+                    type="checkbox"
+                    checked={row.getIsSelected()}
+                    onChange={row.getToggleSelectedHandler()}
+                    onClick={e => e.stopPropagation()}
+                    className="rounded border-white/10 bg-white/5 text-white focus:ring-0 focus:ring-offset-0 focus:outline-none cursor-pointer"
+                />
+            ),
+            size: 40,
+            enableSorting: false,
+            enableColumnFilter: false,
+        },
         {
             accessorKey: 'code', header: 'ID', size: 100,
             cell: ({ getValue, row }) => (
@@ -118,9 +146,10 @@ export default function CustomersPage() {
 
     const table = useReactTable({
         data, columns,
-        state: { globalFilter, columnVisibility },
+        state: { globalFilter, columnVisibility, rowSelection },
         onGlobalFilterChange: setGlobalFilter,
         onColumnVisibilityChange: setColumnVisibility,
+        onRowSelectionChange: setRowSelection,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -128,11 +157,75 @@ export default function CustomersPage() {
         initialState: { pagination: { pageSize: 15 } },
     });
 
+    const selectedIds = useMemo(() => {
+        return table.getSelectedRowModel().flatRows.map(row => row.original.id);
+    }, [rowSelection, data, table]);
+
+    const handleBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+        if (!(await confirmDialog(`Delete ${selectedIds.length} selected customer(s)?`, { danger: true, confirmLabel: 'Delete' }))) return;
+
+        const total = selectedIds.length;
+        let deleted = 0;
+        const failed = [];
+
+        // Build a name map for progress display
+        const nameMap = {};
+        table.getSelectedRowModel().flatRows.forEach(row => {
+            nameMap[row.original.id] = row.original.name;
+        });
+
+        for (let i = 0; i < selectedIds.length; i++) {
+            const id = selectedIds[i];
+            setDeleteProgress({ current: i + 1, total, currentName: nameMap[id] || `Customer #${id}` });
+            try {
+                const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+                if (res.ok) { deleted++; }
+                else { failed.push(nameMap[id] || id); }
+            } catch { failed.push(nameMap[id] || id); }
+        }
+
+        setDeleteProgress(null);
+        setRowSelection({});
+        fetchAll();
+
+        if (failed.length > 0) {
+            toast.error(`Deleted ${deleted} customer(s). ${failed.length} could not be deleted.`);
+        } else {
+            toast.success(`${deleted} customer(s) deleted successfully`);
+        }
+    };
+
     const { pageIndex, pageSize } = table.getState().pagination;
     const pageCount = table.getPageCount();
 
     return (
         <div className="text-white">
+            {/* ── Bulk Delete Progress Modal ── */}
+            {deleteProgress && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-[#111]/95 border border-white/10 rounded-2xl p-8 w-full max-w-sm shadow-2xl">
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-8 h-8 rounded-full border-2 border-red-500/50 border-t-red-400 animate-spin shrink-0" />
+                            <div>
+                                <p className="text-sm font-semibold text-white">Deleting customers…</p>
+                                <p className="text-xs text-white/40 mt-0.5 truncate max-w-[220px]">{deleteProgress.currentName}</p>
+                            </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden mb-3">
+                            <div
+                                className="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full transition-all duration-300 ease-out"
+                                style={{ width: `${(deleteProgress.current / deleteProgress.total) * 100}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-xs text-white/30">
+                            <span>{deleteProgress.current} of {deleteProgress.total}</span>
+                            <span>{Math.round((deleteProgress.current / deleteProgress.total) * 100)}%</span>
+                        </div>
+                    </div>
+                </div>
+            )}
             {showImport && (
                 <BulkImportModal
                     onClose={() => setShowImport(false)}
@@ -147,6 +240,14 @@ export default function CustomersPage() {
                     </p>
                 </div>
                 <div className="flex gap-3 items-center">
+                    {selectedIds.length > 0 && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-2 bg-red-950/40 border border-red-500/30 text-red-400 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-900/40 hover:border-red-500/50 hover:text-red-300 transition-all shadow-lg shadow-red-950/20"
+                        >
+                            <FiTrash2 className="w-4 h-4" /> Delete ({selectedIds.length})
+                        </button>
+                    )}
                     <div className="relative">
                         <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                         <input value={globalFilter} onChange={e => setGlobalFilter(e.target.value)}

@@ -69,3 +69,37 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Bulk import failed' }, { status: 500 });
     }
 }
+
+export async function DELETE(req) {
+    try {
+        const { ids } = await req.json();
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        const deleted = [];
+        const failed = [];
+
+        for (const id of ids) {
+            try {
+                const [result] = await pool.execute('DELETE FROM customers WHERE id = ?', [id]);
+                if (result.affectedRows > 0) {
+                    deleted.push(id);
+                } else {
+                    failed.push({ id, error: 'Customer not found' });
+                }
+            } catch (err) {
+                let errorMsg = 'Failed to delete customer';
+                if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+                    errorMsg = 'Customer is referenced by other records';
+                }
+                failed.push({ id, error: errorMsg });
+            }
+        }
+
+        return NextResponse.json({ deleted: deleted.length, failed });
+    } catch (error) {
+        console.error('Bulk customer delete error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}

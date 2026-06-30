@@ -90,5 +90,38 @@ export async function POST(req) {
     } catch (error) {
         console.error('Bulk upload error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+}
+
+export async function DELETE(req) {
+    try {
+        const { ids } = await req.json();
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        const deleted = [];
+        const failed = [];
+
+        for (const id of ids) {
+            try {
+                const [result] = await pool.execute('DELETE FROM inventory_items WHERE id = ?', [id]);
+                if (result.affectedRows > 0) {
+                    deleted.push(id);
+                } else {
+                    failed.push({ id, error: 'Item not found' });
+                }
+            } catch (err) {
+                let errorMsg = 'Failed to delete item';
+                if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+                    errorMsg = 'Item is in use';
+                }
+                failed.push({ id, error: errorMsg });
+            }
+        }
+
+        return NextResponse.json({ deleted: deleted.length, failed });
+    } catch (error) {
+        console.error('Bulk inventory delete error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

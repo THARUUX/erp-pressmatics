@@ -55,6 +55,7 @@ export default function EstimationComponentForm({
     papers,
     finishings: availableFinishings,
     sfgInventory = [], // SFG/Assets inventory items
+    staticsInventory = [], // Statics inventory items
     onChange, // (index, field, value)
     onRemove, // (index)
     onCopy, // (index)
@@ -65,6 +66,7 @@ export default function EstimationComponentForm({
 }) {
     const { params, type, finishings: selectedFinishings } = data;
     const sfgLines = data.sfgLines || [];
+    const staticsLines = data.staticsLines || [];
     const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
 
     // Local state for searches (keep UI responsive)
@@ -77,6 +79,10 @@ export default function EstimationComponentForm({
     // SFG line search
     const [sfgSearch, setSfgSearch] = useState('');
     const [showSfgSuggestions, setShowSfgSuggestions] = useState(false);
+
+    // Statics line search
+    const [staticsSearch, setStaticsSearch] = useState('');
+    const [showStaticsSuggestions, setShowStaticsSuggestions] = useState(false);
 
     const addSfgLine = (item) => {
         const newLine = {
@@ -105,6 +111,34 @@ export default function EstimationComponentForm({
 
     const removeSfgLine = (lineId) => {
         onChange(index, 'sfgLines', sfgLines.filter(l => l.id !== lineId));
+    };
+
+    // ── Statics line handlers ──
+    const addStaticsLine = (item) => {
+        const newLine = {
+            id: `statics-${Date.now()}-${Math.random()}`,
+            inventory_item_id: item.id,
+            item_name: item.name,
+            item_code: item.item_code || '',
+            quantity: 1,
+            unit_price: parseFloat(item.unit_cost) || 0,
+            total_price: parseFloat(item.unit_cost) || 0,
+        };
+        onChange(index, 'staticsLines', [...staticsLines, newLine]);
+    };
+
+    const updateStaticsLine = (lineId, field, value) => {
+        const updated = staticsLines.map(l => {
+            if (l.id !== lineId) return l;
+            const qty = field === 'quantity' ? (parseFloat(value) || 0) : (parseFloat(l.quantity) || 0);
+            const price = field === 'unit_price' ? (parseFloat(value) || 0) : (parseFloat(l.unit_price) || 0);
+            return { ...l, [field]: value, total_price: qty * price };
+        });
+        onChange(index, 'staticsLines', updated);
+    };
+
+    const removeStaticsLine = (lineId) => {
+        onChange(index, 'staticsLines', staticsLines.filter(l => l.id !== lineId));
     };
     const [pendingFinishing, setPendingFinishing] = useState({
         id: null, name: '', time_per_unit: 0, unit_cost: 0,
@@ -879,7 +913,101 @@ export default function EstimationComponentForm({
                             )}
                         </div>
                     )}
-                </div>
+
+                    {/* ── Statics Section ── */}
+                    {isSFGComponent && (
+                        <div className="mt-4 border-t border-violet-500/20 pt-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <span className="text-xs font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded">Statics</span>
+                                <h3 className="text-md font-semibold text-gray-300">Static Assets</h3>
+                            </div>
+                            <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 mb-3">
+                                <div className="relative">
+                                    <Input
+                                        value={staticsSearch}
+                                        onChange={e => { setStaticsSearch(e.target.value); setShowStaticsSuggestions(true); }}
+                                        onFocus={() => setShowStaticsSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowStaticsSuggestions(false), 200)}
+                                        placeholder="Search static assets..."
+                                        className="bg-black/30 border-violet-500/30 text-sm"
+                                    />
+                                    {showStaticsSuggestions && (
+                                        <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
+                                            {staticsInventory
+                                                .filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase()))
+                                                .map(item => (
+                                                    <li key={item.id}
+                                                        onClick={() => { addStaticsLine(item); setStaticsSearch(''); setShowStaticsSuggestions(false); }}
+                                                        className="px-4 py-2.5 hover:bg-violet-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
+                                                    >
+                                                        <div>
+                                                            <div className="text-white font-medium">{item.name}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-violet-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
+                                                            <div className="text-[10px] text-gray-500">{item.uom}</div>
+                                                        </div>
+                                                    </li>
+                                                ))
+                                            }
+                                            {staticsInventory.filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase())).length === 0 && (
+                                                <li className="px-4 py-3 text-gray-500 text-sm italic">No active Statics items found</li>
+                                            )}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+                            {staticsLines.length > 0 ? (
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
+                                        <span className="col-span-5">Item</span>
+                                        <span className="col-span-2 text-center">Qty</span>
+                                        <span className="col-span-2 text-right">Unit Price</span>
+                                        <span className="col-span-2 text-right">Total</span>
+                                        <span className="col-span-1"></span>
+                                    </div>
+                                    {staticsLines.map((line) => (
+                                        <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-violet-500/10 rounded-lg px-3 py-2">
+                                            <div className="col-span-5">
+                                                <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
+                                                {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
+                                            </div>
+                                            <div className="col-span-2">
+                                                <Input type="number" min="0" step="1" value={line.quantity}
+                                                    onChange={e => updateStaticsLine(line.id, 'quantity', e.target.value)}
+                                                    className="bg-black/40 border-white/10 text-center text-sm h-8 py-1" />
+                                            </div>
+                                            <div className="col-span-2">
+                                                <Input type="number" min="0" step="0.0001" value={line.unit_price}
+                                                    onChange={e => updateStaticsLine(line.id, 'unit_price', e.target.value)}
+                                                    className="bg-black/40 border-white/10 text-right text-sm h-8 py-1" />
+                                            </div>
+                                            <div className="col-span-2 text-right">
+                                                <span className="text-sm text-violet-300 font-mono">
+                                                    {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-1 flex justify-end">
+                                                <button onClick={() => removeStaticsLine(line.id)} className="text-red-400 hover:text-red-300 transition-colors p-1">&times;</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="flex justify-between items-center px-3 pt-2 border-t border-violet-500/20">
+                                        <span className="text-xs text-violet-400/70 uppercase tracking-widest">Statics Subtotal</span>
+                                        <span className="text-sm font-bold text-violet-300 font-mono">
+                                            {currency}{staticsLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-violet-500/15 rounded-xl">
+                                    No static assets added yet — search above to add
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>{/* end lg:col-span-2 left column */}
 
                 {/* Right: Calculation Stats */}
                 <div className="lg:col-span-1 border-white/10 lg:pl-6 space-y-4">

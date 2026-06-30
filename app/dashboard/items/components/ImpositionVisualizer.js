@@ -17,10 +17,15 @@ export default function ImpositionVisualizer({
 }) {
     const [expanded, setExpanded] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [portalTarget, setPortalTarget] = useState(null);
     const [orientationOverride, setOrientationOverride] = useState(null); // 'standard', 'rotated', or null (auto)
 
     useEffect(() => {
         setMounted(true);
+        // Target the dashboard <main> element so position:fixed works correctly
+        // inside the overflow-y-auto layout container
+        const mainEl = document.querySelector('main') || document.body;
+        setPortalTarget(mainEl);
     }, []);
 
     // Calculate layout parameters and grid arrangement
@@ -530,7 +535,7 @@ export default function ImpositionVisualizer({
                 )}
             </div>
 
-            {mounted && createPortal(
+            {mounted && portalTarget && createPortal(
                 <AnimatePresence>
                     {expanded && (
                         <motion.div
@@ -538,6 +543,7 @@ export default function ImpositionVisualizer({
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex items-center justify-center p-6"
+                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
                             onClick={() => setExpanded(false)}
                         >
                             <button
@@ -626,7 +632,7 @@ export default function ImpositionVisualizer({
                         </motion.div>
                     )}
                 </AnimatePresence>,
-                document.body
+                portalTarget
             )}
             </>
             )}

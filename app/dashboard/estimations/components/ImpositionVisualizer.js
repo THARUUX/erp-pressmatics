@@ -16,10 +16,15 @@ export default function ImpositionVisualizer({
 }) {
     const [expanded, setExpanded] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [portalTarget, setPortalTarget] = useState(null);
     const [orientationOverride, setOrientationOverride] = useState(null); // 'standard', 'rotated', or null (auto)
 
     useEffect(() => {
         setMounted(true);
+        // Target the dashboard <main> element so position:fixed works correctly
+        // inside the overflow-y-auto layout container
+        const mainEl = document.querySelector('main') || document.body;
+        setPortalTarget(mainEl);
     }, []);
 
     // Calculate layout parameters and grid arrangement
@@ -512,7 +517,7 @@ export default function ImpositionVisualizer({
             </div>
 
             {/* Modal Overlay via Portal */}
-            {mounted && createPortal(
+            {mounted && portalTarget && createPortal(
                 <AnimatePresence>
                     {expanded && (
                         <motion.div
@@ -608,7 +613,7 @@ export default function ImpositionVisualizer({
                         </motion.div>
                     )}
                 </AnimatePresence>,
-                document.body
+                portalTarget
             )}
         </>
     );

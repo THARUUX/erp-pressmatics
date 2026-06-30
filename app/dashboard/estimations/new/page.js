@@ -25,6 +25,7 @@ export default function NewQuotationPage() {
     const [papers, setPapers] = useState([]);
     const [availableFinishings, setAvailableFinishings] = useState([]);
     const [sfgInventory, setSfgInventory] = useState([]); // SFG/Assets items
+    const [staticsInventory, setStaticsInventory] = useState([]); // Statics items
     const [customers, setCustomers] = useState([]); // List of all customers
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
@@ -129,20 +130,23 @@ export default function NewQuotationPage() {
             fetch('/api/finishings').then(res => res.json()),
             fetch('/api/inventory?category=Paper').then(res => res.json()),
             fetch('/api/customers').then(res => res.json()),
-            fetch('/api/inventory?category=SFG').then(res => res.json())
-        ]).then(([machinesData, finishingsData, papersData, customersData, sfgData]) => {
+            fetch('/api/inventory?category=SFG').then(res => res.json()),
+            fetch('/api/inventory?category=Statics').then(res => res.json())
+        ]).then(([machinesData, finishingsData, papersData, customersData, sfgData, staticsData]) => {
             // Safety check: ensure data are arrays
             const safeMachines = Array.isArray(machinesData) ? machinesData : [];
             const safeFinishings = Array.isArray(finishingsData) ? finishingsData : [];
             const safePapers = Array.isArray(papersData) ? papersData : [];
             const safeCustomers = Array.isArray(customersData) ? customersData : [];
             const safeSFG = Array.isArray(sfgData) ? sfgData : [];
+            const safeStatics = Array.isArray(staticsData) ? staticsData : [];
 
             setMachines(safeMachines);
             setAvailableFinishings(safeFinishings);
             setPapers(safePapers);
             setCustomers(safeCustomers);
             setSfgInventory(safeSFG);
+            setStaticsInventory(safeStatics);
 
             // Set default machine for first component
             const firstOffset = safeMachines.find(m => m.type === 'offset');
@@ -571,6 +575,7 @@ export default function NewQuotationPage() {
                             papers={papers}
                             finishings={availableFinishings}
                             sfgInventory={sfgInventory}
+                            staticsInventory={staticsInventory}
                             onChange={updateComponent}
                             onRemove={removeComponent}
                             onCopy={copyComponent}
@@ -801,7 +806,7 @@ export default function NewQuotationPage() {
 
                         {/* Imposition Plans */}
                         {components[activeTab]?.type === 'offset'  && !components[activeTab]?.name?.includes("Finishing") && (
-                            <section className="bg-black/60 backdrop-blur-xl p-6 rounded-xl border border-white/20 shadow-2xl">
+                            <section className="bg-black/60 p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>
                                     <span className="text-xs font-normal text-gray-500 self-center">{components[activeTab].params.paperName}</span>
