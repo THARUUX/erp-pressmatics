@@ -90,6 +90,7 @@ export async function POST(req) {
     } catch (error) {
         console.error('Bulk upload error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
 export async function DELETE(req) {
