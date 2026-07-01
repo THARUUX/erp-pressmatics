@@ -341,7 +341,7 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                         <Text style={s.headerSOLabel}>Reference Code</Text>
                         <Text style={s.headerSOCode}>{order.code}</Text>
                         <Text style={s.headerDate}>Issued: {orderDate}</Text>
-                        <Text style={s.headerDelivery}>Ship Window: {deliveryDate}</Text>
+                        <Text style={s.headerDelivery}>Due Date: {deliveryDate}</Text>
                     </View>
                     {qrDataUrl && (
                         <View style={s.qrPanel}>

@@ -48,17 +48,21 @@ export default function EditQuotationPage({ params }) {
     // Global Extras
     const [markupPercent, setMarkupPercent] = useState(0);
     const [markupAmountInput, setMarkupAmountInput] = useState('');
+    const [afterMarkupInput, setAfterMarkupInput] = useState('');
     const [globalFinishings, setGlobalFinishings] = useState([]);
     const [globalFinishingSearch, setGlobalFinishingSearch] = useState('');
     const [showGlobalFinishingSuggestions, setShowGlobalFinishingSuggestions] = useState(false);
 
     useEffect(() => {
-        if (typeof document !== 'undefined' && document.activeElement?.id === 'markup-amount-input') {
-            return;
-        }
         const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
-        const calculated = baseTotal * (parseFloat(markupPercent) / 100 || 0);
-        setMarkupAmountInput(calculated > 0 ? calculated.toFixed(2) : '');
+        if (typeof document === 'undefined' || document.activeElement?.id !== 'markup-amount-input') {
+            const calculated = baseTotal * (parseFloat(markupPercent) / 100 || 0);
+            setMarkupAmountInput(calculated > 0 ? calculated.toFixed(2) : '');
+        }
+        if (typeof document === 'undefined' || document.activeElement?.id !== 'after-markup-input') {
+            const calculatedAfter = baseTotal * (1 + (parseFloat(markupPercent) / 100 || 0));
+            setAfterMarkupInput(calculatedAfter > 0 ? calculatedAfter.toFixed(2) : '');
+        }
     }, [grandTotal, globalFinishings, markupPercent]);
 
     const addGlobalFinishing = (item) => {
@@ -420,6 +424,8 @@ export default function EditQuotationPage({ params }) {
 
     if (loading) return <div className="p-8 text-white">Loading...</div>;
 
+    const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
+
     return (
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
             <header className="flex justify-between items-center mb-8">
@@ -747,8 +753,15 @@ export default function EditQuotationPage({ params }) {
                                 {/* Markup Section */}
                                 <div className="mb-4 text-xs space-y-3">
                                     <div className="flex items-center gap-5 w-full">
+                                        <label className="text-gray-400 uppercase tracking-widest text-nowrap w-24">Before Markup</label>
+                                        <div className="w-1/2 text-left text-xs font-semibold py-1">
+                                            {currency}{baseTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-5 w-full">
                                         <label className="text-gray-400 uppercase tracking-widest text-nowrap w-24">Markup %</label>
                                         <Input
+                                            id="markup-percent-input"
                                             type="text"
                                             value={markupPercent}
                                             onChange={e => setMarkupPercent(e.target.value)}
@@ -771,7 +784,6 @@ export default function EditQuotationPage({ params }) {
                                                     const val = e.target.value;
                                                     setMarkupAmountInput(val);
                                                     const amt = parseFloat(val) || 0;
-                                                    const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
                                                     if (baseTotal > 0) {
                                                         const pct = (amt / baseTotal) * 100;
                                                         setMarkupPercent(pct.toFixed(5));
@@ -787,6 +799,33 @@ export default function EditQuotationPage({ params }) {
                                             />
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-5 w-full">
+                                        <label className="text-gray-400 uppercase tracking-widest text-nowrap w-24">After Markup</label>
+                                        <div className="flex items-center w-1/2 bg-black/20 rounded border border-white/10 px-2 h-8">
+                                            <span className="text-gray-500 mr-1">{currency}</span>
+                                            <input
+                                                id="after-markup-input"
+                                                type="text"
+                                                value={afterMarkupInput}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setAfterMarkupInput(val);
+                                                    const amt = parseFloat(val) || 0;
+                                                    if (baseTotal > 0) {
+                                                        const pct = ((amt - baseTotal) / baseTotal) * 100;
+                                                        setMarkupPercent(pct.toFixed(5));
+                                                    } else {
+                                                        setMarkupPercent('0.00000');
+                                                    }
+                                                }}
+                                                onBlur={() => {
+                                                    const amt = parseFloat(afterMarkupInput) || 0;
+                                                    setAfterMarkupInput(amt > 0 ? amt.toFixed(2) : '');
+                                                }}
+                                                className="w-full bg-transparent text-left text-xs outline-none text-white py-1"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="text-xs text-gray-400 uppercase tracking-widest mb-1">Grand Total</div>
@@ -795,8 +834,7 @@ export default function EditQuotationPage({ params }) {
                                     <span>
                                         {currency}
                                         {(
-                                            (grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0)) *
-                                            (1 + (parseFloat(markupPercent) / 100 || 0))
+                                            baseTotal * (1 + (parseFloat(markupPercent) / 100 || 0))
                                         ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
