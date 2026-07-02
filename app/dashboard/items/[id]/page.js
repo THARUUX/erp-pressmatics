@@ -235,7 +235,7 @@ export default function EditQuotationPage({ params }) {
                     pages: 1, ups: 1, sides: 1, size: 'A4', colorsFront: 4, colorsBack: 0,
                     paperCostPerSheet: 0, plateCostPerUnit: 0, impressionCostPerUnit: 0, wastagePercent: 5, digitalImpressionCost: 0,
                     paperId: null, paperName: '',
-                    paperWidthCm: '', paperHeightCm: '', 
+                    paperWidthCm: '', paperHeightCm: '',
                     compWidthCm: 21.0, compHeightCm: 29.7,
                     cutWidthCm: '', cutHeightCm: '',
                     bleedMm: 0,
@@ -438,7 +438,7 @@ export default function EditQuotationPage({ params }) {
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
                     <Link href="/dashboard/items">
-                        <Button className="bg-transparent border text-white border-white/10 hover:bg-white/10 p-2"><FiArrowLeft className='text-white'/></Button>
+                        <Button className="bg-transparent border text-white border-white/10 hover:bg-white/10 p-2"><FiArrowLeft className='text-white' /></Button>
                     </Link>
                     <div>
                         <div className="text-xs text-blue-400 font-mono mb-0.5">{components[0]?.code}</div>
@@ -502,7 +502,7 @@ export default function EditQuotationPage({ params }) {
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm text-gray-400 mb-1">Description</label>
-                                <textarea rows={4}  value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} className="bg-secondary w-full px-4 py-3 rounded-lg border-white/10" />
+                                <textarea rows={4} value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} className="bg-secondary w-full px-4 py-3 rounded-lg border-white/10" />
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {components.map((comp, idx) => {
                                         const tags = [];
@@ -514,17 +514,17 @@ export default function EditQuotationPage({ params }) {
                                         //     const sizeMap = { 1: 'A1', 2: 'A2', 4: 'A3', 8: 'A4', 16: 'A5', 32: 'A6', 64: 'A7', 128: 'A8' };
                                         //     if (sizeMap[factor]) tags.push(`${compName} - ${sizeMap[factor]}`);
                                         // }
-                                        if (!comp.name.includes("Cover")){
+                                        if (!comp.name.includes("Cover")) {
                                             if (comp.params.size) tags.push(`Size - ${comp.params.size}`);
                                         }
                                         if (comp.params.paperName) tags.push(`${compName} - ${comp.params.paperName}`);
-                                        if(!comp.name.includes("Cover")){
+                                        if (!comp.name.includes("Cover")) {
                                             if (parseInt(comp.params.pages) > 1) tags.push(`${comp.params.pages} Pages`);
                                         }
                                         const totalColors = (parseInt(comp.params.colorsFront) || 0) || parseInt(comp.params.colors) || 0;
                                         if (totalColors > 0) tags.push(`${totalColors} Colors`);
                                         if (comp.params.sides) tags.push(`${comp.params.sides == 1 ? "Single Side" : "Both sides"}`);
-                                        if (comp.finishings){
+                                        if (comp.finishings) {
                                             comp.finishings.forEach(f => {
                                                 tags.push(f.name);
                                             });
@@ -553,11 +553,10 @@ export default function EditQuotationPage({ params }) {
                             <button
                                 key={comp.id || idx}
                                 onClick={async () => setActiveTab(idx)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                                    activeTab === idx
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${activeTab === idx
                                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 border border-blue-500'
                                         : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
-                                }`}
+                                    }`}
                             >
                                 <span>{comp.name || `Component ${idx + 1}`}</span>
                                 {components.length > 1 && (
@@ -846,7 +845,7 @@ export default function EditQuotationPage({ params }) {
                             </div>
                         </section>
 
-                        
+
 
                         {/* Imposition Plans */}
                         {/* {components.filter(c => c.type === 'offset' && c.params.ups > 0).map((comp, i) => (
@@ -858,13 +857,13 @@ export default function EditQuotationPage({ params }) {
                                 <ImpositionVisualizer ups={comp.params.ups} />
                             </section>
                         ))} */}
-                        {components[activeTab]?.type === 'offset'  && !components[activeTab]?.name?.includes("Finishing") && (
+                        {components[activeTab]?.type === 'offset' && !components[activeTab]?.name?.includes("Finishing") && (
                             <section className="bg-black/60 p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>
                                     <span className="text-xs font-normal text-gray-500 self-center">{components[activeTab].params.paperName}</span>
                                 </h3>
-                                <ImpositionVisualizer 
+                                <ImpositionVisualizer
                                     ups={components[activeTab].params.ups}
                                     sheetWidthCm={components[activeTab].params.cutWidthCm || components[activeTab].params.paperWidthCm}
                                     sheetHeightCm={components[activeTab].params.cutHeightCm || components[activeTab].params.paperHeightCm}
@@ -876,15 +875,15 @@ export default function EditQuotationPage({ params }) {
                         )}
                     </div>
                 </div>
-            <div className="sticky bottom-4 w-full z-50 ">
-                <Button
-                    onClick={handleCalculate}
-                    disabled={calculating}
-                    className="px-20 backdrop-blur-[2px] border-[1px] border-white/20 bg-white/5 text-white  hover:text-black hover:bg-gray-200 shadow-lg"
-                >
-                    {calculating ? 'Calculating...' : 'Calculate'}
-                </Button>
-            </div>
+                <div className="sticky bottom-4 w-full z-50 ">
+                    <Button
+                        onClick={handleCalculate}
+                        disabled={calculating}
+                        className="px-20 backdrop-blur-[2px] border-[1px] border-white/20 bg-white/5 text-white  hover:text-black hover:bg-gray-200 shadow-lg"
+                    >
+                        {calculating ? 'Calculating...' : 'Calculate'}
+                    </Button>
+                </div>
             </div>
 
         </div>
