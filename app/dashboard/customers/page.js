@@ -11,12 +11,14 @@ import {
     FiPlus, FiSearch, FiEdit2, FiTrash2,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiUsers,
+    FiCheckCircle, FiDollarSign,
 } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { BulkImportModal } from '@/components/ui/BulkImportModal';
 import { FiUpload } from 'react-icons/fi';
+import { useSettings } from '@/components/SettingsContext';
 
 function SortIcon({ dir }) {
     if (!dir) return <span className="opacity-20 text-xs">⇅</span>;
@@ -39,6 +41,8 @@ function PagBtn({ children, onClick, disabled }) {
 }
 
 export default function CustomersPage() {
+    const { settings } = useSettings();
+    const currency = (settings?.currency || 'LKR');
     const router = useRouter();
     const [data, setData]               = useState([]);
     const [loading, setLoading]         = useState(true);
@@ -47,6 +51,13 @@ export default function CustomersPage() {
     const [showImport, setShowImport]   = useState(false);
     const [rowSelection, setRowSelection] = useState({});
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
+
+    const stats = useMemo(() => {
+        const total = data.length;
+        const vatCount = data.filter(c => c.is_vat === 1).length;
+        const totalOutstanding = data.reduce((sum, c) => sum + parseFloat(c.outstanding || 0), 0);
+        return { total, active: vatCount, outstanding: totalOutstanding };
+    }, [data]);
 
     const fetchAll = () => {
         setLoading(true);
@@ -267,6 +278,25 @@ export default function CustomersPage() {
                     </Link>
                 </div>
             </header>
+
+            {/* ── Stats Cards ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {[
+                    { label: 'Total Customers', value: stats.total, icon: FiUsers, color: 'text-white', bg: 'border-white/20' },
+                    { label: 'VAT Registered', value: stats.active, icon: FiCheckCircle, color: 'text-emerald-400', bg: ' border-emerald-500/20' },
+                    { label: 'Total Outstanding', value: currency + ' ' + parseFloat(stats.outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), icon: FiDollarSign, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+                ].map(card => (
+                    <div key={card.label} className={`${card.bg} bg-black/40 backdrop-blur-xl border rounded-2xl p-5 flex items-center gap-4`}>
+                        <div className={`p-3 rounded-xl bg-black/30 border border-white/5`}>
+                            <card.icon className={`w-5 h-5 ${card.color}`} />
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 uppercase tracking-wider">{card.label}</p>
+                            <p className={`text-2xl font-bold mt-0.5 ${card.color}`}>{card.value}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                 {loading ? (

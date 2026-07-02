@@ -28,22 +28,51 @@ export async function PUT(req, { params }) {
         // Record started_at when moving to in_progress for the first time
         const setStartedAt = status === 'in_progress' && prevStatus !== 'in_progress' && !alreadyStarted;
 
+        const updates = [];
+        const paramsList = [];
+
+        if (name !== undefined) {
+            updates.push('name = ?');
+            paramsList.push(name || null);
+        }
+        if (status !== undefined) {
+            updates.push('status = ?');
+            paramsList.push(status || null);
+        }
+        if (completed_at !== undefined) {
+            updates.push('completed_at = ?');
+            paramsList.push(toMySQL(completed_at));
+        }
+        if (setStartedAt) {
+            updates.push('started_at = NOW()');
+        }
+        if (completed_by !== undefined) {
+            updates.push('completed_by = ?');
+            paramsList.push(completed_by || null);
+        }
+        if (assigned_to !== undefined) {
+            updates.push('assigned_to = ?');
+            paramsList.push(assigned_to || null);
+        }
+        if (description !== undefined) {
+            updates.push('description = ?');
+            paramsList.push(description || null);
+        }
+        if (hasMachineUpdate) {
+            updates.push('machine_id = ?');
+            paramsList.push(machine_id ?? null);
+            updates.push('machine_name = ?');
+            paramsList.push(machine_name || null);
+        }
+        updates.push('updated_at = NOW()');
+
+        paramsList.push(taskId, id);
+
         await pool.execute(
             `UPDATE job_tasks
-             SET name         = COALESCE(?, name),
-                 status       = COALESCE(?, status),
-                 completed_at = ?,
-                 ${ setStartedAt ? 'started_at = NOW(),' : '' }
-                 completed_by = COALESCE(?, completed_by),
-                 assigned_to  = COALESCE(?, assigned_to),
-                 description  = COALESCE(?, description),
-                 machine_id   = ${hasMachineUpdate ? '?' : 'machine_id'},
-                 machine_name = ${hasMachineUpdate ? '?' : 'machine_name'},
-                 updated_at   = NOW()
+             SET ${updates.join(', ')}
              WHERE id = ? AND sales_order_id = ?`,
-            hasMachineUpdate
-                ? [name || null, status || null, toMySQL(completed_at), completed_by || null, assigned_to || null, description || null, machine_id ?? null, machine_name || null, taskId, id]
-                : [name || null, status || null, toMySQL(completed_at), completed_by || null, assigned_to || null, description || null, taskId, id]
+            paramsList
         );
 
         const [task] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [taskId]);

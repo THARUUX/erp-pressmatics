@@ -7,7 +7,8 @@ import { motion } from 'framer-motion';
 import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
-    FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo
+    FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
+    FiTruck, FiBriefcase,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -33,9 +34,10 @@ const NAV_GROUPS = [
     {
         label: 'Production',
         items: [
-            { icon: FiPrinter,  label: 'Estimations', href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
-            { icon: FiBox,      label: 'Items',        href: '/dashboard/items',        roles: ['admin', 'manager'] },
-            { icon: FiCalendar, label: 'Planning',     href: '/dashboard/job-planning' },
+            { icon: FiPrinter,   label: 'Estimations',  href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
+            { icon: FiBox,       label: 'Items',         href: '/dashboard/items',        roles: ['admin', 'manager'] },
+            { icon: FiBriefcase, label: 'Services',      href: '/dashboard/services',     roles: ['admin', 'manager'] },
+            { icon: FiCalendar,  label: 'Planning',      href: '/dashboard/job-planning' },
         ],
     },
     {
@@ -44,6 +46,7 @@ const NAV_GROUPS = [
             { icon: FiBox,      label: 'Stock Items',  href: '/dashboard/inventory' },
             { icon: FiLayers,   label: 'Finishings',   href: '/dashboard/inventory/finishings' },
             { icon: FiSettings, label: 'Machines',     href: '/dashboard/inventory/machines' },
+            { icon: FiTruck,    label: 'Suppliers',    href: '/dashboard/suppliers' },
         ],
     },
     {

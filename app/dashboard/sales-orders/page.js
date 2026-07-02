@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import {
     FiSearch, FiPrinter, FiTrash2, FiFileText, FiDownload,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
-    FiChevronRight, FiChevronsRight,
+    FiChevronRight, FiChevronsRight, FiClock, FiCheckCircle, FiDollarSign,
 } from 'react-icons/fi';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
@@ -67,6 +67,7 @@ export default function SalesOrdersPage() {
     const currency = settings.currency || 'LKR';
 
     const [data, setData]             = useState([]);
+    const [stats, setStats]           = useState({ pending_count: 0, production_count: 0, pending_total: 0 });
     const [loading, setLoading]       = useState(true);
     const [statusFilter, setStatus]   = useState('All');
     const [globalFilter, setGlobal]   = useState('');
@@ -79,7 +80,11 @@ export default function SalesOrdersPage() {
         if (statusFilter !== 'All') url += `&status=${encodeURIComponent(statusFilter)}`;
         fetch(url)
             .then(r => r.json())
-            .then(d => { setData(Array.isArray(d.salesOrders) ? d.salesOrders : []); setLoading(false); })
+            .then(d => {
+                setData(Array.isArray(d.salesOrders) ? d.salesOrders : []);
+                setStats(d.stats || { pending_count: 0, production_count: 0, pending_total: 0 });
+                setLoading(false);
+            })
             .catch(() => setLoading(false));
     }, [statusFilter]);
 
@@ -296,6 +301,23 @@ export default function SalesOrdersPage() {
                     </button>
                 </div>
             </header>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {[
+                    { label: 'Pending Orders', value: Number(stats.pending_count || 0), icon: FiClock, color: 'text-blue-400' },
+                    { label: 'In Production', value: Number(stats.production_count || 0), icon: FiCheckCircle, color: 'text-emerald-400' },
+                    { label: 'Pending Total Value', value: Number(stats.pending_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), icon: FiDollarSign, color: 'text-indigo-400' },
+                ].map(s => (
+                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
+                            <div className="text-xl font-bold">{s.value}</div>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             {/* ── Status tabs ───────────────────────────────────────────── */}
             <div className="flex flex-wrap gap-1 mb-4">

@@ -47,7 +47,16 @@ export async function GET(req) {
         const [countResult] = await pool.execute(countQuery, countParams);
         const total = countResult[0].total;
 
-        return NextResponse.json({ salesOrders: rows, total });
+        // Query global stats for sales orders
+        const [[stats]] = await pool.execute(`
+            SELECT
+                COUNT(CASE WHEN status = 'Pending' THEN 1 END) AS pending_count,
+                SUM(CASE WHEN status IN ('In Production') THEN 1 END) AS production_count,
+                SUM(CASE WHEN status = 'Pending' THEN total_amount ELSE 0 END) AS pending_total
+            FROM sales_orders
+        `);
+
+        return NextResponse.json({ salesOrders: rows, total, stats });
     } catch (error) {
         console.error("Fetch Sales Orders Error:", error);
         return NextResponse.json({ error: 'Failed to fetch sales orders' }, { status: 500 });

@@ -48,6 +48,7 @@ export async function GET(req, { params }) {
         // 5. Fetch SFG Lines per detail
         const detailIds = details.map(d => d.id);
         let sfgByDetail = {};
+        let servicesByDetail = {};
         if (detailIds.length > 0) {
             const placeholders = detailIds.map(() => '?').join(',');
             const [sfgRows] = await pool.execute(
@@ -60,6 +61,17 @@ export async function GET(req, { params }) {
             for (const row of sfgRows) {
                 if (!sfgByDetail[row.quotation_item_detail_id]) sfgByDetail[row.quotation_item_detail_id] = [];
                 sfgByDetail[row.quotation_item_detail_id].push(row);
+            }
+
+            const [svcRows] = await pool.execute(
+                `SELECT * FROM quotation_item_services
+                 WHERE quotation_item_detail_id IN (${placeholders})
+                 ORDER BY id ASC`,
+                detailIds
+            );
+            for (const row of svcRows) {
+                if (!servicesByDetail[row.quotation_item_detail_id]) servicesByDetail[row.quotation_item_detail_id] = [];
+                servicesByDetail[row.quotation_item_detail_id].push(row);
             }
         }
 
@@ -77,6 +89,18 @@ export async function GET(req, { params }) {
                 total_price: parseFloat(s.total_price),
                 stock_quantity: s.stock_quantity,
                 uom: s.uom || 'Unit',
+            })),
+            services: (servicesByDetail[detail.id] || []).map(s => ({
+                id: `svc-db-${s.id}`,
+                db_id: s.id,
+                service_id: s.service_id,
+                service_name: s.service_name,
+                employee_name: s.employee_name,
+                rate_unit: s.rate_unit,
+                rate: parseFloat(s.rate),
+                multiply_by: parseFloat(s.multiply_by),
+                note: s.note || '',
+                total_cost: parseFloat(s.total_cost)
             }))
         }));
 
@@ -124,6 +148,7 @@ export async function PUT(req, { params }) {
         for (const comp of components) {
             let result;
             const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -131,7 +156,15 @@ export async function PUT(req, { params }) {
                 compName: comp.name
             };
 
-            if (comp.type === 'offset') {
+            if (isServicesComp) {
+                const servicesCost = (comp.services || []).reduce((acc, s) =>
+                    acc + (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 0), 0);
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0
+                };
+            } else if (comp.type === 'offset') {
                 result = calculateOffset(compParams);
             } else if (comp.type === 'digital') {
                 result = calculateDigital(compParams);
@@ -188,6 +221,7 @@ export async function PUT(req, { params }) {
 
         // 3. Update Details (Delete All & Insert New)
         // This handles removed components, added components, and changed components easily.
+        await pool.execute('DELETE FROM quotation_item_services WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
 
@@ -197,6 +231,7 @@ export async function PUT(req, { params }) {
             const params = meta.params;
             const costs = calc.costs;
 
+            const isServicesComp = (meta.name || '').toLowerCase().includes('services');
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
             quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
@@ -208,7 +243,7 @@ export async function PUT(req, { params }) {
                 [
                     id,
                     meta.name || 'Main',
-                    meta.type || 'offset',
+                    meta.type || (isServicesComp ? 'services' : 'offset'),
                     params.machineId || null,
                     params.pages || 1,
                     params.paperCostPerSheet || 0,
@@ -296,6 +331,30 @@ export async function PUT(req, { params }) {
                     ]
                 );
             }
+
+            // Insert Services
+            if (isServicesComp) {
+                const services = meta.services || [];
+                for (const s of services) {
+                    await pool.execute(
+                        `INSERT INTO quotation_item_services 
+                        (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            id,
+                            detailId,
+                            s.service_id,
+                            s.service_name || '',
+                            s.employee_name || '',
+                            s.rate_unit || 'per hour',
+                            parseFloat(s.rate) || 0.00,
+                            parseFloat(s.multiply_by) || 1.00,
+                            s.note || null,
+                            (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
+                        ]
+                    );
+                }
+            }
         }
 
         // Insert Global Finishings
@@ -335,6 +394,7 @@ export async function DELETE(req, { params }) {
         const { id } = await params;
         // Manual cascading
         await pool.execute('DELETE FROM quotation_line_items WHERE quotation_item_id = ?', [id]);
+        await pool.execute('DELETE FROM quotation_item_services WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_items WHERE id = ?', [id]);

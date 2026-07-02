@@ -1,7 +1,7 @@
 'use client';
 import toast from 'react-hot-toast';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu } from 'react-icons/fi';
@@ -72,6 +72,7 @@ export default function SalesOrderDetailPage({ params }) {
     const [linkCopied, setLinkCopied] = useState(false);
     const [showAllTasks, setShowAllTasks] = useState(false);
     const TASK_PREVIEW = 5;
+    const tasksFetchedRef = useRef(false);
 
     const publicTimelineUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/timeline/${id}` : '';
@@ -197,7 +198,10 @@ export default function SalesOrderDetailPage({ params }) {
 
     useEffect(() => {
         fetchOrder();
-        fetchTasks(true); // auto-generate from job if no tasks exist
+        if (!tasksFetchedRef.current) {
+            tasksFetchedRef.current = true;
+            fetchTasks(true); // auto-generate from job if no tasks exist
+        }
     }, [id]);
 
     const handleSave = async () => {
@@ -496,14 +500,14 @@ export default function SalesOrderDetailPage({ params }) {
                                     <tbody className="divide-y divide-white/[0.04]">
                                         {order.items?.flatMap((item, iIdx) =>
                                             item.details
-                                                ?.filter(d => d.component_name !== 'Finishing')
+                                                ?.filter(d => d.component_name !== 'Finishing' && !d.component_name.toLowerCase().includes('services') && d.type !== 'services')
                                                 .map((d, dIdx) => (
                                                     <tr key={`${item.id}-${d.id || dIdx}`} className="hover:bg-white/[0.02] transition-colors">
                                                         <td className="px-5 py-3">
                                                             <p className="font-semibold text-white text-sm">
                                                                 {iIdx + 1}.{dIdx + 1} {item.estimation_name || item.job_description}
                                                             </p>
-                                                            {item.details.filter(x => x.component_name !== 'Finishing').length > 1 && (
+                                                            {item.details.filter(x => x.component_name !== 'Finishing' && !x.component_name.toLowerCase().includes('services') && x.type !== 'services').length > 1 && (
                                                                 <p className="text-xs text-white/30 mt-0.5">{d.component_name}</p>
                                                             )}
                                                         </td>
@@ -574,7 +578,7 @@ export default function SalesOrderDetailPage({ params }) {
                                 let step = 1;
 
                                 item.details
-                                    ?.filter(d => d.component_name !== 'Finishing')
+                                    ?.filter(d => d.component_name !== 'Finishing' && !d.component_name.toLowerCase().includes('services') && d.type !== 'services')
                                     .forEach(d => {
                                         ops.push({
                                             step: step++,

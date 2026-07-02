@@ -58,7 +58,7 @@ export async function PATCH(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { terms_and_conditions, show_grand_total } = body;
+        const { terms_and_conditions, show_grand_total, status } = body;
 
         // Dynamic update fields
         const updates = [];
@@ -72,6 +72,11 @@ export async function PATCH(req, { params }) {
         if (show_grand_total !== undefined) {
             updates.push('show_grand_total = ?');
             values.push(show_grand_total);
+        }
+
+        if (status !== undefined) {
+            updates.push('status = ?');
+            values.push(status);
         }
 
         if (updates.length > 0) {

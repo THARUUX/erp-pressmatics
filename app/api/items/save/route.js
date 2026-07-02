@@ -27,6 +27,7 @@ export async function POST(req) {
         for (const comp of components) {
             let result;
             const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -34,7 +35,15 @@ export async function POST(req) {
                 compName: comp.name
             };
 
-            if (comp.type === 'offset') {
+            if (isServicesComp) {
+                const servicesCost = (comp.services || []).reduce((acc, s) =>
+                    acc + (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 0), 0);
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0
+                };
+            } else if (comp.type === 'offset') {
                 result = calculateOffset(compParams);
             } else if (comp.type === 'digital') {
                 result = calculateDigital(compParams);
@@ -122,6 +131,7 @@ export async function POST(req) {
             const { meta, calc } = pComp;
             const params = meta.params;
             const costs = calc.costs;
+            const isServicesComp = (meta.name || '').toLowerCase().includes('services');
 
             const [detailResult] = await pool.execute(
                 `INSERT INTO quotation_item_details (
@@ -134,7 +144,7 @@ export async function POST(req) {
                 [
                     itemId,
                     meta.name || 'Main',
-                    meta.type || 'offset',
+                    meta.type || (isServicesComp ? 'services' : 'offset'),
                     params.machineId || null,
                     params.pages || 1,
                     params.paperCostPerSheet || 0,
@@ -221,6 +231,30 @@ export async function POST(req) {
                         qty * price
                     ]
                 );
+            }
+
+            // Insert Services
+            if (isServicesComp) {
+                const services = meta.services || [];
+                for (const s of services) {
+                    await pool.execute(
+                        `INSERT INTO quotation_item_services 
+                        (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            itemId,
+                            detailId,
+                            s.service_id,
+                            s.service_name || '',
+                            s.employee_name || '',
+                            s.rate_unit || 'per hour',
+                            parseFloat(s.rate) || 0.00,
+                            parseFloat(s.multiply_by) || 1.00,
+                            s.note || null,
+                            (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
+                        ]
+                    );
+                }
             }
         }
 

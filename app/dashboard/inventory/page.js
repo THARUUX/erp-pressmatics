@@ -10,6 +10,7 @@ import {
     FiPlus, FiEdit2, FiTrash2, FiX, FiCopy, FiAlertTriangle,
     FiClock, FiSearch, FiChevronUp, FiChevronDown, FiChevronsLeft,
     FiChevronsRight, FiChevronLeft, FiChevronRight, FiUpload, FiGrid,
+    FiDollarSign, FiBox,
 } from 'react-icons/fi';
 import { FiMaximize } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
@@ -285,7 +286,14 @@ export default function InventoryPage() {
     };
     const f = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
-    const lowStockCount = items.filter(i => i.stock_quantity < (i.min_stock || 0)).length;
+    const stats = useMemo(() => {
+        const totalItems = items.length;
+        const totalValue = items.reduce((acc, item) => acc + (Number(item.stock_quantity || 0) * Number(item.unit_cost || 0)), 0);
+        const lowStock = items.filter(item => item.category !== 'Statics' && item.stock_quantity < (item.min_stock || 0)).length;
+        return { totalItems, totalValue, lowStock };
+    }, [items]);
+
+    const lowStockCount = stats.lowStock;
 
     return (
         <div className="text-white space-y-6">
@@ -358,6 +366,23 @@ export default function InventoryPage() {
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-white text-black' : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'}`}>
                         {cat}
                     </button>
+                ))}
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                    { label: `Total ${activeCategory} Items`, value: stats.totalItems, prefix: '', icon: FiBox, color: 'text-indigo-400' },
+                    { label: `${activeCategory} Stock Value`, value: Number(stats.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), prefix: `${currency || 'LKR'} `, icon: FiDollarSign, color: 'text-emerald-400' },
+                    { label: 'Low Stock Items', value: stats.lowStock, prefix: '', icon: FiAlertTriangle, color: 'text-red-400' },
+                ].map(s => (
+                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
+                            <div className="text-xl font-bold">{s.prefix}{s.value}</div>
+                        </div>
+                    </div>
                 ))}
             </div>
 

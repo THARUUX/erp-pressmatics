@@ -5,6 +5,14 @@ import { FiPrinter, FiArrowLeft, FiDollarSign } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { useSettings } from '@/components/SettingsContext';
+import toast from 'react-hot-toast';
+
+const STATUS_COLORS = {
+    draft:     'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    converted: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
+    sent:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
+};
 
 export default function QuotationViewPage({ params }) {
     const { id } = use(params);
@@ -14,6 +22,24 @@ export default function QuotationViewPage({ params }) {
     const [quote, setQuote] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const handleStatusChange = async (newStatus) => {
+        try {
+            const res = await fetch(`/api/quotations/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (res.ok) {
+                setQuote(prev => ({ ...prev, status: newStatus }));
+                toast.success('Status updated');
+            } else {
+                toast.error('Failed to update status');
+            }
+        } catch {
+            toast.error('Error updating status');
+        }
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -58,7 +84,22 @@ export default function QuotationViewPage({ params }) {
                         <FiArrowLeft className="mr-2" /> Back to List
                     </Button>
                 </Link>
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
+                    {/* Status Dropdown */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Status:</span>
+                        <select
+                            value={quote.status || 'draft'}
+                            onChange={e => handleStatusChange(e.target.value)}
+                            className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider border cursor-pointer bg-black/60 focus:outline-none focus:ring-1 focus:ring-white/20 ${STATUS_COLORS[quote.status] || STATUS_COLORS.draft}`}
+                        >
+                            <option value="draft" className="bg-[#111] text-gray-300">Draft</option>
+                            <option value="sent" className="bg-[#111] text-blue-300">Sent</option>
+                            <option value="converted" className="bg-[#111] text-emerald-300">Converted</option>
+                            <option value="cancelled" className="bg-[#111] text-red-300">Cancelled</option>
+                        </select>
+                    </div>
+
                     <Link href={`/dashboard/quotations/${id}/edit`}>
                         <Button className="bg-blue-600 text-white hover:bg-blue-700">
                             Edit Quote

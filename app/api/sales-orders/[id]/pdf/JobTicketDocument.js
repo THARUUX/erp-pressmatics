@@ -358,7 +358,7 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                         <Text style={s.itemHeaderText}>Target Yield: {item.quantity} Units</Text>
                     </View>
 
-                    {item.details?.map((detail, dIdx) => (
+                    {item.details?.filter(d => d.component_name !== 'Finishing' && !d.component_name.toLowerCase().includes('services') && d.type !== 'services').map((detail, dIdx) => (
                         <DetailCard key={detail.id || dIdx} detail={detail} />
                     ))}
 

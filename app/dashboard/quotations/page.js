@@ -15,7 +15,7 @@ import {
     FiPlus, FiSearch, FiPrinter, FiTrash2, FiCopy,
     FiShoppingCart, FiDollarSign, FiChevronUp, FiChevronDown,
     FiChevronsLeft, FiChevronLeft, FiChevronRight, FiChevronsRight,
-    FiEdit2, FiFileText,
+    FiEdit2, FiFileText, FiClock, FiCheckCircle,
 } from 'react-icons/fi';
 import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -25,7 +25,7 @@ import { ColumnToggle } from '@/components/ui/ColumnToggle';
 /* ── Status badge ─────────────────────────────────────────────────────────── */
 const STATUS = {
     draft:     'bg-gray-500/20 text-gray-300 border-gray-500/30',
-    converted: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    converted: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hidden',
     cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
     sent:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
@@ -62,8 +62,13 @@ export default function QuotationsPage() {
     const { settings } = useSettings();
     const currency = settings.currency || 'LKR';
     const router = useRouter();
-
     const [data, setData]           = useState([]);
+    const stats = useMemo(() => {
+        const sent = data.reduce((acc, q) => (q.status === 'sent') ? acc + 1 : acc, 0);
+        const converted = data.reduce((acc, q) => q.status === 'converted' ? acc + 1 : acc, 0);
+        const total = data.reduce((acc, q) => q.status === 'converted' ? acc + Number(q.total_amount || 0) : acc, 0);
+        return { sent, converted, total };
+    }, [data]);
     const [loading, setLoading]     = useState(true);
     const [deleting, setDeleting]   = useState(null);
     const [globalFilter, setGlobalFilter] = useState('');
@@ -82,6 +87,24 @@ export default function QuotationsPage() {
     }, []);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    const handleStatusChange = useCallback(async (id, status) => {
+        try {
+            const res = await fetch(`/api/quotations/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status }),
+            });
+            if (res.ok) {
+                toast.success('Status updated');
+                fetchAll();
+            } else {
+                toast.error('Failed to update status');
+            }
+        } catch {
+            toast.error('Error updating status');
+        }
+    }, [fetchAll]);
 
     /* ── Action handlers ───────────────────────────────────────────────────── */
     const handleDelete = async (id) => {
@@ -165,7 +188,25 @@ export default function QuotationsPage() {
             accessorKey: 'status',
             header: 'Status',
             size: 110,
-            cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+            cell: ({ getValue, row }) => {
+                const status = getValue();
+                const qId = row.original.id;
+                return (
+                    <>
+                        <select
+                            value={status}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => handleStatusChange(qId, e.target.value)}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border cursor-pointer bg-black/60 focus:outline-none focus:ring-1 focus:ring-white/20 ${STATUS[status] || STATUS.draft}`}
+                        >
+                            <option value="draft" className="bg-[#111] text-gray-300">Draft</option>
+                            <option value="sent" className="bg-[#111] text-blue-300">Sent</option>
+                            <option value="converted" className={`bg-[#111] ${!status === "converted" ? "" : "hidden"} text-green-300`}>Converted</option>
+                            <option value="cancelled" className="bg-[#111] text-red-300">Cancelled</option>
+                        </select>
+                    </>
+                );
+            },
             filterFn: 'equalsString',
         },
         {
@@ -244,7 +285,7 @@ export default function QuotationsPage() {
                 );
             },
         },
-    ], [currency, deleting]);
+    ], [currency, deleting, handleStatusChange]);
 
     /* ── Table instance ────────────────────────────────────────────────────── */
     const table = useReactTable({
@@ -293,6 +334,23 @@ export default function QuotationsPage() {
                     </Link>
                 </div>
             </header>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {[
+                    { label: 'Sent Quotations', value: stats.sent, icon: FiClock, color: 'text-blue-400' },
+                    { label: 'Converted Quotations', value: stats.converted, icon: FiCheckCircle, color: 'text-emerald-400' },
+                    { label: 'Total Coverted Value', value: `${currency} ${fmt(stats.total)}`, icon: FiDollarSign, color: 'text-indigo-400' },
+                ].map(s => (
+                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
+                            <div className="text-xl font-bold">{s.value}</div>
+                        </div>
+                    </div>
+                ))}
+            </div>
 
             {/* ── Table ──────────────────────────────────────────────────── */}
             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">

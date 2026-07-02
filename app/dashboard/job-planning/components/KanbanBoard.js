@@ -20,7 +20,7 @@ const G = {
 };
 
 const STATUS_CFG = {
-    'Pending':       { accent: '#f59e0b', glow: 'rgba(245,158,11,0.12)' },
+    'Pending':       { accent: '#ffffff', glow: 'rgba(245,158,11,0.12)' },
     'In Production': { accent: '#a78bfa', glow: 'rgba(167,139,250,0.12)' },
     'Ready':         { accent: '#10b981', glow: 'rgba(16,185,129,0.12)' },
 };

@@ -6,19 +6,26 @@ export async function GET(request) {
         const { searchParams } = new URL(request.url);
         const search = searchParams.get('search');
 
-        let query = 'SELECT * FROM customers';
+        let query = `
+            SELECT c.*,
+                (SELECT COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.amount_due - i.amount_paid ELSE 0 END), 0)
+                 FROM invoices i
+                 WHERE i.customer_id = c.id) AS outstanding
+            FROM customers c
+        `;
         const params = [];
 
         if (search) {
-            query += ' WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?';
+            query += ' WHERE c.name LIKE ? OR c.email LIKE ? OR c.phone LIKE ?';
             params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
 
-        query += ' ORDER BY created_at DESC';
+        query += ' ORDER BY c.created_at DESC';
 
         const [rows] = await pool.execute(query, params);
         return NextResponse.json(rows);
     } catch (error) {
+        console.error('GET /api/customers error:', error);
         return NextResponse.json({ error: 'Failed to fetch customers' }, { status: 500 });
     }
 }

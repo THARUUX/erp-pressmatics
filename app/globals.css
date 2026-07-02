@@ -96,6 +96,16 @@ body {
     min-height: 100vh;
 }
 
+/* ── Dark-theme select dropdowns ── */
+select {
+    color-scheme: dark;
+}
+select option,
+select optgroup {
+    background-color: #111111;
+    color: #ffffff;
+}
+
 /* ── Reusable glass utility class ──
    Add className="glass" to any element to get glassmorphism.
    Tweak the variables in :root above to change all glass elements at once. */

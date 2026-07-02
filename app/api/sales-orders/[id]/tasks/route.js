@@ -8,6 +8,9 @@ async function generateJobTasks(id) {
     if (!orders.length) return [];
     const order = orders[0];
 
+    // Clear existing tasks to prevent duplication
+    await pool.execute('DELETE FROM job_tasks WHERE sales_order_id = ?', [id]);
+
     // Get line items + details + finishings
     const [lineItems] = await pool.execute(
         `SELECT qi.*, qli.display_order
@@ -34,8 +37,13 @@ async function generateJobTasks(id) {
              WHERE qif.quotation_item_id = ?`,
             [item.id]
         );
+        const [services] = await pool.execute(
+            `SELECT * FROM quotation_item_services WHERE quotation_item_id = ? ORDER BY id ASC`,
+            [item.id]
+        );
         item.details = details;
         item.finishings = finishings;
+        item.services = services;
     }
 
     // ── Build task list ────────────────────────────────────────────────────
@@ -56,6 +64,19 @@ async function generateJobTasks(id) {
 
     for (const item of lineItems) {
         const itemName = item.estimation_name || item.job_description || `Item ${item.id}`;
+
+        // Generate services tasks
+        const itemServices = item.services || [];
+        for (const s of itemServices) {
+            taskList.push({
+                name: `Service: ${s.service_name} — ${s.employee_name}`,
+                description: `Unit: ${s.rate_unit} · Rate: ${s.rate} · Mult: ${s.multiply_by} · Note: ${s.note || ''}`.trim(),
+                assigned_to: s.employee_name,
+                machine_id: null,
+                machine_name: null,
+                display_order: order_idx++
+            });
+        }
 
         for (const detail of item.details) {
             const compName = detail.component_name || itemName;
@@ -129,8 +150,8 @@ async function generateJobTasks(id) {
     // Insert into DB
     for (const t of taskList) {
         await pool.execute(
-            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, display_order) VALUES (?, ?, ?, ?, ?, ?)',
-            [parseInt(id), t.name, t.description || null, t.machine_id || null, t.machine_name || null, t.display_order]
+            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, display_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [parseInt(id), t.name, t.description || null, t.machine_id || null, t.machine_name || null, t.assigned_to || null, t.display_order]
         );
     }
 

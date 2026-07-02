@@ -21,9 +21,19 @@ export async function POST(req) {
 
         for (const comp of components) {
             const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
             let result;
 
-            if (isSFGComp) {
+            if (isServicesComp) {
+                const servicesCost = (comp.services || []).reduce((acc, s) =>
+                    acc + (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 0), 0);
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0,
+                    computedFinishings: []
+                };
+            } else if (isSFGComp) {
                 // SFG/Asset components: sum their sfgLines as cost, no print calculation
                 const sfgLinesCost = (comp.sfgLines || []).reduce((acc, sl) =>
                     acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);

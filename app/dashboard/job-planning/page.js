@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiRefreshCw, FiGrid, FiCpu } from 'react-icons/fi';
+import { FiRefreshCw, FiGrid, FiCpu, FiLayers } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DnD components (client-only)
 const KanbanBoard = dynamic(() => import('./components/KanbanBoard'), { ssr: false });
 const MachinePlanning = dynamic(() => import('./components/MachinePlanning'), { ssr: false });
+const ServicesPlanning = dynamic(() => import('./components/ServicesPlanning'), { ssr: false });
 
 const G = {
     bg: '#070710',
@@ -72,6 +73,7 @@ export default function JobPlanningPage() {
     const tabs = [
         { key: 'kanban', label: 'Job Planning', icon: FiGrid },
         { key: 'machine', label: 'Machine Planning', icon: FiCpu },
+        { key: 'services', label: 'Services Planning', icon: FiLayers },
     ];
 
     return (
@@ -118,7 +120,7 @@ export default function JobPlanningPage() {
                     <StatPill label="In Production" value={inProd} accent="#a78bfa" />
                     <StatPill label="Total Tasks" value={totalTasks} />
                     <StatPill label="Completed" value={`${pct}%`} accent="#10b981" />
-                    <StatPill label="Machines" value={machines.length} accent="#f59e0b" />
+                    <StatPill label="Machines" value={machines.length} accent="#ffffff" />
                 </div>
             )}
 
@@ -198,6 +200,11 @@ export default function JobPlanningPage() {
                                 <MachinePlanning machines={machines} orders={orders} />
                             )}
                         </div>
+                    )}
+
+                    {/* Services Planning */}
+                    {tab === 'services' && (
+                        <ServicesPlanning />
                     )}
                 </>
             )}

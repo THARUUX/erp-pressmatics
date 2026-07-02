@@ -35,7 +35,7 @@ function parseCSV(text) {
 
 /* ── Auto-detect column mapping ──────────────────────────────────────────── */
 const FIELD_ALIASES = {
-    name:       ['name', 'customer name', 'company', 'company name', 'client', 'full name'],
+    name:       ['name', 'customer name', 'supplier name', 'company', 'company name', 'client', 'full name', 'vendor'],
     email:      ['email', 'e-mail', 'email address', 'mail'],
     phone:      ['phone', 'telephone', 'mobile', 'contact', 'phone number', 'tel'],
     address:    ['address', 'street', 'location', 'street address'],
@@ -45,43 +45,74 @@ const FIELD_ALIASES = {
     contact_phone: ['contact phone', 'contact_phone', 'contact mobile', 'contact_phone_number'],
     contact_email: ['contact email', 'contact_email', 'contact e-mail'],
     contact_role:  ['contact role', 'contact_role', 'designation', 'role', 'contact designation'],
+    payment_terms: ['payment terms', 'payment_terms', 'terms', 'payment_term'],
+    credit_limit:  ['credit limit', 'credit_limit', 'limit', 'credit'],
+    notes:         ['notes', 'note', 'remarks', 'description'],
 };
 
-function autoMap(headers) {
-    const mapping = { name: '', email: '', phone: '', address: '', is_vat: '', vat_number: '', contact_name: '', contact_phone: '', contact_email: '', contact_role: '' };
+const CONFIGS = {
+    customers: {
+        title: 'Customers',
+        endpoint: '/api/customers/bulk',
+        templateName: 'customers_template.csv',
+        templateCSV: 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number,Contact Name,Contact Role,Contact Email,Contact Phone\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456,John Doe,Purchasing Manager,john@acme.com,+1 555-0199\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,,,,,\n',
+        fields: [
+            { key: 'name',       label: 'Name *',      required: true },
+            { key: 'email',      label: 'Email',        required: false },
+            { key: 'phone',      label: 'Phone',        required: false },
+            { key: 'address',    label: 'Address',      required: false },
+            { key: 'is_vat',     label: 'VAT Status',   required: false },
+            { key: 'vat_number', label: 'VAT Number',   required: false },
+            { key: 'contact_name',  label: 'Contact Name',  required: false },
+            { key: 'contact_role',  label: 'Contact Role',  required: false },
+            { key: 'contact_email', label: 'Contact Email', required: false },
+            { key: 'contact_phone', label: 'Contact Phone', required: false },
+        ]
+    },
+    suppliers: {
+        title: 'Suppliers',
+        endpoint: '/api/suppliers/bulk',
+        templateName: 'suppliers_template.csv',
+        templateCSV: 'Name,Email,Phone,Address,Contact Name,Contact Email,Contact Phone,Payment Terms,Credit Limit,Notes\nAcme Paper,sales@acmepaper.com,+1 555-0200,456 Industrial Pkwy,John Doe,john@acmepaper.com,+1 555-0299,Net 30,5000,Primary paper supplier\nGlobal Logistics,logistics@global.com,+44 20 5678 1234,789 Port Rd,,,,COD,,,\n',
+        fields: [
+            { key: 'name',          label: 'Name *',        required: true },
+            { key: 'email',         label: 'Email',          required: false },
+            { key: 'phone',         label: 'Phone',          required: false },
+            { key: 'address',       label: 'Address',        required: false },
+            { key: 'contact_name',  label: 'Contact Name',    required: false },
+            { key: 'contact_email', label: 'Contact Email',   required: false },
+            { key: 'contact_phone', label: 'Contact Phone',   required: false },
+            { key: 'payment_terms', label: 'Payment Terms',   required: false },
+            { key: 'credit_limit',  label: 'Credit Limit',    required: false },
+            { key: 'notes',         label: 'Notes',           required: false },
+        ]
+    }
+};
+
+function autoMap(headers, fields) {
+    const mapping = {};
+    fields.forEach(f => {
+        mapping[f.key] = '';
+    });
     for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+        if (!mapping.hasOwnProperty(field)) continue;
         const match = headers.find(h => aliases.includes(h.toLowerCase()));
         if (match) mapping[field] = match;
     }
     return mapping;
 }
 
-/* ── Template CSV ─────────────────────────────────────────────────────────── */
-function downloadTemplate() {
-    const csv = 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number,Contact Name,Contact Role,Contact Email,Contact Phone\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456,John Doe,Purchasing Manager,john@acme.com,+1 555-0199\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,,,,,\n';
+function downloadTemplate(config) {
+    const csv = config.templateCSV;
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'customers_template.csv' });
+    const a = Object.assign(document.createElement('a'), { href: url, download: config.templateName });
     a.click(); URL.revokeObjectURL(url);
 }
-
-/* ── Field config for mapping UI ─────────────────────────────────────────── */
-const FIELDS = [
-    { key: 'name',       label: 'Name *',      required: true },
-    { key: 'email',      label: 'Email',        required: false },
-    { key: 'phone',      label: 'Phone',        required: false },
-    { key: 'address',    label: 'Address',      required: false },
-    { key: 'is_vat',     label: 'VAT Status',   required: false },
-    { key: 'vat_number', label: 'VAT Number',   required: false },
-    { key: 'contact_name',  label: 'Contact Name',  required: false },
-    { key: 'contact_role',  label: 'Contact Role',  required: false },
-    { key: 'contact_email', label: 'Contact Email', required: false },
-    { key: 'contact_phone', label: 'Contact Phone', required: false },
-];
 
 const STEPS = ['Upload', 'Map Columns', 'Preview & Import'];
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
-export function BulkImportModal({ onClose, onComplete }) {
+export function BulkImportModal({ onClose, onComplete, type = 'customers' }) {
     const [step, setStep]           = useState(0);
     const [dragging, setDragging]   = useState(false);
     const [parsed, setParsed]       = useState(null); // { headers, rows }
@@ -89,6 +120,8 @@ export function BulkImportModal({ onClose, onComplete }) {
     const [importing, setImporting] = useState(false);
     const [result, setResult]       = useState(null);  // { imported, failed }
     const fileRef = useRef();
+
+    const config = CONFIGS[type] || CONFIGS.customers;
 
     /* ── File handling ─────────────────────────────────────────────────────── */
     const processFile = useCallback((file) => {
@@ -100,11 +133,11 @@ export function BulkImportModal({ onClose, onComplete }) {
             const parsed = parseCSV(e.target.result);
             if (parsed.headers.length === 0) { toast.error('Could not parse file — is it a valid CSV?'); return; }
             setParsed(parsed);
-            setMapping(autoMap(parsed.headers));
+            setMapping(autoMap(parsed.headers, config.fields));
             setStep(1);
         };
         reader.readAsText(file);
-    }, []);
+    }, [config.fields]);
 
     const onDrop = useCallback((e) => {
         e.preventDefault(); setDragging(false);
@@ -112,18 +145,18 @@ export function BulkImportModal({ onClose, onComplete }) {
     }, [processFile]);
 
     /* ── Build preview rows ───────────────────────────────────────────────── */
-    const mapped = parsed?.rows.map(row => ({
-        name:       mapping.name       ? row[mapping.name]       : '',
-        email:      mapping.email      ? row[mapping.email]      : '',
-        phone:      mapping.phone      ? row[mapping.phone]      : '',
-        address:    mapping.address    ? row[mapping.address]    : '',
-        is_vat:     mapping.is_vat     ? /^(yes|true|1)$/i.test(row[mapping.is_vat]) : false,
-        vat_number: mapping.vat_number ? row[mapping.vat_number] : '',
-        contact_name:  mapping.contact_name  ? row[mapping.contact_name]  : '',
-        contact_role:  mapping.contact_role  ? row[mapping.contact_role]  : '',
-        contact_email: mapping.contact_email ? row[mapping.contact_email] : '',
-        contact_phone: mapping.contact_phone ? row[mapping.contact_phone] : '',
-    })) ?? [];
+    const mapped = parsed?.rows.map(row => {
+        const obj = {};
+        config.fields.forEach(f => {
+            const mappedCol = mapping[f.key];
+            if (f.key === 'is_vat') {
+                obj[f.key] = mappedCol ? /^(yes|true|1)$/i.test(row[mappedCol]) : false;
+            } else {
+                obj[f.key] = mappedCol ? row[mappedCol] : '';
+            }
+        });
+        return obj;
+    }) ?? [];
 
     const validRows    = mapped.filter(r => r.name?.trim());
     const invalidCount = mapped.length - validRows.length;
@@ -132,10 +165,10 @@ export function BulkImportModal({ onClose, onComplete }) {
     const handleImport = async () => {
         setImporting(true);
         try {
-            const res = await fetch('/api/customers/bulk', {
+            const res = await fetch(config.endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ customers: validRows }),
+                body: JSON.stringify({ [type]: validRows }),
             });
             const data = await res.json();
             if (res.ok) {
@@ -158,7 +191,7 @@ export function BulkImportModal({ onClose, onComplete }) {
                 {/* ── Title bar ─────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07] flex-shrink-0">
                     <div>
-                        <h2 className="text-white font-semibold text-lg">Bulk Import Customers</h2>
+                        <h2 className="text-white font-semibold text-lg">Bulk Import {config.title}</h2>
                         <p className="text-gray-500 text-xs mt-0.5">CSV file · columns auto-detected</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
@@ -193,7 +226,7 @@ export function BulkImportModal({ onClose, onComplete }) {
                                     <p className="text-blue-300 text-sm font-medium">First time?</p>
                                     <p className="text-gray-500 text-xs mt-0.5">Download our CSV template to get started</p>
                                 </div>
-                                <button onClick={downloadTemplate}
+                                <button onClick={() => downloadTemplate(config)}
                                     className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 px-3 py-1.5 rounded-lg transition-colors">
                                     <FiDownload size={12} /> Template
                                 </button>
@@ -221,8 +254,8 @@ export function BulkImportModal({ onClose, onComplete }) {
                             <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
                                 <p className="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wider">Expected columns</p>
                                 <div className="flex flex-wrap gap-2">
-                                    {['Name *', 'Email', 'Phone', 'Address', 'Is VAT', 'VAT Number'].map(f => (
-                                        <span key={f} className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-full">{f}</span>
+                                    {config.fields.map(f => (
+                                        <span key={f.key} className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-full">{f.label}</span>
                                     ))}
                                 </div>
                             </div>
@@ -233,10 +266,10 @@ export function BulkImportModal({ onClose, onComplete }) {
                     {step === 1 && parsed && (
                         <div className="space-y-4">
                             <p className="text-gray-400 text-sm">
-                                Found <strong className="text-white">{parsed.rows.length} rows</strong> with <strong className="text-white">{parsed.headers.length} columns</strong>. Map each CSV column to a customer field.
+                                Found <strong className="text-white">{parsed.rows.length} rows</strong> with <strong className="text-white">{parsed.headers.length} columns</strong>. Map each CSV column to a {type === 'customers' ? 'customer' : 'supplier'} field.
                             </p>
                             <div className="space-y-2">
-                                {FIELDS.map(field => (
+                                {config.fields.map(field => (
                                     <div key={field.key} className="flex items-center gap-4 bg-white/[0.02] border border-white/[0.06] rounded-xl px-4 py-3">
                                         <div className="w-32 flex-shrink-0">
                                             <span className="text-sm text-white">{field.label}</span>
@@ -279,23 +312,31 @@ export function BulkImportModal({ onClose, onComplete }) {
                                 <table className="w-full text-xs">
                                     <thead>
                                         <tr className="bg-black/30 border-b border-white/[0.06]">
-                                            {['Name', 'Email', 'Phone', 'Address', 'VAT'].map(h => (
-                                                <th key={h} className="px-3 py-2.5 text-left text-gray-500 font-medium uppercase tracking-wider">{h}</th>
+                                            {config.fields.slice(0, 5).map(f => (
+                                                <th key={f.key} className="px-3 py-2.5 text-left text-gray-500 font-medium uppercase tracking-wider">{f.label.replace(' *', '')}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {validRows.slice(0, 20).map((row, i) => (
                                             <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.01]' : ''}`}>
-                                                <td className="px-3 py-2.5 text-white font-medium">{row.name}</td>
-                                                <td className="px-3 py-2.5 text-gray-400">{row.email || '—'}</td>
-                                                <td className="px-3 py-2.5 text-gray-400">{row.phone || '—'}</td>
-                                                <td className="px-3 py-2.5 text-gray-500 truncate max-w-[120px]">{row.address || '—'}</td>
-                                                <td className="px-3 py-2.5">
-                                                    {row.is_vat
-                                                        ? <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">VAT</span>
-                                                        : <span className="text-gray-700">—</span>}
-                                                </td>
+                                                {config.fields.slice(0, 5).map(f => {
+                                                    const val = row[f.key];
+                                                    if (f.key === 'is_vat') {
+                                                        return (
+                                                            <td key={f.key} className="px-3 py-2.5">
+                                                                {val
+                                                                    ? <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">VAT</span>
+                                                                    : <span className="text-gray-700">—</span>}
+                                                            </td>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <td key={f.key} className={`px-3 py-2.5 ${f.key === 'name' ? 'text-white font-medium' : 'text-gray-400'}`}>
+                                                            {val || '—'}
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
                                         ))}
                                         {validRows.length > 20 && (
@@ -319,7 +360,7 @@ export function BulkImportModal({ onClose, onComplete }) {
                             </div>
                             <div>
                                 <p className="text-3xl font-bold text-white">{result.imported}</p>
-                                <p className="text-gray-400 text-sm mt-1">customers imported successfully</p>
+                                <p className="text-gray-400 text-sm mt-1">{type} imported successfully</p>
                             </div>
                             {result.failed?.length > 0 && (
                                 <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 text-left">
@@ -382,7 +423,7 @@ export function BulkImportModal({ onClose, onComplete }) {
                                         Importing…
                                     </>
                                 ) : (
-                                    <>Import {validRows.length} customers</>
+                                    <>Import {validRows.length} {type}</>
                                 )}
                             </button>
                         )}

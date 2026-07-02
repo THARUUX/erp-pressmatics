@@ -69,6 +69,45 @@ export default function EstimationComponentForm({
     const sfgLines = data.sfgLines || [];
     const staticsLines = data.staticsLines || [];
     const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
+    const isServicesComponent = (data.name || '').toLowerCase().includes('services');
+
+    const [allServices, setAllServices] = useState([]);
+    const [selectedServiceId, setSelectedServiceId] = useState('');
+
+    useEffect(() => {
+        if (isServicesComponent) {
+            fetch('/api/services')
+                .then(r => r.ok ? r.json() : [])
+                .then(d => setAllServices(d))
+                .catch(() => {});
+        }
+    }, [isServicesComponent]);
+
+    useEffect(() => {
+        if (isServicesComponent && data.services && data.services.length > 0) {
+            const qty = parseFloat(data.quantity) || 1;
+            const updated = data.services.map(s => {
+                if (s.rate_unit === 'per unit' && parseFloat(s.multiply_by) !== qty) {
+                    return {
+                        ...s,
+                        multiply_by: qty,
+                        total_cost: parseFloat(s.rate) * qty
+                    };
+                }
+                return s;
+            });
+            const hasChanged = JSON.stringify(updated) !== JSON.stringify(data.services);
+            if (hasChanged) {
+                onChange(index, 'services', updated);
+            }
+        }
+    }, [isServicesComponent, data.quantity, data.services, index, onChange]);
+
+    useEffect(() => {
+        if (isServicesComponent && type !== 'services') {
+            onChange(index, 'type', 'services');
+        }
+    }, [isServicesComponent, type, index, onChange]);
 
     // Local state for searches (keep UI responsive)
     const [paperSearch, setPaperSearch] = useState(params.paperName || '');
@@ -241,16 +280,18 @@ export default function EstimationComponentForm({
             <div className="mb-4 border-b border-white/10 pb-4">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-md font-semibold text-gray-300">Specifications</h3>
-                    <div className="flex bg-black/50 rounded-lg p-1 border mr-20 border-white/10">
-                        <button
-                            onClick={() => onChange(index, 'type', 'offset')}
-                            className={`px-3 py-1 rounded text-xs ${type === 'offset' ? 'bg-white text-black' : 'text-gray-400'}`}
-                        >Offset</button>
-                        <button
-                            onClick={() => onChange(index, 'type', 'digital')}
-                            className={`px-3 py-1 rounded text-xs ${type === 'digital' ? 'bg-white text-black' : 'text-gray-400'}`}
-                        >Digital</button>
-                    </div>
+                    {!isServicesComponent && (
+                        <div className="flex bg-black/50 rounded-lg p-1 border mr-20 border-white/10">
+                            <button
+                                onClick={() => onChange(index, 'type', 'offset')}
+                                className={`px-3 py-1 rounded text-xs ${type === 'offset' ? 'bg-white text-black' : 'text-gray-400'}`}
+                            >Offset</button>
+                            <button
+                                onClick={() => onChange(index, 'type', 'digital')}
+                                className={`px-3 py-1 rounded text-xs ${type === 'digital' ? 'bg-white text-black' : 'text-gray-400'}`}
+                            >Digital</button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4 mb-2">
@@ -276,736 +317,807 @@ export default function EstimationComponentForm({
             </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
-                {/* Left: Input Form */}
+                {/* Left: Input */}
                 <div className="lg:col-span-2 space-y-6">
-                    {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
-                        <>
-                        <div className="grid md:grid-cols-3 gap-4 mb-6">
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Machine</label>
-                                <select
-                                    name="machineId"
-                                    value={params.machineId}
-                                    onChange={(e) => {
-                                        const mId = e.target.value;
-                                        const machine = machines.find(m => m.id == mId);
-                                        const paperW = parseFloat(params.paperWidthCm) || 0;
-                                        const paperH = parseFloat(params.paperHeightCm) || 0;
-                                        const factor = machine ? parseFloat(machine.sheet_factor) : null;
-                                        const cutDims = getCutSheetDimensions(paperW, paperH, factor);
-
-                                        // Update both params in one go to avoid race conditions with closure state
-                                        onChange(index, 'params', {
-                                            ...params,
-                                            machineId: mId,
-                                            plateCostPerUnit: machine ? machine.plate_cost : params.plateCostPerUnit,
-                                            cutWidthCm: cutDims.width,
-                                            cutHeightCm: cutDims.height
-                                        });
-                                    }}
-                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                >
-                                    <option value="">Select Machine</option>
-                                    {machines.filter(m => m.type === 'offset').map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Sides</label>
-                                <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                    <option value="1">One Side</option>
-                                    <option value="2">Both Sides</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                <select name="size" value={params.size} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                    <option value="A1">A1</option>
-                                    <option value="A2">A2</option>
-                                    <option value="A3">A3</option>
-                                    <option value="A4">A4</option>
-                                    <option value="A5">A5</option>
-                                    <option value="A6">A6</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </div>
-                            <div className={!data.name?.toLowerCase().includes('cover') ? "" : 'opacity-40 pointer-events-none'}>
-                                <label className="block text-sm text-gray-400 mb-1">
-                                    Pages 
-                                    <span className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') && !isBB && !data.name?.toLowerCase().includes('main')) ? 'text-xs text-red-600' : 'hidden'} >
-                                        {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
-                                    </span>
-                                </label>
-                                <Input  type="number" name="pages" value={params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
-                            </div>
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">
-                                    Ups
-                                </label>
-                                <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">
-                                    Press Ups
-                                    {params.customSheetFactor && (
-                                        <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
-                                    )}
-                                </label>
-                                <Input
-                                    type="number"
-                                    name="customSheetFactor"
-                                    value={data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main') ? params.customSheetFactor : null}
-                                    onChange={handleChange}
-                                    className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
-                                    placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
-                                    min="1"
-                                    step="1"
-                                />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
-                                <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'} >
-                                <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
-                                <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
-                            </div>
-                            <div><label className="block text-sm text-gray-400 mb-1">Wastage Cut Sheets</label><Input type="number" name="wastagePercent" value={params.wastagePercent} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">Sets / Wastage Sheets</label>
-                                <Input
-                                    type="number"
-                                    name="customWastageSheets"
-                                    value={params.customWastageSheets != null ? params.customWastageSheets : ''}
-                                    onChange={handleChange}
-                                    className="bg-secondary border-white/10"
-                                    placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
-                                />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Impressions</label>
-                                <Input
-                                    type="number"
-                                    name="customImpressions"
-                                    value={params.customImpressions || ''}
-                                    onChange={handleChange}
-                                    className="bg-secondary border-white/10"
-                                    placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
-                                />
-                            </div>
-                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
-                                <Input
-                                    type="number"
-                                    name="customPlateCount"
-                                    value={params.customPlateCount != null ? params.customPlateCount : ''}
-                                    onChange={handleChange}
-                                    className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
-                                    placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
-                                />
-                            </div>
-                            {(data.name?.includes('Inner') || data.name?.includes('Main')) && (
-                                <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
-                                    <div className="flex justify-between items-center w-full">
-                                        <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
-                                        </p>
-                                        <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                                            <RiPagesLine className="text-lg" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* B&B toggle — only for Inner components */}
-                        {(data.name?.includes('Inner') || data.name?.includes('Cover') || data.name?.includes('Main')) && (
-                            <div className="flex items-center gap-3 mt-2">
-                                <button
-                                    type="button"
-                                    onClick={handleIsBBToggle}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                                        isBB
-                                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
-                                    }`}
-                                >
-                                    <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isBB ? 'bg-amber-500 border-amber-500 text-black' : 'border-white/30'}`}>
-                                        {isBB ? '✓' : ''}
-                                    </span>
-                                    B&amp;B
-                                </button>
-                                <span className="text-xs text-gray-500">
-                                    {isBB ? 'Plate count locked to 1 (Back-to-Back)' : 'Enable for Back-to-Back printing'}
-                                </span>
-                            </div>
-                        )}
-                        </>
-                    )}
-
-                    {type === 'digital' &&(
-                        <>
-                            <div className="grid md:grid-cols-4 gap-4 mb-6">
+                    {isServicesComponent ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Machine</label>
+                                    <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Service</label>
                                     <select
-                                        name="machineId"
-                                        value={params.machineId || ''}
+                                        value={selectedServiceId}
                                         onChange={(e) => {
-                                            const mId = e.target.value;
-                                            const machine = machines.find(m => m.id == mId);
-                                            let pricePerSqCm = 0;
-                                            if (machine) {
-                                                if (params.colorQuality === 'max') pricePerSqCm = machine.digital_price_max;
-                                                else if (params.colorQuality === 'medium') pricePerSqCm = machine.digital_price_medium;
-                                                else if (params.colorQuality === 'min') pricePerSqCm = machine.digital_price_min;
-                                                else {
-                                                    // Default if no quality selected yet
-                                                    pricePerSqCm = machine.digital_price_max;
-                                                    updateParam('colorQuality', 'max');
-                                                }
-                                            }
-                                            onChange(index, 'params', {
-                                                ...params,
-                                                machineId: mId,
-                                                digitalPricePerSqCm: pricePerSqCm || 0
-                                            });
+                                            setSelectedServiceId(e.target.value);
                                         }}
                                         className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
                                     >
-                                        <option value="">Select Machine</option>
-                                        {machines.filter(m => m.type === 'digital').map(m => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        <option value="">Select Service...</option>
+                                        {allServices.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Color Quality</label>
-                                    <select
-                                        name="colorQuality"
-                                        value={params.colorQuality || 'max'}
-                                        onChange={(e) => {
-                                            const quality = e.target.value;
-                                            const machine = machines.find(m => m.id == params.machineId);
-                                            let pricePerSqCm = params.digitalPricePerSqCm;
-                                            if (machine) {
-                                                if (quality === 'max') pricePerSqCm = machine.digital_price_max;
-                                                else if (quality === 'medium') pricePerSqCm = machine.digital_price_medium;
-                                                else if (quality === 'min') pricePerSqCm = machine.digital_price_min;
-                                            }
-                                            onChange(index, 'params', {
-                                                ...params,
-                                                colorQuality: quality,
-                                                digitalPricePerSqCm: pricePerSqCm || 0
-                                            });
-                                        }}
-                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                    >
-                                        <option value="max">Max</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="min">Min</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Sides</label>
-                                    <select name="sides" value={params.sides || '1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                        <option value="1">One Side</option>
-                                        <option value="2">Both Sides</option>
-                                    </select>
-                                </div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Copies/Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                    <select name="size" value={params.size || 'A1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                        <option value="">Custom</option>
-                                        <option value="A1">A1</option>
-                                        <option value="A2">A2</option>
-                                        <option value="A3">A3</option>
-                                        <option value="A4">A4</option>
-                                        <option value="A5">A5</option>
-                                        <option value="A6">A6</option>
-                                    </select>
-                                </div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label><Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label><Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                            </div>
 
-                            <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials</h3>
-                            <div className="grid md:grid-cols-2 gap-4 mb-6">
-                                <div className="md:col-span-2 relative">
-                                    <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
-                                    <div className="relative">
-                                        <Input
-                                            value={paperSearch}
+                                {selectedServiceId && (
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Employee</label>
+                                        <select
+                                            value=""
                                             onChange={(e) => {
-                                                setPaperSearch(e.target.value);
-                                                setShowPaperSuggestions(true);
+                                                const empName = e.target.value;
+                                                if (!empName) return;
+                                                const svc = allServices.find(s => s.id === parseInt(selectedServiceId));
+                                                if (svc) {
+                                                    const emp = svc.employees.find(em => em.employee_name === empName);
+                                                    if (emp) {
+                                                        const newSvcLine = {
+                                                            id: `svc-emp-${Date.now()}-${Math.random()}`,
+                                                            service_id: svc.id,
+                                                            service_name: svc.name,
+                                                            employee_name: emp.employee_name,
+                                                            rate_unit: emp.default_rate_unit,
+                                                            rate: emp.rate,
+                                                            multiply_by: emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1,
+                                                            note: '',
+                                                            total_cost: emp.rate * (emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1)
+                                                        };
+                                                        // Check if already added to prevent duplicates
+                                                        const alreadyAdded = (data.services || []).some(s => s.service_id === svc.id && s.employee_name === emp.employee_name);
+                                                        if (!alreadyAdded) {
+                                                            onChange(index, 'services', [...(data.services || []), newSvcLine]);
+                                                        }
+                                                        // Reset selection
+                                                        setSelectedServiceId('');
+                                                    }
+                                                }
                                             }}
-                                            onFocus={() => setShowPaperSuggestions(true)}
-                                            onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
-                                            placeholder="Type to search digital paper..."
-                                            className="bg-secondary border-white/10"
-                                        />
-                                        {showPaperSuggestions && (
-                                            <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                {papers.filter(p => {
-                                                    const pType = (p.type || '').toUpperCase();
-                                                    return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                }).map(p => (
-                                                    <li key={p.id} onClick={() => {
-                                                        onChange(index, 'params', {
-                                                            ...params,
-                                                            paperCostPerSheet: p.unit_cost,
-                                                            paperId: p.id,
-                                                            paperName: p.name,
-                                                            paperWidthCm: p.width_cm || 0,
-                                                            paperHeightCm: p.height_cm || 0
-                                                        });
-                                                        setPaperSearch(p.name);
-                                                        setShowPaperSuggestions(false);
-                                                    }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
-                                                        <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span>
-                                                        <span>{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </div>
-                                </div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Paper Cost/Sheet</label><Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Print Cost / sq(cm)</label><Input type="number" name="digitalPricePerSqCm" value={params.digitalPricePerSqCm} onChange={handleChange} className="bg-secondary border-white/10 disabled:opacity-50" disabled /></div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Print Cost / Unit</label>
-                                    <Input
-                                        type="number"
-                                        value={((parseFloat(params.paperWidthCm) || 0) * (parseFloat(params.paperHeightCm) || 0) * (parseFloat(params.digitalPricePerSqCm) || 0) * (parseInt(params.sides) || 1)).toFixed(4)}
-                                        className="bg-secondary border-white/10 disabled:opacity-50"
-                                        disabled
-                                    />
-                                </div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Width (cm)</label><Input type="number" name="paperWidthCm" value={params.paperWidthCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                <div><label className="block text-sm text-gray-400 mb-1">Height (cm)</label><Input type="number" name="paperHeightCm" value={params.paperHeightCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                            </div>
-                        </>
-                    )}
-                    {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
-                        <>
-                            <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials & Dimensions</h3>
-                            <div className="grid md:grid-cols-3 gap-4 mb-6">
-                                <div className="md:col-span-2 relative">
-                                    <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
-                                    <div className="relative">
-                                        <Input
-                                            value={paperSearch}
-                                            onChange={(e) => {
-                                                setPaperSearch(e.target.value);
-                                                setShowPaperSuggestions(true);
-                                            }}
-                                            onFocus={() => setShowPaperSuggestions(true)}
-                                            onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
-                                            placeholder="Type to search paper..."
-                                            className="bg-secondary border-white/10"
-                                        />
-                                        {showPaperSuggestions && (
-                                            <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                {papers.filter(p => {
-                                                    const pType = (p.type || '').toUpperCase();
-                                                    return (pType === 'OFFSET' || pType === 'BOTH') && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                }).map(p => (
-                                                    <li key={p.id} onClick={() => {
-                                                        const paperW = p.width_cm || 0;
-                                                        const paperH = p.height_cm || 0;
-                                                        const machine = machines.find(m => m.id == params.machineId);
-                                                        const factor = machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0;
-                                                        const cutDims = getCutSheetDimensions(paperW, paperH, factor);
-
-                                                        onChange(index, 'params', { 
-                                                            ...params, 
-                                                            paperCostPerSheet: p.unit_cost, 
-                                                            paperId: p.id, 
-                                                            paperName: p.name,
-                                                            paperWidthCm: paperW,
-                                                            paperHeightCm: paperH,
-                                                            cutWidthCm: cutDims.width,
-                                                            cutHeightCm: cutDims.height
-                                                        });
-                                                        setPaperSearch(p.name);
-                                                        setShowPaperSuggestions(false);
-                                                    }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
-                                                        <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span><span>{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Cost/Sheet
-                                    </label>
-                                    <Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Plate Cost/Unit
-                                    </label>
-                                    <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Impression Cost
-                                    </label>
-                                    <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Width (cm)
-                                    </label>
-                                    <Input type="number" name="paperWidthCm" value={params.paperWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Paper Height (cm)
-                                    </label>
-                                    <Input type="number" name="paperHeightCm" value={params.paperHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Cut Sheet Width (cm)
-                                    </label>
-                                    <Input type="number" name="cutWidthCm" value={params.cutWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Cut Sheet Height (cm)
-                                    </label>
-                                    <Input type="number" name="cutHeightCm" value={params.cutHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Finished Comp Width (cm)
-                                    </label>
-                                    <Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Finished Comp Height (cm)
-                                    </label>
-                                    <Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        Bleed (mm)
-                                    </label>
-                                    <Input type="number" name="bleedMm" value={params.bleedMm || ''} onChange={handleChange} className="bg-secondary border-white/10" 
-                                /></div>
-                            </div>
-                        </>
-                    )}
-                    {type === 'digital' && (
-                        <></> /* Digital form materials are now handled above to avoid duplicate Materials heading */
-                    )}
-
-                    <div>
-                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name?.toLowerCase().includes('finishing') ? 'hidden' : ''}`}>Finishings</h3>
-                        <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
-                            <div className="grid md:grid-cols-12  gap-3 mb-3">
-                                <div className="md:col-span-8 relative">
-                                    <Input value={finishingSearch} onChange={(e) => { setFinishingSearch(e.target.value); setShowFinishingSuggestions(true); setPendingFinishing(p => ({ ...p, name: e.target.value })); }} onFocus={() => setShowFinishingSuggestions(true)} onBlur={() => setTimeout(() => setShowFinishingSuggestions(false), 200)} placeholder="Add Finishing..." className="bg-secondary border-white/10 text-sm py-1.5" />
-                                    {showFinishingSuggestions && (
-                                        <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                            {availableFinishings.filter(f => f.name.toLowerCase().includes(finishingSearch.toLowerCase())).map(f => (
-                                                <li key={f.id} onClick={() => {
-                                                    setFinishingSearch(f.name);
-                                                    setPendingFinishing({
-                                                        id: f.id,
-                                                        name: f.name,
-                                                        unit_cost: parseFloat(f.unit_cost),
-                                                        time_per_unit: 0,
-                                                        is_machine: f.is_machine === 1,
-                                                        machine_id: f.machine_id,
-                                                        cost_unit: f.cost_unit || 'Unit',
-                                                        variants: f.variants || [],
-                                                        speed: f.speed,
-                                                        speed_unit: f.speed_unit,
-                                                        forms: 1
-                                                    });
-                                                    setSelectedVariantId('');
-                                                    setShowFinishingSuggestions(false);
-                                                }} className="px-3 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between"><span>{f.name}</span><span>{currency}{f.unit_cost}</span></li>
+                                            className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                        >
+                                            <option value="">Select Employee...</option>
+                                            {allServices.find(s => s.id === parseInt(selectedServiceId))?.employees.map(emp => (
+                                                <option key={emp.employee_name} value={emp.employee_name}>
+                                                    {emp.employee_name} — {emp.default_rate_unit} ({currency}{parseFloat(emp.rate).toFixed(2)})
+                                                </option>
                                             ))}
-                                        </ul>
-                                    )}
-                                </div>
-                                <div className={pendingFinishing.cost_unit === "Form" ? "md:col-span-2" : "md:col-span-2 hidden"}>
-                                    <Input type="number" value={pendingFinishing.forms != null ? pendingFinishing.forms : ''} onChange={(e) => setPendingFinishing(p => ({ ...p, forms: parseInt(e.target.value) || 0 }))} className="bg-secondary border-white/10 text-sm py-1.5" placeholder="Forms" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <Input type="number" value={pendingFinishing.unit_cost} onChange={(e) => setPendingFinishing(p => ({ ...p, unit_cost: parseFloat(e.target.value) || 0 }))} className="bg-secondary border-white/10 text-sm py-1.5" placeholder="Cost" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <Button onClick={() => { if (!pendingFinishing.name) return; onAddFinishing(index, { ...pendingFinishing, id: Date.now() }); setFinishingSearch(''); setPendingFinishing({ id: null, name: '', unit_cost: 0, time_per_unit: 0, is_machine: false, cost_unit: 'Unit', variants: [], forms: 1 }); }} className="w-full bg-white text-black text-sm py-1.5 flex justify-center items-center px-0">Add</Button>
-                                </div>
-                            </div>
-                            {pendingFinishing.variants && pendingFinishing.variants.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                    {pendingFinishing.variants.map(v => (
-                                        <button key={v.id} onClick={() => { setSelectedVariantId(v.id); setPendingFinishing(p => ({ ...p, name: `${p.name.split(' - ')[0]} - ${v.name}`, unit_cost: parseFloat(v.unit_cost) })); }} className={`px-2 py-0.5 text-xs rounded border ${selectedVariantId === v.id ? 'bg-blue-600 border-blue-500' : 'border-white/20'}`}>{v.name}</button>
-                                    ))}
-                                </div>
-                            )}
-                            <div className="space-y-2 mt-4">
-                                {selectedFinishings.map((f, i) => (
-                                    <div key={i} className="flex flex-col sm:flex-row justify-between sm:items-center bg-white/5 p-3 rounded border border-white/10 text-sm gap-2">
-                                        <span className="flex-1 break-all pr-4">
-                                            {f.name}
-                                            {f.cost_unit === 'Form' && f.forms != null && (
-                                                <span className="text-xs text-blue-400 ml-1.5">({f.forms} Forms)</span>
-                                            )}
-                                        </span>
-                                        <div className="flex items-center gap-4 shrink-0">
-                                            {f.total_time > 0 && (
-                                                <span className="text-blue-300 text-xs">{f.total_time.toFixed(2)} hrs</span>
-                                            )}
-                                            <span className="text-gray-400 font-mono w-20 text-right">{currency}{(Number(f.total_cost) || 0).toFixed(2)}</span>
-                                            <button onClick={() => onRemoveFinishing(index, f.id)} className="text-red-400 hover:text-red-300 transition-colors p-1">&times;</button>
-                                        </div>
+                                        </select>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ── SFG / Assets Section ── */}
-                    {isSFGComponent && (
-                        <div className="mt-6 border-t border-amber-500/20 pt-5">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">SFG / Assets</span>
-                                <h3 className="text-md font-semibold text-gray-300">Inventory Stock Lines</h3>
+                                )}
                             </div>
 
-                            {/* Search & Add */}
-                            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-3">
-                                <div className="relative">
-                                    <Input
-                                        value={sfgSearch}
-                                        onChange={(e) => { setSfgSearch(e.target.value); setShowSfgSuggestions(true); }}
-                                        onFocus={() => setShowSfgSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowSfgSuggestions(false), 200)}
-                                        placeholder="Search SFG / Asset inventory item..."
-                                        className="bg-black/30 border-amber-500/30 text-sm"
-                                    />
-                                    {showSfgSuggestions && (
-                                        <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
-                                            {sfgInventory
-                                                .filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase()))
-                                                .map(item => (
-                                                    <li
-                                                        key={item.id}
-                                                        onClick={() => {
-                                                            addSfgLine(item);
-                                                            setSfgSearch('');
-                                                            setShowSfgSuggestions(false);
-                                                        }}
-                                                        className="px-4 py-2.5 hover:bg-amber-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
-                                                    >
-                                                        <div>
-                                                            <div className="text-white font-medium">{item.name}</div>
-                                                            <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
-                                                        </div>
-                                                        <div className="text-right shrink-0">
-                                                            <div className="text-amber-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
-                                                            <div className="text-[10px] text-gray-500">Stock: {item.stock_quantity} {item.uom}</div>
-                                                        </div>
-                                                    </li>
-                                                ))
-                                            }
-                                            {sfgInventory.filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase())).length === 0 && (
-                                                <li className="px-4 py-3 text-gray-500 text-sm italic">No SFG items found</li>
-                                            )}
-                                        </ul>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Lines Table */}
-                            {sfgLines.length > 0 ? (
-                                <div className="space-y-2">
-                                    {/* Header */}
-                                    <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
-                                        <span className="col-span-4">Item</span>
-                                        <span className="col-span-2 text-center">Stock</span>
-                                        <span className="col-span-2 text-center">Qty</span>
-                                        <span className="col-span-2 text-right">Unit Price</span>
-                                        <span className="col-span-1 text-right">Total</span>
-                                        <span className="col-span-1"></span>
-                                    </div>
-                                    {sfgLines.map((line) => (
-                                        <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-amber-500/10 rounded-lg px-3 py-2">
-                                            <div className="col-span-4">
-                                                <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
-                                                {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
-                                            </div>
-                                            <div className="col-span-2 text-center">
-                                                <span className={`text-xs font-mono ${
-                                                    (line.stock_quantity || 0) <= 0 ? 'text-red-400' :
-                                                    (line.stock_quantity || 0) < (line.quantity || 0) ? 'text-amber-400' : 'text-emerald-400'
-                                                }`}>{line.stock_quantity ?? '–'} {line.uom}</span>
-                                            </div>
-                                            <div className="col-span-2">
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    value={line.quantity}
-                                                    onChange={e => updateSfgLine(line.id, 'quantity', e.target.value)}
-                                                    className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
-                                                />
-                                            </div>
-                                            <div className="col-span-2">
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.0001"
-                                                    value={line.unit_price}
-                                                    onChange={e => updateSfgLine(line.id, 'unit_price', e.target.value)}
-                                                    className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
-                                                />
-                                            </div>
-                                            <div className="col-span-1 text-right">
-                                                <span className="text-sm text-amber-300 font-mono">
-                                                    {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
-                                            </div>
-                                            <div className="col-span-1 flex justify-end">
+                            {data.services && data.services.length > 0 ? (
+                                <div className="space-y-4">
+                                    {data.services.map((line, lIdx) => (
+                                        <div key={line.id || lIdx} className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4 relative">
+                                            {/* Header with Title and Delete Button */}
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-bold text-white text-base">{line.service_name}</h4>
+                                                    <p className="text-sm text-gray-400 mt-0.5">Employee: <span className="text-gray-300 font-medium">{line.employee_name}</span></p>
+                                                </div>
                                                 <button
-                                                    onClick={() => removeSfgLine(line.id)}
-                                                    className="text-red-400 hover:text-red-300 transition-colors p-1"
-                                                    title="Remove"
-                                                >&times;</button>
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const updated = data.services.filter((_, idx) => idx !== lIdx);
+                                                        onChange(index, 'services', updated);
+                                                    }}
+                                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded-lg transition-all"
+                                                    title="Remove Service"
+                                                >
+                                                    <FiTrash2 className="text-lg" />
+                                                </button>
+                                            </div>
+
+                                            {/* Inputs row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Rate Unit</label>
+                                                    <select
+                                                        value={line.rate_unit}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            const mult = val === 'per unit' ? (parseFloat(data.quantity) || 1) : (val === 'per job' ? 1 : parseFloat(line.multiply_by) || 1);
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                rate_unit: val,
+                                                                multiply_by: mult,
+                                                                total_cost: parseFloat(s.rate) * mult
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                    >
+                                                        <option value="per hour">Per Hour</option>
+                                                        <option value="per job">Per Job</option>
+                                                        <option value="per unit">Per Unit</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Rate ({currency})</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={line.rate}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                rate: val,
+                                                                total_cost: val * (parseFloat(s.multiply_by) || 0)
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-right text-white focus:outline-none focus:border-white/30"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Multiplier</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={line.multiply_by}
+                                                        disabled={line.rate_unit === 'per job'}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                multiply_by: val,
+                                                                total_cost: parseFloat(s.rate) * val
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-center text-white focus:outline-none focus:border-white/30 disabled:opacity-50 disabled:bg-secondary/40"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Cost ({currency})</label>
+                                                    <div className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-right text-emerald-400 font-mono font-bold text-sm">
+                                                        {(parseFloat(line.total_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Textarea for note */}
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Note</label>
+                                                <textarea
+                                                    value={line.note || ''}
+                                                    rows={2}
+                                                    placeholder="Add service configuration note or instructions..."
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        const updated = data.services.map((s, idx) => idx === lIdx ? { ...s, note: val } : s);
+                                                        onChange(index, 'services', updated);
+                                                    }}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 placeholder-gray-600 resize-y min-h-[60px]"
+                                                />
                                             </div>
                                         </div>
                                     ))}
-                                    {/* Subtotal */}
-                                    <div className="flex justify-between items-center px-3 pt-2 border-t border-amber-500/20">
-                                        <span className="text-xs text-amber-400/70 uppercase tracking-widest">SFG Subtotal</span>
-                                        <span className="text-sm font-bold text-amber-300 font-mono">
-                                            {currency}{sfgLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </span>
-                                    </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-amber-500/15 rounded-xl">
-                                    No SFG/Asset items added yet — search above to add stock lines
+                                <div className="text-center py-8 text-gray-500 italic text-sm border border-dashed border-white/10 rounded-xl">
+                                    No services selected. Add services using the dropdown above.
                                 </div>
                             )}
                         </div>
-                    )}
+                    ) : (
+                        <>
+                            {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
+                                <>
+                                <div className="grid md:grid-cols-3 gap-4 mb-6">
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">Machine</label>
+                                        <select
+                                            name="machineId"
+                                            value={params.machineId}
+                                            onChange={(e) => {
+                                                const mId = e.target.value;
+                                                const machine = machines.find(m => m.id == mId);
+                                                const paperW = parseFloat(params.paperWidthCm) || 0;
+                                                const paperH = parseFloat(params.paperHeightCm) || 0;
+                                                const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                                                const cutDims = getCutSheetDimensions(paperW, paperH, factor);
 
-                    {/* ── Statics Section ── */}
-                    {isSFGComponent && (
-                        <div className="mt-4 border-t border-violet-500/20 pt-5">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="text-xs font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded">Statics</span>
-                                <h3 className="text-md font-semibold text-gray-300">Static Assets</h3>
-                            </div>
-
-                            {/* Search & Add */}
-                            <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 mb-3">
-                                <div className="relative">
-                                    <Input
-                                        value={staticsSearch}
-                                        onChange={e => { setStaticsSearch(e.target.value); setShowStaticsSuggestions(true); }}
-                                        onFocus={() => setShowStaticsSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowStaticsSuggestions(false), 200)}
-                                        placeholder="Search static assets (paper plate, ink, etc.)..."
-                                        className="bg-black/30 border-violet-500/30 text-sm"
-                                    />
-                                    {showStaticsSuggestions && (
-                                        <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
-                                            {staticsInventory
-                                                .filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase()))
-                                                .map(item => (
-                                                    <li key={item.id}
-                                                        onClick={() => { addStaticsLine(item); setStaticsSearch(''); setShowStaticsSuggestions(false); }}
-                                                        className="px-4 py-2.5 hover:bg-violet-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
-                                                    >
-                                                        <div>
-                                                            <div className="text-white font-medium">{item.name}</div>
-                                                            <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
-                                                        </div>
-                                                        <div className="text-right shrink-0">
-                                                            <div className="text-violet-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
-                                                            <div className="text-[10px] text-gray-500">{item.uom}</div>
-                                                        </div>
-                                                    </li>
-                                                ))
-                                            }
-                                            {staticsInventory.filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase())).length === 0 && (
-                                                <li className="px-4 py-3 text-gray-500 text-sm italic">No active Statics items found</li>
+                                                // Update both params in one go to avoid race conditions with closure state
+                                                onChange(index, 'params', {
+                                                    ...params,
+                                                    machineId: mId,
+                                                    plateCostPerUnit: machine ? machine.plate_cost : params.plateCostPerUnit,
+                                                    cutWidthCm: cutDims.width,
+                                                    cutHeightCm: cutDims.height
+                                                });
+                                            }}
+                                            className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                        >
+                                            <option value="">Select Machine</option>
+                                            {machines.filter(m => m.type === 'offset').map(m => (
+                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">Sides</label>
+                                        <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                            <option value="1">One Side</option>
+                                            <option value="2">Both Sides</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
+                                        <select name="size" value={params.size} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                            <option value="A1">A1</option>
+                                            <option value="A2">A2</option>
+                                            <option value="A3">A3</option>
+                                            <option value="A4">A4</option>
+                                            <option value="A5">A5</option>
+                                            <option value="A6">A6</option>
+                                            <option value="Custom">Custom</option>
+                                        </select>
+                                    </div>
+                                    <div className={!data.name?.toLowerCase().includes('cover') ? "" : 'opacity-40 pointer-events-none'}>
+                                        <label className="block text-sm text-gray-400 mb-1">
+                                            Pages 
+                                            <span className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') && !isBB && !data.name?.toLowerCase().includes('main')) ? 'text-xs text-red-600' : 'hidden'} >
+                                                {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
+                                            </span>
+                                        </label>
+                                        <Input  type="number" name="pages" value={params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">
+                                            Ups
+                                        </label>
+                                        <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">
+                                            Press Ups
+                                            {params.customSheetFactor && (
+                                                <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
                                             )}
-                                        </ul>
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            name="customSheetFactor"
+                                            value={data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main') ? params.customSheetFactor : null}
+                                            onChange={handleChange}
+                                            className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                            placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
+                                            min="1"
+                                            step="1"
+                                        />
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
+                                        <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'} >
+                                        <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
+                                        <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
+                                    </div>
+                                    <div><label className="block text-sm text-gray-400 mb-1">Wastage Cut Sheets</label><Input type="number" name="wastagePercent" value={params.wastagePercent} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">Sets / Wastage Sheets</label>
+                                        <Input
+                                            type="number"
+                                            name="customWastageSheets"
+                                            value={params.customWastageSheets != null ? params.customWastageSheets : ''}
+                                            onChange={handleChange}
+                                            className="bg-secondary border-white/10"
+                                            placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
+                                        />
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">Impressions</label>
+                                        <Input
+                                            type="number"
+                                            name="customImpressions"
+                                            value={params.customImpressions || ''}
+                                            onChange={handleChange}
+                                            className="bg-secondary border-white/10"
+                                            placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
+                                        />
+                                    </div>
+                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                        <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
+                                        <Input
+                                            type="number"
+                                            name="customPlateCount"
+                                            value={params.customPlateCount != null ? params.customPlateCount : ''}
+                                            onChange={handleChange}
+                                            className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                            placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
+                                        />
+                                    </div>
+                                    {(data.name?.includes('Inner') || data.name?.includes('Main')) && (
+                                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2 h-full justify-center rounded-2xl border border-white/10 flex flex-col  shadow-2xl">
+                                            <div className="flex justify-between items-center w-full">
+                                                <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
+                                                </p>
+                                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                                    <RiPagesLine className="text-lg" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                            </div>
 
-                            {/* Lines Table */}
-                            {staticsLines.length > 0 ? (
-                                <div className="space-y-2">
-                                    <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
-                                        <span className="col-span-5">Item</span>
-                                        <span className="col-span-2 text-center">Qty</span>
-                                        <span className="col-span-2 text-right">Unit Price</span>
-                                        <span className="col-span-2 text-right">Total</span>
-                                        <span className="col-span-1"></span>
-                                    </div>
-                                    {staticsLines.map((line) => (
-                                        <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-violet-500/10 rounded-lg px-3 py-2">
-                                            <div className="col-span-5">
-                                                <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
-                                                {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
-                                            </div>
-                                            <div className="col-span-2">
-                                                <Input type="number" min="0" step="1"
-                                                    value={line.quantity}
-                                                    onChange={e => updateStaticsLine(line.id, 'quantity', e.target.value)}
-                                                    className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
-                                                />
-                                            </div>
-                                            <div className="col-span-2">
-                                                <Input type="number" min="0" step="0.0001"
-                                                    value={line.unit_price}
-                                                    onChange={e => updateStaticsLine(line.id, 'unit_price', e.target.value)}
-                                                    className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
-                                                />
-                                            </div>
-                                            <div className="col-span-2 text-right">
-                                                <span className="text-sm text-violet-300 font-mono">
-                                                    {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
-                                            </div>
-                                            <div className="col-span-1 flex justify-end">
-                                                <button onClick={() => removeStaticsLine(line.id)} className="text-red-400 hover:text-red-300 transition-colors p-1" title="Remove">&times;</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div className="flex justify-between items-center px-3 pt-2 border-t border-violet-500/20">
-                                        <span className="text-xs text-violet-400/70 uppercase tracking-widest">Statics Subtotal</span>
-                                        <span className="text-sm font-bold text-violet-300 font-mono">
-                                            {currency}{staticsLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {/* B&B toggle — only for Inner components */}
+                                {(data.name?.includes('Inner') || data.name?.includes('Cover') || data.name?.includes('Main')) && (
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleIsBBToggle}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                                                isBB
+                                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
+                                            }`}
+                                        >
+                                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isBB ? 'bg-amber-500 border-amber-500 text-black' : 'border-white/30'}`}>
+                                                {isBB ? '✓' : ''}
+                                            </span>
+                                            B&amp;B
+                                        </button>
+                                        <span className="text-xs text-gray-500">
+                                            {isBB ? 'Plate count locked to 1 (Back-to-Back)' : 'Enable for Back-to-Back printing'}
                                         </span>
                                     </div>
+                                )}
+                                </>
+                            )}
+
+                            {type === 'digital' &&(
+                                <>
+                                    <div className="grid md:grid-cols-4 gap-4 mb-6">
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Machine</label>
+                                            <select
+                                                name="machineId"
+                                                value={params.machineId || ''}
+                                                onChange={(e) => {
+                                                    const mId = e.target.value;
+                                                    const machine = machines.find(m => m.id == mId);
+                                                    let pricePerSqCm = 0;
+                                                    if (machine) {
+                                                        if (params.colorQuality === 'max') pricePerSqCm = machine.digital_price_max;
+                                                        else if (params.colorQuality === 'medium') pricePerSqCm = machine.digital_price_medium;
+                                                        else if (params.colorQuality === 'min') pricePerSqCm = machine.digital_price_min;
+                                                        else {
+                                                            // Default if no quality selected yet
+                                                            pricePerSqCm = machine.digital_price_max;
+                                                            updateParam('colorQuality', 'max');
+                                                        }
+                                                    }
+                                                    onChange(index, 'params', {
+                                                        ...params,
+                                                        machineId: mId,
+                                                        digitalPricePerSqCm: pricePerSqCm || 0
+                                                    });
+                                                }}
+                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                            >
+                                                <option value="">Select Machine</option>
+                                                {machines.filter(m => m.type === 'digital').map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Color Quality</label>
+                                            <select
+                                                name="colorQuality"
+                                                value={params.colorQuality || 'max'}
+                                                onChange={(e) => {
+                                                    const quality = e.target.value;
+                                                    const machine = machines.find(m => m.id == params.machineId);
+                                                    let pricePerSqCm = params.digitalPricePerSqCm;
+                                                    if (machine) {
+                                                        if (quality === 'max') pricePerSqCm = machine.digital_price_max;
+                                                        else if (quality === 'medium') pricePerSqCm = machine.digital_price_medium;
+                                                        else if (quality === 'min') pricePerSqCm = machine.digital_price_min;
+                                                    }
+                                                    onChange(index, 'params', {
+                                                        ...params,
+                                                        colorQuality: quality,
+                                                        digitalPricePerSqCm: pricePerSqCm || 0
+                                                    });
+                                                }}
+                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                            >
+                                                <option value="max">Max</option>
+                                                <option value="medium">Medium</option>
+                                                <option value="min">Min</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Sides</label>
+                                            <select name="sides" value={params.sides || '1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                                <option value="1">One Side</option>
+                                                <option value="2">Both Sides</option>
+                                            </select>
+                                        </div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Copies/Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
+                                            <select name="size" value={params.size || 'A1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                                <option value="">Custom</option>
+                                                <option value="A1">A1</option>
+                                                <option value="A2">A2</option>
+                                                <option value="A3">A3</option>
+                                                <option value="A4">A4</option>
+                                                <option value="A5">A5</option>
+                                                <option value="A6">A6</option>
+                                            </select>
+                                        </div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label><Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label><Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                    </div>
+
+                                    <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials</h3>
+                                    <div className="grid md:grid-cols-2 gap-4 mb-6">
+                                        <div className="md:col-span-2 relative">
+                                            <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
+                                            <div className="relative">
+                                                <Input
+                                                    value={paperSearch}
+                                                    onChange={(e) => {
+                                                        setPaperSearch(e.target.value);
+                                                        setShowPaperSuggestions(true);
+                                                    }}
+                                                    onFocus={() => setShowPaperSuggestions(true)}
+                                                    onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
+                                                    placeholder="Type to search digital paper..."
+                                                    className="bg-secondary border-white/10"
+                                                />
+                                                {showPaperSuggestions && (
+                                                    <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
+                                                        {papers.filter(p => {
+                                                            const pType = (p.type || '').toUpperCase();
+                                                            return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
+                                                        }).map(p => (
+                                                            <li key={p.id} onClick={() => {
+                                                                onChange(index, 'params', {
+                                                                    ...params,
+                                                                    paperCostPerSheet: p.unit_cost,
+                                                                    paperId: p.id,
+                                                                    paperName: p.name,
+                                                                    paperWidthCm: p.width_cm || 0,
+                                                                    paperHeightCm: p.height_cm || 0
+                                                                });
+                                                                setPaperSearch(p.name);
+                                                                setShowPaperSuggestions(false);
+                                                            }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
+                                                                <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span>
+                                                                <span>{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Paper Cost/Sheet</label><Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Print Cost / sq(cm)</label><Input type="number" name="digitalPricePerSqCm" value={params.digitalPricePerSqCm} onChange={handleChange} className="bg-secondary border-white/10 disabled:opacity-50" disabled /></div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Print Cost / Unit</label>
+                                            <Input
+                                                type="number"
+                                                value={((parseFloat(params.paperWidthCm) || 0) * (parseFloat(params.paperHeightCm) || 0) * (parseFloat(params.digitalPricePerSqCm) || 0) * (parseInt(params.sides) || 1)).toFixed(4)}
+                                                className="bg-secondary border-white/10 disabled:opacity-50"
+                                                disabled
+                                            />
+                                        </div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Width (cm)</label><Input type="number" name="paperWidthCm" value={params.paperWidthCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Height (cm)</label><Input type="number" name="paperHeightCm" value={params.paperHeightCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                    </div>
+                                </>
+                            )}
+
+                            <div>
+                                <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name?.toLowerCase().includes('finishing') ? 'hidden' : ''}`}>Finishings</h3>
+                                <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
+                                    <div className="grid md:grid-cols-12  gap-3 mb-3">
+                                        <div className="md:col-span-8 relative">
+                                            <Input value={finishingSearch} onChange={(e) => { setFinishingSearch(e.target.value); setShowFinishingSuggestions(true); setPendingFinishing(p => ({ ...p, name: e.target.value })); }} onFocus={() => setShowFinishingSuggestions(true)} onBlur={() => setTimeout(() => setShowFinishingSuggestions(false), 200)} placeholder="Add Finishing..." className="bg-secondary border-white/10 text-sm py-1.5" />
+                                            {showFinishingSuggestions && (
+                                                <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
+                                                    {availableFinishings.filter(f => f.name.toLowerCase().includes(finishingSearch.toLowerCase())).map(f => (
+                                                        <li key={f.id} onClick={() => {
+                                                            setFinishingSearch(f.name);
+                                                            setPendingFinishing({
+                                                                id: f.id,
+                                                                name: f.name,
+                                                                unit_cost: parseFloat(f.unit_cost),
+                                                                time_per_unit: 0,
+                                                                is_machine: f.is_machine === 1,
+                                                                machine_id: f.machine_id,
+                                                                cost_unit: f.cost_unit || 'Unit',
+                                                                variants: f.variants || [],
+                                                                speed: f.speed,
+                                                                speed_unit: f.speed_unit,
+                                                                forms: 1
+                                                            });
+                                                            setSelectedVariantId('');
+                                                            setShowFinishingSuggestions(false);
+                                                        }} className="px-3 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between"><span>{f.name}</span><span>{currency}{f.unit_cost}</span></li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                        <div className={pendingFinishing.cost_unit === "Form" ? "md:col-span-2" : "md:col-span-2 hidden"}>
+                                            <Input type="number" value={pendingFinishing.forms != null ? pendingFinishing.forms : ''} onChange={(e) => setPendingFinishing(p => ({ ...p, forms: parseInt(e.target.value) || 0 }))} className="bg-secondary border-white/10 text-sm py-1.5" placeholder="Forms" />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Input type="number" value={pendingFinishing.unit_cost} onChange={(e) => setPendingFinishing(p => ({ ...p, unit_cost: parseFloat(e.target.value) || 0 }))} className="bg-secondary border-white/10 text-sm py-1.5" placeholder="Cost" />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Button onClick={() => { if (!pendingFinishing.name) return; onAddFinishing(index, { ...pendingFinishing, id: Date.now() }); setFinishingSearch(''); setPendingFinishing({ id: null, name: '', unit_cost: 0, time_per_unit: 0, is_machine: false, cost_unit: 'Unit', variants: [], forms: 1 }); }} className="w-full bg-white text-black text-sm py-1.5 flex justify-center items-center px-0">Add</Button>
+                                        </div>
+                                    </div>
+                                    {pendingFinishing.variants && pendingFinishing.variants.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {pendingFinishing.variants.map(v => (
+                                                <button key={v.id} onClick={() => { setSelectedVariantId(v.id); setPendingFinishing(p => ({ ...p, name: `${p.name.split(' - ')[0]} - ${v.name}`, unit_cost: parseFloat(v.unit_cost) })); }} className={`px-2 py-0.5 text-xs rounded border ${selectedVariantId === v.id ? 'bg-blue-600 border-blue-500' : 'border-white/20'}`}>{v.name}</button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="space-y-2 mt-4">
+                                        {selectedFinishings.map((f, i) => (
+                                            <div key={i} className="flex flex-col sm:flex-row justify-between sm:items-center bg-white/5 p-3 rounded border border-white/10 text-sm gap-2">
+                                                <span className="flex-1 break-all pr-4">
+                                                    {f.name}
+                                                    {f.cost_unit === 'Form' && f.forms != null && (
+                                                        <span className="text-xs text-blue-400 ml-1.5">({f.forms} Forms)</span>
+                                                    )}
+                                                </span>
+                                                <div className="flex items-center gap-4 shrink-0">
+                                                    {f.total_time > 0 && (
+                                                        <span className="text-blue-300 text-xs">{f.total_time.toFixed(2)} hrs</span>
+                                                    )}
+                                                    <span className="text-gray-400 font-mono w-20 text-right">{currency}{(Number(f.total_cost) || 0).toFixed(2)}</span>
+                                                    <button onClick={() => onRemoveFinishing(index, f.id)} className="text-red-400 hover:text-red-300 transition-colors p-1">&times;</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-violet-500/15 rounded-xl">
-                                    No static assets added yet — search above to add
+                            </div>
+
+                            {/* ── SFG / Assets Section ── */}
+                            {isSFGComponent && (
+                                <div className="mt-6 border-t border-amber-500/20 pt-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">SFG / Assets</span>
+                                        <h3 className="text-md font-semibold text-gray-300">Inventory Stock Lines</h3>
+                                    </div>
+
+                                    {/* Search & Add */}
+                                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-3">
+                                        <div className="relative">
+                                            <Input
+                                                value={sfgSearch}
+                                                onChange={(e) => { setSfgSearch(e.target.value); setShowSfgSuggestions(true); }}
+                                                onFocus={() => setShowSfgSuggestions(true)}
+                                                onBlur={() => setTimeout(() => setShowSfgSuggestions(false), 200)}
+                                                placeholder="Search SFG / Asset inventory item..."
+                                                className="bg-black/30 border-amber-500/30 text-sm"
+                                            />
+                                            {showSfgSuggestions && (
+                                                <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
+                                                    {sfgInventory
+                                                        .filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase()))
+                                                        .map(item => (
+                                                            <li
+                                                                key={item.id}
+                                                                onClick={() => {
+                                                                    addSfgLine(item);
+                                                                    setSfgSearch('');
+                                                                    setShowSfgSuggestions(false);
+                                                                }}
+                                                                className="px-4 py-2.5 hover:bg-amber-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
+                                                            >
+                                                                <div>
+                                                                    <div className="text-white font-medium">{item.name}</div>
+                                                                    <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
+                                                                </div>
+                                                                <div className="text-right shrink-0">
+                                                                    <div className="text-amber-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
+                                                                    <div className="text-[10px] text-gray-500">Stock: {item.stock_quantity} {item.uom}</div>
+                                                                </div>
+                                                            </li>
+                                                        ))
+                                                    }
+                                                    {sfgInventory.filter(i => i.name.toLowerCase().includes(sfgSearch.toLowerCase())).length === 0 && (
+                                                        <li className="px-4 py-3 text-gray-500 text-sm italic">No SFG items found</li>
+                                                    )}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Lines Table */}
+                                    {sfgLines.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {/* Header */}
+                                            <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
+                                                <span className="col-span-4">Item</span>
+                                                <span className="col-span-2 text-center">Stock</span>
+                                                <span className="col-span-2 text-center">Qty</span>
+                                                <span className="col-span-2 text-right">Unit Price</span>
+                                                <span className="col-span-1 text-right">Total</span>
+                                                <span className="col-span-1"></span>
+                                            </div>
+                                            {sfgLines.map((line) => (
+                                                <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-amber-500/10 rounded-lg px-3 py-2">
+                                                    <div className="col-span-4">
+                                                        <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
+                                                        {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
+                                                    </div>
+                                                    <div className="col-span-2 text-center">
+                                                        <span className={`text-xs font-mono ${
+                                                            (line.stock_quantity || 0) <= 0 ? 'text-red-400' :
+                                                            (line.stock_quantity || 0) < (line.quantity || 0) ? 'text-amber-400' : 'text-emerald-400'
+                                                        }`}>{line.stock_quantity ?? '–'} {line.uom}</span>
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            value={line.quantity}
+                                                            onChange={e => updateSfgLine(line.id, 'quantity', e.target.value)}
+                                                            className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.0001"
+                                                            value={line.unit_price}
+                                                            onChange={e => updateSfgLine(line.id, 'unit_price', e.target.value)}
+                                                            className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-1 text-right">
+                                                        <span className="text-sm text-amber-300 font-mono">
+                                                            {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-end">
+                                                        <button
+                                                            onClick={() => removeSfgLine(line.id)}
+                                                            className="text-red-400 hover:text-red-300 transition-colors p-1"
+                                                            title="Remove"
+                                                        >&times;</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {/* Subtotal */}
+                                            <div className="flex justify-between items-center px-3 pt-2 border-t border-amber-500/20">
+                                                <span className="text-xs text-amber-400/70 uppercase tracking-widest">SFG Subtotal</span>
+                                                <span className="text-sm font-bold text-amber-300 font-mono">
+                                                    {currency}{sfgLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-amber-500/15 rounded-xl">
+                                            No SFG/Asset items added yet — search above to add stock lines
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
+
+                            {/* ── Statics Section ── */}
+                            {isSFGComponent && (
+                                <div className="mt-4 border-t border-violet-500/20 pt-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-xs font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded">Statics</span>
+                                        <h3 className="text-md font-semibold text-gray-300">Static Assets</h3>
+                                    </div>
+
+                                    {/* Search & Add */}
+                                    <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 mb-3">
+                                        <div className="relative">
+                                            <Input
+                                                value={staticsSearch}
+                                                onChange={e => { setStaticsSearch(e.target.value); setShowStaticsSuggestions(true); }}
+                                                onFocus={() => setShowStaticsSuggestions(true)}
+                                                onBlur={() => setTimeout(() => setShowStaticsSuggestions(false), 200)}
+                                                placeholder="Search static assets (paper plate, ink, etc.)...."
+                                                className="bg-black/30 border-violet-500/30 text-sm"
+                                            />
+                                            {showStaticsSuggestions && (
+                                                <ul className="absolute z-50 w-full bg-gray-900 border border-white/10 rounded-lg mt-1 max-h-52 overflow-y-auto shadow-2xl">
+                                                    {staticsInventory
+                                                        .filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase()))
+                                                        .map(item => (
+                                                            <li key={item.id}
+                                                                onClick={() => { addStaticsLine(item); setStaticsSearch(''); setShowStaticsSuggestions(false); }}
+                                                                className="px-4 py-2.5 hover:bg-violet-500/10 cursor-pointer text-sm flex justify-between items-center gap-4 border-b border-white/5 last:border-0"
+                                                            >
+                                                                <div>
+                                                                    <div className="text-white font-medium">{item.name}</div>
+                                                                    <div className="text-[10px] text-gray-500 font-mono">{item.item_code}</div>
+                                                                </div>
+                                                                <div className="text-right shrink-0">
+                                                                    <div className="text-violet-400 font-mono text-xs">{currency}{parseFloat(item.unit_cost).toFixed(4)}</div>
+                                                                    <div className="text-[10px] text-gray-500">{item.uom}</div>
+                                                                </div>
+                                                            </li>
+                                                        ))
+                                                    }
+                                                    {staticsInventory.filter(i => i.is_active === 1 && i.name.toLowerCase().includes(staticsSearch.toLowerCase())).length === 0 && (
+                                                        <li className="px-4 py-3 text-gray-500 text-sm italic">No active Statics items found</li>
+                                                    )}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Table */}
+                                    {staticsLines.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">
+                                                <span className="col-span-5">Item</span>
+                                                <span className="col-span-2 text-center">Qty</span>
+                                                <span className="col-span-2 text-right">Unit Price</span>
+                                                <span className="col-span-2 text-right">Total</span>
+                                                <span className="col-span-1"></span>
+                                            </div>
+                                            {staticsLines.map((line) => (
+                                                <div key={line.id} className="grid grid-cols-12 gap-2 items-center bg-black/30 border border-violet-500/10 rounded-lg px-3 py-2">
+                                                    <div className="col-span-5">
+                                                        <div className="text-sm text-white font-medium truncate">{line.item_name}</div>
+                                                        {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <Input type="number" min="0" step="1"
+                                                            value={line.quantity}
+                                                            onChange={e => updateStaticsLine(line.id, 'quantity', e.target.value)}
+                                                            className="bg-black/40 border-white/10 text-center text-sm h-8 py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <Input type="number" min="0" step="0.0001"
+                                                            value={line.unit_price}
+                                                            onChange={e => updateStaticsLine(line.id, 'unit_price', e.target.value)}
+                                                            className="bg-black/40 border-white/10 text-right text-sm h-8 py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 text-right">
+                                                        <span className="text-sm text-violet-300 font-mono">
+                                                            {currency}{(parseFloat(line.total_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-1 flex justify-end">
+                                                        <button onClick={() => removeStaticsLine(line.id)} className="text-red-400 hover:text-red-300 transition-colors p-1" title="Remove">&times;</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="flex justify-between items-center px-3 pt-2 border-t border-violet-500/20">
+                                                <span className="text-xs text-violet-400/70 uppercase tracking-widest">Statics Subtotal</span>
+                                                <span className="text-sm font-bold text-violet-300 font-mono">
+                                                    {currency}{staticsLines.reduce((a, l) => a + (parseFloat(l.total_price) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 text-gray-600 italic text-sm border border-dashed border-violet-500/15 rounded-xl">
+                                            No static assets added yet — search above to add
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>{/* end lg:col-span-2 left column */}
 
