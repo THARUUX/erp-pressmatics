@@ -90,6 +90,9 @@ export async function GET(req, { params }) {
         }
         salesOrder.items = lineItems;
 
+        const [tasks] = await pool.execute('SELECT * FROM job_tasks WHERE sales_order_id = ?', [id]);
+        salesOrder.tasks = tasks;
+
         // Generate QR code data URL
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
         const jobUrl = `${baseUrl}/jobs/${id}`;

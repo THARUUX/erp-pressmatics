@@ -94,6 +94,22 @@ function LayoutInner({ children }) {
 
     const [currentUser, setCurrentUser] = useState(null);
     const [showDenied, setShowDenied] = useState(false);
+    const [isSidebarHidden, setIsSidebarHidden] = useState(false);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('sidebarHidden');
+        if (saved === 'true') {
+            setIsSidebarHidden(true);
+        }
+    }, []);
+
+    const toggleSidebar = () => {
+        setIsSidebarHidden(prev => {
+            const next = !prev;
+            localStorage.setItem('sidebarHidden', String(next));
+            return next;
+        });
+    };
 
     // Fetch current user role on mount
     useEffect(() => {
@@ -179,14 +195,23 @@ function LayoutInner({ children }) {
     return (
         <div className="h-screen bg-transparent text-white flex overflow-hidden">
             {/* Sidebar */}
-            <aside className="w-64 bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto">
-                <div className="p-6 pb-4">
+            <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto transition-all duration-300 ${
+                isSidebarHidden ? 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none' : 'w-64'
+            }`}>
+                <div className="p-6 pb-4 flex items-center justify-between">
                     <Link href="/dashboard">
                         <h1 className="text-2xl font-bold text-white flex items-center gap-2 tracking-tighter cursor-pointer">
                             <FiPrinter className="text-white" />
                             Pressmatics
                         </h1>
                     </Link>
+                    <button 
+                        onClick={toggleSidebar}
+                        className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/5 cursor-pointer transition-colors"
+                        title="Hide Sidebar"
+                    >
+                        <FiChevronRight className="w-4 h-4 rotate-180" />
+                    </button>
                 </div>
 
                 {/* Access-denied banner (inside sidebar) */}
@@ -271,6 +296,15 @@ function LayoutInner({ children }) {
 
             {/* Main Content Wrapper */}
             <main className="flex-1 p-8 overflow-y-auto relative z-10 h-full">
+                {isSidebarHidden && (
+                    <button
+                        onClick={toggleSidebar}
+                        className="fixed left-4 top-4 z-50 flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-white cursor-pointer transition-all"
+                        title="Show Sidebar"
+                    >
+                        <FiChevronRight className="w-4 h-4" />
+                    </button>
+                )}
                 <Toaster
                     position="top-right"
                     toastOptions={{

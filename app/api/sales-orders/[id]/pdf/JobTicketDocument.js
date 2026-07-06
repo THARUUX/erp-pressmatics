@@ -175,15 +175,24 @@ function ImpositionSVG({ detail, svgW = 340, svgH = 160 }) {
 
 // ─── Modular UI Blocks ───────────────────────────────────────────────────────
 // Finishing est time: quantity / machine.speed → minutes
-const fmtFinishTime = f => {
+const fmtFinishTime = (f, tasks) => {
+    const matchedTask = tasks?.find(t => 
+        t.machine_id === f.machine_id && 
+        t.name.toLowerCase().includes(f.name.toLowerCase())
+    );
+    const mins = matchedTask ? matchedTask.estimated_minutes : null;
+    if (mins != null) {
+        return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} hr`;
+    }
+
     const qty   = parseFloat(f.quantity)  || 0;
     const speed = parseFloat(f.speed)     || 0;
     if (!qty || !speed) return fmtTime(f.total_time); // fallback to stored value
-    const mins = Math.ceil((qty / speed) * 60);
-    return mins < 60 ? `~${mins} min` : `~${(mins / 60).toFixed(1)} hr`;
+    const minsCalc = Math.ceil((qty / speed) * 60);
+    return minsCalc < 60 ? `~${minsCalc} min` : `~${(minsCalc / 60).toFixed(1)} hr`;
 };
 
-function FinishingsTable({ finishings }) {
+function FinishingsTable({ finishings, tasks }) {
     if (!finishings?.length) return null;
     return (
         <View style={{ marginTop: 4 }}>
@@ -199,14 +208,14 @@ function FinishingsTable({ finishings }) {
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
                     <Text style={[s.tableCell, s.tableCol2]}>{fmt(f.machine_name)}</Text>
                     <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
-                    <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f)}</Text>
+                    <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f, tasks)}</Text>
                 </View>
             ))}
         </View>
     );
 }
 
-function GlobalFinishingsTable({ finishings }) {
+function GlobalFinishingsTable({ finishings, tasks }) {
     if (!finishings?.length) return null;
     return (
         <View style={s.globalSection}>
@@ -221,7 +230,7 @@ function GlobalFinishingsTable({ finishings }) {
                 <View key={i} style={s.tableRow}>
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
                     <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
-                    <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f)}</Text>
+                    <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f, tasks)}</Text>
                     <View style={{ flex: 1, alignItems: 'center' }}>
                         <View style={s.globalBox} />
                     </View>
@@ -283,26 +292,35 @@ function ServicesTable({ services }) {
     );
 }
 
-function DetailCard({ detail }) {
+function DetailCard({ detail, tasks }) {
     const isFinishing = detail.component_name === 'Finishing';
     const isDigital = detail.type === 'digital';
     const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').includes('Assets') || (detail.component_name || '').includes('SFG');
     const isServicesComp = detail.type === 'services' || (detail.component_name || '').toLowerCase().includes('service');
     const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
 
-    // Est. press time: (printed_sheets + wastage_sheets) × sides / machine_speed (hrs → min)
+    // Est. press time: check tasks list first, then fallback to speed formula
     let estTimeLabel = null;
     if (isPrinting) {
-        const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
-        const pressPasses = cutSheets * (detail.sides || 1);
-        const estMins = detail.machine_speed > 0
-            ? Math.ceil((pressPasses / detail.machine_speed) * 60)
-            : null;
-        estTimeLabel = estMins != null
-            ? estMins < 60
-                ? `~${estMins} min`
-                : `~${(estMins / 60).toFixed(1)} hr`
-            : null;
+        const matchedTask = tasks?.find(t => 
+            t.machine_id === detail.machine_id && 
+            t.name.toLowerCase().includes(detail.component_name.toLowerCase())
+        );
+        const mins = matchedTask ? matchedTask.estimated_minutes : null;
+        if (mins != null) {
+            estTimeLabel = mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} hr`;
+        } else {
+            const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
+            const pressPasses = cutSheets * (detail.sides || 1);
+            const estMins = detail.machine_speed > 0
+                ? Math.ceil((pressPasses / detail.machine_speed) * 60)
+                : null;
+            estTimeLabel = estMins != null
+                ? estMins < 60
+                    ? `~${estMins} min`
+                    : `~${(estMins / 60).toFixed(1)} hr`
+                : null;
+        }
     }
 
     return (
@@ -377,7 +395,7 @@ function DetailCard({ detail }) {
 
             <SFGLinesTable sfgLines={detail.sfgLines} />
             <ServicesTable services={detail.services} />
-            <FinishingsTable finishings={detail.finishings} />
+            <FinishingsTable finishings={detail.finishings} tasks={tasks} />
         </View>
     );
 }
@@ -419,10 +437,10 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                     </View>
 
                     {item.details?.filter(d => d.component_name !== 'Finishing').map((detail, dIdx) => (
-                        <DetailCard key={detail.id || dIdx} detail={detail} />
+                        <DetailCard key={detail.id || dIdx} detail={detail} tasks={order.tasks} />
                     ))}
 
-                    <GlobalFinishingsTable finishings={item.globalFinishings} />
+                    <GlobalFinishingsTable finishings={item.globalFinishings} tasks={order.tasks} />
 
                     <View style={s.signoffRow}>
                         <View style={s.signoffBox}>

@@ -17,7 +17,7 @@ export async function PUT(req, { params }) {
     try {
         const { id, taskId } = await params;
         const body = await req.json();
-        const { name, status, completed_at, completed_by, assigned_to, description, machine_id, machine_name, estimated_minutes } = body;
+        const { name, status, completed_at, completed_by, assigned_to, description, machine_id, machine_name, estimated_minutes, scheduled_date } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
 
@@ -61,6 +61,10 @@ export async function PUT(req, { params }) {
         if (estimated_minutes !== undefined) {
             updates.push('estimated_minutes = ?');
             paramsList.push(estimated_minutes !== null ? parseInt(estimated_minutes) : null);
+        }
+        if (scheduled_date !== undefined) {
+            updates.push('scheduled_date = ?');
+            paramsList.push(scheduled_date || null);
         }
         if (hasMachineUpdate) {
             updates.push('machine_id = ?');
