@@ -80,7 +80,7 @@ export default function QuotationViewPage({ params }) {
             {/* No Print Header */}
             <div className="flex justify-between items-center mb-8 print:hidden">
                 <Link href="/dashboard/quotations">
-                    <Button className="bg-white/5 border border-white/20 hover:bg-white/10">
+                    <Button className="bg-white/5 border border-white/20 text-white hover:bg-white/10">
                         <FiArrowLeft className="mr-2" /> Back to List
                     </Button>
                 </Link>

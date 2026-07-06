@@ -147,8 +147,8 @@ export async function PUT(req, { params }) {
 
         for (const comp of components) {
             let result;
-            const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
-            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
+            const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('services');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -209,93 +209,167 @@ export async function PUT(req, { params }) {
         const totalBeforeMarkup = subTotal + sfgTotal + globalFinishingCost;
         const markupAmount = totalBeforeMarkup * ((parseFloat(markup_percent) || 0) / 100);
         const grandTotal = totalBeforeMarkup + markupAmount;
-        const mainType = processedComponents[0].meta.type || 'offset'; // Simplification
+        const mainType = processedComponents[0]?.meta?.type || 'offset'; // Simplification
 
-        // 2. Update Main Item (Header)
-        await pool.execute(
-            `UPDATE quotation_items SET 
-             customer_name = ?, customer_id = ?, estimation_name = ?, job_description = ?, type = ?, quantity = ?, total_amount = ?, markup_percent = ?
-             WHERE id = ?`,
-            [customer_name, customer_id || null, estimation_name || '', job_description, mainType, quantity, grandTotal, parseFloat(markup_percent) || 0, id]
-        );
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
 
-        // 3. Update Details (Delete All & Insert New)
-        // This handles removed components, added components, and changed components easily.
-        await pool.execute('DELETE FROM quotation_item_services WHERE quotation_item_id = ?', [id]);
-        await pool.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
-        await pool.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
-
-        // Insert New Details
-        for (const pComp of processedComponents) {
-            const { meta, calc } = pComp;
-            const params = meta.params;
-            const costs = calc.costs;
-
-            const isServicesComp = (meta.name || '').toLowerCase().includes('services');
-            const [detailResult] = await pool.execute(
-                `INSERT INTO quotation_item_details (
-            quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
-            printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
-            final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-            paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    id,
-                    meta.name || 'Main',
-                    meta.type || (isServicesComp ? 'services' : 'offset'),
-                    params.machineId || null,
-                    params.pages || 1,
-                    params.paperCostPerSheet || 0,
-                    params.plateCostPerUnit || 0,
-                    params.impressionCostPerUnit || 0,
-                    params.wastagePercent || 0,
-                    params.ups || 1,
-                    params.sides || 1,
-                    params.size || null,
-                    (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
-                    parseInt(params.colorsFront) ?? null,
-                    parseInt(params.colorsBack) ?? null,
-                    params.customImpressions || null,
-                    params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
-                    params.customPlateCount != null && params.customPlateCount !== '' ? parseInt(params.customPlateCount) : null,
-                    calc.printedSheets || 0,
-                    calc.fullSheetsUsed || 0,
-                    calc.wastageSheets || 0,
-                    calc.totalSheetsRequired || 0,
-                    calc.plateCount || 0,
-                    costs.paper || 0,
-                    costs.plate || 0,
-                    costs.printing || 0,
-                    costs.finishing || 0,
-                    params.paperId || null,
-                    params.paperName || null,
-                    params.paperWidthCm || null,
-                    params.paperHeightCm || null,
-                    params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
-                    params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
-                    params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
-                    params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
-                    params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
-                    params.digitalPricePerSqCm || null,
-                    params.colorQuality || null,
-                    params.isBB ? 1 : 0,
-                    params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
-                ]
+            // 2. Update Main Item (Header)
+            await connection.execute(
+                `UPDATE quotation_items SET 
+                 customer_name = ?, customer_id = ?, estimation_name = ?, job_description = ?, type = ?, quantity = ?, total_amount = ?, markup_percent = ?
+                 WHERE id = ?`,
+                [customer_name, customer_id || null, estimation_name || '', job_description, mainType, quantity, grandTotal, parseFloat(markup_percent) || 0, id]
             );
-            const detailId = detailResult.insertId;
 
-            // Insert Finishings
-            const finishings = meta.finishings || [];
-            if (finishings.length > 0) {
-                for (const fItem of finishings) {
-                    await pool.execute(
+            // 3. Update Details (Delete All & Insert New)
+            await connection.execute('DELETE FROM quotation_item_services WHERE quotation_item_id = ?', [id]);
+            await connection.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
+            await connection.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
+
+            // Insert New Details
+            for (const pComp of processedComponents) {
+                const { meta, calc } = pComp;
+                const params = meta.params;
+                const costs = calc.costs;
+
+                const isServicesComp = (meta.name || '').toLowerCase().includes('services');
+                const [detailResult] = await connection.execute(
+                    `INSERT INTO quotation_item_details (
+                quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
+                impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
+                printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
+                final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
+                paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        id,
+                        meta.name || 'Main',
+                        meta.type || (isServicesComp ? 'services' : 'offset'),
+                        params.machineId || null,
+                        params.pages || 1,
+                        params.paperCostPerSheet || 0,
+                        params.plateCostPerUnit || 0,
+                        params.impressionCostPerUnit || 0,
+                        params.wastagePercent || 0,
+                        params.ups || 1,
+                        params.sides || 1,
+                        params.size || null,
+                        (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
+                        parseInt(params.colorsFront) ?? null,
+                        parseInt(params.colorsBack) ?? null,
+                        params.customImpressions || null,
+                        params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
+                        params.customPlateCount != null && params.customPlateCount !== '' ? parseInt(params.customPlateCount) : null,
+                        calc.printedSheets || 0,
+                        calc.fullSheetsUsed || 0,
+                        calc.wastageSheets || 0,
+                        calc.totalSheetsRequired || 0,
+                        calc.plateCount || 0,
+                        costs.paper || 0,
+                        costs.plate || 0,
+                        costs.printing || 0,
+                        costs.finishing || 0,
+                        params.paperId || null,
+                        params.paperName || null,
+                        params.paperWidthCm || null,
+                        params.paperHeightCm || null,
+                        params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
+                        params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
+                        params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
+                        params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
+                        params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
+                        params.digitalPricePerSqCm || null,
+                        params.colorQuality || null,
+                        params.isBB ? 1 : 0,
+                        params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
+                    ]
+                );
+                const detailId = detailResult.insertId;
+
+                // Insert Finishings
+                const finishings = meta.finishings || [];
+                if (finishings.length > 0) {
+                    for (const fItem of finishings) {
+                        await connection.execute(
+                            `INSERT INTO quotation_item_finishings 
+                            (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                id,
+                                detailId,
+                                fItem.name,
+                                fItem.quantity,
+                                fItem.unit_cost,
+                                fItem.total_cost,
+                                fItem.machine_id || null,
+                                fItem.is_machine ? 1 : 0,
+                                fItem.time_per_unit || 0,
+                                fItem.total_time || 0,
+                                fItem.cost_unit || 'Unit',
+                                fItem.forms != null ? parseInt(fItem.forms) : null
+                            ]
+                        );
+                    }
+                }
+
+                // Insert SFG Lines
+                const sfgLines = meta.sfgLines || [];
+                for (const sl of sfgLines) {
+                    const qty = parseFloat(sl.quantity) || 0;
+                    const price = parseFloat(sl.unit_price) || 0;
+                    await connection.execute(
+                        `INSERT INTO quotation_item_sfg_lines
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            detailId,
+                            sl.inventory_item_id,
+                            sl.item_name || '',
+                            sl.item_code || '',
+                            qty,
+                            price,
+                            qty * price
+                        ]
+                    );
+                }
+
+                // Insert Services
+                if (isServicesComp) {
+                    const services = meta.services || [];
+                    for (const s of services) {
+                        await connection.execute(
+                            `INSERT INTO quotation_item_services 
+                            (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                id,
+                                detailId,
+                                s.service_id,
+                                s.service_name || '',
+                                s.employee_name || '',
+                                s.rate_unit || 'per hour',
+                                parseFloat(s.rate) || 0.00,
+                                parseFloat(s.multiply_by) || 1.00,
+                                s.note || null,
+                                (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
+                            ]
+                        );
+                    }
+                }
+            }
+
+            // Insert Global Finishings
+            if (processedGlobalFinishings.length > 0) {
+                for (const fItem of processedGlobalFinishings) {
+                    await connection.execute(
                         `INSERT INTO quotation_item_finishings 
                         (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             id,
-                            detailId,
+                            null, // Detail ID is NULL for global
                             fItem.name,
                             fItem.quantity,
                             fItem.unit_cost,
@@ -311,78 +385,14 @@ export async function PUT(req, { params }) {
                 }
             }
 
-            // Insert SFG Lines
-            const sfgLines = meta.sfgLines || [];
-            for (const sl of sfgLines) {
-                const qty = parseFloat(sl.quantity) || 0;
-                const price = parseFloat(sl.unit_price) || 0;
-                await pool.execute(
-                    `INSERT INTO quotation_item_sfg_lines
-                    (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        detailId,
-                        sl.inventory_item_id,
-                        sl.item_name || '',
-                        sl.item_code || '',
-                        qty,
-                        price,
-                        qty * price
-                    ]
-                );
-            }
-
-            // Insert Services
-            if (isServicesComp) {
-                const services = meta.services || [];
-                for (const s of services) {
-                    await pool.execute(
-                        `INSERT INTO quotation_item_services 
-                        (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            id,
-                            detailId,
-                            s.service_id,
-                            s.service_name || '',
-                            s.employee_name || '',
-                            s.rate_unit || 'per hour',
-                            parseFloat(s.rate) || 0.00,
-                            parseFloat(s.multiply_by) || 1.00,
-                            s.note || null,
-                            (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
-                        ]
-                    );
-                }
-            }
+            await connection.commit();
+            return NextResponse.json({ success: true, amount: grandTotal });
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
         }
-
-        // Insert Global Finishings
-        if (processedGlobalFinishings.length > 0) {
-            for (const fItem of processedGlobalFinishings) {
-                await pool.execute(
-                    `INSERT INTO quotation_item_finishings 
-                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        id,
-                        null, // Detail ID is NULL for global
-                        fItem.name,
-                        fItem.quantity,
-                        fItem.unit_cost,
-                        fItem.total_cost,
-                        fItem.machine_id || null,
-                        fItem.is_machine ? 1 : 0,
-                        fItem.time_per_unit || 0,
-                        fItem.total_time || 0,
-                        fItem.cost_unit || 'Unit',
-                        fItem.forms != null ? parseInt(fItem.forms) : null
-                    ]
-                );
-            }
-        }
-
-        return NextResponse.json({ success: true, amount: grandTotal });
     } catch (error) {
         console.error("Update Item Error:", error);
         return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });

@@ -11,7 +11,7 @@ import {
     FiPlus, FiEdit2, FiTrash2, FiSearch, FiStar, FiCopy,
     FiX, FiCheckCircle, FiAlertCircle, FiList, FiGrid,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
-    FiChevronRight, FiChevronsRight,
+    FiChevronRight, FiChevronsRight, FiFileText,
 } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
@@ -45,6 +45,40 @@ function DuplicateProgress({ visible, progress, label }) {
                 <div className="text-gray-500 text-sm mb-6">{label}</div>
                 <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
                     <div className="h-full bg-gradient-to-r from-violet-600 to-violet-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
+                </div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
+            </div>
+        </div>
+    );
+}
+
+/* ── Quotation Progress ──────────────────────────────────────────────────────── */
+function QuotationProgress({ visible, progress, label }) {
+    if (!visible) return null;
+    return (
+        <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#qGradItems)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="qGradItems" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#10b981" />
+                                    <stop offset="100%" stopColor="#34d399" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
+                            <FiFileText size={18} className="text-emerald-400" />
+                        </div>
+                    </div>
+                </div>
+                <div className="text-white font-bold text-base mb-1">Creating Quotation</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-400"
                         style={{ width: `${progress}%` }} />
                 </div>
                 <div className="text-gray-600 text-xs">{progress}%</div>
@@ -98,6 +132,9 @@ export default function ItemsPage() {
     const [duplicating, setDuplicating] = useState(false);
     const [dupProgress, setDupProgress] = useState(0);
     const [dupLabel, setDupLabel]       = useState('');
+    const [creatingQuotation, setCreatingQuotation] = useState(false);
+    const [qProgress, setQProgress] = useState(0);
+    const [qLabel, setQLabel]       = useState('');
 
     /* ── Fetch all ────────────────────────────────────────────────────────────── */
     const fetchAll = useCallback(() => {
@@ -154,6 +191,59 @@ export default function ItemsPage() {
         else toast.error('Failed to delete');
     };
 
+    const handleCreateQuotation = async (item) => {
+        if (!(await confirmDialog(`Create a new quotation for "${item.estimation_name || item.customer_name || 'Untitled'}"?`, { confirmLabel: 'Create Quotation' }))) return;
+        
+        setCreatingQuotation(true); 
+        setQProgress(0); 
+        setQLabel('Initializing...');
+        
+        const stages = [
+            { pct: 15, label: 'Connecting to database...' },
+            { pct: 40, label: 'Fetching customer details...' },
+            { pct: 65, label: 'Creating quotation container...' },
+            { pct: 85, label: 'Linking item to quotation...' },
+            { pct: 95, label: 'Finalising...' }
+        ];
+        
+        let si = 0;
+        const tick = setInterval(() => {
+            if (si < stages.length) { 
+                setQProgress(stages[si].pct); 
+                setQLabel(stages[si].label); 
+                si++; 
+            }
+        }, 350);
+
+        try {
+            const res = await fetch('/api/quotations/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_name: item.customer_name || 'Generic Customer',
+                    customer_id: item.customer_id || null,
+                    selected_item_ids: [item.id]
+                })
+            });
+            const d = await res.json();
+            clearInterval(tick); 
+            
+            if (res.ok && d.quotationId) {
+                setQProgress(100); 
+                setQLabel('Redirecting to quotation...');
+                await new Promise(r => setTimeout(r, 600));
+                router.push(`/dashboard/quotations/${d.quotationId}`);
+            } else {
+                setCreatingQuotation(false); 
+                toast.error(d.error || 'Failed to create quotation');
+            }
+        } catch (error) {
+            clearInterval(tick); 
+            setCreatingQuotation(false); 
+            toast.error('Error creating quotation');
+        }
+    };
+
     const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     /* ── TanStack columns ─────────────────────────────────────────────────────── */
@@ -208,7 +298,7 @@ export default function ItemsPage() {
             ),
         },
         {
-            id: 'actions', header: '', size: 110,
+            id: 'actions', header: '', size: 140,
             enableSorting: false, enableColumnFilter: false,
             cell: ({ row }) => {
                 const item = row.original;
@@ -216,6 +306,9 @@ export default function ItemsPage() {
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                         <ActionBtn title="Toggle Template" icon={<FiStar size={14} className={item.is_favorite ? 'fill-yellow-400 text-yellow-400' : ''} />}
                             onClick={() => handleToggleFav(item.id, item.is_favorite)} />
+                        <ActionBtn title="Create Quotation" icon={<FiFileText size={14} />}
+                            cls="hover:text-emerald-400 hover:bg-emerald-500/10"
+                            onClick={() => handleCreateQuotation(item)} />
                         <ActionBtn title="Duplicate" icon={<FiCopy size={14} />}
                             cls="hover:text-blue-400 hover:bg-blue-500/10"
                             onClick={() => handleDuplicate(item.id)} />
@@ -265,6 +358,7 @@ export default function ItemsPage() {
     return (
         <div className="text-white">
             <DuplicateProgress visible={duplicating} progress={dupProgress} label={dupLabel} />
+            <QuotationProgress visible={creatingQuotation} progress={qProgress} label={qLabel} />
 
             {/* ── Header ─────────────────────────────────────────────────────── */}
             <header className="flex justify-between items-center mb-6">
@@ -362,6 +456,10 @@ export default function ItemsPage() {
                                             <div className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
                                         </div>
                                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={e => { e.stopPropagation(); handleCreateQuotation(item); }}
+                                                className="p-2 text-gray-400 hover:text-emerald-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Create Quotation">
+                                                <FiFileText />
+                                            </button>
                                             <button onClick={e => { e.stopPropagation(); handleDuplicate(item.id); }}
                                                 className="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-lg transition-colors" title="Duplicate">
                                                 <FiCopy />

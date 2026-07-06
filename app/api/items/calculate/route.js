@@ -20,8 +20,8 @@ export async function POST(req) {
         let grandTotal = 0;
 
         for (const comp of components) {
-            const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
-            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
+            const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('services');
             let result;
 
             if (isServicesComp) {

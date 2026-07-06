@@ -26,22 +26,22 @@ export async function DELETE(req, { params }) {
         const [lines] = await pool.execute('SELECT quotation_item_id FROM quotation_line_items WHERE quotation_id = ?', [id]);
         const itemIds = lines.map(l => l.quotation_item_id);
 
-        if (itemIds.length > 0) {
-            const placeholders = itemIds.map(() => '?').join(',');
+        // if (itemIds.length > 0) {
+        //     const placeholders = itemIds.map(() => '?').join(',');
 
-            // 1. Delete line associations FIRST (to free up items)
-            await pool.execute('DELETE FROM quotation_line_items WHERE quotation_id = ?', [id]);
+        //     // 1. Delete line associations FIRST (to free up items)
+        //     await pool.execute('DELETE FROM quotation_line_items WHERE quotation_id = ?', [id]);
 
-            // 2. Delete finishings
-            await pool.execute(`DELETE FROM quotation_item_finishings WHERE quotation_item_id IN (${placeholders})`, itemIds);
-            // 3. Delete details
-            await pool.execute(`DELETE FROM quotation_item_details WHERE quotation_item_id IN (${placeholders})`, itemIds);
-            // 4. Delete items
-            await pool.execute(`DELETE FROM quotation_items WHERE id IN (${placeholders})`, itemIds);
-        } else {
-            // Even if no items, ensure lines are gone
-            await pool.execute('DELETE FROM quotation_line_items WHERE quotation_id = ?', [id]);
-        }
+        //     // 2. Delete finishings
+        //     await pool.execute(`DELETE FROM quotation_item_finishings WHERE quotation_item_id IN (${placeholders})`, itemIds);
+        //     // 3. Delete details
+        //     await pool.execute(`DELETE FROM quotation_item_details WHERE quotation_item_id IN (${placeholders})`, itemIds);
+        //     // 4. Delete items
+        //     await pool.execute(`DELETE FROM quotation_items WHERE id IN (${placeholders})`, itemIds);
+        // } else {
+        //     // Even if no items, ensure lines are gone
+        //     await pool.execute('DELETE FROM quotation_line_items WHERE quotation_id = ?', [id]);
+        // }
 
         // Delete quotation
         await pool.execute('DELETE FROM quotations WHERE id = ?', [id]);

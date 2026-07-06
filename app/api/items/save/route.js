@@ -26,8 +26,8 @@ export async function POST(req) {
 
         for (const comp of components) {
             let result;
-            const isSFGComp = (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
-            const isServicesComp = (comp.name || '').toLowerCase().includes('services');
+            const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('services');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -100,103 +100,178 @@ export async function POST(req) {
         // Type? Mixed? If all same, use that, else 'mixed'.
         const mainType = components.every(c => c.type === components[0].type) ? components[0].type : 'mixed';
 
-        // Fetch Settings for Code Generation
-        const [settingsRows] = await pool.execute("SELECT * FROM settings WHERE setting_key IN ('item_code_template', 'item_code_seq')");
-        const settingsMap = {};
-        settingsRows.forEach(row => settingsMap[row.setting_key] = row.setting_value);
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
 
-        let template = settingsMap['item_code_template'] || 'INV-{0000}';
-        let seq = parseInt(settingsMap['item_code_seq'] || '1000');
+            // Fetch Settings for Code Generation
+            const [settingsRows] = await connection.execute("SELECT * FROM settings WHERE setting_key IN ('item_code_template', 'item_code_seq')");
+            const settingsMap = {};
+            settingsRows.forEach(row => settingsMap[row.setting_key] = row.setting_value);
 
-        // Generate Code
-        let code = template.replace('{0000}', String(seq).padStart(4, '0'))
-            .replace('{SEQ}', String(seq));
+            let template = settingsMap['item_code_template'] || 'INV-{0000}';
+            let seq = parseInt(settingsMap['item_code_seq'] || '1000');
 
-        // Check uniqueness loop (simple fail-safe)
-        // Ideally DB constraint handles it, but let's increment if collision? 
-        // For now, assume sequential is safe enough with optimistic locking or just simple increment.
+            // Generate Code
+            let code = template.replace('{0000}', String(seq).padStart(4, '0'))
+                .replace('{SEQ}', String(seq));
 
-        const [itemResult] = await pool.execute(
-            `INSERT INTO quotation_items (customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, code, markup_percent) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
-            [customer_name, customer_id || null, estimation_name || '', job_description, mainType, mainQuantity, grandTotal, code, parseFloat(markup_percent) || 0]
-        );
+            // Check uniqueness loop (simple fail-safe)
+            // Ideally DB constraint handles it, but let's increment if collision? 
+            // For now, assume sequential is safe enough with optimistic locking or just simple increment.
 
-        // Increment Sequence
-        await pool.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'item_code_seq'", [String(seq + 1)]);
-        const itemId = itemResult.insertId;
-
-        // 3. Save Components (Details)
-        for (const pComp of processedComponents) {
-            const { meta, calc } = pComp;
-            const params = meta.params;
-            const costs = calc.costs;
-            const isServicesComp = (meta.name || '').toLowerCase().includes('services');
-
-            const [detailResult] = await pool.execute(
-                `INSERT INTO quotation_item_details (
-            quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
-            impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
-            printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
-            final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
-            paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    itemId,
-                    meta.name || 'Main',
-                    meta.type || (isServicesComp ? 'services' : 'offset'),
-                    params.machineId || null,
-                    params.pages || 1,
-                    params.paperCostPerSheet || 0,
-                    params.plateCostPerUnit || 0,
-                    params.impressionCostPerUnit || 0,
-                    params.wastagePercent || 0,
-                    params.ups || 1,
-                    params.sides || 1,
-                    params.size || null,
-                    (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
-                    parseInt(params.colorsFront) ?? null,
-                    parseInt(params.colorsBack) ?? null,
-                    params.customImpressions || null,
-                    params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
-                    params.customPlateCount != null && params.customPlateCount !== '' ? parseInt(params.customPlateCount) : null,
-                    calc.printedSheets || 0,
-                    calc.fullSheetsUsed || 0,
-                    calc.wastageSheets || 0,
-                    calc.totalSheetsRequired || 0,
-                    calc.plateCount || 0,
-                    costs.paper || 0,
-                    costs.plate || 0,
-                    costs.printing || 0,
-                    costs.finishing || 0,
-                    params.paperId || null,
-                    params.paperName || null,
-                    params.paperWidthCm || null,
-                    params.paperHeightCm || null,
-                    params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
-                    params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
-                    params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
-                    params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
-                    params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
-                    params.digitalPricePerSqCm || null,
-                    params.colorQuality || null,
-                    params.isBB ? 1 : 0,
-                    params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
-                ]
+            const [itemResult] = await connection.execute(
+                `INSERT INTO quotation_items (customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, code, markup_percent) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+                [customer_name, customer_id || null, estimation_name || '', job_description, mainType, mainQuantity, grandTotal, code, parseFloat(markup_percent) || 0]
             );
-            const detailId = detailResult.insertId;
 
-            // 4. Save Finishings linked to Detail
-            const finishings = meta.finishings || [];
-            if (finishings.length > 0) {
-                for (const fItem of finishings) {
-                    await pool.execute(
+            // Increment Sequence
+            await connection.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'item_code_seq'", [String(seq + 1)]);
+            const itemId = itemResult.insertId;
+
+            // 3. Save Components (Details)
+            for (const pComp of processedComponents) {
+                const { meta, calc } = pComp;
+                const params = meta.params;
+                const costs = calc.costs;
+                const isServicesComp = (meta.name || '').toLowerCase().includes('services');
+
+                const [detailResult] = await connection.execute(
+                    `INSERT INTO quotation_item_details (
+                quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
+                impression_cost_unit, wastage_percent, ups, sides, size, colors, colors_front, colors_back, custom_impressions, custom_wastage_sheets, custom_plate_count,
+                printed_sheets, full_sheets_used, wastage_sheets, total_sheets, plate_count,
+                final_paper_cost, final_plate_cost, final_printing_cost, final_finishing_cost,
+                paper_id, paper_name, paper_width_cm, paper_height_cm, comp_width_cm, comp_height_cm, cut_width_cm, cut_height_cm, bleed_mm, digital_price_per_sq_cm, color_quality, is_bb, custom_sheet_factor
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        itemId,
+                        meta.name || 'Main',
+                        meta.type || (isServicesComp ? 'services' : 'offset'),
+                        params.machineId || null,
+                        params.pages || 1,
+                        params.paperCostPerSheet || 0,
+                        params.plateCostPerUnit || 0,
+                        params.impressionCostPerUnit || 0,
+                        params.wastagePercent || 0,
+                        params.ups || 1,
+                        params.sides || 1,
+                        params.size || null,
+                        (parseInt(params.colorsFront) || 0) + (parseInt(params.colorsBack) || 0) || params.colors || 4,
+                        parseInt(params.colorsFront) ?? null,
+                        parseInt(params.colorsBack) ?? null,
+                        params.customImpressions || null,
+                        params.customWastageSheets != null && params.customWastageSheets !== '' ? parseInt(params.customWastageSheets) : null,
+                        params.customPlateCount != null && params.customPlateCount !== '' ? parseInt(params.customPlateCount) : null,
+                        calc.printedSheets || 0,
+                        calc.fullSheetsUsed || 0,
+                        calc.wastageSheets || 0,
+                        calc.totalSheetsRequired || 0,
+                        calc.plateCount || 0,
+                        costs.paper || 0,
+                        costs.plate || 0,
+                        costs.printing || 0,
+                        costs.finishing || 0,
+                        params.paperId || null,
+                        params.paperName || null,
+                        params.paperWidthCm || null,
+                        params.paperHeightCm || null,
+                        params.compWidthCm != null && params.compWidthCm !== '' ? parseFloat(params.compWidthCm) : null,
+                        params.compHeightCm != null && params.compHeightCm !== '' ? parseFloat(params.compHeightCm) : null,
+                        params.cutWidthCm != null && params.cutWidthCm !== '' ? parseFloat(params.cutWidthCm) : null,
+                        params.cutHeightCm != null && params.cutHeightCm !== '' ? parseFloat(params.cutHeightCm) : null,
+                        params.bleedMm != null && params.bleedMm !== '' ? parseFloat(params.bleedMm) : 3.00,
+                        params.digitalPricePerSqCm || null,
+                        params.colorQuality || null,
+                        params.isBB ? 1 : 0,
+                        params.customSheetFactor != null && params.customSheetFactor !== '' ? parseFloat(params.customSheetFactor) : null
+                    ]
+                );
+                const detailId = detailResult.insertId;
+
+                // 4. Save Finishings linked to Detail
+                const finishings = meta.finishings || [];
+                if (finishings.length > 0) {
+                    for (const fItem of finishings) {
+                        await connection.execute(
+                            `INSERT INTO quotation_item_finishings 
+                            (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                itemId,
+                                detailId,
+                                fItem.name,
+                                fItem.quantity,
+                                fItem.unit_cost,
+                                fItem.total_cost,
+                                fItem.machine_id || null,
+                                fItem.is_machine ? 1 : 0,
+                                fItem.time_per_unit || 0,
+                                fItem.total_time || 0,
+                                fItem.cost_unit || 'Unit',
+                                fItem.forms != null ? parseInt(fItem.forms) : null
+                            ]
+                        );
+                    }
+                }
+
+                // Insert SFG Lines
+                const sfgLines = meta.sfgLines || [];
+                for (const sl of sfgLines) {
+                    const qty = parseFloat(sl.quantity) || 0;
+                    const price = parseFloat(sl.unit_price) || 0;
+                    await connection.execute(
+                        `INSERT INTO quotation_item_sfg_lines
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            detailId,
+                            sl.inventory_item_id,
+                            sl.item_name || '',
+                            sl.item_code || '',
+                            qty,
+                            price,
+                            qty * price
+                        ]
+                    );
+                }
+
+                // Insert Services
+                if (isServicesComp) {
+                    const services = meta.services || [];
+                    for (const s of services) {
+                        await connection.execute(
+                            `INSERT INTO quotation_item_services 
+                            (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                itemId,
+                                detailId,
+                                s.service_id,
+                                s.service_name || '',
+                                s.employee_name || '',
+                                s.rate_unit || 'per hour',
+                                parseFloat(s.rate) || 0.00,
+                                parseFloat(s.multiply_by) || 1.00,
+                                s.note || null,
+                                (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
+                            ]
+                        );
+                    }
+                }
+            }
+
+            // 5. Insert Global Finishings
+            if (processedGlobalFinishings.length > 0) {
+                for (const fItem of processedGlobalFinishings) {
+                    await connection.execute(
                         `INSERT INTO quotation_item_finishings 
                         (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             itemId,
-                            detailId,
+                            null, // Detail ID is NULL for global
                             fItem.name,
                             fItem.quantity,
                             fItem.unit_cost,
@@ -212,78 +287,14 @@ export async function POST(req) {
                 }
             }
 
-            // Insert SFG Lines
-            const sfgLines = meta.sfgLines || [];
-            for (const sl of sfgLines) {
-                const qty = parseFloat(sl.quantity) || 0;
-                const price = parseFloat(sl.unit_price) || 0;
-                await pool.execute(
-                    `INSERT INTO quotation_item_sfg_lines
-                    (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        detailId,
-                        sl.inventory_item_id,
-                        sl.item_name || '',
-                        sl.item_code || '',
-                        qty,
-                        price,
-                        qty * price
-                    ]
-                );
-            }
-
-            // Insert Services
-            if (isServicesComp) {
-                const services = meta.services || [];
-                for (const s of services) {
-                    await pool.execute(
-                        `INSERT INTO quotation_item_services 
-                        (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            itemId,
-                            detailId,
-                            s.service_id,
-                            s.service_name || '',
-                            s.employee_name || '',
-                            s.rate_unit || 'per hour',
-                            parseFloat(s.rate) || 0.00,
-                            parseFloat(s.multiply_by) || 1.00,
-                            s.note || null,
-                            (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
-                        ]
-                    );
-                }
-            }
+            await connection.commit();
+            return NextResponse.json({ success: true, itemId, amount: grandTotal });
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
         }
-
-        // 5. Insert Global Finishings
-        if (processedGlobalFinishings.length > 0) {
-            for (const fItem of processedGlobalFinishings) {
-                await pool.execute(
-                    `INSERT INTO quotation_item_finishings 
-                    (quotation_item_id, quotation_item_detail_id, name, quantity, unit_cost, total_cost, machine_id, is_machine, time_per_unit, total_time, cost_unit, forms)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        itemId,
-                        null, // Detail ID is NULL for global
-                        fItem.name,
-                        fItem.quantity,
-                        fItem.unit_cost,
-                        fItem.total_cost,
-                        fItem.machine_id || null,
-                        fItem.is_machine ? 1 : 0,
-                        fItem.time_per_unit || 0,
-                        fItem.total_time || 0,
-                        fItem.cost_unit || 'Unit',
-                        fItem.forms != null ? parseInt(fItem.forms) : null
-                    ]
-                );
-            }
-        }
-
-        return NextResponse.json({ success: true, itemId, amount: grandTotal });
     } catch (error) {
         console.error("Save Multi-Item Error:", error);
         return NextResponse.json({ error: 'Failed to save item', details: error.message }, { status: 500 });

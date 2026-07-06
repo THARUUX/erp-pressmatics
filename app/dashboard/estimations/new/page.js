@@ -247,7 +247,9 @@ export default function NewQuotationPage() {
             id: Date.now() + Math.random(),
             name: `${compToCopy.name} (Copy)`,
             params: { ...compToCopy.params },
-            finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` }))
+            finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` })),
+            sfgLines: (compToCopy.sfgLines || []).map(sl => ({ ...sl, id: `sfg-${Date.now()}-${Math.random()}` })),
+            services: (compToCopy.services || []).map(s => ({ ...s, id: `svc-emp-${Date.now()}-${Math.random()}` }))
         };
         setComponents(prev => {
             const newComps = [...prev];

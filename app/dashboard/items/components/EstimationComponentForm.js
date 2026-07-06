@@ -763,6 +763,10 @@ export default function EstimationComponentForm({
                                         <label className="block text-sm text-gray-400 mb-1">Impression Cost / Unit ({currency})</label>
                                         <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.impressionCostPerUnit || parseFloat(params.impressionCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1">Plate Cost / Unit ({currency})</label>
+                                        <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.plateCostPerUnit || parseFloat(params.plateCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
+                                    </div>
 
                                     {/* Dimensions toggle */}
                                     <div className="md:col-span-2">

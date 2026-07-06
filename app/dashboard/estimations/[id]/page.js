@@ -186,6 +186,13 @@ export default function EditQuotationPage({ params }) {
                         unit_cost: parseFloat(f.unit_cost),
                         time_per_unit: parseFloat(f.time_per_unit),
                     })),
+                    services: (comp.services || []).map((s, i) => ({
+                        ...s,
+                        id: s.id || `svc-${i}`,
+                        rate: parseFloat(s.rate),
+                        multiply_by: parseFloat(s.multiply_by),
+                        total_cost: parseFloat(s.total_cost)
+                    })),
                     sfgLines: (comp.sfgLines || []).map(sl => ({
                         ...sl,
                         id: sl.id || `sfg-db-${sl.db_id || Math.random()}`,
@@ -265,7 +272,9 @@ export default function EditQuotationPage({ params }) {
             id: Date.now() + Math.random(),
             name: `${compToCopy.name} (Copy)`,
             params: { ...compToCopy.params },
-            finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` }))
+            finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` })),
+            sfgLines: (compToCopy.sfgLines || []).map(sl => ({ ...sl, id: `sfg-${Date.now()}-${Math.random()}` })),
+            services: (compToCopy.services || []).map(s => ({ ...s, id: `svc-emp-${Date.now()}-${Math.random()}` }))
         };
         setComponents(prev => {
             const newComps = [...prev];
