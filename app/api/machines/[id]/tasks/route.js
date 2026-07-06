@@ -61,7 +61,7 @@ export async function GET(req, { params }) {
              FROM job_tasks jt
              JOIN sales_orders so ON jt.sales_order_id = so.id
              WHERE jt.machine_id = ?
-               AND so.status NOT IN ('Delivered','Cancelled')
+               AND so.status NOT IN ('Delivered','Cancelled','Ready')
              ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
             [id]
         );

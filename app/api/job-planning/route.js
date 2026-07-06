@@ -19,7 +19,7 @@ export async function GET() {
                      JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                      WHERE qli.quotation_id = so.quotation_id) AS estimation_names
              FROM sales_orders so
-             WHERE so.status NOT IN ('Delivered','Cancelled')
+             WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
              ORDER BY so.delivery_date ASC, so.id DESC`
         );
 

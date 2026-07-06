@@ -135,51 +135,96 @@ export default function SalesOrderDetailPage({ params }) {
     };
 
     const fetchTasks = async (autoGenerate = false) => {
-        const res = await fetch(`/api/sales-orders/${id}/tasks`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-            setTasks(data);
-            // Auto-generate from job components if no tasks exist
-            if (data.length === 0 && autoGenerate) {
-                setGeneratingTasks(true);
-                const genRes = await fetch(`/api/sales-orders/${id}/tasks`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ generateFromJob: true })
-                });
-                const generated = await genRes.json();
-                if (Array.isArray(generated)) setTasks(generated);
-                setGeneratingTasks(false);
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/tasks`);
+            if (!res.ok) {
+                console.error(`Failed to fetch tasks: ${res.status}`);
+                return;
             }
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                setTasks(data);
+                // Auto-generate from job components if no tasks exist
+                if (data.length === 0 && autoGenerate) {
+                    setGeneratingTasks(true);
+                    try {
+                        const genRes = await fetch(`/api/sales-orders/${id}/tasks`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ generateFromJob: true })
+                        });
+                        if (genRes.ok) {
+                            const generated = await genRes.json();
+                            if (Array.isArray(generated)) setTasks(generated);
+                        } else {
+                            console.error(`Failed to auto-generate tasks: ${genRes.status}`);
+                        }
+                    } catch (err) {
+                        console.error('Error auto-generating tasks:', err);
+                    } finally {
+                        setGeneratingTasks(false);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching tasks:', err);
         }
     };
 
     const handleAddTask = async () => {
         if (!newTaskName.trim()) return;
         setAddingTask(true);
-        const res = await fetch(`/api/sales-orders/${id}/tasks`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: newTaskName.trim() })
-        });
-        const task = await res.json();
-        setTasks(prev => [...prev, task]);
-        setNewTaskName('');
-        setAddingTask(false);
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/tasks`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newTaskName.trim() })
+            });
+            if (res.ok) {
+                const task = await res.json();
+                if (task && task.id) {
+                    setTasks(prev => [...prev, task]);
+                }
+            } else {
+                console.error(`Failed to add task: ${res.status}`);
+            }
+        } catch (err) {
+            console.error('Error adding task:', err);
+        } finally {
+            setNewTaskName('');
+            setAddingTask(false);
+        }
     };
 
     const handleGenerateTasks = async () => {
         setGeneratingTasks(true);
-        const res = await fetch(`/api/sales-orders/${id}/tasks`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ generateDefaults: true })
-        });
-        const data = await res.json();
-        if (Array.isArray(data)) setTasks(data);
-        setGeneratingTasks(false);
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/tasks`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ generateDefaults: true })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) setTasks(data);
+            } else {
+                console.error(`Failed to generate tasks: ${res.status}`);
+            }
+        } catch (err) {
+            console.error('Error generating tasks:', err);
+        } finally {
+            setGeneratingTasks(false);
+        }
     };
 
     const handleDeleteTask = async (taskId) => {
-        await fetch(`/api/sales-orders/${id}/tasks/${taskId}`, { method: 'DELETE' });
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/tasks/${taskId}`, { method: 'DELETE' });
+            if (res.ok) {
+                setTasks(prev => prev.filter(t => t.id !== taskId));
+            } else {
+                console.error(`Failed to delete task: ${res.status}`);
+            }
+        } catch (err) {
+            console.error('Error deleting task:', err);
+        }
     };
 
     const handleToggleTaskStatus = async (task) => {
@@ -188,12 +233,22 @@ export default function SalesOrderDetailPage({ params }) {
             status: newStatus,
             completed_at: newStatus === 'done' ? new Date().toISOString() : null,
         };
-        const res = await fetch(`/api/sales-orders/${id}/tasks/${task.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const updated = await res.json();
-        setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/tasks/${task.id}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                if (updated && updated.id) {
+                    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+                }
+            } else {
+                console.error(`Failed to update task status: ${res.status}`);
+            }
+        } catch (err) {
+            console.error('Error updating task status:', err);
+        }
     };
 
     useEffect(() => {
@@ -247,9 +302,9 @@ export default function SalesOrderDetailPage({ params }) {
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20">
+                        {/* <Button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20">
                             <FiPrinter className="mr-2" /> Print Job Ticket
-                        </Button>
+                        </Button> */}
                         <Button
                             onClick={handleDownloadPdf}
                             disabled={pdfLoading}
@@ -288,7 +343,7 @@ export default function SalesOrderDetailPage({ params }) {
                             className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white outline-none focus:border-blue-500 w-48 style-calendar"
                         />
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={handleSave} disabled={saving} className="bg-white hover:bg-white/70 ">
                         {saving ? '...' : <><FiSave className="mr-2" /> Update Order</>}
                     </Button>
                 </div>
@@ -334,11 +389,24 @@ export default function SalesOrderDetailPage({ params }) {
                                     {task.status === 'done' && <FiCheckCircle className="text-white text-xs" />}
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                    <span className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-gray-500' : 'text-white'}`}>
-                                        {task.name}
-                                    </span>
-                                    {task.completed_by && task.status === 'done' && (
-                                        <span className="text-xs text-gray-500 ml-2">· {task.completed_by}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-gray-500' : 'text-white'}`}>
+                                            {task.name}
+                                        </span>
+                                        {task.estimated_minutes > 0 && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-semibold">
+                                                ⏱ {task.estimated_minutes < 60 ? `${task.estimated_minutes}m` : `${(task.estimated_minutes / 60).toFixed(1)}h`}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {(task.description || (task.completed_by && task.status === 'done')) && (
+                                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-x-2 items-center">
+                                            {task.description && <span className="truncate max-w-md">{task.description}</span>}
+                                            {task.description && task.completed_by && task.status === 'done' && <span>·</span>}
+                                            {task.completed_by && task.status === 'done' && (
+                                                <span className="text-green-400 font-medium">Completed by {task.completed_by}</span>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${

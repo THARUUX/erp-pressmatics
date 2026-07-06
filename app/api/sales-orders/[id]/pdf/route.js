@@ -50,7 +50,42 @@ export async function GET(req, { params }) {
                     globalFinishings.push(f);
                 }
             }
-            item.details = details.map(d => ({ ...d, finishings: finishingsByDetail[d.id] || [] }));
+
+            const detailIds = details.map(d => d.id);
+            const sfgByDetail = {};
+            const servicesByDetail = {};
+            if (detailIds.length > 0) {
+                const placeholders = detailIds.map(() => '?').join(',');
+                const [sfgRows] = await pool.execute(
+                    `SELECT s.*, i.stock_quantity, i.uom FROM quotation_item_sfg_lines s
+                     LEFT JOIN inventory_items i ON i.id = s.inventory_item_id
+                     WHERE s.quotation_item_detail_id IN (${placeholders})
+                     ORDER BY s.id ASC`,
+                    detailIds
+                );
+                for (const row of sfgRows) {
+                    if (!sfgByDetail[row.quotation_item_detail_id]) sfgByDetail[row.quotation_item_detail_id] = [];
+                    sfgByDetail[row.quotation_item_detail_id].push(row);
+                }
+
+                const [svcRows] = await pool.execute(
+                    `SELECT * FROM quotation_item_services
+                     WHERE quotation_item_detail_id IN (${placeholders})
+                     ORDER BY id ASC`,
+                    detailIds
+                );
+                for (const row of svcRows) {
+                    if (!servicesByDetail[row.quotation_item_detail_id]) servicesByDetail[row.quotation_item_detail_id] = [];
+                    servicesByDetail[row.quotation_item_detail_id].push(row);
+                }
+            }
+
+            item.details = details.map(d => ({
+                ...d,
+                finishings: finishingsByDetail[d.id] || [],
+                sfgLines: sfgByDetail[d.id] || [],
+                services: servicesByDetail[d.id] || []
+            }));
             item.globalFinishings = globalFinishings;
         }
         salesOrder.items = lineItems;

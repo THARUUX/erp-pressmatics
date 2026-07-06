@@ -69,7 +69,7 @@ export default function EstimationComponentForm({
     const sfgLines = data.sfgLines || [];
     const staticsLines = data.staticsLines || [];
     const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
-    const isServicesComponent = (data.name || '').toLowerCase().includes('services');
+    const isServicesComponent = type === 'services' || (data.name || '').toLowerCase().includes('service');
 
     const [allServices, setAllServices] = useState([]);
     const [selectedServiceId, setSelectedServiceId] = useState('');

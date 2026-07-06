@@ -25,7 +25,7 @@ export async function GET(req, { params }) {
             `SELECT jt.*, so.code AS order_code, so.customer_name AS customer_name, so.status AS order_status
              FROM job_tasks jt
              JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.name LIKE ?
+             WHERE jt.name LIKE ? AND so.status NOT IN ('Delivered','Cancelled','Ready')
              ORDER BY jt.display_order ASC, jt.id ASC`,
             [searchPattern]
         );

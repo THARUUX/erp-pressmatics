@@ -94,7 +94,6 @@ function DraggableTaskCard({ task, employees, isDragging, onEmployeeChange }) {
                 {details.multiply_by !== undefined && <div>Qty: <span style={{ color: G.muted }}>{details.multiply_by}</span></div>}
                 {details.total_cost !== undefined && (
                     <div style={{ width: '100%', marginTop: 2, display: 'flex', alignItems: 'center', color: '#10b981', fontWeight: 600 }}>
-                        <FiDollarSign style={{ marginRight: 2 }} />
                         LKR {details.total_cost.toFixed(2)}
                     </div>
                 )}

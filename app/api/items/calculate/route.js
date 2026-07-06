@@ -21,7 +21,7 @@ export async function POST(req) {
 
         for (const comp of components) {
             const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
-            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('services');
+            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('service');
             let result;
 
             if (isServicesComp) {

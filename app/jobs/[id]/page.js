@@ -103,9 +103,16 @@ function TaskItem({ task, orderId, onUpdated }) {
 
                 {/* Name + meta */}
                 <div className="flex-1 min-w-0">
-                    <div className={`font-semibold text-sm truncate transition-colors
-                        ${status === 'done' ? 'text-slate-500 line-through' : 'text-slate-100'}`}>
-                        {task.name}
+                    <div className="flex items-center gap-2">
+                        <div className={`font-semibold text-sm truncate transition-colors
+                            ${status === 'done' ? 'text-slate-500 line-through' : 'text-slate-100'}`}>
+                            {task.name}
+                        </div>
+                        {task.estimated_minutes > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.08] text-slate-400 font-semibold flex-shrink-0">
+                                ⏱ {task.estimated_minutes < 60 ? `${task.estimated_minutes}m` : `${(task.estimated_minutes / 60).toFixed(1)}h`}
+                            </span>
+                        )}
                     </div>
                     {task.description && (
                         <div className="text-[11px] text-slate-600 mt-0.5 truncate">{task.description}</div>

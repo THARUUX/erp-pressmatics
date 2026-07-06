@@ -231,27 +231,85 @@ function GlobalFinishingsTable({ finishings }) {
     );
 }
 
+function SFGLinesTable({ sfgLines }) {
+    if (!sfgLines?.length) return null;
+    return (
+        <View style={{ marginTop: 4 }}>
+            <Text style={s.sectionTitle}>Required SFG & Stock Assets</Text>
+            <View style={s.tableHeader}>
+                <Text style={[s.tableHeaderText, { flex: 3 }]}>Item Name / Description</Text>
+                <Text style={[s.tableHeaderText, { flex: 1.5 }]}>Item Code</Text>
+                <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Qty Required</Text>
+                <Text style={[s.tableHeaderText, { flex: 0.8, textAlign: 'center' }]}>UOM</Text>
+                <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'center' }]}>Verified</Text>
+            </View>
+            {sfgLines.map((line, i) => (
+                <View key={i} style={s.tableRow}>
+                    <Text style={[s.tableCellBold, { flex: 3 }]}>{fmt(line.item_name)}</Text>
+                    <Text style={[s.tableCell, { flex: 1.5 }]}>{fmt(line.item_code)}</Text>
+                    <Text style={[s.tableCell, { flex: 1, textAlign: 'right' }]}>{fmt(line.quantity)}</Text>
+                    <Text style={[s.tableCell, { flex: 0.8, textAlign: 'center' }]}>{fmt(line.uom || 'Unit')}</Text>
+                    <View style={{ flex: 1, alignItems: 'center' }}>
+                        <View style={[s.globalBox, { borderColor: '#cbd5e1', width: 9, height: 9 }]} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+function ServicesTable({ services }) {
+    if (!services?.length) return null;
+    return (
+        <View style={{ marginTop: 4 }}>
+            <Text style={s.sectionTitle}>Production Services & Assignments</Text>
+            <View style={s.tableHeader}>
+                <Text style={[s.tableHeaderText, { flex: 2 }]}>Service / Task Name</Text>
+                <Text style={[s.tableHeaderText, { flex: 1.5 }]}>Assigned Operator</Text>
+                <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Multiplier / Volume</Text>
+                <Text style={[s.tableHeaderText, { flex: 2.5 }]}>Operational Notes</Text>
+            </View>
+            {services.map((svc, i) => (
+                <View key={i} style={s.tableRow}>
+                    <Text style={[s.tableCellBold, { flex: 2 }]}>{fmt(svc.service_name)}</Text>
+                    <Text style={[s.tableCell, { flex: 1.5 }]}>{fmt(svc.employee_name)}</Text>
+                    <Text style={[s.tableCell, { flex: 1, textAlign: 'right' }]}>
+                        {fmt(svc.multiply_by)} {svc.rate_unit ? `(${svc.rate_unit})` : ''}
+                    </Text>
+                    <Text style={[s.tableCell, { flex: 2.5, fontStyle: 'italic', color: '#64748b' }]}>{fmt(svc.note)}</Text>
+                </View>
+            ))}
+        </View>
+    );
+}
+
 function DetailCard({ detail }) {
     const isFinishing = detail.component_name === 'Finishing';
     const isDigital = detail.type === 'digital';
+    const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').includes('Assets') || (detail.component_name || '').includes('SFG');
+    const isServicesComp = detail.type === 'services' || (detail.component_name || '').toLowerCase().includes('service');
+    const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
 
     // Est. press time: (printed_sheets + wastage_sheets) × sides / machine_speed (hrs → min)
-    const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
-    const pressPasses = cutSheets * (detail.sides || 1);
-    const estMins = detail.machine_speed > 0
-        ? Math.ceil((pressPasses / detail.machine_speed) * 60)
-        : null;
-    const estTimeLabel = estMins != null
-        ? estMins < 60
-            ? `~${estMins} min`
-            : `~${(estMins / 60).toFixed(1)} hr`
-        : null;
+    let estTimeLabel = null;
+    if (isPrinting) {
+        const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
+        const pressPasses = cutSheets * (detail.sides || 1);
+        const estMins = detail.machine_speed > 0
+            ? Math.ceil((pressPasses / detail.machine_speed) * 60)
+            : null;
+        estTimeLabel = estMins != null
+            ? estMins < 60
+                ? `~${estMins} min`
+                : `~${(estMins / 60).toFixed(1)} hr`
+            : null;
+    }
 
     return (
         <View style={s.detailCard}>
             <Text style={s.detailBadge}>{detail.component_name} / {detail.type}</Text>
 
-            {!isFinishing && (
+            {isPrinting && (
                 <> 
                     {detail.machine_name && (
                         <View style={s.infoGrid}>
@@ -317,6 +375,8 @@ function DetailCard({ detail }) {
                 </>
             )}
 
+            <SFGLinesTable sfgLines={detail.sfgLines} />
+            <ServicesTable services={detail.services} />
             <FinishingsTable finishings={detail.finishings} />
         </View>
     );
@@ -358,7 +418,7 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                         <Text style={s.itemHeaderText}>Target Yield: {item.quantity} Units</Text>
                     </View>
 
-                    {item.details?.filter(d => d.component_name !== 'Finishing' && !d.component_name.toLowerCase().includes('services') && d.type !== 'services').map((detail, dIdx) => (
+                    {item.details?.filter(d => d.component_name !== 'Finishing').map((detail, dIdx) => (
                         <DetailCard key={detail.id || dIdx} detail={detail} />
                     ))}
 
@@ -380,7 +440,7 @@ function ImpositionLayoutsPage({ order }) {
     const layouts = [];
     order.items?.forEach((item, itemIdx) => {
         item.details
-            ?.filter(d => d.type !== 'digital' && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
+            ?.filter(d => d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' && !d.component_name.toLowerCase().includes('services') && !d.component_name.includes('SFG') && !d.component_name.includes('Assets') && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
             .forEach((detail, dIdx) => {
                 layouts.push({ item, itemIdx, detail, dIdx });
             });

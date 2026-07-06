@@ -148,7 +148,7 @@ export async function PUT(req, { params }) {
         for (const comp of components) {
             let result;
             const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
-            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('services');
+            const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('service');
             const compParams = {
                 ...comp.params,
                 quantity: comp.quantity,
@@ -234,7 +234,7 @@ export async function PUT(req, { params }) {
                 const params = meta.params;
                 const costs = calc.costs;
 
-                const isServicesComp = (meta.name || '').toLowerCase().includes('services');
+                const isServicesComp = meta.type === 'services' || (meta.name || '').toLowerCase().includes('service');
                 const [detailResult] = await connection.execute(
                     `INSERT INTO quotation_item_details (
                 quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 

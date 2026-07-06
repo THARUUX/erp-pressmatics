@@ -8,7 +8,7 @@ export async function GET() {
             `SELECT jt.*, so.code AS order_code, so.customer_name AS customer_name
              FROM job_tasks jt
              JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.name LIKE 'Service:%' AND so.status NOT IN ('Delivered','Cancelled')
+             WHERE jt.name LIKE 'Service:%' AND so.status NOT IN ('Delivered','Cancelled','Ready')
              ORDER BY jt.display_order ASC, jt.id ASC`
         );
 
