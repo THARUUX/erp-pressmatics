@@ -9,11 +9,14 @@ import {
     FiAward, FiCheck, FiCopy, FiPercent, FiMonitor,
     FiLayout, FiGlobe, FiList, FiUser, FiMaximize2,
     FiGrid, FiCpu, FiUpload, FiFlag, FiCheckSquare,
-    FiPlay, FiSmartphone, FiActivity, FiSearch
+    FiPlay, FiSmartphone, FiActivity, FiSearch,
+    FiArrowRight, FiArrowDown, FiGitMerge, FiDatabase,
+    FiTruck, FiCornerDownRight, FiChevronRight, FiShuffle,
 } from 'react-icons/fi';
 
 const TABS = [
   { id: 'overview',    label: 'Overview',    Icon: FiMap },
+  { id: 'flow',        label: 'System Flow', Icon: FiShuffle },
   { id: 'sales',       label: 'Sales Flow',  Icon: FiTrendingUp },
   { id: 'estimations', label: 'Estimations', Icon: FiPrinter },
   { id: 'inventory',   label: 'Inventory',   Icon: FiPackage },
@@ -112,6 +115,55 @@ function SectionTitle({ icon: Icon, children }) {
   );
 }
 
+/* ── Flow Diagram helpers ─────────────────────────────────────────────────── */
+const FN_STYLES = {
+  indigo:  { bg:'rgba(99,102,241,0.15)',  bd:'rgba(99,102,241,0.4)',  tx:'#a5b4fc' },
+  sky:     { bg:'rgba(14,165,233,0.15)',  bd:'rgba(14,165,233,0.4)',  tx:'#7dd3fc' },
+  emerald: { bg:'rgba(16,185,129,0.15)', bd:'rgba(16,185,129,0.4)',  tx:'#6ee7b7' },
+  amber:   { bg:'rgba(245,158,11,0.15)', bd:'rgba(245,158,11,0.4)',  tx:'#fcd34d' },
+  violet:  { bg:'rgba(139,92,246,0.15)', bd:'rgba(139,92,246,0.4)',  tx:'#c4b5fd' },
+  cyan:    { bg:'rgba(6,182,212,0.15)',  bd:'rgba(6,182,212,0.4)',   tx:'#67e8f9' },
+  rose:    { bg:'rgba(244,63,94,0.15)',  bd:'rgba(244,63,94,0.4)',   tx:'#fda4af' },
+  lime:    { bg:'rgba(132,204,22,0.15)', bd:'rgba(132,204,22,0.4)',  tx:'#bef264' },
+  orange:  { bg:'rgba(249,115,22,0.15)', bd:'rgba(249,115,22,0.4)', tx:'#fdba74' },
+  pink:    { bg:'rgba(236,72,153,0.15)', bd:'rgba(236,72,153,0.4)', tx:'#f9a8d4' },
+};
+function FNode({ icon: Icon, label, color = 'indigo', sub }) {
+  const s = FN_STYLES[color] || FN_STYLES.indigo;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="rounded-2xl px-4 py-3 flex flex-col items-center gap-1.5 min-w-[96px] transition-transform hover:scale-105"
+        style={{ background: s.bg, border: `1px solid ${s.bd}`, boxShadow: `0 0 20px ${s.bg}` }}>
+        <Icon className="w-4 h-4" style={{ color: s.tx }} />
+        <span className="text-[11px] font-bold text-white text-center leading-tight whitespace-nowrap">{label}</span>
+      </div>
+      {sub && <span className="text-[9px] text-white/30 text-center max-w-[108px] leading-snug">{sub}</span>}
+    </div>
+  );
+}
+function FArrow({ label, color = 'rgba(255,255,255,0.2)', dir = 'down' }) {
+  return dir === 'right' ? (
+    <div className="flex items-center gap-0.5">
+      <div className="h-px w-8" style={{ background: color }} />
+      <svg width="5" height="8" viewBox="0 0 5 8"><path d="M5 4 L0 0 L0 8Z" fill={color}/></svg>
+    </div>
+  ) : (
+    <div className="flex flex-col items-center gap-0.5 my-0.5">
+      <div className="w-px h-5" style={{ background: color }} />
+      <svg width="8" height="5" viewBox="0 0 8 5"><path d="M4 5 L0 0 L8 0Z" fill={color}/></svg>
+      {label && <span className="text-[9px] font-medium" style={{ color }}>{label}</span>}
+    </div>
+  );
+}
+function FLane({ title, color, children }) {
+  return (
+    <div className="rounded-2xl p-5" style={{ background:`${color}09`, border:`1px solid ${color}22` }}>
+      <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color }}>{title}</p>
+      {children}
+    </div>
+  );
+}
+
 const CONTENT = {
   overview: (
     <div className="space-y-8">
@@ -155,6 +207,170 @@ const CONTENT = {
       </div>
     </div>
   ),
+
+  flow: (() => {
+    function Chip({ label, dim }) {
+      return (
+        <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2.5 py-0.5 rounded-full border ${
+          dim
+            ? 'bg-white/[0.03] text-white/35 border-white/[0.08]'
+            : 'bg-white/[0.07] text-white/70 border-white/[0.15]'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dim ? 'bg-white/20' : 'bg-white/50'}`} />
+          {label}
+        </span>
+      );
+    }
+    function ModuleCard({ icon: Icon, name, needs = [], creates = [], note }) {
+      return (
+        <div className="rounded-2xl p-4 flex flex-col gap-3 bg-white/[0.03] border border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-white/[0.06] border border-white/10">
+              <Icon className="w-4 h-4 text-white/60" />
+            </div>
+            <span className="font-bold text-sm text-white">{name}</span>
+          </div>
+          {note && <p className="text-[10px] text-white/25 -mt-1">{note}</p>}
+          {needs.length > 0 && (
+            <div>
+              <p className="text-[9px] uppercase tracking-widest font-bold text-white/20 mb-1.5">Needs</p>
+              <div className="flex flex-wrap gap-1">{needs.map(l => <Chip key={l} label={l} dim />)}</div>
+            </div>
+          )}
+          {creates.length > 0 && (
+            <div>
+              <p className="text-[9px] uppercase tracking-widest font-bold text-white/20 mb-1.5">Creates / Updates</p>
+              <div className="flex flex-wrap gap-1">{creates.map(l => <Chip key={l} label={l} />)}</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    function PipeStep({ n, icon: Icon, title, sub, children }) {
+      return (
+        <div className="flex gap-4">
+          <div className="flex flex-col items-center">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white/[0.06] border border-white/10">
+              <Icon className="w-4 h-4 text-white/60" />
+            </div>
+            <div className="w-px flex-1 mt-1 bg-gradient-to-b from-white/10 to-transparent" />
+          </div>
+          <div className="pb-6 flex-1">
+            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Step {n}</span>
+            <p className="font-bold text-white text-sm mb-0.5 mt-0.5">{title}</p>
+            {sub && <p className="text-[11px] text-white/35 mb-2">{sub}</p>}
+            {children}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-10">
+
+        {/* Banner */}
+        <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-7 text-center">
+          <FiGitMerge className="w-8 h-8 text-white/25 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-white mb-1">System Flow Diagram</h2>
+          <p className="text-white/35 text-sm max-w-lg mx-auto">How every module connects — what each module needs, what it creates, and how data flows through the ERP.</p>
+        </div>
+
+        {/* Pipeline Steps */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/25 mb-6">Core Sales Pipeline</p>
+          <PipeStep n={1} icon={FiUsers} title="Customers" sub="The starting point of every transaction.">
+            <div className="flex flex-wrap gap-1">
+              <Chip label="Linked to Estimations" /><Chip label="Linked to Quotations" /><Chip label="Outstanding Balance tracked" />
+            </div>
+          </PipeStep>
+          <PipeStep n={2} icon={FiPrinter} title="Estimation" sub="Detailed cost calculation for a print job.">
+            <p className="text-[9px] text-white/20 uppercase tracking-widest font-bold mb-1">Needs</p>
+            <div className="flex flex-wrap gap-1">
+              <Chip label="Customers" dim /><Chip label="Machines" dim /><Chip label="Finishings" dim />
+              <Chip label="SFG Items" dim /><Chip label="Statics" dim /><Chip label="Services" dim /><Chip label="RM" dim />
+            </div>
+          </PipeStep>
+          <PipeStep n={3} icon={FiFileText} title="Quotation" sub="Formal priced quote sent to customer.">
+            <div className="flex flex-wrap gap-1">
+              <Chip label="Needs: Customers" dim /><Chip label="Needs: Estimations" dim />
+            </div>
+          </PipeStep>
+          <PipeStep n={4} icon={FiShoppingCart} title="Sales Order" sub="Converts approved quotation into a production order.">
+            <div className="mb-2">
+              <p className="text-[9px] text-white/20 uppercase tracking-widest font-bold mb-1">Needs</p>
+              <div className="flex flex-wrap gap-1"><Chip label="Quotation" dim /><Chip label="Inventory stock check" dim /></div>
+            </div>
+            <p className="text-[9px] text-white/20 uppercase tracking-widest font-bold mb-1">Automatically creates</p>
+            <div className="flex flex-wrap gap-1">
+              <Chip label="Task List" /><Chip label="BOM" /><Chip label="Routing" /><Chip label="Timeline" />
+            </div>
+          </PipeStep>
+          <PipeStep n={5} icon={FiList} title="BOM (Bill of Materials)" sub="Deducts stock when Sales Order is created.">
+            <div className="flex flex-wrap gap-1">
+              <Chip label="Deducts Paper" /><Chip label="Deducts Plates" /><Chip label="Deducts SFG / RM" />
+            </div>
+          </PipeStep>
+          <PipeStep n={6} icon={FiCalendar} title="Planning" sub="Machine scheduling for production tasks.">
+            <div className="flex flex-wrap gap-1"><Chip label="Needs: Task List" dim /><Chip label="Uses: Machines" dim /></div>
+          </PipeStep>
+          <PipeStep n={7} icon={FiDollarSign} title="Invoices" sub="Generated from Sales Orders. Tracks payment status.">
+            <div className="mb-2"><div className="flex flex-wrap gap-1"><Chip label="Needs: Sales Orders" dim /></div></div>
+            <p className="text-[9px] text-white/20 uppercase tracking-widest font-bold mb-1">On payment, updates</p>
+            <div className="flex flex-wrap gap-1"><Chip label="Customer Outstanding Balance" /></div>
+          </PipeStep>
+          <PipeStep n={8} icon={FiTruck} title="Purchase Orders" sub="Created when restocking inventory from a supplier.">
+            <div className="mb-2"><div className="flex flex-wrap gap-1"><Chip label="Needs: Suppliers" dim /></div></div>
+            <p className="text-[9px] text-white/20 uppercase tracking-widest font-bold mb-1">On receipt, updates</p>
+            <div className="flex flex-wrap gap-1"><Chip label="Increases Inventory Stock" /></div>
+          </PipeStep>
+        </div>
+
+        {/* Module Reference Cards */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/25 mb-4">All Module Dependencies</p>
+          <div className="grid md:grid-cols-2 gap-3">
+            <ModuleCard icon={FiUsers} name="Customers"
+              creates={['Estimations (linked)', 'Quotations (linked)', 'Outstanding Balance']} />
+            <ModuleCard icon={FiCpu} name="Machines"
+              note="Defines rates for Finishings and links to Plate inventory."
+              creates={['Finishings (rate source)', 'Plates (linked)']} />
+            <ModuleCard icon={FiTool} name="Finishings"
+              needs={['Machines']}
+              creates={['Used in Estimations']} />
+            <ModuleCard icon={FiPrinter} name="Estimation"
+              needs={['Customers', 'Machines', 'Finishings', 'SFG Items', 'Statics', 'Services', 'RM']}
+              creates={['Used in Quotations']} />
+            <ModuleCard icon={FiFileText} name="Quotation"
+              needs={['Customers', 'Estimations']}
+              creates={['Sales Order (on convert)']} />
+            <ModuleCard icon={FiShoppingCart} name="Sales Order"
+              needs={['Quotation', 'Inventory (stock)']}
+              creates={['Task List', 'BOM', 'Routing', 'Timeline']} />
+            <ModuleCard icon={FiList} name="BOM"
+              note="Triggered automatically on Sales Order creation."
+              needs={['Inventory stock']}
+              creates={['Deducts Paper', 'Deducts Plates', 'Deducts SFG / RM']} />
+            <ModuleCard icon={FiCalendar} name="Planning"
+              needs={['Task List (from SO)', 'Machines']} />
+            <ModuleCard icon={FiDollarSign} name="Invoices"
+              needs={['Sales Orders']}
+              creates={['Updates Customer Outstanding']} />
+            <ModuleCard icon={FiDatabase} name="Suppliers"
+              creates={['Linked to Purchase Orders']} />
+            <ModuleCard icon={FiTruck} name="Purchase Orders"
+              needs={['Suppliers']}
+              creates={['Increases Inventory Stock']} />
+            <ModuleCard icon={FiPackage} name="Inventory"
+              note="Increases from Purchase Orders. Decreases from BOM on SO conversion."
+              needs={['Purchase Orders (increase)']}
+              creates={['Consumed by BOM', 'Checked on SO conversion']} />
+          </div>
+        </div>
+
+      </div>
+    );
+  })(),
+
+
 
   sales: (
     <div className="space-y-8">

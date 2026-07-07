@@ -5,6 +5,11 @@ export async function GET(req, { params }) {
     try {
         const { id } = await params;
 
+        const [[supplier]] = await pool.execute(
+            'SELECT starting_outstanding FROM suppliers WHERE id = ?', [id]
+        );
+        const startingOutstanding = parseFloat(supplier?.starting_outstanding || 0);
+
         // Total purchased (all POs)
         const [[totals]] = await pool.execute(
             `SELECT
@@ -15,12 +20,13 @@ export async function GET(req, { params }) {
             [id]
         );
 
-        const outstanding = parseFloat(totals.total_purchased) - parseFloat(totals.total_paid);
+        const outstanding = startingOutstanding + parseFloat(totals.total_purchased) - parseFloat(totals.total_paid);
 
         return NextResponse.json({
             total_purchased: parseFloat(totals.total_purchased),
             total_paid:      parseFloat(totals.total_paid),
             outstanding:     outstanding,
+            starting_outstanding: startingOutstanding,
         });
     } catch (err) {
         console.error(err);

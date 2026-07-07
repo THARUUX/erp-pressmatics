@@ -13,7 +13,8 @@ export default function NewCustomerPage() {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: '', email: '', phone: '', address: '', is_vat: false, vat_number: '',
-        contact_name: '', contact_phone: '', contact_email: '', contact_role: ''
+        contact_name: '', contact_phone: '', contact_email: '', contact_role: '',
+        starting_outstanding: '', category: ''
     });
 
     const handleChange = (e) => {
@@ -49,9 +50,15 @@ export default function NewCustomerPage() {
             </header>
 
             <div className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10 space-y-4">
-                <div>
-                    <label className="block text-sm text-gray-400 mb-1">Customer Name *</label>
-                    <Input name="name" value={formData.name} onChange={handleChange} className="bg-secondary border-white/10" placeholder="Business or Person Name" />
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-1">Customer Name *</label>
+                        <Input name="name" value={formData.name} onChange={handleChange} className="bg-secondary border-white/10" placeholder="Business or Person Name" />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-1">Category</label>
+                        <Input name="category" value={formData.category} onChange={handleChange} className="bg-secondary border-white/10" placeholder="e.g. VIP, Corporate, Retail" />
+                    </div>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                     <div>
@@ -96,8 +103,31 @@ export default function NewCustomerPage() {
                     </div>
                 </div>
 
+                {/* Financial Section */}
+                <div className="border-t border-white/5 pt-4 mt-2 space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-300">Financial</h3>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Starting Outstanding Balance</label>
+                        <p className="text-[11px] text-gray-600 mb-2">Enter any pre-existing unpaid balance this customer carries before using the ERP.</p>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-mono">LKR</span>
+                            <input
+                                type="number"
+                                name="starting_outstanding"
+                                value={formData.starting_outstanding}
+                                onChange={handleChange}
+                                placeholder="0.00"
+                                step="0.01"
+                                min="0"
+                                className="w-full bg-secondary border border-white/10 rounded-lg pl-12 pr-4 py-2 text-sm text-amber-300 placeholder-gray-600 outline-none focus:border-amber-400/40 transition-colors font-mono"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 {/* VAT Section */}
                 <div className="border border-white/10 rounded-lg p-4 space-y-3 bg-white/[0.02]">
+
                     <div className="flex items-center gap-3">
                         <input type="checkbox" id="is_vat" name="is_vat" checked={!!formData.is_vat} onChange={handleChange}
                             className="w-4 h-4 rounded border-white/20 bg-black/20 focus:ring-blue-500 cursor-pointer"/>

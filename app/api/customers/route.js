@@ -33,7 +33,7 @@ export async function GET(request) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, email, phone, address, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role } = body;
+        const { name, email, phone, address, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
@@ -45,14 +45,15 @@ export async function POST(req) {
         const code = template.replace('{000}', String(seq).padStart(3, '0')).replace('{SEQ}', String(seq));
 
         const [result] = await pool.execute(
-            'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, email || null, phone || null, address || null, code, is_vat ? 1 : 0, vat_number || null, contact_name || null, contact_phone || null, contact_email || null, contact_role || null]
+            'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, email || null, phone || null, address || null, code, is_vat ? 1 : 0, vat_number || null, contact_name || null, contact_phone || null, contact_email || null, contact_role || null, parseFloat(starting_outstanding) || 0, category || null]
         );
 
         await pool.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'customer_id_seq'", [String(seq + 1)]);
 
         return NextResponse.json({ success: true, id: result.insertId });
     } catch (error) {
+        console.error('POST /api/customers error:', error);
         return NextResponse.json({ error: 'Failed to create customer' }, { status: 500 });
     }
 }

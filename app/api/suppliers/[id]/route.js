@@ -20,14 +20,14 @@ export async function PUT(req, { params }) {
         const {
             name, email, phone, address,
             contact_name, contact_phone, contact_email,
-            payment_terms, credit_limit, notes, is_active,
+            payment_terms, credit_limit, notes, is_active, starting_outstanding,
         } = body;
 
         await pool.execute(
             `UPDATE suppliers SET
                 name=?, email=?, phone=?, address=?,
                 contact_name=?, contact_phone=?, contact_email=?,
-                payment_terms=?, credit_limit=?, notes=?, is_active=?
+                payment_terms=?, credit_limit=?, notes=?, is_active=?, starting_outstanding=?
              WHERE id=?`,
             [
                 name, email || null, phone || null, address || null,
@@ -36,6 +36,7 @@ export async function PUT(req, { params }) {
                 parseFloat(credit_limit) || 0,
                 notes || null,
                 is_active !== undefined ? (is_active ? 1 : 0) : 1,
+                parseFloat(starting_outstanding) || 0,
                 id,
             ]
         );

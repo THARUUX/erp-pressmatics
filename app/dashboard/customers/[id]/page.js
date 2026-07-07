@@ -100,7 +100,14 @@ export default function CustomerProfilePage({ params }) {
                     </button>
                 </Link>
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold tracking-tighter">{customer.name}</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold tracking-tighter">{customer.name}</h1>
+                        {customer.category && (
+                            <span className="text-xs bg-white/5 text-amber-300 border border-white/10 px-2.5 py-0.5 rounded-full font-medium">
+                                {customer.category}
+                            </span>
+                        )}
+                    </div>
                     <p className="text-gray-500 text-sm">{customer.code}</p>
                 </div>
                 <div className="flex gap-2">
@@ -128,6 +135,10 @@ export default function CustomerProfilePage({ params }) {
                             <Input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="bg-black/40 border-white/10" />
                         </div>
                         <div>
+                            <label className="text-xs text-gray-500 mb-1 block">Category</label>
+                            <Input value={form.category || ''} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="bg-black/40 border-white/10" placeholder="e.g. VIP, Corporate, Retail" />
+                        </div>
+                        <div>
                             <label className="text-xs text-gray-500 mb-1 block">Email</label>
                             <Input value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="bg-black/40 border-white/10" />
                         </div>
@@ -148,7 +159,23 @@ export default function CustomerProfilePage({ params }) {
                             <input type="checkbox" id="is_vat_edit" checked={!!form.is_vat} onChange={e => setForm(f => ({ ...f, is_vat: e.target.checked }))} className="rounded" />
                             <label htmlFor="is_vat_edit" className="text-sm text-gray-300 cursor-pointer">VAT Registered</label>
                         </div>
-                        
+                        <div>
+                            <label className="text-xs text-gray-500 mb-1 block">Starting Outstanding Balance</label>
+                            <p className="text-[10px] text-gray-600 mb-1.5">Pre-existing unpaid balance before ERP adoption.</p>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-mono">{cur}</span>
+                                <input
+                                    type="number"
+                                    value={form.starting_outstanding || ''}
+                                    onChange={e => setForm(f => ({ ...f, starting_outstanding: e.target.value }))}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg pl-12 pr-4 py-2 text-sm text-amber-300 placeholder-gray-700 outline-none focus:border-amber-400/40 transition-colors font-mono"
+                                />
+                            </div>
+                        </div>
+
                         {/* Contact Person Details Section (Edit) */}
                         <div className="md:col-span-2 border-t border-white/5 pt-4 mt-2">
                             <h3 className="text-sm font-semibold text-gray-300 mb-3">Contact Person Details</h3>

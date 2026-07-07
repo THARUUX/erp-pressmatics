@@ -115,6 +115,12 @@ export default function CustomersPage() {
             cell: ({ getValue }) => <span className="font-semibold text-white">{getValue()}</span>,
         },
         {
+            accessorKey: 'category', header: 'Category', size: 120,
+            cell: ({ getValue }) => getValue() 
+                ? <span className="text-xs bg-white/5 text-amber-300 border border-white/10 px-2.5 py-0.5 rounded-full font-medium">{getValue()}</span>
+                : <span className="text-gray-600 text-sm">—</span>,
+        },
+        {
             accessorKey: 'email', header: 'Email',
             cell: ({ getValue }) => getValue()
                 ? <a href={`mailto:${getValue()}`} onClick={e => e.stopPropagation()}

@@ -86,6 +86,78 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Sales order already exists for this quotation' }, { status: 400 });
         }
 
+        // ── PRE-FLIGHT STOCK VALIDATION ───────────────────────────────────────
+        const shortages = [];
+
+        // 1. Check paper stock
+        const [paperNeeds] = await pool.execute(`
+            SELECT qid.paper_id,
+                   ii.name AS item_name,
+                   SUM(qid.full_sheets_used) AS sheets_needed,
+                   ii.stock_quantity AS available
+            FROM quotation_item_details qid
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            JOIN inventory_items ii ON ii.id = qid.paper_id
+            WHERE qli.quotation_id = ?
+              AND qid.paper_id IS NOT NULL
+              AND qid.full_sheets_used > 0
+            GROUP BY qid.paper_id, ii.name, ii.stock_quantity
+        `, [quotation_id]);
+
+        for (const row of paperNeeds) {
+            const required = Math.ceil(parseFloat(row.sheets_needed));
+            const available = parseInt(row.available || 0);
+            if (required > available) {
+                shortages.push({
+                    type: 'paper',
+                    name: row.item_name,
+                    required,
+                    available,
+                    shortfall: required - available,
+                });
+            }
+        }
+
+        // 2. Check plate stock (join through machine → inventory_items Plate)
+        const [plateNeeds] = await pool.execute(`
+            SELECT m.plate_id,
+                   ii.name AS item_name,
+                   SUM(qid.plate_count) AS plates_needed,
+                   ii.stock_quantity AS available
+            FROM quotation_item_details qid
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            JOIN machines m ON m.id = qid.machine_id
+            JOIN inventory_items ii ON ii.id = m.plate_id
+            WHERE qli.quotation_id = ?
+              AND qid.plate_count > 0
+              AND m.plate_id IS NOT NULL
+            GROUP BY m.plate_id, ii.name, ii.stock_quantity
+        `, [quotation_id]);
+
+        for (const row of plateNeeds) {
+            const required = Math.ceil(parseFloat(row.plates_needed));
+            const available = parseInt(row.available || 0);
+            if (required > available) {
+                shortages.push({
+                    type: 'plate',
+                    name: row.item_name,
+                    required,
+                    available,
+                    shortfall: required - available,
+                });
+            }
+        }
+
+        // If any shortages found, block conversion
+        if (shortages.length > 0) {
+            return NextResponse.json({
+                error: 'insufficient_stock',
+                message: 'Cannot convert: insufficient stock for some items',
+                shortages,
+            }, { status: 422 });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         // Generate SO Code
         const [settings] = await pool.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('so_id_template', 'so_id_seq')");
         const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
@@ -115,9 +187,7 @@ export async function POST(req) {
             [String(seq + 1), String(seq + 1)]
         );
 
-        // ── STOCK DEDUCTION ──────────────────────────────────────────────────
-        // Fetch all quotation_item_details for items linked to this quotation.
-        // For each detail that has a paper_id, deduct full_sheets_used from papers.stock_quantity.
+        // ── PAPER STOCK DEDUCTION ─────────────────────────────────────────────
         const [details] = await pool.execute(`
             SELECT qid.paper_id, SUM(qid.full_sheets_used) AS sheets_needed
             FROM quotation_item_details qid
@@ -126,7 +196,7 @@ export async function POST(req) {
               AND qid.paper_id IS NOT NULL
               AND qid.full_sheets_used > 0
             GROUP BY qid.paper_id
-        `, [quotation_id]); 
+        `, [quotation_id]);
 
         const stockDeductions = [];
         for (const row of details) {
@@ -141,7 +211,6 @@ export async function POST(req) {
         // ─────────────────────────────────────────────────────────────────────
 
         // ── SFG / ASSETS STOCK DEDUCTION ─────────────────────────────────────
-        // Aggregate all SFG lines for components in this quotation's items
         const [sfgLines] = await pool.execute(`
             SELECT sl.inventory_item_id, SUM(sl.quantity) AS qty_needed
             FROM quotation_item_sfg_lines sl
@@ -165,7 +234,32 @@ export async function POST(req) {
         }
         // ─────────────────────────────────────────────────────────────────────
 
-        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions, sfgDeductions });
+        // ── PLATE STOCK DEDUCTION ─────────────────────────────────────────────
+        // Aggregate plate_count per machine's plate inventory item, then deduct stock.
+        const [plateLines] = await pool.execute(`
+            SELECT m.plate_id, SUM(qid.plate_count) AS plates_needed
+            FROM quotation_item_details qid
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            JOIN machines m ON m.id = qid.machine_id
+            WHERE qli.quotation_id = ?
+              AND qid.plate_count > 0
+              AND m.plate_id IS NOT NULL
+            GROUP BY m.plate_id
+        `, [quotation_id]);
+
+        const plateDeductions = [];
+        for (const row of plateLines) {
+            const platesToDeduct = Math.ceil(parseFloat(row.plates_needed));
+            await pool.execute(`
+                UPDATE inventory_items
+                SET stock_quantity = GREATEST(0, stock_quantity - ?)
+                WHERE id = ?
+            `, [platesToDeduct, row.plate_id]);
+            plateDeductions.push({ plate_id: row.plate_id, plates_deducted: platesToDeduct });
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions, sfgDeductions, plateDeductions });
 
     } catch (error) {
         console.error("Create Sales Order Error:", error);

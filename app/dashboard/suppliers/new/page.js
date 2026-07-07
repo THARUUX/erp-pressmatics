@@ -34,7 +34,7 @@ export default function NewSupplierPage() {
     const [form, setForm] = useState({
         name: '', email: '', phone: '', address: '',
         contact_name: '', contact_phone: '', contact_email: '',
-        payment_terms: 'Net 30', credit_limit: '', notes: '',
+        payment_terms: 'Net 30', credit_limit: '', notes: '', starting_outstanding: '',
     });
 
     // Supplier items added at creation time
@@ -125,6 +125,11 @@ export default function NewSupplierPage() {
                         <Field label="Credit Limit" icon={FiDollarSign}>
                             <input type="number" min="0" step="0.01" value={form.credit_limit}
                                 onChange={e => setField('credit_limit', e.target.value)}
+                                placeholder="0.00" className={inputCls} />
+                        </Field>
+                        <Field label="Starting Outstanding" icon={FiDollarSign}>
+                            <input type="number" min="0" step="0.01" value={form.starting_outstanding}
+                                onChange={e => setField('starting_outstanding', e.target.value)}
                                 placeholder="0.00" className={inputCls} />
                         </Field>
                         <Field label="Address" icon={FiMapPin}>

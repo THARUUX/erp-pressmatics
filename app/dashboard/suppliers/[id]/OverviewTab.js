@@ -67,6 +67,9 @@ export default function OverviewTab({ supplier, onRefresh }) {
                     <Field label="Credit Limit" icon={FiDollarSign}>
                         <input type="number" min="0" step="0.01" value={form.credit_limit || ''} onChange={e => set('credit_limit', e.target.value)} placeholder="0.00" className={inputCls} />
                     </Field>
+                    <Field label="Starting Outstanding" icon={FiDollarSign}>
+                        <input type="number" min="0" step="0.01" value={form.starting_outstanding || ''} onChange={e => set('starting_outstanding', e.target.value)} placeholder="0.00" className={inputCls} />
+                    </Field>
                     <Field label="Address" icon={FiMapPin}>
                         <input value={form.address || ''} onChange={e => set('address', e.target.value)} placeholder="—" className={inputCls} />
                     </Field>

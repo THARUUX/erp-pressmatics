@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiCopy, FiTrash2, FiSave, FiRefreshCw, FiShoppingCart, FiDollarSign } from 'react-icons/fi';
+import { FiArrowLeft, FiCopy, FiTrash2, FiSave, FiRefreshCw, FiShoppingCart, FiDollarSign, FiAlertTriangle, FiPackage } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
 
@@ -21,6 +21,7 @@ export default function EditQuotationPage({ params }) {
     const [processing, setProcessing] = useState(false);
     // 'idle' | 'saving' | 'saved'
     const [saveStatus, setSaveStatus] = useState('idle');
+    const [stockShortages, setStockShortages] = useState(null); // null | shortage[]
 
     const markSaved = () => {
         setSaveStatus('saved');
@@ -148,6 +149,64 @@ export default function EditQuotationPage({ params }) {
 
     return (
         <div className="min-h-screen bg-transparent text-white p-8">
+            {/* ── Stock Shortage Modal ─────────────────────────────────────── */}
+            {stockShortages && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-red-500/30 rounded-2xl p-8 w-full max-w-lg shadow-2xl shadow-red-950/40">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+                                <FiAlertTriangle className="w-5 h-5 text-red-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Insufficient Stock</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Cannot convert — the following items are short</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 rounded-xl overflow-hidden border border-white/[0.07]">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-white/[0.04] border-b border-white/[0.07]">
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Item</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Required</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Available</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-red-500/70">Short</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {stockShortages.map((s, i) => (
+                                        <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                    s.type === 'plate'
+                                                        ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                                }`}>
+                                                    <FiPackage className="w-2.5 h-2.5" />
+                                                    {s.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-200 font-medium text-xs">{s.name}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.required}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.available}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs font-bold text-red-400">{s.shortfall}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-4">Restock the items above, then try converting again.</p>
+                        <div className="flex justify-end mt-5">
+                            <button
+                                onClick={() => setStockShortages(null)}
+                                className="px-5 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-sm font-semibold text-white transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Header Actions */}
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
@@ -176,11 +235,19 @@ export default function EditQuotationPage({ params }) {
                                     if (res.ok) {
                                         toast.success("Sales Order created successfully!");
                                         router.push('/dashboard/sales-orders');
+                                    } else if (res.status === 422) {
+                                        const data = await res.json();
+                                        if (data.error === 'insufficient_stock' && data.shortages) {
+                                            setStockShortages(data.shortages);
+                                        } else {
+                                            toast.error(data.message || 'Insufficient stock to convert');
+                                        }
                                     } else {
-                                        toast.error("Failed to convert quotation");
+                                        const data = await res.json().catch(() => ({}));
+                                        toast.error(data.error || 'Failed to convert quotation');
                                     }
                                 } catch (error) {
-                                    toast.error("Error converting file context");
+                                    toast.error('Error converting quotation');
                                 } finally {
                                     setProcessing(false);
                                 }

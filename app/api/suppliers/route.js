@@ -35,7 +35,7 @@ export async function POST(req) {
         const {
             name, email, phone, address,
             contact_name, contact_phone, contact_email,
-            payment_terms, credit_limit, notes,
+            payment_terms, credit_limit, notes, starting_outstanding,
         } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -49,8 +49,8 @@ export async function POST(req) {
 
         const [result] = await pool.execute(
             `INSERT INTO suppliers
-                (name, code, email, phone, address, contact_name, contact_phone, contact_email, payment_terms, credit_limit, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (name, code, email, phone, address, contact_name, contact_phone, contact_email, payment_terms, credit_limit, notes, starting_outstanding)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name, code,
                 email || null, phone || null, address || null,
@@ -58,6 +58,7 @@ export async function POST(req) {
                 payment_terms || 'Net 30',
                 parseFloat(credit_limit) || 0,
                 notes || null,
+                parseFloat(starting_outstanding) || 0,
             ]
         );
 
