@@ -11,7 +11,7 @@ export async function GET() {
             'SELECT id, name, type FROM machines ORDER BY name ASC'
         );
 
-        // Fetch all active sales orders (exclude Delivered/Cancelled)
+        // Fetch all active sales orders, plus completed ones that have assigned machine tasks
         const [orders] = await pool.execute(
             `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id,
                     (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
@@ -20,6 +20,7 @@ export async function GET() {
                      WHERE qli.quotation_id = so.quotation_id) AS estimation_names
              FROM sales_orders so
              WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
+                OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
              ORDER BY so.delivery_date ASC, so.id DESC`
         );
 

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { FiRefreshCw, FiArrowRight, FiTrendingUp, FiDollarSign, FiFileText,
     FiShoppingCart, FiBarChart2, FiActivity, FiClock, FiX, FiUsers,
-    FiPackage, FiAlertTriangle } from 'react-icons/fi';
+    FiPackage, FiAlertTriangle, FiDownload } from 'react-icons/fi';
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
@@ -12,6 +12,19 @@ function fmtCurrency(n=0){ return new Intl.NumberFormat(undefined,{style:'curren
 function fmt(n=0){ if(n>=1e6) return `${(n/1e6).toFixed(1)}M`; if(n>=1000) return `${(n/1000).toFixed(1)}K`; return Number(n).toLocaleString(); }
 function timeAgo(d){ const days=Math.floor((Date.now()-new Date(d))/86400000); if(days===0) return 'Today'; if(days===1) return 'Yesterday'; return `${days}d ago`; }
 function pct(a,b){ return b?((a/b)*100).toFixed(1):'0.0'; }
+function formatMins(mins) {
+    if (mins == null) return '—';
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.round((mins / 60) * 10) / 10;
+    return `${hrs}h`;
+}
+function formatVar(est, act) {
+    if (est == null || act == null) return '—';
+    const diff = act - est;
+    if (diff === 0) return '0m';
+    const sign = diff > 0 ? '+' : '';
+    return `${sign}${diff}m`;
+}
 
 const TT = { backgroundColor:'rgba(8,8,8,0.95)', borderColor:'rgba(255,255,255,0.08)', textStyle:{color:'#fff',fontSize:12} };
 
@@ -68,6 +81,36 @@ export default function AnalyticsPage() {
     const [perfMachine, setPerfMachine] = useState(null);
     const [perfData, setPerfData] = useState(null);
     const [perfLoading, setPerfLoading] = useState(false);
+    const [reportDate, setReportDate] = useState(() => {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    });
+    const [reportData, setReportData] = useState(null);
+    const [reportLoading, setReportLoading] = useState(true);
+
+    const loadReport = useCallback(async (date) => {
+        setReportLoading(true);
+        try {
+            const r = await fetch(`/api/production-reports?date=${date}`);
+            if (r.ok) {
+                setReportData(await r.json());
+            }
+        } catch (e) {
+            console.error('Failed to load daily report:', e);
+        } finally {
+            setReportLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (tab === 'production') {
+            loadReport(reportDate);
+        }
+    }, [tab, reportDate, loadReport]);
+
     const chartRef = useRef(null);
     const chartInst = useRef(null);
 
@@ -386,6 +429,144 @@ export default function AnalyticsPage() {
 
             {/* ══ TAB: PRODUCTION ════════════════════════════════════════════════════════ */}
             {tab==='production' && (<>
+                <SectionCard title="Daily Production Reports" sub="View machine schedule execution times and download printable reports">
+                    <div className="p-5 space-y-6">
+                        {/* Date Selector & PDF Action */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Select Date:</span>
+                                <input 
+                                    type="date" 
+                                    value={reportDate} 
+                                    onChange={e => setReportDate(e.target.value)} 
+                                    className="bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white outline-none focus:border-white/30"
+                                />
+                            </div>
+                            <button 
+                                onClick={() => window.open(`/api/production-reports/pdf?date=${reportDate}`, '_blank')}
+                                className="flex items-center gap-2 bg-white text-black hover:bg-white/90 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 cursor-pointer shadow-lg"
+                            >
+                                <FiDownload className="w-4 h-4" /> Download PDF Report
+                            </button>
+                        </div>
+
+                        {reportLoading ? (
+                            <div className="py-16 text-center text-white/35 animate-pulse flex flex-col items-center justify-center gap-2">
+                                <div className="w-6 h-6 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" />
+                                <p className="text-xs">Loading production report...</p>
+                            </div>
+                        ) : reportData ? (
+                            <div className="space-y-6">
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                    {[
+                                        { label: 'Tasks Scheduled', value: reportData.stats.totalTasks, sub: 'Assigned to machines' },
+                                        { label: 'Completion Rate', value: `${reportData.stats.totalTasks > 0 ? Math.round((reportData.stats.completedTasks / reportData.stats.totalTasks) * 100) : 0}%`, sub: `${reportData.stats.completedTasks} of ${reportData.stats.totalTasks} done` },
+                                        { label: 'Total Est. Time', value: formatMins(reportData.stats.totalEstimatedMinutes), sub: 'Plan duration' },
+                                        { label: 'Total Act. Time', value: formatMins(reportData.stats.totalActualMinutes), sub: 'Completed task time' },
+                                    ].map(s => (
+                                        <div key={s.label} className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1.5">{s.label}</p>
+                                            <p className="text-xl font-bold text-white tracking-tight">{s.value}</p>
+                                            <p className="text-[10px] text-white/30 mt-0.5">{s.sub}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Machine Sections */}
+                                <div className="space-y-4">
+                                    {reportData.machines.length === 0 ? (
+                                        <div className="py-12 text-center text-white/20 text-xs border border-dashed border-white/10 rounded-2xl">
+                                            No tasks were scheduled or run on any machine for this date.
+                                        </div>
+                                    ) : (
+                                        reportData.machines.map(m => {
+                                            const mTasks = m.tasks || [];
+                                            const mEst = mTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
+                                            const mAct = mTasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
+
+                                            return (
+                                                <div key={m.id} className="border border-white/[0.05] rounded-xl overflow-hidden bg-black/20">
+                                                    {/* Machine Header Row */}
+                                                    <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border-b border-white/[0.04]">
+                                                        <span className="text-xs font-bold text-white/80 uppercase tracking-wider">{m.name} ({m.type})</span>
+                                                        <span className="text-[10px] text-white/40 font-medium">
+                                                            {mTasks.length} tasks · Est: {formatMins(mEst)} · Act: {formatMins(mAct)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Machine Tasks Table */}
+                                                    {mTasks.length === 0 ? (
+                                                        <div className="p-4 text-center text-xs text-white/20 italic">
+                                                            No tasks scheduled or run on this machine.
+                                                        </div>
+                                                    ) : (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left text-xs border-collapse">
+                                                                <thead>
+                                                                    <tr className="bg-white/[0.01] border-b border-white/[0.04] text-white/35 font-semibold">
+                                                                        <th className="px-4 py-2">SO Code</th>
+                                                                        <th className="px-4 py-2">Customer</th>
+                                                                        <th className="px-4 py-2">Task Details</th>
+                                                                        <th className="px-4 py-2 text-center">Status</th>
+                                                                        <th className="px-4 py-2 text-right">Est. Time</th>
+                                                                        <th className="px-4 py-2 text-right">Act. Time</th>
+                                                                        <th className="px-4 py-2 text-right">Variance</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-white/[0.03]">
+                                                                    {mTasks.map(t => {
+                                                                        const cleanName = t.name.includes('—')
+                                                                            ? t.name.split('—')[t.name.split('—').length - 1].trim()
+                                                                            : t.name;
+
+                                                                        const varVal = t.actual_minutes != null && t.estimated_minutes != null ? t.actual_minutes - t.estimated_minutes : null;
+                                                                        const varColor = varVal == null ? 'text-white/30' : varVal > 0 ? 'text-red-400 font-bold' : varVal < 0 ? 'text-emerald-400 font-bold' : 'text-white/40';
+
+                                                                        const statusCls = t.status === 'done' 
+                                                                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+                                                                            : t.status === 'in_progress' 
+                                                                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' 
+                                                                            : 'bg-white/5 text-white/50 border-white/10';
+
+                                                                        return (
+                                                                            <tr key={t.id} className="hover:bg-white/[0.01] transition-colors">
+                                                                                <td className="px-4 py-2.5 font-mono text-blue-400 font-semibold">{t.order_code || '—'}</td>
+                                                                                <td className="px-4 py-2.5 text-white/70 max-w-[120px] truncate">{t.customer_name || '—'}</td>
+                                                                                <td className="px-4 py-2.5 text-white font-medium">
+                                                                                    {cleanName} {t.description && <span className="text-white/40 font-normal">({t.description})</span>}
+                                                                                </td>
+                                                                                <td className="px-4 py-2.5 text-center">
+                                                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${statusCls}`}>
+                                                                                        {t.status}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-4 py-2.5 text-right text-white/50 font-mono">{formatMins(t.estimated_minutes)}</td>
+                                                                                <td className="px-4 py-2.5 text-right text-white/70 font-mono">{formatMins(t.actual_minutes)}</td>
+                                                                                <td className={`px-4 py-2.5 text-right font-mono ${varColor}`}>{formatVar(t.estimated_minutes, t.actual_minutes)}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-16 text-center text-white/20 text-xs">
+                                No report data.
+                            </div>
+                        )}
+                    </div>
+                </SectionCard>
+
+                <div className="my-8" />
+
                 <Divider label="Machine Performance Overview"/>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {machLoading ? Array(4).fill(0).map((_,i)=>(

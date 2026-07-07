@@ -5,7 +5,7 @@ import {
     PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-    SortableContext, useSortable, verticalListSortingStrategy,
+    SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
 } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -48,6 +48,30 @@ const formatDateKey = (date) => {
     return `${y}-${m}-${d}`;
 };
 
+const getLocalDateString = (dateVal) => {
+    if (!dateVal) return '';
+    if (dateVal instanceof Date) {
+        const y = dateVal.getFullYear();
+        const m = String(dateVal.getMonth() + 1).padStart(2, '0');
+        const d = String(dateVal.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    const str = String(dateVal);
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        return str.substring(0, 10);
+    }
+    try {
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    } catch {
+        return '';
+    }
+};
+
 // ── DroppableContainer Wrapper ────────────────────────────────────────────
 function DroppableContainer({ id, children, style }) {
     const { setNodeRef } = useDroppable({ id });
@@ -79,7 +103,9 @@ function TaskCard({ task, order, onUpdateTask, accent }) {
         transition,
         opacity: isDragging ? 0.25 : 1,
         background: 'rgba(255, 255, 255, 0.04)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         borderLeft: `3px solid ${accent}`,
         borderRadius: 10,
         padding: '10px 12px',
@@ -198,7 +224,9 @@ function DayColumn({ id, title, label, tasks, orderLookup, onUpdateTask, accent,
         <div style={{
             background: isOver ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
             backdropFilter: 'blur(20px)',
-            border: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderLeft: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderRight: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderBottom: `1px solid ${isOver ? accent + '44' : G.border}`,
             borderTop: `2px solid ${isOverloaded ? G.danger : accent}`,
             borderRadius: 14,
             padding: 10,
@@ -260,7 +288,9 @@ function UnplannedColumn({ id, tasks, orderLookup, onUpdateTask, accent }) {
         <div style={{
             background: isOver ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
             backdropFilter: 'blur(20px)',
-            border: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderLeft: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderRight: `1px solid ${isOver ? accent + '44' : G.border}`,
+            borderBottom: `1px solid ${isOver ? accent + '44' : G.border}`,
             borderTop: `2px solid ${G.dim}`,
             borderRadius: 14,
             padding: 10,
@@ -324,11 +354,12 @@ export default function MachinePlanning({ machines, orders }) {
 
     const [activeTask, setActiveTask] = useState(null);
     const [showReport, setShowReport] = useState(true);
+    const [showUnassigned, setShowUnassigned] = useState(false);
     const [collapsedCategories, setCollapsedCategories] = useState({
-        prepress: false,
-        offset: false,
-        digital: false,
-        finishing: false,
+        prepress: true,
+        offset: true,
+        digital: true,
+        finishing: true,
     });
 
     const toggleCategory = (type) => {
@@ -398,27 +429,31 @@ export default function MachinePlanning({ machines, orders }) {
                 if (!t.scheduled_date) {
                     unplannedTasks.push(t);
                 } else {
-                    let dStr = '';
-                    try {
-                        const d = new Date(t.scheduled_date);
-                        dStr = formatDateKey(d);
-                    } catch {}
+                    const dStr = getLocalDateString(t.scheduled_date);
                     if (dailyTasksMap[dStr]) {
                         dailyTasksMap[dStr].push(t);
                     }
                 }
             } else if (t.machine_id === null) {
-                unassignedTasks.push(t);
+                const isCompletedOrCancelled = ['delivered', 'cancelled', 'completed', 'ready'].includes(String(o.status || '').toLowerCase());
+                if (!isCompletedOrCancelled) {
+                    unassignedTasks.push(t);
+                }
             }
         });
     });
 
-    // Sort tasks in each list by order delivery date & display_order
+    // Sort tasks in each list by machine_position, delivery date & display_order
     const sortTasks = list => {
         return list.sort((a, b) => {
+            const posA = a.machine_position != null ? a.machine_position : 999999;
+            const posB = b.machine_position != null ? b.machine_position : 999999;
+            if (posA !== posB) return posA - posB;
+
             const dateA = getOrder(a)?.delivery_date ? new Date(getOrder(a).delivery_date).getTime() : 0;
             const dateB = getOrder(b)?.delivery_date ? new Date(getOrder(b).delivery_date).getTime() : 0;
             if (dateA !== dateB) return dateA - dateB;
+
             return (a.display_order || 0) - (b.display_order || 0);
         });
     };
@@ -464,28 +499,148 @@ export default function MachinePlanning({ machines, orders }) {
             newScheduledDate = null;
         } else if (overId.startsWith('day-')) {
             newScheduledDate = overId.replace('day-', '');
+        } else if (overId.startsWith('task-')) {
+            // Find the target task to get its container info
+            const targetTaskId = parseInt(overId.replace('task-', ''));
+            let targetTask = null;
+            for (const order of localOrders) {
+                const found = (order.tasks || []).find(t => t.id === targetTaskId);
+                if (found) { targetTask = found; break; }
+            }
+            if (targetTask) {
+                newMachineId = targetTask.machine_id;
+                newMachineName = targetTask.machine_name;
+                newScheduledDate = targetTask.scheduled_date;
+            }
         }
+
+        const originalTask = parentOrder.tasks.find(t => t.id === taskId);
+        const containerChanged = originalTask.machine_id !== newMachineId || originalTask.scheduled_date !== newScheduledDate;
+
+        // 1. Gather all tasks for the active machine (including active task, with updated container properties)
+        const unplannedList = [];
+        const dailyLists = {};
+        weekDays.forEach(day => { dailyLists[day.dateStr] = []; });
+
+        localOrders.forEach(order => {
+            (order.tasks || []).forEach(task => {
+                const isTargetMachine = (task.id === taskId ? newMachineId : task.machine_id) === activeMachineId;
+                if (isTargetMachine) {
+                    const taskObj = {
+                        ...task,
+                        ...(task.id === taskId ? {
+                            machine_id: newMachineId,
+                            machine_name: newMachineName,
+                            scheduled_date: newScheduledDate,
+                        } : {})
+                    };
+
+                    const container = taskObj.scheduled_date ? taskObj.scheduled_date : 'unplanned';
+                    if (container === 'unplanned') {
+                        unplannedList.push(taskObj);
+                    } else {
+                        const dStr = getLocalDateString(container);
+                        if (dailyLists[dStr]) {
+                            dailyLists[dStr].push(taskObj);
+                        } else {
+                            if (!dailyLists[dStr]) dailyLists[dStr] = [];
+                            dailyLists[dStr].push(taskObj);
+                        }
+                    }
+                }
+            });
+        });
+
+        // Sort each container by current position/fallback order
+        const sortWithFallback = list => {
+            return list.sort((a, b) => {
+                // If it is the active task and container changed, treat position as very large to put it at end first
+                const isAActiveChanged = a.id === taskId && containerChanged;
+                const isBActiveChanged = b.id === taskId && containerChanged;
+
+                const posA = isAActiveChanged ? 999999 : (a.machine_position != null ? a.machine_position : 999999);
+                const posB = isBActiveChanged ? 999999 : (b.machine_position != null ? b.machine_position : 999999);
+                if (posA !== posB) return posA - posB;
+
+                const dateA = getOrder(a)?.delivery_date ? new Date(getOrder(a).delivery_date).getTime() : 0;
+                const dateB = getOrder(b)?.delivery_date ? new Date(getOrder(b).delivery_date).getTime() : 0;
+                if (dateA !== dateB) return dateA - dateB;
+
+                return (a.display_order || 0) - (b.display_order || 0);
+            });
+        };
+
+        sortWithFallback(unplannedList);
+        Object.keys(dailyLists).forEach(dKey => {
+            sortWithFallback(dailyLists[dKey]);
+        });
+
+        if (newMachineId === activeMachineId) {
+            const targetContainer = newScheduledDate ? newScheduledDate : 'unplanned';
+
+            if (overId.startsWith('task-')) {
+                const targetTaskId = parseInt(overId.replace('task-', ''));
+                if (targetContainer === 'unplanned') {
+                    const oldIndex = unplannedList.findIndex(t => t.id === taskId);
+                    const newIndex = unplannedList.findIndex(t => t.id === targetTaskId);
+                    if (oldIndex !== -1 && newIndex !== -1) {
+                        const moved = arrayMove(unplannedList, oldIndex, newIndex);
+                        unplannedList.length = 0;
+                        unplannedList.push(...moved);
+                    }
+                } else {
+                    const list = dailyLists[targetContainer] || [];
+                    const oldIndex = list.findIndex(t => t.id === taskId);
+                    const newIndex = list.findIndex(t => t.id === targetTaskId);
+                    if (oldIndex !== -1 && newIndex !== -1) {
+                        const moved = arrayMove(list, oldIndex, newIndex);
+                        dailyLists[targetContainer] = moved;
+                    }
+                }
+            }
+        }
+
+        // Flatten all tasks in logical order: unplanned first, then daily columns sorted by date key
+        const sortedDayKeys = Object.keys(dailyLists).sort();
+        const finalFlatTasks = [
+            ...unplannedList,
+        ];
+        sortedDayKeys.forEach(dKey => {
+            finalFlatTasks.push(...(dailyLists[dKey] || []));
+        });
+
+        // Map of taskId -> new machine_position
+        const positionMap = {};
+        finalFlatTasks.forEach((task, idx) => {
+            positionMap[task.id] = idx + 1;
+        });
 
         // Optimistically update
         setLocalOrders(prev => {
             return prev.map(order => {
-                if (order.id === parentOrder.id) {
-                    return {
-                        ...order,
-                        tasks: order.tasks.map(t => {
-                            if (t.id === taskId) {
+                return {
+                    ...order,
+                    tasks: (order.tasks || []).map(t => {
+                        if (t.id === taskId) {
+                            return {
+                                ...t,
+                                machine_id: newMachineId,
+                                machine_name: newMachineName,
+                                scheduled_date: newScheduledDate,
+                                machine_position: positionMap[t.id] || null,
+                            };
+                        } else {
+                            const newPos = positionMap[t.id];
+                            if (newPos !== undefined) {
                                 return {
                                     ...t,
-                                    machine_id: newMachineId,
-                                    machine_name: newMachineName,
-                                    scheduled_date: newScheduledDate,
+                                    machine_position: newPos,
                                 };
                             }
                             return t;
-                        })
-                    };
-                }
-                return order;
+                        }
+                    })
+                };
             });
         });
 
@@ -497,9 +652,21 @@ export default function MachinePlanning({ machines, orders }) {
                 body: JSON.stringify({
                     machine_id: newMachineId,
                     machine_name: newMachineName,
-                    scheduled_date: newScheduledDate
+                    scheduled_date: newScheduledDate,
+                    machine_position: positionMap[taskId] || null,
                 }),
             });
+
+            if (activeMachineId) {
+                const taskIds = finalFlatTasks.map(t => t.id);
+                if (taskIds.length > 0) {
+                    await fetch(`/api/machines/${activeMachineId}/reorder`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ taskIds }),
+                    });
+                }
+            }
         } catch (e) {
             console.error('Drag update error:', e);
             setLocalOrders(orders); // Revert
@@ -724,12 +891,12 @@ export default function MachinePlanning({ machines, orders }) {
                                                         <span style={{ fontWeight: isSelected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {m.name}
                                                         </span>
-                                                        {mTasksCount > 0 && (
+                                                        {/* {mTasksCount > 0 && (
                                                             <span style={{
                                                                 fontSize: 8.5, background: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
                                                                 padding: '1px 5px', borderRadius: 10, color: isSelected ? '#fff' : G.dim
                                                             }}>{mTasksCount}</span>
-                                                        )}
+                                                        )} */}
                                                     </button>
                                                 );
                                             })}
@@ -740,39 +907,81 @@ export default function MachinePlanning({ machines, orders }) {
                         })}
                     </div>
 
-                    <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', minHeight: 180 }}>
-                        <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: G.danger, letterSpacing: 0.8, marginBottom: 4 }}>
-                            Unassigned ({unassignedTasks.length})
-                        </h3>
-                        <p style={{ fontSize: 9, color: G.dim, margin: '0 0 8px 0' }}>
-                            Drag to schedule
-                        </p>
-                        <div style={{
-                            flex: 1, overflowY: 'auto',
-                            background: 'rgba(239,68,68,0.01)', borderRadius: 10, border: '1px dashed rgba(239,68,68,0.12)',
-                            padding: 6, minHeight: 120, maxHeight: 300
-                        }}>
-                            <DroppableContainer id="unassigned" style={{ minHeight: '100%' }}>
-                                <SortableContext items={unassignedTasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
-                                    {unassignedTasks.length === 0 ? (
-                                        <div style={{ fontSize: 9.5, color: G.dim, textAlign: 'center', padding: '30px 0', fontStyle: 'italic' }}>
-                                            No unassigned tasks
-                                        </div>
-                                    ) : (
-                                        unassignedTasks.map(t => (
-                                            <TaskCard
-                                                key={t.id}
-                                                task={t}
-                                                order={getOrder(t)}
-                                                onUpdateTask={handleUpdateTask}
-                                                accent={G.danger}
-                                            />
-                                        ))
-                                    )}
-                                </SortableContext>
-                            </DroppableContainer>
+                    {!showUnassigned ? (
+                        <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column' }}>
+                            <button
+                                onClick={() => setShowUnassigned(true)}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    background: 'rgba(239, 68, 68, 0.05)',
+                                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                                    borderRadius: 10,
+                                    color: '#fca5a5',
+                                    cursor: 'pointer',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    textAlign: 'center',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.6,
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                Show Unassigned ({unassignedTasks.length})
+                            </button>
                         </div>
-                    </div>
+                    ) : (
+                        <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', minHeight: 180 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: G.danger, letterSpacing: 0.8, margin: 0 }}>
+                                    Unassigned ({unassignedTasks.length})
+                                </h3>
+                                <button
+                                    onClick={() => setShowUnassigned(false)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: G.dim,
+                                        fontSize: 9.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 0.4
+                                    }}
+                                >
+                                    Hide
+                                </button>
+                            </div>
+                            <p style={{ fontSize: 9, color: G.dim, margin: '0 0 8px 0' }}>
+                                Drag to schedule
+                            </p>
+                            <div style={{
+                                flex: 1, overflowY: 'auto',
+                                background: 'rgba(239,68,68,0.01)', borderRadius: 10, border: '1px dashed rgba(239,68,68,0.12)',
+                                padding: 6, minHeight: 120, maxHeight: 300
+                            }}>
+                                <DroppableContainer id="unassigned" style={{ minHeight: '100%' }}>
+                                    <SortableContext items={unassignedTasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
+                                        {unassignedTasks.length === 0 ? (
+                                            <div style={{ fontSize: 9.5, color: G.dim, textAlign: 'center', padding: '30px 0', fontStyle: 'italic' }}>
+                                                No unassigned tasks
+                                            </div>
+                                        ) : (
+                                            unassignedTasks.map(t => (
+                                                <TaskCard
+                                                    key={t.id}
+                                                    task={t}
+                                                    order={getOrder(t)}
+                                                    onUpdateTask={handleUpdateTask}
+                                                    accent={G.danger}
+                                                />
+                                            ))
+                                        )}
+                                    </SortableContext>
+                                </DroppableContainer>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. Main Planner Area */}
@@ -864,7 +1073,7 @@ export default function MachinePlanning({ machines, orders }) {
                                     Report
                                 </button>
 
-                                <button
+                                {/* <button
                                     onClick={() => window.print()}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: 6,
@@ -877,7 +1086,7 @@ export default function MachinePlanning({ machines, orders }) {
                                 >
                                     <FiPrinter style={{ fontSize: 12 }} />
                                     Print
-                                </button>
+                                </button> */}
 
                                 <button
                                     onClick={() => {

@@ -148,6 +148,64 @@ export async function POST(req) {
             }
         }
 
+        // 3. Check SFG assets stock
+        const [sfgNeeds] = await pool.execute(`
+            SELECT sl.inventory_item_id,
+                   ii.name AS item_name,
+                   SUM(sl.quantity) AS qty_needed,
+                   ii.stock_quantity AS available
+            FROM quotation_item_sfg_lines sl
+            JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            JOIN inventory_items ii ON ii.id = sl.inventory_item_id
+            WHERE qli.quotation_id = ?
+              AND sl.is_statics = 0
+            GROUP BY sl.inventory_item_id, ii.name, ii.stock_quantity
+        `, [quotation_id]);
+
+        for (const row of sfgNeeds) {
+            const required = parseFloat(row.qty_needed) || 0;
+            const available = parseFloat(row.available || 0);
+            if (required > available) {
+                shortages.push({
+                    type: 'sfg',
+                    name: row.item_name,
+                    required,
+                    available,
+                    shortfall: required - available,
+                });
+            }
+        }
+
+        // 4. Check Statics assets stock
+        const [staticsNeeds] = await pool.execute(`
+            SELECT sl.inventory_item_id,
+                   ii.name AS item_name,
+                   SUM(sl.quantity) AS qty_needed,
+                   ii.stock_quantity AS available
+            FROM quotation_item_sfg_lines sl
+            JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            JOIN inventory_items ii ON ii.id = sl.inventory_item_id
+            WHERE qli.quotation_id = ?
+              AND sl.is_statics = 1
+            GROUP BY sl.inventory_item_id, ii.name, ii.stock_quantity
+        `, [quotation_id]);
+
+        for (const row of staticsNeeds) {
+            const required = parseFloat(row.qty_needed) || 0;
+            const available = parseFloat(row.available || 0);
+            if (required > available) {
+                shortages.push({
+                    type: 'statics',
+                    name: row.item_name,
+                    required,
+                    available,
+                    shortfall: required - available,
+                });
+            }
+        }
+
         // If any shortages found, block conversion
         if (shortages.length > 0) {
             return NextResponse.json({
@@ -217,6 +275,7 @@ export async function POST(req) {
             JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
             JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
             WHERE qli.quotation_id = ?
+              AND sl.is_statics = 0
             GROUP BY sl.inventory_item_id
         `, [quotation_id]);
 
@@ -230,6 +289,31 @@ export async function POST(req) {
                     WHERE id = ?
                 `, [qty, row.inventory_item_id]);
                 sfgDeductions.push({ inventory_item_id: row.inventory_item_id, qty_deducted: qty });
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        // ── STATICS STOCK DEDUCTION ───────────────────────────────────────────
+        const [staticsLines] = await pool.execute(`
+            SELECT sl.inventory_item_id, SUM(sl.quantity) AS qty_needed
+            FROM quotation_item_sfg_lines sl
+            JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+            JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+            WHERE qli.quotation_id = ?
+              AND sl.is_statics = 1
+            GROUP BY sl.inventory_item_id
+        `, [quotation_id]);
+
+        const staticsDeductions = [];
+        for (const row of staticsLines) {
+            const qty = parseFloat(row.qty_needed) || 0;
+            if (qty > 0) {
+                await pool.execute(`
+                    UPDATE inventory_items
+                    SET stock_quantity = GREATEST(0, stock_quantity - ?)
+                    WHERE id = ?
+                `, [qty, row.inventory_item_id]);
+                staticsDeductions.push({ inventory_item_id: row.inventory_item_id, qty_deducted: qty });
             }
         }
         // ─────────────────────────────────────────────────────────────────────
@@ -259,7 +343,7 @@ export async function POST(req) {
         }
         // ─────────────────────────────────────────────────────────────────────
 
-        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions, sfgDeductions, plateDeductions });
+        return NextResponse.json({ success: true, salesOrderId: soId, stockDeductions, sfgDeductions, staticsDeductions, plateDeductions });
 
     } catch (error) {
         console.error("Create Sales Order Error:", error);

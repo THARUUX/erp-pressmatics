@@ -223,8 +223,29 @@ export async function POST(req) {
                     const price = parseFloat(sl.unit_price) || 0;
                     await connection.execute(
                         `INSERT INTO quotation_item_sfg_lines
-                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+                        [
+                            detailId,
+                            sl.inventory_item_id,
+                            sl.item_name || '',
+                            sl.item_code || '',
+                            qty,
+                            price,
+                            qty * price
+                        ]
+                    );
+                }
+
+                // Insert Statics Lines (stored in same table as SFG, flagged with is_statics=1)
+                const staticsLines = meta.staticsLines || [];
+                for (const sl of staticsLines) {
+                    const qty = parseFloat(sl.quantity) || 0;
+                    const price = parseFloat(sl.unit_price) || 0;
+                    await connection.execute(
+                        `INSERT INTO quotation_item_sfg_lines
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
                         [
                             detailId,
                             sl.inventory_item_id,

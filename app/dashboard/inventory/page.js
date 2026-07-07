@@ -10,13 +10,14 @@ import {
     FiPlus, FiEdit2, FiTrash2, FiX, FiCopy, FiAlertTriangle,
     FiClock, FiSearch, FiChevronUp, FiChevronDown, FiChevronsLeft,
     FiChevronsRight, FiChevronLeft, FiChevronRight, FiUpload, FiGrid,
-    FiDollarSign, FiBox,
+    FiDollarSign, FiBox, FiPenTool,
 } from 'react-icons/fi';
 import { FiMaximize } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useSettings } from '@/components/SettingsContext';
 import BulkUploadModal from '@/components/inventory/BulkUploadModal';
+import { BulkEditModal } from '@/components/ui/BulkEditModal';
 import BomEditor from './components/BomEditor';
 
 const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics'];
@@ -35,6 +36,7 @@ export default function InventoryPage() {
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
     const [showAdd, setShowAdd] = useState(false);
     const [showBulk, setShowBulk] = useState(false);
+    const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({ ...EMPTY_FORM });
@@ -351,6 +353,9 @@ export default function InventoryPage() {
                     <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
                         <FiUpload className="w-4 h-4" /> Bulk Upload
                     </button>
+                    <button onClick={() => setShowBulkEdit(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
+                        <FiPenTool className="w-4 h-4" /> Bulk Edit
+                    </button>
                     {!showAdd && (
                         <button onClick={() => { resetForm(); setShowAdd(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all">
                             <FiPlus className="w-4 h-4" /> Add Item
@@ -617,6 +622,16 @@ export default function InventoryPage() {
 
             {/* Bulk Upload Modal */}
             {showBulk && <BulkUploadModal onClose={() => setShowBulk(false)} onDone={() => { setShowBulk(false); fetchItems(); }} />}
+
+            {/* Bulk Edit Modal */}
+            {showBulkEdit && (
+                <BulkEditModal
+                    type="inventory"
+                    data={items}
+                    onClose={() => setShowBulkEdit(false)}
+                    onComplete={() => { fetchItems(); toast.success('Inventory updated!'); }}
+                />
+            )}
         </div>
     );
 }

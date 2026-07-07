@@ -75,34 +75,52 @@ export async function GET(req, { params }) {
             }
         }
 
-        const components = details.map(detail => ({
-            ...detail,
-            finishings: finishingsByDetail[detail.id] || [],
-            sfgLines: (sfgByDetail[detail.id] || []).map(s => ({
-                id: `sfg-db-${s.id}`,
-                db_id: s.id,
-                inventory_item_id: s.inventory_item_id,
-                item_name: s.item_name,
-                item_code: s.item_code || '',
-                quantity: parseFloat(s.quantity),
-                unit_price: parseFloat(s.unit_price),
-                total_price: parseFloat(s.total_price),
-                stock_quantity: s.stock_quantity,
-                uom: s.uom || 'Unit',
-            })),
-            services: (servicesByDetail[detail.id] || []).map(s => ({
-                id: `svc-db-${s.id}`,
-                db_id: s.id,
-                service_id: s.service_id,
-                service_name: s.service_name,
-                employee_name: s.employee_name,
-                rate_unit: s.rate_unit,
-                rate: parseFloat(s.rate),
-                multiply_by: parseFloat(s.multiply_by),
-                note: s.note || '',
-                total_cost: parseFloat(s.total_cost)
-            }))
-        }));
+        const components = details.map(detail => {
+            const allDetailSfg = sfgByDetail[detail.id] || [];
+            const sfgRows = allDetailSfg.filter(s => s.is_statics === 0);
+            const staticsRows = allDetailSfg.filter(s => s.is_statics === 1);
+            
+            return {
+                ...detail,
+                finishings: finishingsByDetail[detail.id] || [],
+                sfgLines: sfgRows.map(s => ({
+                    id: `sfg-db-${s.id}`,
+                    db_id: s.id,
+                    inventory_item_id: s.inventory_item_id,
+                    item_name: s.item_name,
+                    item_code: s.item_code || '',
+                    quantity: parseFloat(s.quantity),
+                    unit_price: parseFloat(s.unit_price),
+                    total_price: parseFloat(s.total_price),
+                    stock_quantity: s.stock_quantity,
+                    uom: s.uom || 'Unit',
+                })),
+                staticsLines: staticsRows.map(s => ({
+                    id: `statics-db-${s.id}`,
+                    db_id: s.id,
+                    inventory_item_id: s.inventory_item_id,
+                    item_name: s.item_name,
+                    item_code: s.item_code || '',
+                    quantity: parseFloat(s.quantity),
+                    unit_price: parseFloat(s.unit_price),
+                    total_price: parseFloat(s.total_price),
+                    stock_quantity: s.stock_quantity,
+                    uom: s.uom || 'Unit',
+                })),
+                services: (servicesByDetail[detail.id] || []).map(s => ({
+                    id: `svc-db-${s.id}`,
+                    db_id: s.id,
+                    service_id: s.service_id,
+                    service_name: s.service_name,
+                    employee_name: s.employee_name,
+                    rate_unit: s.rate_unit,
+                    rate: parseFloat(s.rate),
+                    multiply_by: parseFloat(s.multiply_by),
+                    note: s.note || '',
+                    total_cost: parseFloat(s.total_cost)
+                }))
+            };
+        });
 
         return NextResponse.json({ item, components, globalFinishings });
     } catch (error) {
@@ -321,8 +339,29 @@ export async function PUT(req, { params }) {
                     const price = parseFloat(sl.unit_price) || 0;
                     await connection.execute(
                         `INSERT INTO quotation_item_sfg_lines
-                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+                        [
+                            detailId,
+                            sl.inventory_item_id,
+                            sl.item_name || '',
+                            sl.item_code || '',
+                            qty,
+                            price,
+                            qty * price
+                        ]
+                    );
+                }
+
+                // Insert Statics Lines
+                const staticsLines = meta.staticsLines || [];
+                for (const sl of staticsLines) {
+                    const qty = parseFloat(sl.quantity) || 0;
+                    const price = parseFloat(sl.unit_price) || 0;
+                    await connection.execute(
+                        `INSERT INTO quotation_item_sfg_lines
+                        (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
                         [
                             detailId,
                             sl.inventory_item_id,

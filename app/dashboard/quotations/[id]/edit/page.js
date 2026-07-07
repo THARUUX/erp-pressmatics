@@ -178,8 +178,12 @@ export default function EditQuotationPage({ params }) {
                                         <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
                                             <td className="px-4 py-3">
                                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                                    s.type === 'plate'
+                                                    s.type === 'sfg'
+                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                        : s.type === 'statics'
                                                         ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                        : s.type === 'plate'
+                                                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
                                                         : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
                                                 }`}>
                                                     <FiPackage className="w-2.5 h-2.5" />

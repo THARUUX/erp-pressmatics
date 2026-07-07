@@ -11,13 +11,13 @@ import {
     FiPlus, FiSearch, FiEdit2, FiTrash2,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiUsers,
-    FiCheckCircle, FiDollarSign,
+    FiCheckCircle, FiDollarSign, FiUpload, FiDownload, FiPenTool,
 } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { BulkImportModal } from '@/components/ui/BulkImportModal';
-import { FiUpload } from 'react-icons/fi';
+import { BulkEditModal } from '@/components/ui/BulkEditModal';
 import { useSettings } from '@/components/SettingsContext';
 
 function SortIcon({ dir }) {
@@ -48,7 +48,8 @@ export default function CustomersPage() {
     const [loading, setLoading]         = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
-    const [showImport, setShowImport]   = useState(false);
+    const [showImport, setShowImport]     = useState(false);
+    const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
 
@@ -249,6 +250,14 @@ export default function CustomersPage() {
                     onComplete={() => { fetchAll(); toast.success('Customer list updated!'); }}
                 />
             )}
+            {showBulkEdit && (
+                <BulkEditModal
+                    type="customers"
+                    data={data}
+                    onClose={() => setShowBulkEdit(false)}
+                    onComplete={() => { fetchAll(); toast.success('Customers updated!'); }}
+                />
+            )}
             <header className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Customers</h1>
@@ -276,6 +285,11 @@ export default function CustomersPage() {
                         onClick={() => setShowImport(true)}
                         className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">
                         <FiUpload className="w-4 h-4" /> Import CSV
+                    </button>
+                    <button
+                        onClick={() => setShowBulkEdit(true)}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">
+                        <FiPenTool className="w-4 h-4" /> Bulk Edit
                     </button>
                     <Link href="/dashboard/customers/new">
                         <button className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors">

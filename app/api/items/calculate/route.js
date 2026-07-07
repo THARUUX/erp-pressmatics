@@ -37,8 +37,11 @@ export async function POST(req) {
                 // SFG/Asset components: sum their sfgLines as cost, no print calculation
                 const sfgLinesCost = (comp.sfgLines || []).reduce((acc, sl) =>
                     acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+                // Also include any staticsLines attached to this component
+                const staticsLinesCost = (comp.staticsLines || []).reduce((acc, sl) =>
+                    acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
                 result = {
-                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: sfgLinesCost },
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: sfgLinesCost + staticsLinesCost },
                     printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
                     totalSheetsRequired: 0, plateCount: 0,
                     computedFinishings: []
@@ -64,6 +67,20 @@ export async function POST(req) {
                         computedFinishings: []
                     };
                 }
+            }
+
+            // For every component type, add staticsLines cost on top of the computed result
+            const staticsLinesCostAll = (comp.staticsLines || []).reduce((acc, sl) =>
+                acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+            // Only add once — SFG branch already includes staticsLinesCost, others don't
+            if (!isSFGComp && staticsLinesCostAll > 0) {
+                result = {
+                    ...result,
+                    costs: {
+                        ...result.costs,
+                        total: (result.costs.total || 0) + staticsLinesCostAll,
+                    }
+                };
             }
 
             results.push({

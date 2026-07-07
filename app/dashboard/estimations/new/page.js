@@ -661,18 +661,61 @@ export default function NewQuotationPage() {
                                 <div className="text-center text-gray-500 py-8">Click calculate to see result</div>
                             )}
 
-                            {/* SFG / Assets Subtotal (always visible if any lines exist) */}
+                            {/* SFG / Assets & Statics BOM */}
                             {(() => {
-                                const sfgTotal = components.reduce((acc, c) =>
-                                    acc + (c.sfgLines || []).reduce((s, l) => s + (parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0), 0), 0);
-                                return sfgTotal > 0 ? (
-                                    <div className="pt-3 border-t border-amber-500/20">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-amber-400 font-medium">SFG / Assets Total</span>
-                                            <span className="text-amber-300 font-semibold">{currency}{sfgTotal.toFixed(2)}</span>
-                                        </div>
+                                const allSfgLines = components.flatMap(c =>
+                                    (c.sfgLines || []).map(l => ({ ...l, _comp: c.name }))
+                                );
+                                const allStaticsLines = components.flatMap(c =>
+                                    (c.staticsLines || []).map(l => ({ ...l, _comp: c.name }))
+                                );
+                                const hasBOM = allSfgLines.length > 0 || allStaticsLines.length > 0;
+                                if (!hasBOM) return null;
+                                const sfgTotal = allSfgLines.reduce((s, l) => s + (parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0), 0);
+                                const staticsTotal = allStaticsLines.reduce((s, l) => s + (parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0), 0);
+                                return (
+                                    <div className="pt-3 mt-2 border-t border-white/10 space-y-3">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Bill of Materials</h3>
+
+                                        {allSfgLines.length > 0 && (
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">SFG / Assets</span>
+                                                {allSfgLines.map((l, i) => (
+                                                    <div key={i} className="flex justify-between items-center text-xs pl-2 border-l-2 border-amber-500/30">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-gray-300">{l.name || l.item_name || '—'}</span>
+                                                            <span className="text-gray-600 text-[10px]">{l._comp} · qty {l.quantity}</span>
+                                                        </div>
+                                                        <span className="text-amber-300 shrink-0 ml-2">{currency}{((parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0)).toFixed(2)}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between text-xs font-semibold pt-1">
+                                                    <span className="text-amber-400">SFG Subtotal</span>
+                                                    <span className="text-amber-300">{currency}{sfgTotal.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {allStaticsLines.length > 0 && (
+                                            <div className="space-y-1 pt-2 border-t border-white/5">
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-violet-400">Statics</span>
+                                                {allStaticsLines.map((l, i) => (
+                                                    <div key={i} className="flex justify-between items-center text-xs pl-2 border-l-2 border-violet-500/30">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-gray-300">{l.name || l.item_name || '—'}</span>
+                                                            <span className="text-gray-600 text-[10px]">{l._comp} · qty {l.quantity}</span>
+                                                        </div>
+                                                        <span className="text-violet-300 shrink-0 ml-2">{currency}{((parseFloat(l.unit_price) || 0) * (parseFloat(l.quantity) || 0)).toFixed(2)}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between text-xs font-semibold pt-1">
+                                                    <span className="text-violet-400">Statics Subtotal</span>
+                                                    <span className="text-violet-300">{currency}{staticsTotal.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                ) : null;
+                                );
                             })()}
 
                             {/* Grand Total & Global Finishings (Always Visible) */}

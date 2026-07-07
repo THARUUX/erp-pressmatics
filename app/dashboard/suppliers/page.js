@@ -11,14 +11,14 @@ import {
     FiPlus, FiSearch, FiEdit2, FiTrash2,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiTruck,
-    FiAlertCircle, FiCheckCircle, FiDollarSign, FiPackage,
+    FiAlertCircle, FiCheckCircle, FiDollarSign, FiPackage, FiUpload, FiPenTool,
 } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { BulkImportModal } from '@/components/ui/BulkImportModal';
-import { FiUpload } from 'react-icons/fi';
+import { BulkEditModal } from '@/components/ui/BulkEditModal';
 
 function SortIcon({ dir }) {
     if (!dir) return <span className="opacity-20 text-xs">⇅</span>;
@@ -51,7 +51,8 @@ export default function SuppliersPage() {
     const [balances, setBalances]     = useState({});
     const [stats, setStats]           = useState({ total: 0, active: 0, outstanding: 0 });
     const [columnVisibility, setColumnVisibility] = useState({});
-    const [showImport, setShowImport]   = useState(false);
+    const [showImport, setShowImport]     = useState(false);
+    const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
 
@@ -277,6 +278,14 @@ export default function SuppliersPage() {
                     onComplete={() => { fetchAll(); toast.success('Supplier list updated!'); }}
                 />
             )}
+            {showBulkEdit && (
+                <BulkEditModal
+                    type="suppliers"
+                    data={data}
+                    onClose={() => setShowBulkEdit(false)}
+                    onComplete={() => { fetchAll(); toast.success('Suppliers updated!'); }}
+                />
+            )}
 
             {/* ── Header ── */}
             <header className="flex justify-between items-start">
@@ -308,6 +317,11 @@ export default function SuppliersPage() {
                         onClick={() => setShowImport(true)}
                         className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">
                         <FiUpload className="w-4 h-4" /> Import CSV
+                    </button>
+                    <button
+                        onClick={() => setShowBulkEdit(true)}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">
+                        <FiPenTool className="w-4 h-4" /> Bulk Edit
                     </button>
                     <Link href="/dashboard/suppliers/new">
                         <button className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors">
