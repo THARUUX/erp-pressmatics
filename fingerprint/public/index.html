@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZKTeco Biometric Sync Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            primary: '#8b5cf6', // Violet
+            secondary: '#111',
+            darkBg: '#09090b',
+            cardBg: 'rgba(24, 24, 27, 0.65)',
+            cardBorder: 'rgba(255, 255, 255, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #09090b;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
+    }
+    .glass-card {
+      background: var(--cardBg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--cardBorder);
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="text-zinc-100 font-sans min-h-screen pb-12">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-3"></div>
+
+  <!-- Header Section -->
+  <header class="max-w-7xl mx-auto px-6 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center">
+          <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a15 15 0 00-2.815-6M17 11a14.99 14.99 0 01-3.478 8.17M12 11a15 15 0 01-2.285-8.583m0 0A13.983 13.983 0 0112 2a13.983 13.983 0 012.285 2.236m-9.73 3.677A13.95 13.95 0 003 11c0 1.489.233 2.924.665 4.274m12.273-7.824a13.95 13.95 0 013.062 3.677M21 11c0 1.489-.233 2.924-.665 4.274"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+            ZKTeco Biometric Integration Portal
+          </h1>
+          <p class="text-xs text-zinc-400">Pressmatics ERP Autonomous Attendance Synchronization Service</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="https://erp.neo.lk/" target="_blank" class="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+        Back to ERP
+      </a>
+    </div>
+  </header>
+
+  <!-- Dashboard Overview Cards -->
+  <section class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+    
+    <!-- Connection Status Card -->
+    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between min-h-[140px]">
+      <div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Biometric Machine</span>
+          <span id="device-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-zinc-700">
+            Checking...
+          </span>
+        </div>
+        <p id="device-ip-display" class="text-xl font-bold text-white tracking-tight mt-3">192.168.1.201</p>
+        <p class="text-xs text-zinc-400 mt-1">Default Port: 4370</p>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <button id="btn-sync-real" onclick="triggerSync(false)" class="flex-1 text-center bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs py-2 rounded-xl border border-violet-500/30 shadow-lg shadow-violet-600/10 active:scale-[0.98] transition-all">
+          Sync Machine
+        </button>
+        <button id="btn-sync-sim" onclick="triggerSync(true)" class="flex-1 text-center bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 font-semibold text-xs py-2 rounded-xl active:scale-[0.98] transition-all" title="Simulate sync if device is offline">
+          Simulate Sync
+        </button>
+      </div>
+    </div>
+
+    <!-- Total Logs Card -->
+    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between min-h-[140px]">
+      <div>
+        <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Total Synced Logs</span>
+        <p id="stat-total-logs" class="text-4xl font-extrabold text-white tracking-tight mt-3">0</p>
+      </div>
+      <div>
+        <p class="text-xs text-zinc-400">Saved in ERP Database</p>
+        <p id="stat-last-upload" class="text-[10px] text-zinc-500 font-medium mt-1">Last Uploaded: N/A</p>
+      </div>
+    </div>
+
+    <!-- Mapped Employees Card -->
+    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between min-h-[140px]">
+      <div>
+        <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Mapped Employees</span>
+        <p id="stat-mapped-emps" class="text-4xl font-extrabold text-violet-400 tracking-tight mt-3">0</p>
+      </div>
+      <p class="text-xs text-zinc-400 mt-2">Linked to ZKTeco IDs</p>
+    </div>
+
+    <!-- Unmapped Logs Card -->
+    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between min-h-[140px]">
+      <div>
+        <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Unmapped Device IDs</span>
+        <p id="stat-unmapped-ids" class="text-4xl font-extrabold text-amber-400 tracking-tight mt-3">0</p>
+      </div>
+      <p class="text-xs text-zinc-400 mt-2">Clockings needing link</p>
+    </div>
+
+  </section>
+
+  <!-- Sync Status Bar -->
+  <section class="max-w-7xl mx-auto px-6 mb-6">
+    <div id="sync-status-bar" class="glass-card rounded-xl px-5 py-3.5 flex items-center justify-between text-xs border border-white/5 bg-zinc-950/20">
+      <div class="flex items-center gap-2 min-w-0">
+        <div id="sync-status-dot" class="w-2.5 h-2.5 rounded-full bg-zinc-500 shrink-0"></div>
+        <p id="sync-status-msg" class="text-zinc-400 truncate">Loading status...</p>
+      </div>
+      <span id="sync-status-time" class="text-[10px] text-zinc-500 font-mono shrink-0 ml-4"></span>
+    </div>
+  </section>
+
+  <!-- Main Workspace Tabs & Container -->
+  <main class="max-w-7xl mx-auto px-6">
+    <div class="glass-card rounded-3xl overflow-hidden shadow-2xl">
+      
+      <!-- Tabs Navigation -->
+      <div class="flex border-b border-white/[0.08] bg-black/25 px-6">
+        <button onclick="switchTab('logs')" id="tab-btn-logs" class="px-6 py-4 text-sm font-semibold border-b-2 border-violet-500 text-white transition-all">
+          Attendance Logs
+        </button>
+        <button onclick="switchTab('mapping')" id="tab-btn-mapping" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-zinc-400 hover:text-white transition-all">
+          Employee Mapping
+        </button>
+        <button onclick="switchTab('unmapped')" id="tab-btn-unmapped" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-zinc-400 hover:text-white transition-all flex items-center gap-2">
+          Unmapped device IDs
+          <span id="unmapped-count-badge" class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full hidden">0</span>
+        </button>
+        <button onclick="switchTab('device-users')" id="tab-btn-device-users" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-zinc-400 hover:text-white transition-all">
+          Device User Profiles
+        </button>
+      </div>
+
+      <!-- Tab Content: Logs -->
+      <div id="tab-content-logs" class="p-6 space-y-6">
+        <!-- Filter Controls -->
+        <div class="flex flex-wrap gap-4 items-end bg-black/20 p-4 rounded-2xl border border-white/5">
+          <div class="flex-1 min-w-[240px]">
+            <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Search Logs</label>
+            <div class="relative">
+              <input type="text" id="filter-search" oninput="debounceLogsFetch()" placeholder="Search by name, ERP code, or ZKTeco ID..." class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors">
+            </div>
+          </div>
+
+          <div class="w-full sm:w-[150px]">
+            <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Punch State</label>
+            <select id="filter-state" onchange="fetchLogs(1)" class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]">
+              <option value="">All punches</option>
+              <option value="0">Check-In</option>
+              <option value="1">Check-Out</option>
+            </select>
+          </div>
+
+          <div class="w-full sm:w-[160px]">
+            <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Start Date</label>
+            <input type="date" id="filter-start" onchange="fetchLogs(1)" class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]">
+          </div>
+
+          <div class="w-full sm:w-[160px]">
+            <label class="block text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5">End Date</label>
+            <input type="date" id="filter-end" onchange="fetchLogs(1)" class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]">
+          </div>
+
+          <button onclick="resetFilters()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-sm font-semibold active:scale-95 transition-all">
+            Clear
+          </button>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="overflow-x-auto rounded-2xl border border-white/[0.08]">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-black/40 border-b border-white/[0.08] text-zinc-400 text-xs uppercase tracking-wider font-semibold">
+                <th class="p-4">Timestamp</th>
+                <th class="p-4">Device ID</th>
+                <th class="p-4">Employee</th>
+                <th class="p-4">ERP Code</th>
+                <th class="p-4">Department / Role</th>
+                <th class="p-4">State</th>
+                <th class="p-4">Verification</th>
+              </tr>
+            </thead>
+            <tbody id="logs-table-body">
+              <tr>
+                <td colspan="7" class="p-12 text-center text-zinc-500">Loading logs data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between pt-4">
+          <p id="pagination-info" class="text-xs text-zinc-500">Showing 0 to 0 of 0 logs</p>
+          <div class="flex gap-2">
+            <button id="btn-prev" onclick="changePage(-1)" class="px-3 py-1.5 bg-zinc-900 border border-white/5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all">
+              Previous
+            </button>
+            <button id="btn-next" onclick="changePage(1)" class="px-3 py-1.5 bg-zinc-900 border border-white/5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all">
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Mapping -->
+      <div id="tab-content-mapping" class="p-6 space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">ERP Employee Device Mapping</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">Assign unique ZKTeco user IDs to your ERP employees to map attendance logs.</p>
+          </div>
+          <div class="w-64">
+            <input type="text" id="search-mapping" oninput="renderMappingList()" placeholder="Filter employees..." class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors">
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-white/[0.08]">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-black/40 border-b border-white/[0.08] text-zinc-400 text-xs uppercase tracking-wider font-semibold">
+                <th class="p-4">Employee Name</th>
+                <th class="p-4">ERP Code</th>
+                <th class="p-4">Department</th>
+                <th class="p-4">Job Title</th>
+                <th class="p-4">ZKTeco User ID</th>
+                <th class="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="mapping-table-body">
+              <tr>
+                <td colspan="6" class="p-12 text-center text-zinc-500">Loading mappings...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Content: Unmapped IDs -->
+      <div id="tab-content-unmapped" class="p-6 space-y-6 hidden">
+        <div>
+          <h2 class="text-lg font-bold text-white">Unmapped ZKTeco Device IDs</h2>
+          <p class="text-xs text-zinc-400 mt-0.5">These user IDs have registered punches on the machine but are not yet linked to any employee record.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4" id="unmapped-grid">
+          <div class="col-span-2 p-12 text-center text-zinc-500">Loading unmapped IDs...</div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Device Users -->
+      <div id="tab-content-device-users" class="p-6 space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">ZKTeco Registered User Profiles</h2>
+            <p class="text-xs text-zinc-400 mt-0.5">List of users configured directly on the biometric device. Note: Additions and deletions must be done physically on the device.</p>
+          </div>
+          <div class="w-64">
+            <input type="text" id="search-device-users" oninput="renderDeviceUsersList()" placeholder="Filter device users..." class="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition-colors">
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-white/[0.08]">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-black/40 border-b border-white/[0.08] text-zinc-400 text-xs uppercase tracking-wider font-semibold">
+                <th class="p-4">User ID (Device)</th>
+                <th class="p-4">Display Name</th>
+                <th class="p-4">Card Number</th>
+                <th class="p-4">Privilege</th>
+                <th class="p-4">ERP Mapping Status</th>
+                <th class="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="device-users-table-body">
+              <tr>
+                <td colspan="6" class="p-12 text-center text-zinc-500">Loading user profiles from biometric device...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Mapping Modal -->
+  <div id="mapping-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-[#0e0e11] border border-white/10 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden glass-card">
+      <div class="flex items-center justify-between px-6 py-5 border-b border-white/10">
+        <h3 class="text-base font-bold text-white">Assign Device ID</h3>
+        <button onclick="closeMappingModal()" class="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <p class="text-xs text-zinc-400">Employee</p>
+          <p id="modal-emp-name" class="font-bold text-white mt-1 text-sm">John Doe</p>
+          <p id="modal-emp-code" class="text-xs text-zinc-500 font-mono mt-0.5">EMP-001</p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">ZKTeco User ID</label>
+          <input type="text" id="modal-device-id" placeholder="e.g. 102" class="w-full bg-zinc-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+          <p class="text-[10px] text-zinc-500 mt-2">Enter the ID number configured on the ZKTeco fingerprint machine. Leave blank to clear mapping.</p>
+        </div>
+      </div>
+      <div class="px-6 py-4 bg-black/35 border-t border-white/10 flex gap-2 justify-end">
+        <button onclick="closeMappingModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white transition-colors">
+          Cancel
+        </button>
+        <button onclick="saveMappingFromModal()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/10 active:scale-95 transition-all">
+          Save Mapping
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Javascript Logic -->
+  <script>
+    let currentTab = 'logs';
+    let logsData = [];
+    let mappingsData = [];
+    let unmappedData = [];
+    let currentPage = 1;
+    let limit = 15;
+    let totalPages = 1;
+    let isFetchingStatus = false;
+    let searchDebounceTimer;
+
+    // Load everything on startup
+    window.onload = function() {
+      fetchStatus();
+      fetchLogs(1);
+      fetchMappings();
+      fetchUnmapped();
+      // Poll status every 30 seconds
+      setInterval(fetchStatus, 30000);
+    };
+
+    // Show a premium toast alert
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const isSuccess = type === 'success';
+      const borderCol = isSuccess ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400' : 'border-red-500/25 bg-red-500/10 text-red-400';
+      const iconSvg = isSuccess 
+        ? `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
+        : `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+      toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs font-semibold shadow-2xl transition-all duration-300 opacity-0 translate-y-3 ${borderCol}`;
+      toast.innerHTML = `${iconSvg} <span>${message}</span>`;
+      
+      container.appendChild(toast);
+      
+      // Animate in
+      setTimeout(() => {
+        toast.classList.remove('opacity-0', 'translate-y-3');
+      }, 50);
+
+      // Animate out
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-10px]');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Switch View Tabs
+    function switchTab(tabId) {
+      currentTab = tabId;
+      
+      const tabLogs = document.getElementById('tab-content-logs');
+      const tabMapping = document.getElementById('tab-content-mapping');
+      const tabUnmapped = document.getElementById('tab-content-unmapped');
+      const tabDeviceUsers = document.getElementById('tab-content-device-users');
+
+      const btnLogs = document.getElementById('tab-btn-logs');
+      const btnMapping = document.getElementById('tab-btn-mapping');
+      const btnUnmapped = document.getElementById('tab-btn-unmapped');
+      const btnDeviceUsers = document.getElementById('tab-btn-device-users');
+
+      // Hide all content
+      tabLogs.classList.add('hidden');
+      tabMapping.classList.add('hidden');
+      tabUnmapped.classList.add('hidden');
+      tabDeviceUsers.classList.add('hidden');
+
+      // Reset buttons
+      [btnLogs, btnMapping, btnUnmapped, btnDeviceUsers].forEach(btn => {
+        btn.classList.remove('border-violet-500', 'text-white');
+        btn.classList.add('border-transparent', 'text-zinc-400');
+      });
+
+      // Show selected content and highlight tab
+      if (tabId === 'logs') {
+        tabLogs.classList.remove('hidden');
+        btnLogs.classList.add('border-violet-500', 'text-white');
+        btnLogs.classList.remove('border-transparent', 'text-zinc-400');
+      } else if (tabId === 'mapping') {
+        tabMapping.classList.remove('hidden');
+        btnMapping.classList.add('border-violet-500', 'text-white');
+        btnMapping.classList.remove('border-transparent', 'text-zinc-400');
+      } else if (tabId === 'unmapped') {
+        tabUnmapped.classList.remove('hidden');
+        btnUnmapped.classList.add('border-violet-500', 'text-white');
+        btnUnmapped.classList.remove('border-transparent', 'text-zinc-400');
+      } else if (tabId === 'device-users') {
+        tabDeviceUsers.classList.remove('hidden');
+        btnDeviceUsers.classList.add('border-violet-500', 'text-white');
+        btnDeviceUsers.classList.remove('border-transparent', 'text-zinc-400');
+        fetchDeviceUsers();
+      }
+    }
+
+    // Fetch Status and Stats from API
+    async function fetchStatus() {
+      if (isFetchingStatus) return;
+      isFetchingStatus = true;
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+        
+        // Render device status badge
+        const badge = document.getElementById('device-status-badge');
+        if (d.device.online) {
+          badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online`;
+        } else {
+          badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20';
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> Offline`;
+        }
+
+        document.getElementById('device-ip-display').innerText = d.device.ip;
+        
+         // Update stats count
+        document.getElementById('stat-total-logs').innerText = d.stats.totalLogs.toLocaleString();
+        document.getElementById('stat-mapped-emps').innerText = d.stats.totalMapped.toLocaleString();
+        document.getElementById('stat-unmapped-ids').innerText = d.stats.totalUnmapped.toLocaleString();
+        
+        const lastUploadEl = document.getElementById('stat-last-upload');
+        if (lastUploadEl) {
+          if (d.stats.lastDbUpload) {
+            // format date beautifully without timezone shifting using local parts
+            const parsed = new Date(d.stats.lastDbUpload);
+            if (!isNaN(parsed.getTime())) {
+              const pad = (num) => String(num).padStart(2, '0');
+              const formatted = `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+              lastUploadEl.innerText = `Last Uploaded: ${formatted}`;
+            } else {
+              lastUploadEl.innerText = 'Last Uploaded: N/A';
+            }
+          } else {
+            lastUploadEl.innerText = 'Last Uploaded: N/A';
+          }
+        }
+        
+        // Unmapped count badge on tab
+        const unmappedBadge = document.getElementById('unmapped-count-badge');
+        if (d.stats.totalUnmapped > 0) {
+          unmappedBadge.innerText = d.stats.totalUnmapped;
+          unmappedBadge.classList.remove('hidden');
+        } else {
+          unmappedBadge.classList.add('hidden');
+        }
+
+        // Sync Status Bar
+        const dot = document.getElementById('sync-status-dot');
+        const msg = document.getElementById('sync-status-msg');
+        const time = document.getElementById('sync-status-time');
+
+        if (d.sync.isSyncing) {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-violet-400 animate-ping shrink-0';
+          msg.innerText = 'Syncing attendance records from ZKTeco...';
+        } else {
+          dot.className = d.sync.success ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0' : 'w-2.5 h-2.5 rounded-full bg-red-500 shrink-0';
+          msg.innerText = d.sync.message;
+        }
+
+        if (d.sync.time) {
+          time.innerText = `Last Sync: ${new Date(d.sync.time).toLocaleString()}`;
+        }
+      } catch (err) {
+        console.error('Error loading device status:', err);
+      } finally {
+        isFetchingStatus = false;
+      }
+    }
+
+    // Trigger manual ZKTeco sync
+    async function triggerSync(simulate = false) {
+      const btnReal = document.getElementById('btn-sync-real');
+      const btnSim = document.getElementById('btn-sync-sim');
+      
+      btnReal.disabled = true;
+      btnSim.disabled = true;
+      
+      showToast(simulate ? 'Simulating DB synchronization...' : 'Connecting to ZKTeco device...', 'success');
+      
+      try {
+        const res = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ simulate })
+        });
+        
+        const d = await res.json();
+        
+        if (res.ok) {
+          showToast(d.message || 'Sync successful!', 'success');
+          // Reload everything
+          fetchStatus();
+          fetchLogs(1);
+          fetchMappings();
+          fetchUnmapped();
+        } else {
+          showToast(d.error || 'Sync failed', 'error');
+        }
+      } catch (err) {
+        showToast('Connection failed or server error', 'error');
+      } finally {
+        btnReal.disabled = false;
+        btnSim.disabled = false;
+      }
+    }
+
+    // Debounce search in logs tab
+    function debounceLogsFetch() {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        fetchLogs(1);
+      }, 400);
+    }
+
+    // Fetch synced logs list from API
+    async function fetchLogs(page = 1) {
+      const search = document.getElementById('filter-search').value;
+      const state = document.getElementById('filter-state').value;
+      const start = document.getElementById('filter-start').value;
+      const end = document.getElementById('filter-end').value;
+
+      try {
+        let url = `/api/logs?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&state=${state}&startDate=${start}&endDate=${end}`;
+        const res = await fetch(url);
+        const d = await res.json();
+
+        logsData = d.data;
+        currentPage = d.pagination.page;
+        totalPages = d.pagination.totalPages;
+
+        renderLogsTable();
+        updatePaginationInfo(d.pagination);
+      } catch (err) {
+        console.error('Error fetching logs:', err);
+      }
+    }
+
+    // Render Logs Table Rows
+    function renderLogsTable() {
+      const tbody = document.getElementById('logs-table-body');
+      if (logsData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-zinc-500">No logs found matching the filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = logsData.map(l => {
+        const dateStr = l.timestamp;
+        
+        let stateBadge = '';
+        if (l.state === 0) {
+          stateBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">CHECK-IN</span>';
+        } else if (l.state === 1) {
+          stateBadge = '<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">CHECK-OUT</span>';
+        } else {
+          stateBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">PUNCH: ${l.state}</span>`;
+        }
+
+        const employeeName = l.employee_name 
+          ? `<span class="font-bold text-white">${l.employee_name}</span>`
+          : `<span class="text-amber-500 font-semibold italic flex items-center gap-1">Unmapped <button onclick="quickMap('${l.device_user_id}')" class="text-[10px] bg-amber-500/10 hover:bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400 font-bold ml-1 active:scale-95 transition-all">Map ID</button></span>`;
+        
+        return `
+          <tr class="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors text-sm">
+            <td class="p-4 font-mono text-xs text-zinc-400">${dateStr}</td>
+            <td class="p-4 font-mono font-semibold text-zinc-300">${l.device_user_id}</td>
+            <td class="p-4">${employeeName}</td>
+            <td class="p-4 font-mono text-xs text-zinc-500">${l.erp_code || '—'}</td>
+            <td class="p-4 text-xs text-zinc-400">${l.job_title ? `${l.job_title} (${l.department})` : '—'}</td>
+            <td class="p-4">${stateBadge}</td>
+            <td class="p-4 text-xs text-zinc-500 font-mono">${l.verification_type === 1 ? 'Finger' : l.verification_type === 2 ? 'Card' : 'Other'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function updatePaginationInfo(p) {
+      const from = p.total === 0 ? 0 : (p.page - 1) * p.limit + 1;
+      const to = Math.min(p.page * p.limit, p.total);
+      
+      document.getElementById('pagination-info').innerText = `Showing ${from} to ${to} of ${p.total} logs`;
+      
+      document.getElementById('btn-prev').disabled = p.page === 1;
+      document.getElementById('btn-next').disabled = p.page >= p.totalPages;
+    }
+
+    function changePage(direction) {
+      const targetPage = currentPage + direction;
+      if (targetPage >= 1 && targetPage <= totalPages) {
+        fetchLogs(targetPage);
+      }
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-search').value = '';
+      document.getElementById('filter-state').value = '';
+      document.getElementById('filter-start').value = '';
+      document.getElementById('filter-end').value = '';
+      fetchLogs(1);
+    }
+
+    // Fetch mappings from API
+    async function fetchMappings() {
+      try {
+        const res = await fetch('/api/mapping');
+        mappingsData = await res.json();
+        renderMappingList();
+      } catch (err) {
+        console.error('Error fetching mappings:', err);
+      }
+    }
+
+    // Render Mapping Table
+    function renderMappingList() {
+      const tbody = document.getElementById('mapping-table-body');
+      const search = document.getElementById('search-mapping').value.toLowerCase();
+
+      const filtered = mappingsData.filter(m => 
+        m.name.toLowerCase().includes(search) || 
+        m.erp_code.toLowerCase().includes(search) ||
+        (m.device_user_id || '').includes(search)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-zinc-500">No employees found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(m => {
+        const mappedId = m.device_user_id 
+          ? `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold bg-violet-500/10 text-violet-400 border border-violet-500/25">${m.device_user_id}</span>`
+          : `<span class="text-zinc-600 italic text-xs">Not mapped</span>`;
+
+        return `
+          <tr class="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors text-sm">
+            <td class="p-4 font-semibold text-white">${m.name}</td>
+            <td class="p-4 font-mono text-xs text-zinc-400">${m.erp_code}</td>
+            <td class="p-4 text-xs text-zinc-400">${m.department || '—'}</td>
+            <td class="p-4 text-xs text-zinc-400">${m.job_title || '—'}</td>
+            <td class="p-4">${mappedId}</td>
+            <td class="p-4 text-right">
+              <button onclick="openMappingModal(${m.employee_id}, '${escapeHtml(m.name)}', '${m.erp_code}', '${m.device_user_id || ''}')" class="text-xs bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl font-medium active:scale-95 transition-all">
+                Edit Mapping
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Fetch unmapped device user IDs
+    async function fetchUnmapped() {
+      try {
+        const res = await fetch('/api/unmapped-logs');
+        unmappedData = await res.json();
+        renderUnmappedGrid();
+      } catch (err) {
+        console.error('Error fetching unmapped logs:', err);
+      }
+    }
+
+    // Render unmapped ID card grid
+    function renderUnmappedGrid() {
+      const grid = document.getElementById('unmapped-grid');
+      
+      if (unmappedData.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-2 p-12 text-center text-zinc-500 glass-card rounded-2xl">
+            <svg class="w-10 h-10 mx-auto text-zinc-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="font-bold text-white">All biometric device user IDs are mapped!</p>
+            <p class="text-xs mt-1 text-zinc-400">All registered punches have corresponding ERP employee profiles.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = unmappedData.map(u => {
+        const lastSeen = u.last_seen;
+        
+        // Generate mapping dropdown select for each card
+        const selectOptions = mappingsData.map(m => 
+          `<option value="${m.employee_id}">${m.name} (${m.erp_code})</option>`
+        ).join('');
+
+        return `
+          <div class="glass-card rounded-2xl p-5 border border-white/5 hover:border-violet-500/20 transition-all">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold text-zinc-500 uppercase tracking-widest">ZKTeco Device User ID</p>
+                <p class="text-2xl font-black text-white mt-1">${u.device_user_id}</p>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold font-mono">
+                ${u.log_count} punches
+              </span>
+            </div>
+            
+            <p class="text-xs text-zinc-400 mt-3 font-mono">Last Punch Seen: ${lastSeen}</p>
+            
+            <div class="mt-4 border-t border-white/5 pt-4">
+              <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Link to ERP Employee</label>
+              <div class="flex gap-2">
+                <select id="select-unmapped-${u.device_user_id}" class="flex-1 bg-zinc-900/60 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500 [color-scheme:dark]">
+                  <option value="">Select Employee...</option>
+                  ${selectOptions}
+                </select>
+                <button onclick="saveUnmappedLink('${u.device_user_id}')" class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-semibold active:scale-95 transition-all">
+                  Link
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Link unmapped directly
+    async function saveUnmappedLink(deviceUserId) {
+      const select = document.getElementById(`select-unmapped-${deviceUserId}`);
+      const employeeId = select.value;
+
+      if (!employeeId) {
+        showToast('Please select an employee to link', 'error');
+        return;
+      }
+
+      await submitMapping(employeeId, deviceUserId);
+    }
+
+    // Quick map helper from logs view
+    function quickMap(deviceUserId) {
+      // Switch tab to unmapped log IDs
+      switchTab('unmapped');
+      
+      // Highlight/Scroll to the card if exists, select in dropdown
+      setTimeout(() => {
+        const select = document.getElementById(`select-unmapped-${deviceUserId}`);
+        if (select) {
+          select.focus();
+          select.classList.add('ring-2', 'ring-violet-500');
+          setTimeout(() => select.classList.remove('ring-2', 'ring-violet-500'), 2000);
+        }
+      }, 50);
+    }
+
+    // Modal Handling for mappings tab
+    let activeEmployeeId = null;
+
+    function openMappingModal(empId, name, code, currentDeviceId) {
+      activeEmployeeId = empId;
+      document.getElementById('modal-emp-name').innerText = name;
+      document.getElementById('modal-emp-code').innerText = code;
+      document.getElementById('modal-device-id').value = currentDeviceId;
+      document.getElementById('mapping-modal').classList.remove('hidden');
+      document.getElementById('modal-device-id').focus();
+    }
+
+    function closeMappingModal() {
+      document.getElementById('mapping-modal').classList.add('hidden');
+      activeEmployeeId = null;
+    }
+
+    async function saveMappingFromModal() {
+      const deviceUserId = document.getElementById('modal-device-id').value.trim();
+      await submitMapping(activeEmployeeId, deviceUserId);
+      closeMappingModal();
+    }
+
+    // Submit Mapping to API
+    async function submitMapping(employeeId, deviceUserId) {
+      try {
+        const res = await fetch('/api/mapping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_id: parseInt(employeeId, 10),
+            device_user_id: deviceUserId
+          })
+        });
+
+        const d = await res.json();
+        
+        if (res.ok) {
+          showToast(d.message || 'Mapping saved successfully', 'success');
+          // Refresh data
+          fetchStatus();
+          fetchLogs(currentPage);
+          fetchMappings();
+          fetchUnmapped();
+        } else {
+          showToast(d.error || 'Failed to save mapping', 'error');
+        }
+      } catch (err) {
+        showToast('Error saving mapping', 'error');
+      }
+    }
+
+    let deviceUsersData = [];
+
+    // Fetch device users from API
+    async function fetchDeviceUsers() {
+      try {
+        const res = await fetch('/api/device-users');
+        deviceUsersData = await res.json();
+        renderDeviceUsersList();
+      } catch (err) {
+        console.error('Error fetching device users:', err);
+        const tbody = document.getElementById('device-users-table-body');
+        tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-red-400">Failed to load device users. Make sure the machine is online.</td></tr>`;
+      }
+    }
+
+    // Render device users table
+    function renderDeviceUsersList() {
+      const tbody = document.getElementById('device-users-table-body');
+      const search = document.getElementById('search-device-users').value.toLowerCase();
+
+      const filtered = deviceUsersData.filter(u => 
+        (u.name || '').toLowerCase().includes(search) || 
+        (String(u.userId) || '').includes(search)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-zinc-500">No device users found matching search.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(u => {
+        // Find if this device user is mapped to an ERP employee
+        const mapping = mappingsData.find(m => String(m.device_user_id) === String(u.userId));
+        
+        let statusHtml = '';
+        let actionHtml = '';
+
+        if (mapping) {
+          statusHtml = `<span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Mapped to ${mapping.name} (${mapping.erp_code})</span>`;
+          actionHtml = `
+            <button onclick="openMappingModal(${mapping.employee_id}, '${escapeHtml(mapping.name)}', '${mapping.erp_code}', '${u.userId}')" class="text-xs bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl font-medium active:scale-95 transition-all">
+              Change Link
+            </button>
+          `;
+        } else {
+          statusHtml = `<span class="inline-flex items-center gap-1.5 text-xs text-zinc-500 italic">Not mapped to ERP</span>`;
+          actionHtml = `
+            <button onclick="quickMap('${u.userId}')" class="text-xs bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 px-3 py-1.5 rounded-xl font-semibold active:scale-95 transition-all">
+              Link to Employee
+            </button>
+          `;
+        }
+
+        const roleBadge = u.role === 14 
+          ? `<span class="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-bold">ADMIN</span>`
+          : `<span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-bold">NORMAL</span>`;
+
+        return `
+          <tr class="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors text-sm">
+            <td class="p-4 font-mono font-semibold text-white">${u.userId}</td>
+            <td class="p-4 font-bold text-zinc-200">${u.name || 'Unnamed Device User'}</td>
+            <td class="p-4 font-mono text-xs text-zinc-400">${u.cardno || '—'}</td>
+            <td class="p-4">${roleBadge}</td>
+            <td class="p-4">${statusHtml}</td>
+            <td class="p-4 text-right">${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Helper functions
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>

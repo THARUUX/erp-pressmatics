@@ -39,6 +39,39 @@ function StatusBadge({ status }) {
     );
 }
 
+function SalesOrderProgress({ visible, progress, label }) {
+    if (!visible) return null;
+    return (
+        <div className="fixed inset-0 z-[9999] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#soGrad)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="soGrad" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#10b981" />
+                                    <stop offset="100%" stopColor="#34d399" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
+                            <FiShoppingCart size={18} className="text-emerald-400" />
+                        </div>
+                    </div>
+                </div>
+                <div className="text-white font-bold text-base mb-1">Creating Sales Order</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
+                </div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
+            </div>
+        </div>
+    );
+}
+
 /* ── Sort icon ────────────────────────────────────────────────────────────── */
 function SortIcon({ dir }) {
     if (!dir) return <span className="w-3 opacity-20">⇅</span>;
@@ -75,6 +108,11 @@ export default function QuotationsPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
     const [stockShortages, setStockShortages] = useState(null);
+    const [convertingId, setConvertingId] = useState(null);
+    const [autoDeduct, setAutoDeduct] = useState(false);
+    const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
+    const [convertingProgress, setConvertingProgress] = useState(0);
+    const [convertingLabel, setConvertingLabel] = useState('');
 
     /* ── Fetch all (TanStack handles pagination client-side) ───────────────── */
     const fetchAll = useCallback(() => {
@@ -131,30 +169,70 @@ export default function QuotationsPage() {
         } catch { toast.error('Error duplicating quotation'); }
     };
 
-    const handleConvert = async (id) => {
-        if (!(await confirmDialog("Convert to Sales Order? Stock will be deducted and this can't be undone.", {
-            danger: true, confirmLabel: 'Convert',
-        }))) return;
+    const handleConvert = (id) => {
+        setConvertingId(id);
+        setAutoDeduct(false);
+    };
+
+    const submitConvert = async () => {
+        if (!convertingId) return;
+        const id = convertingId;
+        setConvertingId(null);
+
+        setConvertingProgressVisible(true);
+        setConvertingProgress(0);
+        setConvertingLabel('Initializing conversion...');
+
+        const stages = [
+            { pct: 15, label: 'Reading quotation details...' },
+            { pct: 35, label: 'Creating Sales Order header...' },
+            { pct: 55, label: 'Creating Sales Order items...' },
+            { pct: 75, label: 'Generating job tasks & routing...' },
+            { pct: 90, label: 'Allocating material requirements...' }
+        ];
+
+        let si = 0;
+        const tick = setInterval(() => {
+            if (si < stages.length) {
+                setConvertingProgress(stages[si].pct);
+                setConvertingLabel(stages[si].label);
+                si++;
+            }
+        }, 300);
+
         try {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: id }),
+                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct }),
             });
             const d = await res.json();
+            clearInterval(tick);
+
             if (res.ok) {
+                setConvertingProgress(100);
+                setConvertingLabel('Done!');
+                await new Promise(r => setTimeout(r, 600));
+                setConvertingProgressVisible(false);
                 toast.success('Sales Order created!');
                 fetchAll();
-            } else if (res.status === 422) {
-                if (d.error === 'insufficient_stock' && d.shortages) {
-                    setStockShortages(d.shortages);
-                } else {
-                    toast.error(d.message || 'Insufficient stock to convert');
-                }
             } else {
-                toast.error('Failed to convert: ' + (d.error || 'Unknown error'));
+                setConvertingProgressVisible(false);
+                if (res.status === 422) {
+                    if (d.error === 'insufficient_stock' && d.shortages) {
+                        setStockShortages(d.shortages);
+                    } else {
+                        toast.error(d.message || 'Insufficient stock to convert');
+                    }
+                } else {
+                    toast.error('Failed to convert: ' + (d.error || 'Unknown error'));
+                }
             }
-        } catch { toast.error('Error converting to sales order'); }
+        } catch {
+            clearInterval(tick);
+            setConvertingProgressVisible(false);
+            toast.error('Error converting to sales order');
+        }
     };
 
     const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -318,6 +396,69 @@ export default function QuotationsPage() {
 
     return (
         <div className="min-h-screen text-white">
+            <SalesOrderProgress visible={convertingProgressVisible} progress={convertingProgress} label={convertingLabel} />
+            {/* ── Conversion Modal ─────────────────────────────────────────── */}
+            {convertingId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-8 w-full max-w-md shadow-2xl shadow-black/80">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                                <FiShoppingCart className="w-5 h-5 text-emerald-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Convert to Sales Order</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Configure stock settings for the new order</p>
+                            </div>
+                        </div>
+
+                        <div className="my-6 space-y-4">
+                            <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                                <input
+                                    type="radio"
+                                    name="autoDeduct"
+                                    checked={!autoDeduct}
+                                    onChange={() => setAutoDeduct(false)}
+                                    className="mt-1 accent-emerald-500"
+                                />
+                                <div>
+                                    <span className="block text-sm font-semibold text-white">Issue stocks manually / partially later</span>
+                                    <span className="block text-xs text-gray-400 mt-0.5">Recommended. Create the Sales Order immediately and issue items from the warehouse as they become available.</span>
+                                </div>
+                            </label>
+
+                            <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                                <input
+                                    type="radio"
+                                    name="autoDeduct"
+                                    checked={autoDeduct}
+                                    onChange={() => setAutoDeduct(true)}
+                                    className="mt-1 accent-emerald-500"
+                                />
+                                <div>
+                                    <span className="block text-sm font-semibold text-white">Auto-deduct stock immediately</span>
+                                    <span className="block text-xs text-gray-400 mt-0.5">Deduct all required materials from inventory right now. Fails if there is insufficient stock.</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setConvertingId(null)}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={submitConvert}
+                                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-sm font-semibold text-white transition-colors"
+                            >
+                                Convert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Stock Shortage Modal ─────────────────────────────────────── */}
             {stockShortages && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">

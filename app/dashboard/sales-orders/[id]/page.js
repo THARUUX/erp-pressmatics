@@ -67,6 +67,22 @@ export default function SalesOrderDetailPage({ params }) {
     const [addingTask, setAddingTask] = useState(false);
     const [generatingTasks, setGeneratingTasks] = useState(false);
     const [showBOM, setShowBOM] = useState(true);
+    const [bom, setBom] = useState([]);
+    const [bomLoading, setBomLoading] = useState(true);
+    const fetchBOM = async () => {
+        try {
+            const res = await fetch(`/api/sales-orders/${id}/bom`);
+            if (res.ok) {
+                const data = await res.json();
+                setBom(data);
+            }
+        } catch (error) {
+            console.error("Error fetching BOM:", error);
+        } finally {
+            setBomLoading(false);
+        }
+    };
+
     const [showRouting, setShowRouting] = useState(true);
     const [showTimeline, setShowTimeline] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
@@ -253,6 +269,7 @@ export default function SalesOrderDetailPage({ params }) {
 
     useEffect(() => {
         fetchOrder();
+        fetchBOM();
         if (!tasksFetchedRef.current) {
             tasksFetchedRef.current = true;
             fetchTasks(true); // auto-generate from job if no tasks exist
@@ -551,71 +568,74 @@ export default function SalesOrderDetailPage({ params }) {
 
                     {showBOM && (
                         <div className="border-t border-white/[0.05]">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm border-collapse">
-                                    <thead>
-                                        <tr className="bg-white/[0.02] border-b border-white/[0.05]">
-                                            <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Component</th>
-                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Type</th>
-                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Paper</th>
-                                            <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Sheet Size</th>
-                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Ups</th>
-                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Printed Sheets</th>
-                                            <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Wastage</th>
-                                            <th className="text-right px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Total Sheets</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.04]">
-                                        {order.items?.flatMap((item, iIdx) =>
-                                            item.details
-                                                ?.filter(d => d.component_name !== 'Finishing' && !d.component_name.toLowerCase().includes('services') && d.type !== 'services')
-                                                .map((d, dIdx) => (
-                                                    <tr key={`${item.id}-${d.id || dIdx}`} className="hover:bg-white/[0.02] transition-colors">
-                                                        <td className="px-5 py-3">
-                                                            <p className="font-semibold text-white text-sm">
-                                                                {iIdx + 1}.{dIdx + 1} {item.estimation_name || item.job_description}
-                                                            </p>
-                                                            {item.details.filter(x => x.component_name !== 'Finishing' && !x.component_name.toLowerCase().includes('services') && x.type !== 'services').length > 1 && (
-                                                                <p className="text-xs text-white/30 mt-0.5">{d.component_name}</p>
+                            {bomLoading ? (
+                                <div className="p-8 text-center text-white/50 animate-pulse text-sm">Loading Bill of Materials...</div>
+                            ) : bom.length === 0 ? (
+                                <div className="p-8 text-center text-white/30 text-sm italic">No materials/BOM items required for this sales order.</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm border-collapse">
+                                        <thead>
+                                            <tr className="bg-white/[0.02] border-b border-white/[0.05]">
+                                                <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Component</th>
+                                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Type</th>
+                                                <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Required</th>
+                                                <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Issued</th>
+                                                <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Remaining</th>
+                                                <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Available Stock</th>
+                                                <th className="text-center px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/[0.04]">
+                                            {bom.map((item) => {
+                                                const req = parseFloat(item.required_qty);
+                                                const issued = parseFloat(item.issued_qty);
+                                                const remaining = Math.max(0, req - issued);
+                                                const available = parseFloat(item.available_qty || 0);
+
+                                                const isFullyIssued = remaining === 0;
+                                                const isPartiallyIssued = issued > 0 && remaining > 0;
+
+                                                return (
+                                                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                                                        <td className="px-5 py-3.5">
+                                                            <p className="font-semibold text-white text-sm">{item.component_name}</p>
+                                                            {item.item_code && (
+                                                                <p className="text-xs text-white/30 mt-0.5 font-mono">{item.item_code}</p>
                                                             )}
                                                         </td>
-                                                        <td className="px-4 py-3">
+                                                        <td className="px-4 py-3.5">
                                                             <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                                                                d.type === 'digital'
-                                                                    ? 'bg-white/[0.05] text-white/50 border-white/[0.10]'
-                                                                    : 'bg-white/[0.04] text-white/40 border-white/[0.08]'
-                                                            }`}>{d.type || 'offset'}</span>
+                                                                item.component_type === 'paper' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                                                                item.component_type === 'plate' ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20' :
+                                                                item.component_type === 'sfg' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                                                                'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                            }`}>
+                                                                {item.component_type}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-4 py-3">
-                                                            <p className="text-white text-sm font-medium">{d.paper_name || <span className="text-white/25 italic">Not specified</span>}</p>
-                                                            {d.paper_width_cm && (
-                                                                <p className="text-xs text-white/30 mt-0.5">Stock: {d.paper_width_cm} × {d.paper_height_cm} cm</p>
-                                                            )}
+                                                        <td className="px-4 py-3.5 text-right font-mono text-sm text-white font-medium">{req} {item.uom}</td>
+                                                        <td className="px-4 py-3.5 text-right font-mono text-sm text-emerald-400 font-medium">{issued} {item.uom}</td>
+                                                        <td className="px-4 py-3.5 text-right font-mono text-sm text-white/55">{remaining} {item.uom}</td>
+                                                        <td className="px-4 py-3.5 text-right font-mono text-sm">
+                                                            <span className={available < remaining ? 'text-red-400 font-semibold' : 'text-white/60'}>
+                                                                {available} {item.uom}
+                                                            </span>
                                                         </td>
-                                                        <td className="px-4 py-3 text-white/70 text-sm font-mono">
-                                                            {d.cut_width_cm && d.cut_height_cm
-                                                                ? `${d.cut_width_cm} × ${d.cut_height_cm} cm`
-                                                                : d.paper_width_cm
-                                                                    ? `${d.paper_width_cm} × ${d.paper_height_cm} cm`
-                                                                    : '—'}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right text-white font-semibold font-mono">{d.ups ?? '—'}</td>
-                                                        <td className="px-4 py-3 text-right text-white font-mono">{d.printed_sheets ?? '—'}</td>
-                                                        <td className="px-4 py-3 text-right text-red-400/70 font-mono">{d.wastage_sheets ?? '—'}</td>
-                                                        <td className="px-5 py-3 text-right">
-                                                            <span className="font-bold text-white font-mono">{d.total_sheets ?? '—'}</span>
+                                                        <td className="px-4 py-3.5 text-center">
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                                isFullyIssued ? 'bg-emerald-500/15 text-emerald-400' :
+                                                                isPartiallyIssued ? 'bg-amber-500/15 text-amber-400' :
+                                                                'bg-white/10 text-white/50'
+                                                            }`}>
+                                                                {isFullyIssued ? 'Fully Issued' : isPartiallyIssued ? 'Partial' : 'Pending'}
+                                                            </span>
                                                         </td>
                                                     </tr>
-                                                ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Global Finishings material note */}
-                            {order.items?.some(i => i.globalFinishings?.length > 0) && (
-                                <div className="px-5 py-3 border-t border-white/[0.05] bg-white/[0.01]">
-                                    <p className="text-xs text-white/25 font-medium">Note: Global finishings (applied to full item) are listed in the Routing section below.</p>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
                         </div>

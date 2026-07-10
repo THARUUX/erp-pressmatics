@@ -6,9 +6,12 @@ import pool from '@/lib/db';
 // orders includes tasks with machine_id + machine_name
 export async function GET() {
     try {
-        // Fetch all machines
+        // Fetch all machines with full details for task modal defaults
         const [machines] = await pool.execute(
-            'SELECT id, name, type FROM machines ORDER BY name ASC'
+            `SELECT id, name, type, speed, speed_unit, make_ready_minutes, shift_limit, sheet_factor,
+                    (SELECT e.name FROM employees e WHERE e.id = machines.assigned_employee_id LIMIT 1) AS assigned_employee_name,
+                    (SELECT t.name FROM teams t WHERE t.id = machines.assigned_team_id LIMIT 1) AS assigned_team_name
+             FROM machines ORDER BY name ASC`
         );
 
         // Fetch all active sales orders, plus completed ones that have assigned machine tasks
@@ -24,7 +27,6 @@ export async function GET() {
              ORDER BY so.delivery_date ASC, so.id DESC`
         );
 
-        // Fetch tasks for all orders in one query
         const orderIds = orders.map(o => o.id);
         let tasks = [];
         if (orderIds.length > 0) {
@@ -38,7 +40,7 @@ export async function GET() {
                  ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
                 orderIds
             );
-            tasks = rows;
+            tasks = await enrichTasksWithEstimationDetails(rows, orderIds);
         }
 
         // Attach tasks to each order
@@ -52,4 +54,64 @@ export async function GET() {
         console.error('Job planning GET error:', err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
+}
+
+async function enrichTasksWithEstimationDetails(tasks, orderIds) {
+    if (!tasks || !tasks.length || !orderIds || !orderIds.length) return tasks;
+
+    const placeholders = orderIds.map(() => '?').join(',');
+    const [details] = await pool.execute(
+        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id
+         FROM quotation_item_details qid
+         JOIN quotation_items qi ON qid.quotation_item_id = qi.id
+         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+         JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+         WHERE so.id IN (${placeholders})`,
+        orderIds
+    );
+
+    for (const task of tasks) {
+        const isOffset = task.name.toLowerCase().includes('offset printing');
+        const isDigital = task.name.toLowerCase().includes('digital print');
+
+        if (isOffset || isDigital) {
+            const parts = task.name.split(' — ');
+            const compName = parts[parts.length - 1]?.trim();
+
+            const detail = details.find(d => 
+                d.sales_order_id === task.sales_order_id && 
+                (d.component_name === compName || 
+                 (isOffset && d.type === 'offset') || 
+                 (isDigital && d.type === 'digital'))
+            );
+
+            if (detail) {
+                const pagesVal = parseInt(detail.pages) || 1;
+                const upsVal = parseInt(detail.ups) || 1;
+                const sidesVal = parseInt(detail.sides) || 1;
+                const totalPages = pagesVal * (detail.item_qty || 0);
+                const divisor = upsVal * sidesVal;
+                const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+                const wastage = parseFloat(detail.wastage_sheets) || 0;
+                const totalCutSheets = Math.ceil(cutSheets + wastage);
+
+                const totalImpressions = parseFloat(detail.printed_sheets) || 0;
+
+                if (task.sheet_count == null || task.sheet_count === 0) {
+                    task.sheet_count = totalCutSheets;
+                }
+                if (task.impression_count == null || task.impression_count === 0) {
+                    task.impression_count = totalImpressions;
+                }
+                task.job_qty = detail.item_qty || 0;
+                if (task.quantity == null || task.quantity === 0) {
+                    const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
+                    task.quantity = speedUnit.toLowerCase() === 'impressions/hr'
+                        ? totalImpressions
+                        : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : detail.item_qty);
+                }
+            }
+        }
+    }
+    return tasks;
 }

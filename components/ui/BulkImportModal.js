@@ -35,7 +35,7 @@ function parseCSV(text) {
 
 /* ── Auto-detect column mapping ──────────────────────────────────────────── */
 const FIELD_ALIASES = {
-    name:       ['name', 'customer name', 'supplier name', 'company', 'company name', 'client', 'full name', 'vendor'],
+    name:       ['name', 'customer name', 'supplier name', 'company', 'company name', 'client', 'full name', 'vendor', 'employee name'],
     email:      ['email', 'e-mail', 'email address', 'mail'],
     phone:      ['phone', 'telephone', 'mobile', 'contact', 'phone number', 'tel'],
     address:    ['address', 'street', 'location', 'street address'],
@@ -48,6 +48,24 @@ const FIELD_ALIASES = {
     payment_terms: ['payment terms', 'payment_terms', 'terms', 'payment_term'],
     credit_limit:  ['credit limit', 'credit_limit', 'limit', 'credit'],
     notes:         ['notes', 'note', 'remarks', 'description'],
+    category:      ['category', 'group', 'type', 'customer category'],
+    starting_outstanding: ['starting outstanding', 'starting_outstanding', 'outstanding', 'opening balance', 'balance', 'starting balance'],
+    
+    // Employee specifics
+    employee_id: ['employee id', 'employee_id', 'emp id', 'empid', 'id'],
+    job_title: ['role', 'job title', 'job_title', 'designation', 'title', 'position'],
+    department: ['department', 'dept', 'division'],
+    date_of_birth: ['date of birth', 'date_of_birth', 'dob', 'birth date'],
+    date_joined: ['date joined', 'date_joined', 'joining date', 'hire date'],
+    shift: ['shift', 'work shift'],
+    status: ['status', 'employment status'],
+    pay_type: ['pay type', 'pay_type', 'salary type', 'payment type'],
+    base_salary: ['base salary', 'base_salary', 'salary', 'monthly salary'],
+    hourly_rate: ['hourly rate', 'hourly_rate', 'wage', 'hourly wage'],
+    allowances: ['allowances', 'allowance', 'bonus'],
+    deductions: ['deductions', 'deduction'],
+    ot_rate_multiplier: ['ot multiplier', 'ot_rate_multiplier', 'overtime multiplier'],
+    standard_working_hours: ['working hours', 'standard_working_hours', 'hours'],
 };
 
 const CONFIGS = {
@@ -55,7 +73,7 @@ const CONFIGS = {
         title: 'Customers',
         endpoint: '/api/customers/bulk',
         templateName: 'customers_template.csv',
-        templateCSV: 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number,Contact Name,Contact Role,Contact Email,Contact Phone\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456,John Doe,Purchasing Manager,john@acme.com,+1 555-0199\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,,,,,\n',
+        templateCSV: 'Name,Email,Phone,Address,Is VAT (yes/no),VAT Number,Contact Name,Contact Role,Contact Email,Contact Phone,Category,Starting Outstanding\nAcme Corp,info@acme.com,+1 555-0100,123 Main St,yes,VAT123456,John Doe,Purchasing Manager,john@acme.com,+1 555-0199,Wholesale,1500.50\nGlobal Ltd,hello@global.io,+44 20 1234 5678,456 High Road,no,,,,,,Retail,0.00\n',
         fields: [
             { key: 'name',       label: 'Name *',      required: true },
             { key: 'email',      label: 'Email',        required: false },
@@ -67,6 +85,8 @@ const CONFIGS = {
             { key: 'contact_role',  label: 'Contact Role',  required: false },
             { key: 'contact_email', label: 'Contact Email', required: false },
             { key: 'contact_phone', label: 'Contact Phone', required: false },
+            { key: 'category',      label: 'Category',      required: false },
+            { key: 'starting_outstanding', label: 'Starting Outstanding', required: false },
         ]
     },
     suppliers: {
@@ -85,6 +105,32 @@ const CONFIGS = {
             { key: 'payment_terms', label: 'Payment Terms',   required: false },
             { key: 'credit_limit',  label: 'Credit Limit',    required: false },
             { key: 'notes',         label: 'Notes',           required: false },
+        ]
+    },
+    employees: {
+        title: 'Employees',
+        endpoint: '/api/employees/bulk',
+        templateName: 'employees_template.csv',
+        templateCSV: 'Name,Employee ID,Role,Department,Phone,Email,Date of Birth,Date Joined,Shift,Status,Pay Type,Base Salary,Hourly Rate,Allowances,Deductions,OT Multiplier,Working Hours,Notes\nJohn Doe,EMP001,Press Operator,Offset Press,+94771234567,john@example.com,1990-05-15,2022-01-10,Day,active,monthly,45000,0,5000,0,1.5,8,\nJane Smith,EMP002,Graphic Designer,Prepress,+94777654321,jane@example.com,1993-08-20,2023-04-01,Flexible,active,hourly,0,350,2000,0,1.5,8,\n',
+        fields: [
+            { key: 'name',       label: 'Name *',      required: true },
+            { key: 'employee_id', label: 'Employee ID', required: false },
+            { key: 'job_title',  label: 'Role / Job Title', required: false },
+            { key: 'department', label: 'Department',   required: false },
+            { key: 'phone',      label: 'Phone',        required: false },
+            { key: 'email',      label: 'Email',        required: false },
+            { key: 'date_of_birth', label: 'Date of Birth', required: false },
+            { key: 'date_joined', label: 'Date Joined', required: false },
+            { key: 'shift',      label: 'Shift',        required: false },
+            { key: 'status',     label: 'Status',       required: false },
+            { key: 'pay_type',   label: 'Pay Type',     required: false },
+            { key: 'base_salary', label: 'Base Salary',  required: false },
+            { key: 'hourly_rate', label: 'Hourly Rate',  required: false },
+            { key: 'allowances', label: 'Allowances',   required: false },
+            { key: 'deductions', label: 'Deductions',   required: false },
+            { key: 'ot_rate_multiplier', label: 'OT Multiplier', required: false },
+            { key: 'standard_working_hours', label: 'Working Hours', required: false },
+            { key: 'notes',      label: 'Notes',        required: false },
         ]
     }
 };

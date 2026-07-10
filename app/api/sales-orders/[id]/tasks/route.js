@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
+function getComponentTotalCutSheets(detail, qty) {
+    const pagesVal = parseInt(detail.pages) || 1;
+    const upsVal = parseInt(detail.ups) || 1;
+    const sidesVal = parseInt(detail.sides) || 1;
+    const totalPages = pagesVal * qty;
+    const divisor = upsVal * sidesVal;
+    const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+    const wastage = parseFloat(detail.wastage_sheets) || 0;
+    return Math.ceil(cutSheets + wastage);
+}
+
 // ─── Generate tasks from actual job components (machine-aware) ───────────────
 async function generateJobTasks(id) {
     // Get sales order
@@ -23,7 +34,7 @@ async function generateJobTasks(id) {
 
     for (const item of lineItems) {
         const [details] = await pool.execute(
-            `SELECT qid.*, m.name as machine_name, m.speed as machine_speed
+            `SELECT qid.*, m.name as machine_name, m.speed as machine_speed, m.speed_unit as machine_speed_unit, m.make_ready_minutes as machine_make_ready_minutes
              FROM quotation_item_details qid
              LEFT JOIN machines m ON qid.machine_id = m.id
              WHERE qid.quotation_item_id = ?
@@ -104,13 +115,26 @@ async function generateJobTasks(id) {
                     machine_id: ctpMachine?.id || null,
                     machine_name: ctpMachine?.name || null,
                     display_order: order_idx++,
-                    estimated_minutes: plateEstMins
+                    estimated_minutes: plateEstMins,
+                    quantity: plateCount,
+                    sheet_count: 0,
+                    impression_count: 0
                 });
 
-                const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
-                const pressPasses = cutSheets * (detail.sides || 1);
+                const totalCutSheets = getComponentTotalCutSheets(detail, item.quantity);
+                const totalImpressions = parseFloat(detail.printed_sheets) || 0;
                 const offsetSpeed = parseFloat(detail.machine_speed) || 0;
-                const offsetEstMins = offsetSpeed > 0 ? Math.ceil((pressPasses / offsetSpeed) * 60) : null;
+                const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
+                const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
+
+                const runQty = speedUnit.toLowerCase() === 'impressions/hr'
+                    ? totalImpressions
+                    : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : item.quantity);
+
+                let offsetEstMins = null;
+                if (offsetSpeed > 0) {
+                    offsetEstMins = Math.ceil((runQty / offsetSpeed) * 60) + makeReady;
+                }
 
                 taskList.push({
                     name: `Offset Printing — ${machine} — ${compName}`,
@@ -118,13 +142,27 @@ async function generateJobTasks(id) {
                     machine_id: detail.machine_id || null,
                     machine_name: machine || null,
                     display_order: order_idx++,
-                    estimated_minutes: offsetEstMins
+                    estimated_minutes: offsetEstMins,
+                    quantity: runQty,
+                    sheet_count: totalCutSheets,
+                    impression_count: totalImpressions
                 });
 
             } else if (type === 'digital' && machine) {
-                const sheets = parseFloat(detail.total_sheets) || 0;
+                const totalCutSheets = getComponentTotalCutSheets(detail, item.quantity);
+                const totalImpressions = parseFloat(detail.printed_sheets) || 0;
                 const digitalSpeed = parseFloat(detail.machine_speed) || 0;
-                const digitalEstMins = digitalSpeed > 0 ? Math.ceil((sheets / digitalSpeed) * 60) : null;
+                const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
+                const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
+
+                const runQty = speedUnit.toLowerCase() === 'impressions/hr'
+                    ? totalImpressions
+                    : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : item.quantity);
+
+                let digitalEstMins = null;
+                if (digitalSpeed > 0) {
+                    digitalEstMins = Math.ceil((runQty / digitalSpeed) * 60) + makeReady;
+                }
 
                 taskList.push({
                     name: `Digital Print — ${machine} — ${compName}`,
@@ -132,7 +170,10 @@ async function generateJobTasks(id) {
                     machine_id: detail.machine_id || null,
                     machine_name: machine || null,
                     display_order: order_idx++,
-                    estimated_minutes: digitalEstMins
+                    estimated_minutes: digitalEstMins,
+                    quantity: runQty,
+                    sheet_count: totalCutSheets,
+                    impression_count: totalImpressions
                 });
             }
         }
@@ -155,7 +196,8 @@ async function generateJobTasks(id) {
                 machine_id: f.machine_id || null,
                 machine_name: f.machine_name || null,
                 display_order: order_idx++,
-                estimated_minutes: estMins
+                estimated_minutes: estMins,
+                quantity: qty
             });
         }
 
@@ -180,7 +222,8 @@ async function generateJobTasks(id) {
                     machine_id: f.machine_id || null,
                     machine_name: f.machine_name || null,
                     display_order: order_idx++,
-                    estimated_minutes: estMins
+                    estimated_minutes: estMins,
+                    quantity: qty
                 });
             }
         }
@@ -193,8 +236,8 @@ async function generateJobTasks(id) {
     // Insert into DB
     for (const t of taskList) {
         await pool.execute(
-            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, display_order, estimated_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [parseInt(id), t.name, t.description || null, t.machine_id || null, t.machine_name || null, t.assigned_to || null, t.display_order, t.estimated_minutes || null]
+            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, display_order, estimated_minutes, quantity, sheet_count, impression_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [parseInt(id), t.name, t.description || null, t.machine_id || null, t.machine_name || null, t.assigned_to || null, t.display_order, t.estimated_minutes || null, t.quantity || null, t.sheet_count || null, t.impression_count || null]
         );
     }
 
@@ -205,30 +248,120 @@ async function generateJobTasks(id) {
     return inserted;
 }
 
-// ─── Route Handlers ──────────────────────────────────────────────────────────
+// ─── Helper to resolve code or ID to numeric ID ─────────────────────────────
+async function getSalesOrderId(idOrCode) {
+    if (!isNaN(idOrCode)) {
+        return parseInt(idOrCode);
+    }
+    const [orders] = await pool.execute('SELECT id FROM sales_orders WHERE code = ?', [idOrCode]);
+    return orders[0]?.id || null;
+}
+
 export async function GET(req, { params }) {
     try {
-        const { id } = await params;
+        const resolvedParams = await params;
+        const rawId = resolvedParams?.id;
+        if (!rawId || rawId === 'undefined' || rawId === 'null') {
+            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
+        }
+
+        const id = await getSalesOrderId(rawId);
+        if (!id) {
+            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        }
+
         const [tasks] = await pool.execute(
             'SELECT * FROM job_tasks WHERE sales_order_id = ? ORDER BY display_order ASC, id ASC',
             [id]
         );
-        return NextResponse.json(tasks);
+        const enrichedTasks = await enrichTasksWithEstimationDetailsForGet(tasks, [id]);
+        return NextResponse.json(enrichedTasks);
     } catch (err) {
         console.error('Tasks GET error:', err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
 
+async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
+    if (!tasks || !tasks.length || !orderIds || !orderIds.length) return tasks;
+
+    const placeholders = orderIds.map(() => '?').join(',');
+    const [details] = await pool.execute(
+        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id
+         FROM quotation_item_details qid
+         JOIN quotation_items qi ON qid.quotation_item_id = qi.id
+         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+         JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+         WHERE so.id IN (${placeholders})`,
+        orderIds
+    );
+
+    for (const task of tasks) {
+        const isOffset = task.name.toLowerCase().includes('offset printing');
+        const isDigital = task.name.toLowerCase().includes('digital print');
+
+        if (isOffset || isDigital) {
+            const parts = task.name.split(' — ');
+            const compName = parts[parts.length - 1]?.trim();
+
+            const detail = details.find(d => 
+                d.sales_order_id === task.sales_order_id && 
+                (d.component_name === compName || 
+                 (isOffset && d.type === 'offset') || 
+                 (isDigital && d.type === 'digital'))
+            );
+
+            if (detail) {
+                const pagesVal = parseInt(detail.pages) || 1;
+                const upsVal = parseInt(detail.ups) || 1;
+                const sidesVal = parseInt(detail.sides) || 1;
+                const totalPages = pagesVal * (detail.item_qty || 0);
+                const divisor = upsVal * sidesVal;
+                const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+                const wastage = parseFloat(detail.wastage_sheets) || 0;
+                const totalCutSheets = Math.ceil(cutSheets + wastage);
+
+                const totalImpressions = parseFloat(detail.printed_sheets) || 0;
+
+                if (task.sheet_count == null || task.sheet_count === 0) {
+                    task.sheet_count = totalCutSheets;
+                }
+                if (task.impression_count == null || task.impression_count === 0) {
+                    task.impression_count = totalImpressions;
+                }
+                task.job_qty = detail.item_qty || 0;
+                if (task.quantity == null || task.quantity === 0) {
+                    const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
+                    task.quantity = speedUnit.toLowerCase() === 'impressions/hr'
+                        ? totalImpressions
+                        : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : detail.item_qty);
+                }
+            }
+        }
+    }
+    return tasks;
+}
+
 export async function POST(req, { params }) {
     try {
-        const { id } = await params;
+        const resolvedParams = await params;
+        const rawId = resolvedParams?.id;
+        if (!rawId || rawId === 'undefined' || rawId === 'null') {
+            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
+        }
+
+        const id = await getSalesOrderId(rawId);
+        if (!id) {
+            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        }
+
         const body = await req.json();
 
         // Auto-generate from job components (machine-aware)
         if (body.generateDefaults || body.generateFromJob) {
             const tasks = await generateJobTasks(id);
-            return NextResponse.json(tasks);
+            const enrichedTasks = await enrichTasksWithEstimationDetailsForGet(tasks, [id]);
+            return NextResponse.json(enrichedTasks);
         }
 
         // Create single task
@@ -237,7 +370,7 @@ export async function POST(req, { params }) {
 
         const [result] = await pool.execute(
             'INSERT INTO job_tasks (sales_order_id, name, description, assigned_to, display_order, estimated_minutes) VALUES (?, ?, ?, ?, ?, ?)',
-            [parseInt(id), name, description || null, assigned_to || null, display_order ?? 99, estimated_minutes || null]
+            [id, name, description || null, assigned_to || null, display_order ?? 99, estimated_minutes || null]
         );
         const [task] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [result.insertId]);
         return NextResponse.json(task[0]);
@@ -246,3 +379,4 @@ export async function POST(req, { params }) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
+

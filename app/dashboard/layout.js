@@ -8,7 +8,7 @@ import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
     FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
-    FiTruck, FiBriefcase,
+    FiTruck, FiBriefcase, FiUserCheck,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -34,10 +34,18 @@ const NAV_GROUPS = [
     {
         label: 'Production',
         items: [
-            { icon: FiPrinter,   label: 'Estimations',  href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
-            { icon: FiBox,       label: 'Items',         href: '/dashboard/items',        roles: ['admin', 'manager'] },
-            { icon: FiBriefcase, label: 'Services',      href: '/dashboard/services',     roles: ['admin', 'manager'] },
-            { icon: FiCalendar,  label: 'Planning',      href: '/dashboard/job-planning' },
+            { icon: FiPrinter,    label: 'Estimations', href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
+            { icon: FiBox,        label: 'Items',        href: '/dashboard/items',        roles: ['admin', 'manager'] },
+            { icon: FiBriefcase,  label: 'Services',     href: '/dashboard/services',     roles: ['admin', 'manager'] },
+            { icon: FiCalendar,   label: 'Planning',     href: '/dashboard/job-planning' },
+        ],
+    },
+    {
+        label: 'HR & Payroll',
+        items: [
+            { icon: FiUserCheck,  label: 'Employees',    href: '/dashboard/employees',    roles: ['admin', 'manager'] },
+            { icon: FiCalendar,   label: 'Attendance',   href: '/dashboard/attendance',   roles: ['admin', 'manager'] },
+            { icon: FiDollarSign, label: 'Payroll',      href: '/dashboard/payroll',      roles: ['admin', 'manager'] },
         ],
     },
     {

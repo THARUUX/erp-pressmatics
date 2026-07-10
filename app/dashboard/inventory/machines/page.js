@@ -1,64 +1,45 @@
 'use client';
+
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiActivity, FiClock, FiBarChart2 } from 'react-icons/fi';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
+import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiActivity, FiClock, FiBarChart2, FiUsers, FiCpu, FiChevronUp, FiChevronDown, FiZap } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+
+const TYPE_BADGES = {
+    offset: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    digital: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    finishing: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    prepress: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+};
 
 export default function MachinesPage() {
     const [machines, setMachines] = useState([]);
     const [plates, setPlates] = useState([]);
+    const [employees, setEmployees] = useState([]);
+    const [teams, setTeams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [perfMachine, setPerfMachine] = useState(null);   // machine whose panel is open
-    const [perfData, setPerfData]       = useState(null);
+    const [typeFilter, setTypeFilter] = useState('all');
+    const [sorting, setSorting] = useState([]);
+
+    // Modals
+    const [showFormModal, setShowFormModal] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(null);
+
+    // Performance Analytics Modal
+    const [perfMachine, setPerfMachine] = useState(null);
+    const [perfData, setPerfData] = useState(null);
     const [perfLoading, setPerfLoading] = useState(false);
     const chartRef = useRef(null);
     const chartInstance = useRef(null);
 
-    const openPerf = useCallback(async (machine) => {
-        setPerfMachine(machine);
-        setPerfData(null);
-        setPerfLoading(true);
-        try {
-            const res  = await fetch(`/api/machines/${machine.id}/performance`);
-            const data = await res.json();
-            setPerfData(data);
-        } catch { toast.error('Failed to load analytics'); }
-        finally { setPerfLoading(false); }
-    }, []);
-
-    // Render ECharts bar chart when perfData changes
-    useEffect(() => {
-        if (!perfData?.monthly?.length || !chartRef.current) return;
-        import('echarts').then(echarts => {
-            if (chartInstance.current) chartInstance.current.dispose();
-            chartInstance.current = echarts.init(chartRef.current, null, { renderer: 'svg' });
-            const months = perfData.monthly.map(m => m.month);
-            chartInstance.current.setOption({
-                backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis', backgroundColor: '#111', borderColor: '#333', textStyle: { color: '#ccc' } },
-                grid: { left: 10, right: 10, top: 10, bottom: 30, containLabel: true },
-                xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#333' } }, axisLabel: { color: '#555', fontSize: 10 } },
-                yAxis: { type: 'value', splitLine: { lineStyle: { color: '#1a1a1a' } }, axisLabel: { color: '#555', fontSize: 10 } },
-                series: [
-                    { name: 'Tasks Done', type: 'bar', data: perfData.monthly.map(m => m.tasks_done), itemStyle: { color: 'rgba(255,255,255,0.4)', borderRadius: [4,4,0,0] } },
-                    { name: 'Avg Mins', type: 'line', yAxisIndex: 0, data: perfData.monthly.map(m => m.avg_mins), lineStyle: { color: 'rgba(255,255,255,0.2)' }, itemStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true, symbol: 'circle', symbolSize: 5 },
-                ],
-            });
-        });
-        return () => { if (chartInstance.current) { chartInstance.current.dispose(); chartInstance.current = null; } };
-    }, [perfData]);
-
-
-    // Plate Autocomplete State
+    // Form State
     const [plateSearch, setPlateSearch] = useState('');
     const [showPlateSuggestions, setShowPlateSuggestions] = useState(false);
-
-    // Form State
-    const [isEditing, setIsEditing] = useState(false);
-    const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         type: 'offset',
@@ -68,12 +49,18 @@ export default function MachinesPage() {
         plate_id: '',
         digital_price_max: 0,
         digital_price_medium: 0,
-        digital_price_min: 0
+        digital_price_min: 0,
+        assigned_employee_id: '',
+        assigned_team_id: '',
+        make_ready_minutes: 0,
+        shift_limit: 8,
     });
 
     useEffect(() => {
         fetchMachines();
         fetchPlates();
+        fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
+        fetch('/api/teams').then(r => r.json()).then(d => setTeams(Array.isArray(d) ? d : []));
     }, []);
 
     const fetchPlates = async () => {
@@ -88,7 +75,7 @@ export default function MachinesPage() {
         try {
             const res = await fetch('/api/machines');
             const data = await res.json();
-            setMachines(data);
+            setMachines(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -109,11 +96,9 @@ export default function MachinesPage() {
             });
 
             if (res.ok) {
-                if (method === 'POST') fetchMachines(); // Refresh list to get plate name join
-                else {
-                    // Optimistic update or refresh
-                    fetchMachines();
-                }
+                toast.success(isEditing ? 'Machine updated successfully' : 'Machine added successfully');
+                setShowFormModal(false);
+                fetchMachines();
                 resetForm();
             } else {
                 const data = await res.json();
@@ -130,6 +115,7 @@ export default function MachinesPage() {
         try {
             const res = await fetch(`/api/machines/${id}`, { method: 'DELETE' });
             if (res.ok) {
+                toast.success('Machine deleted successfully');
                 fetchMachines();
             } else {
                 const data = await res.json();
@@ -149,51 +135,339 @@ export default function MachinesPage() {
         setFormData({
             name: item.name,
             type: item.type,
-            sheet_factor: item.sheet_factor,
-            speed: item.speed,
+            sheet_factor: item.sheet_factor || 1.0,
+            speed: item.speed || 0,
             speed_unit: item.speed_unit || 'Sheets/Hr',
             plate_id: item.plate_id || '',
             digital_price_max: item.digital_price_max || 0,
             digital_price_medium: item.digital_price_medium || 0,
-            digital_price_min: item.digital_price_min || 0
+            digital_price_min: item.digital_price_min || 0,
+            assigned_employee_id: item.assigned_employee_id || '',
+            assigned_team_id: item.assigned_team_id || '',
+            make_ready_minutes: item.make_ready_minutes || 0,
+            shift_limit: item.shift_limit || 8,
         });
+        setShowFormModal(true);
     };
 
     const resetForm = () => {
         setIsEditing(false);
         setEditId(null);
         setPlateSearch('');
-        setFormData({ name: '', type: 'offset', sheet_factor: 1.0, speed: 10000, speed_unit: 'Sheets/Hr', plate_id: '', digital_price_max: 0, digital_price_medium: 0, digital_price_min: 0 });
+        setFormData({
+            name: '',
+            type: 'offset',
+            sheet_factor: 1.0,
+            speed: 10000,
+            speed_unit: 'Sheets/Hr',
+            plate_id: '',
+            digital_price_max: 0,
+            digital_price_medium: 0,
+            digital_price_min: 0,
+            assigned_employee_id: '',
+            assigned_team_id: '',
+            make_ready_minutes: 0,
+            shift_limit: 8,
+        });
     };
 
-    const filtered = machines.filter(m =>
-        m.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const openPerf = useCallback(async (machine) => {
+        setPerfMachine(machine);
+        setPerfData(null);
+        setPerfLoading(true);
+        try {
+            const res = await fetch(`/api/machines/${machine.id}/performance`);
+            const data = await res.json();
+            setPerfData(data);
+        } catch { toast.error('Failed to load analytics'); }
+        finally { setPerfLoading(false); }
+    }, []);
+
+    // Render ECharts bar chart when perfData changes
+    useEffect(() => {
+        if (!perfData?.monthly?.length || !chartRef.current) return;
+        import('echarts').then(echarts => {
+            if (chartInstance.current) chartInstance.current.dispose();
+            chartInstance.current = echarts.init(chartRef.current, null, { renderer: 'svg' });
+            const months = perfData.monthly.map(m => m.month);
+            chartInstance.current.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', backgroundColor: '#111', borderColor: '#333', textStyle: { color: '#ccc' } },
+                grid: { left: 10, right: 10, top: 10, bottom: 30, containLabel: true },
+                xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#333' } }, axisLabel: { color: '#555', fontSize: 10 } },
+                yAxis: { type: 'value', splitLine: { lineStyle: { color: '#1a1a1a' } }, axisLabel: { color: '#555', fontSize: 10 } },
+                series: [
+                    { name: 'Tasks Done', type: 'bar', data: perfData.monthly.map(m => m.tasks_done), itemStyle: { color: 'rgba(167,139,250,0.5)', borderRadius: [4,4,0,0] } },
+                    { name: 'Avg Mins', type: 'line', yAxisIndex: 0, data: perfData.monthly.map(m => m.avg_mins), lineStyle: { color: 'rgba(255,255,255,0.2)' }, itemStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true, symbol: 'circle', symbolSize: 5 },
+                ],
+            });
+        });
+        return () => { if (chartInstance.current) { chartInstance.current.dispose(); chartInstance.current = null; } };
+    }, [perfData]);
+
+    const filteredData = useMemo(() => {
+        return machines.filter(m => {
+            const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesType = typeFilter === 'all' || m.type === typeFilter;
+            return matchesSearch && matchesType;
+        });
+    }, [machines, searchTerm, typeFilter]);
+
+    const columns = useMemo(() => [
+        {
+            accessorKey: 'name',
+            header: 'Machine Name',
+            cell: ({ row }) => {
+                const item = row.original;
+                const badgeClass = TYPE_BADGES[item.type] || 'bg-white/10 text-white/70 border-white/20';
+                return (
+                    <div>
+                        <div className="font-bold text-white text-[14px]">{item.name}</div>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'type',
+            header: 'Machine Type',
+            cell: ({ row }) => {
+                const item = row.original;
+                const badgeClass = 'bg-white/10 text-white/70 border-white/20';
+                return (
+                    <div>
+                        <span className={`inline-block text-[9.5px] uppercase tracking-wider px-2 py-0.5 mt-1.5 rounded-full border font-bold ${badgeClass}`}>
+                            {item.type?.replace('_', ' ')}
+                        </span>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'speed',
+            header: 'Speed / Specs',
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="text-xs text-gray-300">
+                        {item.type === 'offset' && (
+                            <>
+                                <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</div>
+                                <div className="text-gray-500 mt-0.5">Factor: {item.sheet_factor} {item.plate_name && <span className="text-amber-500/80">· Plate: {item.plate_name}</span>}</div>
+                            </>
+                        )}
+                        {item.type === 'digital' && (
+                            <>
+                                <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> sph</div>
+                                <div className="text-amber-500/80 mt-0.5">Rates: Max {item.digital_price_max} · Med {item.digital_price_medium} · Min {item.digital_price_min}</div>
+                            </>
+                        )}
+                        {item.type === 'finishing' && (
+                            <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> uph</div>
+                        )}
+                        {item.type === 'prepress' && (
+                            <div>Prepress Equipment</div>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'make_ready_minutes',
+            header: 'Setup & Shift Limit',
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex flex-wrap gap-1.5">
+                        <span className="inline-flex items-center gap-1 text-[10px]  border border-amber-500/20 px-2 py-0.5 rounded-full font-medium">
+                            <FiClock className="w-2.5 h-2.5" />{item.make_ready_minutes || 0}m setup
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px]  border border-sky-500/20 px-2 py-0.5 rounded-full font-medium">
+                            <FiClock className="w-2.5 h-2.5" />Shift: {item.shift_limit || 8}h
+                        </span>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'assigned_employee_name',
+            header: 'Assignments',
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex flex-wrap gap-1.5">
+                        {item.assigned_employee_name ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
+                            </span>
+                        ) : item.assigned_team_name ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full">
+                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
+                            </span>
+                        ) : (
+                            <span className="text-gray-600 text-xs">—</span>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            id: 'actions',
+            header: () => <div className="text-right">Actions</div>,
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex justify-end gap-1">
+                        <button onClick={() => openPerf(item)}
+                            className="p-2 text-white/40 hover:text-white/80 bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg transition-colors" title="Performance Analytics">
+                            <FiBarChart2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleEdit(item)}
+                            className="p-2 text-white/40 hover:text-purple-400 bg-white/[0.02] hover:bg-purple-500/10 border border-purple-500/15 rounded-lg transition-colors" title="Edit">
+                            <FiEdit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(item.id)}
+                            className="p-2 text-white/40 hover:text-red-400 bg-white/[0.02] hover:bg-red-500/10 border border-red-500/15 rounded-lg transition-colors" title="Delete">
+                            <FiTrash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                );
+            }
+        }
+    ], [plates]);
+
+    const table = useReactTable({
+        data: filteredData,
+        columns,
+        state: { sorting },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel()
+    });
 
     return (
-        <div className="text-white">
+        <div className="text-white min-h-screen">
             <header className="flex justify-between items-center mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tighter mb-2">Machines</h1>
-                    <p className="text-gray-400">Manage press machines and configurations</p>
+                    <h1 className="text-3xl font-extrabold tracking-tight mb-2">Machines</h1>
+                    <p className="text-gray-400 text-sm">Manage press machines, speeds, plate assignments and shifts</p>
                 </div>
+                <button
+                    onClick={() => { resetForm(); setIsEditing(false); setShowFormModal(true); }}
+                    className="flex items-center gap-2 bg-white hover:bg-gray-200 text-black px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
+                >
+                    <FiPlus /> Add Machine
+                </button>
             </header>
 
-            <div className="grid lg:grid-cols-3 gap-8">
-                {/* Form */}
-                <div className="lg:col-span-1">
-                    <section className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10 sticky top-8">
-                        <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
-                            <span className="flex items-center gap-2">{isEditing ? <FiEdit2 /> : <FiPlus />} {isEditing ? 'Edit Machine' : 'Add Machine'}</span>
-                            {isEditing && (
-                                <button onClick={resetForm} className="text-sm text-red-400 hover:text-red-300 flex items-center gap-1">
-                                    <FiX /> Cancel
-                                </button>
+            {/* Filters Row */}
+            <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                    <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                        type="text"
+                        placeholder="Search machines..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full bg-secondary/40 border border-white/10 rounded-xl pl-11 pr-4 py-2.5 text-white focus:outline-none focus:border-white/30 transition-all text-sm placeholder:text-gray-500"
+                    />
+                </div>
+                <div className="flex bg-secondary/30 border border-white/10 rounded-xl p-1 gap-1">
+                    {['all', 'offset', 'digital', 'finishing', 'prepress'].map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => setTypeFilter(t)}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                                typeFilter === t
+                                    ? 'bg-white/10 text-white border border-white/10'
+                                    : 'text-gray-400 hover:text-white border border-transparent'
+                            }`}
+                        >
+                            {t}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* TanStack Table */}
+            <div className="bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            {table.getHeaderGroups().map(headerGroup => (
+                                <tr key={headerGroup.id} className="border-b border-white/10 bg-white/[0.01]">
+                                    {headerGroup.headers.map(header => (
+                                        <th
+                                            key={header.id}
+                                            onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                                            className={`p-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-white ${
+                                                header.column.getCanSort() ? 'select-none' : ''
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                                {header.column.getCanSort() && (
+                                                    {
+                                                        asc: <FiChevronUp className="w-3.5 h-3.5" />,
+                                                        desc: <FiChevronDown className="w-3.5 h-3.5" />
+                                                    }[header.column.getIsSorted()] || <FiChevronDown className="w-3.5 h-3.5 text-gray-600 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            ))}
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={columns.length} className="p-8 text-center text-gray-500 text-sm">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 rounded-full border-2 border-white/10 border-t-white animate-spin" />
+                                            Loading machines...
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : table.getRowModel().rows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={columns.length} className="p-12 text-center text-gray-500 text-sm">
+                                        No machines found matching criteria.
+                                    </td>
+                                </tr>
+                            ) : (
+                                table.getRowModel().rows.map(row => (
+                                    <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                        {row.getVisibleCells().map(cell => (
+                                            <td key={cell.id} className="p-4 align-middle">
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))
                             )}
-                        </h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Add/Edit Machine Modal */}
+            {showFormModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+                    <div className="w-full max-w-lg  border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                            <h3 className="font-bold text-lg text-white">
+                                {isEditing ? 'Edit Machine Settings' : 'Add New Machine'}
+                            </h3>
+                            <button
+                                onClick={() => { setShowFormModal(false); resetForm(); }}
+                                className="p-1.5 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg transition-all"
+                            >
+                                <FiX />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                             <div>
-                                <label className="block text-sm text-gray-400 mb-1">Machine Name</label>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Machine Name</label>
                                 <Input
                                     value={formData.name}
                                     onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
@@ -203,11 +477,11 @@ export default function MachinesPage() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-400 mb-1">Type</label>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Machine Type</label>
                                     <select
-                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
+                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
                                         value={formData.type}
                                         onChange={e => setFormData(prev => ({ ...prev, type: e.target.value }))}
                                     >
@@ -217,148 +491,196 @@ export default function MachinesPage() {
                                         <option value="prepress">Prepress</option>
                                     </select>
                                 </div>
-                                {formData.type === 'offset' && (
+                                {formData.type === 'offset' ? (
                                     <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Sheet Factor</label>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Sheet Factor</label>
                                         <Input
                                             type="number"
                                             step="0.1"
                                             value={formData.sheet_factor}
-                                            onChange={e => setFormData(prev => ({ ...prev, sheet_factor: e.target.value }))}
+                                            onChange={e => setFormData(prev => ({ ...prev, sheet_factor: parseFloat(e.target.value) || 1.0 }))}
                                             placeholder="1.0"
                                             className="bg-secondary border-white/10"
                                         />
                                     </div>
-                                )}
-                                {formData.type === 'digital' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Max Colored Price (per sq cm)</label>
-                                            <Input type="number" step="0.01" value={formData.digital_price_max} onChange={e => setFormData(prev => ({ ...prev, digital_price_max: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Medium Coloured Price (per sq cm)</label>
-                                            <Input type="number" step="0.01" value={formData.digital_price_medium} onChange={e => setFormData(prev => ({ ...prev, digital_price_medium: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Min Coloured Price (per sq cm)</label>
-                                            <Input type="number" step="0.01" value={formData.digital_price_min} onChange={e => setFormData(prev => ({ ...prev, digital_price_min: e.target.value }))} placeholder="0.00" className="bg-secondary border-white/10" />
-                                        </div>
-                                    </>
-                                )}
+                                ) : <div />}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-400 mb-1">
-                                        {formData.type === 'finishing' ? 'Speed (Units/Hr)' : 'Speed (Sheets/Hr)'}
-                                    </label>
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex w-full items-center rounded-lg border border-white/10 bg-secondary focus-within:ring-2 focus-within:ring-white/20 transition-all">
-                                            <input type="number" value={formData.speed} onChange={e => setFormData(prev => ({ ...prev, speed: e.target.value }))} placeholder="10000" className="flex-1 bg-transparent border-none px-4 py-2.5 text-white outline-none placeholder:text-gray-500" />
-                                            <div className="h-6 w-px bg-white/10"></div>
-                                            <select className="bg-transparent border-none text-sm text-gray-300 focus:text-white outline-none px-3 py-2 cursor-pointer hover:text-white transition-colors" value={formData.speed_unit} onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}>
-                                                <option value="Sheets/Hr" className="bg-[#1a1a1a] text-white">Sheets/Hr</option>
-                                                <option value="Units/Hr" className="bg-[#1a1a1a] text-white">Units/Hr</option>
-                                            </select>
-                                        </div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Machine Speed</label>
+                                    <Input
+                                        type="number"
+                                        value={formData.speed}
+                                        onChange={e => setFormData(prev => ({ ...prev, speed: parseInt(e.target.value) || 0 }))}
+                                        placeholder="10000"
+                                        className="bg-secondary border-white/10"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Speed Unit</label>
+                                    <select
+                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        value={formData.speed_unit}
+                                        onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}
+                                    >
+                                        <option value="Sheets/Hr">Sheets/Hr</option>
+                                        <option value="Impressions/Hr">Impressions/Hr</option>
+                                        <option value="Units/Hr">Units/Hr</option>
+                                        <option value="Copies/Hr">Copies/Hr</option>
+                                        <option value="Pcs/Hr">Pcs/Hr</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Default Setup (min)</label>
+                                    <Input
+                                        type="number"
+                                        value={formData.make_ready_minutes}
+                                        onChange={e => setFormData(prev => ({ ...prev, make_ready_minutes: parseInt(e.target.value) || 0 }))}
+                                        className="bg-secondary border-white/10"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Shift Capacity (hrs)</label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        max="24"
+                                        value={formData.shift_limit}
+                                        onChange={e => setFormData(prev => ({ ...prev, shift_limit: parseInt(e.target.value) || 8 }))}
+                                        className="bg-secondary border-white/10"
+                                    />
+                                </div>
+                            </div>
+
+                            {formData.type === 'offset' && (
+                                <div className="relative">
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Default Plate</label>
+                                    <Input
+                                        value={plateSearch}
+                                        onChange={(e) => {
+                                            setPlateSearch(e.target.value);
+                                            setShowPlateSuggestions(true);
+                                            if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' }));
+                                        }}
+                                        onFocus={() => setShowPlateSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)}
+                                        placeholder="Search plate inventory..."
+                                        className="bg-secondary border-white/10"
+                                    />
+                                    {showPlateSuggestions && (
+                                        <ul className="absolute z-50 w-full  border border-white/10 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+                                            {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).map(p => (
+                                                <li
+                                                    key={p.id}
+                                                    onClick={() => {
+                                                        setFormData(prev => ({ ...prev, plate_id: p.id }));
+                                                        setPlateSearch(p.name);
+                                                        setShowPlateSuggestions(false);
+                                                    }}
+                                                    className="px-4 py-2 hover:bg-white/5 cursor-pointer text-sm flex justify-between"
+                                                >
+                                                    <span>{p.name}</span>
+                                                    <span className="text-gray-500 text-xs">Cost: {p.unit_cost}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+
+                            {formData.type === 'digital' && (
+                                <div className="grid grid-cols-3 gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Max Color Rate</label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={formData.digital_price_max}
+                                            onChange={e => setFormData(prev => ({ ...prev, digital_price_max: parseFloat(e.target.value) || 0 }))}
+                                            className="bg-secondary border-white/10"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Med Color Rate</label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={formData.digital_price_medium}
+                                            onChange={e => setFormData(prev => ({ ...prev, digital_price_medium: parseFloat(e.target.value) || 0 }))}
+                                            className="bg-secondary border-white/10"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Min Color Rate</label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={formData.digital_price_min}
+                                            onChange={e => setFormData(prev => ({ ...prev, digital_price_min: parseFloat(e.target.value) || 0 }))}
+                                            className="bg-secondary border-white/10"
+                                        />
                                     </div>
                                 </div>
-                                {formData.type === 'offset' && (
-                                    <div className="relative">
-                                        <label className="block text-sm text-gray-400 mb-1">Default Plate</label>
-                                        <div className="relative">
-                                            <Input value={plateSearch} onChange={(e) => { setPlateSearch(e.target.value); setShowPlateSuggestions(true); if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' })); }} onFocus={() => setShowPlateSuggestions(true)} onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)} placeholder="Search plate..." className="bg-secondary border-white/10" />
-                                            {showPlateSuggestions && (
-                                                <ul className="absolute z-50 w-full bg-[#1a1a1a] border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                    {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).map(p => (
-                                                        <li key={p.id} onClick={async () => { setFormData(prev => ({ ...prev, plate_id: p.id })); setPlateSearch(p.name); setShowPlateSuggestions(false); }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
-                                                            <span>{p.name}</span>
-                                                            <span className="text-gray-400 text-xs mt-0.5">Cost: {p.unit_cost}</span>
-                                                        </li>
-                                                    ))}
-                                                    {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).length === 0 && (
-                                                        <li className="px-4 py-2 text-gray-500 text-sm">No plates found</li>
-                                                    )}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                            )}
+
+                            <div className="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Assign Operator</label>
+                                    <select
+                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        value={formData.assigned_employee_id}
+                                        onChange={e => setFormData(prev => ({ ...prev, assigned_employee_id: e.target.value }))}
+                                    >
+                                        <option value="">— None —</option>
+                                        {employees.filter(e => e.status === 'active').map(e => (
+                                            <option key={e.id} value={e.id}>{e.name} ({e.job_title || 'Operator'})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Assign Team</label>
+                                    <select
+                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        value={formData.assigned_team_id}
+                                        onChange={e => setFormData(prev => ({ ...prev, assigned_team_id: e.target.value }))}
+                                    >
+                                        <option value="">— None —</option>
+                                        {teams.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name} ({t.member_count} members)</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
-                            <Button type="submit" className={`w-full text-black hover:bg-gray-200 mt-2 ${isEditing ? 'bg-yellow-400 hover:bg-yellow-500' : 'bg-white'}`}>
-                                {isEditing ? 'Update Machine' : 'Add Machine'}
-                            </Button>
+                            <div className="border-t border-white/10 pt-4 flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowFormModal(false); resetForm(); }}
+                                    className="px-4 py-2 border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <Button
+                                    type="submit"
+                                    className={`px-6 text-black font-bold hover:opacity-90 ${isEditing ? 'bg-amber-400' : 'bg-white'}`}
+                                >
+                                    {isEditing ? 'Update Machine' : 'Add Machine'}
+                                </Button>
+                            </div>
                         </form>
-                    </section>
-                </div>
-
-                {/* List */}
-                <div className="lg:col-span-2">
-                    <div className="bg-black/40 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
-                        <div className="p-4 border-b border-white/10 flex gap-4">
-                            <div className="relative flex-1">
-                                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input type="text" placeholder="Search machines..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full bg-secondary/50 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-white/30" />
-                            </div>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-gray-400 text-sm">
-                                        <th className="p-4 font-medium">Machine Name</th>
-                                        <th className="p-4 font-medium">Details</th>
-                                        <th className="p-4 font-medium text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {loading ? (
-                                        <tr><td colSpan="3" className="p-8 text-center text-gray-500">Loading...</td></tr>
-                                    ) : filtered.length === 0 ? (
-                                        <tr><td colSpan="3" className="p-8 text-center text-gray-500">No machines found</td></tr>
-                                    ) : (
-                                        filtered.map(item => (
-                                            <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                                <td className="p-4 font-medium">{item.name}</td>
-                                                <td className="p-4 text-sm text-gray-400">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-xs uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded w-max opacity-70 mb-1">{item.type?.replace('_', ' ')}</span>
-                                                        {item.type === 'offset' && (<><span>Factor: {item.sheet_factor} | Speed: {item.speed.toLocaleString()} {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</span>{item.plate_name && <span className="text-yellow-500/80 text-xs">Plate: {item.plate_name}</span>}</>)}
-                                                        {item.type === 'digital' && (<><span>Digital Press | {item.speed.toLocaleString()} sph</span><span className="text-yellow-500/80 text-xs">Rates: Max {item.digital_price_max} | Med {item.digital_price_medium} | Min {item.digital_price_min}</span></>)}
-                                                        {item.type === 'finishing' && <span>Finishing Equipment | {item.speed.toLocaleString()} uph</span>}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        <button onClick={() => openPerf(item)}
-                                                            className="p-2 text-white/30 hover:text-white/70 transition-colors" title="Performance Analytics">
-                                                            <FiBarChart2 />
-                                                        </button>
-                                                        <button onClick={() => handleEdit(item)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Edit"><FiEdit2 /></button>
-                                                        <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-400 transition-colors" title="Delete"><FiTrash2 /></button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* ── Performance Analytics Panel ─────────────────────────────────────── */}
+            {/* Performance Analytics Panel */}
             {perfMachine && (
                 <div className="fixed inset-0 z-50 flex">
-                    {/* Backdrop */}
                     <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => { setPerfMachine(null); setPerfData(null); }} />
-                    {/* Slide-in panel */}
                     <div className="w-full max-w-2xl bg-[#0a0a0a] border-l border-white/[0.08] flex flex-col overflow-hidden shadow-2xl">
-                        {/* Panel header */}
                         <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
@@ -379,10 +701,9 @@ export default function MachinesPage() {
                                 </div>
                             ) : perfData ? (
                                 <>
-                                    {/* Currently running */}
                                     {perfData.currentTask && (
                                         <div className="bg-white/[0.04] border border-white/[0.10] rounded-2xl p-4">
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-1.5"><FiActivity className="w-3 h-3" />Currently Running</p>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-1.5"><FiActivity className="w-3 h-3 text-purple-400" />Currently Running</p>
                                             <p className="text-sm font-semibold text-white">{perfData.currentTask.name}</p>
                                             <p className="text-xs text-white/40 mt-0.5">{perfData.currentTask.order_code} · {perfData.currentTask.customer_name}</p>
                                             {perfData.currentTask.started_at && (
@@ -394,7 +715,6 @@ export default function MachinesPage() {
                                         </div>
                                     )}
 
-                                    {/* KPI cards */}
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         {[
                                             { label: 'Total Tasks', value: perfData.summary.total_tasks, sub: 'assigned' },
@@ -410,11 +730,10 @@ export default function MachinesPage() {
                                         ))}
                                     </div>
 
-                                    {/* Status breakdown */}
                                     <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
                                         <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Task Status Breakdown</p>
                                         <div className="space-y-2">
-                                            {[['Completed', perfData.summary.completed, 'bg-white/50'],['In Progress', perfData.summary.in_progress, 'bg-white/25'],['Pending', perfData.summary.pending, 'bg-white/10']].map(([label, count, bar]) => (
+                                            {[['Completed', perfData.summary.completed, 'bg-emerald-400'],['In Progress', perfData.summary.in_progress, 'bg-amber-400'],['Pending', perfData.summary.pending, 'bg-white/20']].map(([label, count, bar]) => (
                                                 <div key={label} className="flex items-center gap-3">
                                                     <span className="text-xs text-white/40 w-20 shrink-0">{label}</span>
                                                     <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
@@ -426,7 +745,6 @@ export default function MachinesPage() {
                                         </div>
                                     </div>
 
-                                    {/* Monthly chart */}
                                     {perfData.monthly?.length > 0 && (
                                         <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
                                             <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Monthly Output (last 6 months)</p>
@@ -434,7 +752,6 @@ export default function MachinesPage() {
                                         </div>
                                     )}
 
-                                    {/* Recent tasks */}
                                     {perfData.recent?.length > 0 && (
                                         <div>
                                             <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Recent Completed Tasks</p>
@@ -469,4 +786,3 @@ export default function MachinesPage() {
         </div>
     );
 }
-

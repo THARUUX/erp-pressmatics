@@ -34,8 +34,11 @@ export async function POST(req) {
                 .replace('{SEQ}', String(seq));
 
             try {
+                const startingOutstanding = parseFloat(c.starting_outstanding) || 0;
+                const category = (c.category || '').trim() || null;
+
                 await pool.execute(
-                    'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         name,
                         (c.email || '').trim() || null,
@@ -48,6 +51,8 @@ export async function POST(req) {
                         (c.contact_phone || '').trim() || null,
                         (c.contact_email || '').trim() || null,
                         (c.contact_role || '').trim() || null,
+                        startingOutstanding,
+                        category
                     ]
                 );
                 imported.push(name);

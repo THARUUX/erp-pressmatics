@@ -5,12 +5,20 @@ export async function PUT(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { name, type, sheet_factor, speed, speed_unit, plate_id, digital_price_max, digital_price_medium, digital_price_min } = body;
+        const {
+            name, type, sheet_factor, speed, speed_unit, plate_id,
+            digital_price_max, digital_price_medium, digital_price_min,
+            assigned_employee_id, assigned_team_id, make_ready_minutes, shift_limit
+        } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
         await pool.execute(
-            'UPDATE machines SET name = ?, type = ?, sheet_factor = ?, speed = ?, speed_unit = ?, plate_id = ?, digital_price_max = ?, digital_price_medium = ?, digital_price_min = ? WHERE id = ?',
+            `UPDATE machines SET
+               name=?, type=?, sheet_factor=?, speed=?, speed_unit=?, plate_id=?,
+               digital_price_max=?, digital_price_medium=?, digital_price_min=?,
+               assigned_employee_id=?, assigned_team_id=?, make_ready_minutes=?, shift_limit=?
+             WHERE id=?`,
             [
                 name,
                 type,
@@ -18,9 +26,13 @@ export async function PUT(req, { params }) {
                 parseInt(speed) || 0,
                 speed_unit || 'Sheets/Hr',
                 plate_id || null,
-                parseFloat(digital_price_max) || 0,
+                parseFloat(digital_price_max)    || 0,
                 parseFloat(digital_price_medium) || 0,
-                parseFloat(digital_price_min) || 0,
+                parseFloat(digital_price_min)    || 0,
+                assigned_employee_id || null,
+                assigned_team_id     || null,
+                parseInt(make_ready_minutes) || 0,
+                shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8,
                 id
             ]
         );

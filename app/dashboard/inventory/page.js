@@ -10,7 +10,7 @@ import {
     FiPlus, FiEdit2, FiTrash2, FiX, FiCopy, FiAlertTriangle,
     FiClock, FiSearch, FiChevronUp, FiChevronDown, FiChevronsLeft,
     FiChevronsRight, FiChevronLeft, FiChevronRight, FiUpload, FiGrid,
-    FiDollarSign, FiBox, FiPenTool,
+    FiDollarSign, FiBox, FiPenTool, FiCheckCircle,
 } from 'react-icons/fi';
 import { FiMaximize } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
@@ -20,7 +20,7 @@ import BulkUploadModal from '@/components/inventory/BulkUploadModal';
 import { BulkEditModal } from '@/components/ui/BulkEditModal';
 import BomEditor from './components/BomEditor';
 
-const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics'];
+const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics', 'BOM Waiting List'];
 const BOM_CATEGORIES = ['SFG', 'FG'];
 const EMPTY_FORM = { name: '', item_code: '', category: 'Paper', type: '', uom: 'Sheet', unit_cost: 0, stock_quantity: 0, min_stock: 0, width_cm: '', height_cm: '', description: '', is_active: 1 };
 
@@ -50,6 +50,310 @@ export default function InventoryPage() {
     const [qrItem, setQrItem] = useState(null); // { id, name, item_code } for QR modal
     const [qrDataUrl, setQrDataUrl] = useState('');
 
+    const [waitingList, setWaitingList] = useState([]);
+    const [waitingListLoading, setWaitingListLoading] = useState(true);
+    const [issuingWaitingId, setIssuingWaitingId] = useState(null);
+    const [selectedWaitingItem, setSelectedWaitingItem] = useState(null);
+    const [waitingIssueModalQty, setWaitingIssueModalQty] = useState('');
+
+    const fetchWaitingList = async () => {
+        setWaitingListLoading(true);
+        try {
+            const res = await fetch('/api/inventory/bom-waiting-list');
+            if (res.ok) {
+                const data = await res.json();
+                setWaitingList(data);
+            }
+        } catch (error) {
+            console.error("Error fetching BOM waiting list:", error);
+        } finally {
+            setWaitingListLoading(false);
+        }
+    };
+
+    const handleIssueWaitingStock = async (item, qtyVal) => {
+        const qty = parseFloat(qtyVal);
+        if (isNaN(qty) || qty <= 0) {
+            toast.error("Please enter a valid positive quantity");
+            return;
+        }
+
+        setIssuingWaitingId(item.id);
+        try {
+            const res = await fetch(`/api/sales-orders/${item.sales_order_id}/bom/issue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bom_id: item.id, quantity: qty })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success("Stock issued successfully!");
+                setSelectedWaitingItem(null);
+                await fetchWaitingList();
+            } else {
+                toast.error(data.error || "Failed to issue stock");
+            }
+        } catch (error) {
+            console.error("Error issuing stock:", error);
+            toast.error("An error occurred while issuing stock");
+        } finally {
+            setIssuingWaitingId(null);
+        }
+    };
+
+    const handlePrintIssueNote = (item, qtyVal) => {
+        const qty = parseFloat(qtyVal) || 0;
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        if (!printWindow) {
+            toast.error("Please allow popups to print the issue note.");
+            return;
+        }
+
+        const remaining = Math.max(0, parseFloat(item.required_qty) - parseFloat(item.issued_qty));
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Stock Issue Note - ${item.sales_order_code}</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        color: #111;
+                        margin: 0;
+                        padding: 40px;
+                        font-size: 14px;
+                        line-height: 1.5;
+                    }
+                    .header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        border-bottom: 2px solid #111;
+                        padding-bottom: 20px;
+                        margin-bottom: 30px;
+                    }
+                    .logo-title h1 {
+                        margin: 0;
+                        font-size: 24px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        font-weight: 800;
+                    }
+                    .logo-title p {
+                        margin: 4px 0 0 0;
+                        font-size: 11px;
+                        color: #666;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .doc-info {
+                        text-align: right;
+                    }
+                    .doc-info h2 {
+                        margin: 0;
+                        font-size: 20px;
+                        color: #059669;
+                        font-weight: 700;
+                        letter-spacing: 0.5px;
+                    }
+                    .doc-info p {
+                        margin: 5px 0 0 0;
+                        font-size: 12px;
+                        color: #444;
+                    }
+                    .section-title {
+                        font-size: 12px;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        margin-bottom: 10px;
+                        color: #666;
+                        border-bottom: 1px solid #eee;
+                        padding-bottom: 4px;
+                    }
+                    .grid {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 30px;
+                        margin-bottom: 30px;
+                    }
+                    .info-list {
+                        margin: 0;
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .info-list li {
+                        margin-bottom: 8px;
+                        display: flex;
+                    }
+                    .info-list li span.label {
+                        font-weight: 600;
+                        width: 140px;
+                        color: #555;
+                        flex-shrink: 0;
+                    }
+                    .info-list li span.val {
+                        color: #111;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 30px 0;
+                    }
+                    th {
+                        background: #f4f4f5;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        font-size: 11px;
+                        letter-spacing: 0.5px;
+                        padding: 10px 12px;
+                        border: 1px solid #e4e4e7;
+                        text-align: left;
+                    }
+                    td {
+                        padding: 12px;
+                        border: 1px solid #e4e4e7;
+                        color: #3f3f46;
+                    }
+                    .text-right {
+                        text-align: right;
+                    }
+                    .highlight-row {
+                        background: #f0fdf4;
+                        font-weight: 600;
+                    }
+                    .highlight-row td {
+                        color: #0f766e;
+                    }
+                    .footer-sig {
+                        margin-top: 80px;
+                        display: flex;
+                        justify-content: space-between;
+                        gap: 50px;
+                    }
+                    .sig-block {
+                        flex: 1;
+                        text-align: center;
+                    }
+                    .sig-line {
+                        border-top: 1px solid #111;
+                        margin-top: 50px;
+                        padding-top: 8px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        color: #444;
+                    }
+                    .print-btn-container {
+                        margin-top: 30px;
+                        text-align: center;
+                    }
+                    .print-btn {
+                        background: #10b981;
+                        color: white;
+                        border: none;
+                        padding: 10px 24px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.1);
+                        transition: background 0.2s;
+                    }
+                    .print-btn:hover {
+                        background: #059669;
+                    }
+                    @media print {
+                        .print-btn-container {
+                            display: none;
+                        }
+                        body {
+                            padding: 0;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo-title">
+                        <h1>Pressmatics ERP</h1>
+                        <p>Inventory & Production Control System</p>
+                    </div>
+                    <div class="doc-info">
+                        <h2>STOCK ISSUE NOTE</h2>
+                        <p>Date: ${new Date().toLocaleString()}</p>
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <div>
+                        <div class="section-title">Job & Order Details</div>
+                        <ul class="info-list">
+                            <li><span class="label">Sales Order Code:</span><span class="val" style="font-weight:bold;">${item.sales_order_code}</span></li>
+                            <li><span class="label">Customer Name:</span><span class="val">${item.customer_name}</span></li>
+                            <li><span class="label">Order Date:</span><span class="val">${new Date(item.order_date).toLocaleDateString()}</span></li>
+                            <li><span class="label">Order Status:</span><span class="val">${item.sales_order_status}</span></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div class="section-title">Warehouse Details</div>
+                        <ul class="info-list">
+                            <li><span class="label">Issue Note ID:</span><span class="val">ISN-${Date.now().toString().slice(-6)}</span></li>
+                            <li><span class="label">Material Type:</span><span class="val" style="text-transform: uppercase;">${item.component_type}</span></li>
+                            <li><span class="label">Available Stock:</span><span class="val">${parseFloat(item.available_qty).toFixed(2)} ${item.uom}</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="section-title">Material Issuance Summary</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Material Name</th>
+                            <th>Item Code</th>
+                            <th class="text-right">Total Required</th>
+                            <th class="text-right">Already Issued</th>
+                            <th class="text-right">Remaining Needed</th>
+                            <th class="text-right">Quantity to Issue Now</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>${item.component_name}</strong></td>
+                            <td><code>${item.item_code || '—'}</code></td>
+                            <td class="text-right">${parseFloat(item.required_qty).toFixed(2)} ${item.uom}</td>
+                            <td class="text-right">${parseFloat(item.issued_qty).toFixed(2)} ${item.uom}</td>
+                            <td class="text-right">${remaining.toFixed(2)} ${item.uom}</td>
+                            <td class="text-right" style="font-weight: bold; font-size: 15px; color: #047857;">${qty.toFixed(2)} ${item.uom}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="footer-sig">
+                    <div class="sig-block">
+                        <div class="sig-line">Issued By (Store Keeper Signature)</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-line">Approved By (Supervisor Signature)</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-line">Received By (Production / Dept Signature)</div>
+                    </div>
+                </div>
+
+                <div class="print-btn-container">
+                    <button class="print-btn" onclick="window.print()">Print This Document</button>
+                </div>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+    };
+
     const fetchItems = () => {
         setLoading(true);
         fetch(`/api/inventory?category=${activeCategory}`)
@@ -58,7 +362,11 @@ export default function InventoryPage() {
     };
     useEffect(() => {
         setRowSelection({});
-        fetchItems();
+        if (activeCategory === 'BOM Waiting List') {
+            fetchWaitingList();
+        } else {
+            fetchItems();
+        }
     }, [activeCategory]);
 
     const openQrModal = async (item) => {
@@ -297,6 +605,23 @@ export default function InventoryPage() {
 
     const lowStockCount = stats.lowStock;
 
+    const waitingStats = useMemo(() => {
+        if (activeCategory !== 'BOM Waiting List') return { totalPending: 0, shortages: 0, ready: 0 };
+        const totalPending = waitingList.length;
+        let shortages = 0;
+        let ready = 0;
+        waitingList.forEach(item => {
+            const remaining = parseFloat(item.required_qty) - parseFloat(item.issued_qty);
+            const available = parseFloat(item.available_qty || 0);
+            if (available < remaining) {
+                shortages++;
+            } else {
+                ready++;
+            }
+        });
+        return { totalPending, shortages, ready };
+    }, [waitingList, activeCategory]);
+
     return (
         <div className="text-white space-y-6">
             {/* ── Bulk Delete Progress Modal ── */}
@@ -347,21 +672,27 @@ export default function InventoryPage() {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Inventory</h1>
-                    {lowStockCount > 0 && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><FiAlertTriangle className="w-3 h-3" />{lowStockCount} low stock item(s) in {activeCategory}</p>}
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
-                        <FiUpload className="w-4 h-4" /> Bulk Upload
-                    </button>
-                    <button onClick={() => setShowBulkEdit(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
-                        <FiPenTool className="w-4 h-4" /> Bulk Edit
-                    </button>
-                    {!showAdd && (
-                        <button onClick={() => { resetForm(); setShowAdd(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all">
-                            <FiPlus className="w-4 h-4" /> Add Item
-                        </button>
+                    {activeCategory === 'BOM Waiting List' ? (
+                        waitingStats.shortages > 0 && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><FiAlertTriangle className="w-3 h-3" />{waitingStats.shortages} items with stock shortages in the waiting list</p>
+                    ) : (
+                        lowStockCount > 0 && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><FiAlertTriangle className="w-3 h-3" />{lowStockCount} low stock item(s) in {activeCategory}</p>
                     )}
                 </div>
+                {activeCategory !== 'BOM Waiting List' && (
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
+                            <FiUpload className="w-4 h-4" /> Bulk Upload
+                        </button>
+                        <button onClick={() => setShowBulkEdit(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-sm text-white/60 hover:text-white transition-all">
+                            <FiPenTool className="w-4 h-4" /> Bulk Edit
+                        </button>
+                        {!showAdd && (
+                            <button onClick={() => { resetForm(); setShowAdd(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-all">
+                                <FiPlus className="w-4 h-4" /> Add Item
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Category tabs */}
@@ -375,21 +706,39 @@ export default function InventoryPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                    { label: `Total ${activeCategory} Items`, value: stats.totalItems, prefix: '', icon: FiBox, color: 'text-indigo-400' },
-                    { label: `${activeCategory} Stock Value`, value: Number(stats.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), prefix: `${currency || 'LKR'} `, icon: FiDollarSign, color: 'text-emerald-400' },
-                    { label: 'Low Stock Items', value: stats.lowStock, prefix: '', icon: FiAlertTriangle, color: 'text-red-400' },
-                ].map(s => (
-                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
-                        <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
-                        <div>
-                            <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
-                            <div className="text-xl font-bold">{s.prefix}{s.value}</div>
+            {activeCategory === 'BOM Waiting List' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: 'Total Pending Allocations', value: waitingStats.totalPending, icon: FiBox, color: 'text-indigo-400' },
+                        { label: 'Ready to Issue', value: waitingStats.ready, icon: FiCheckCircle, color: 'text-emerald-400' },
+                        { label: 'Shortage Items', value: waitingStats.shortages, icon: FiAlertTriangle, color: 'text-red-400' },
+                    ].map(s => (
+                        <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                            <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
+                            <div>
+                                <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
+                                <div className="text-xl font-bold">{s.value}</div>
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: `Total ${activeCategory} Items`, value: stats.totalItems, prefix: '', icon: FiBox, color: 'text-indigo-400' },
+                        { label: `${activeCategory} Stock Value`, value: Number(stats.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), prefix: `${currency || 'LKR'} `, icon: FiDollarSign, color: 'text-emerald-400' },
+                        { label: 'Low Stock Items', value: stats.lowStock, prefix: '', icon: FiAlertTriangle, color: 'text-red-400' },
+                    ].map(s => (
+                        <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                            <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
+                            <div>
+                                <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
+                                <div className="text-xl font-bold">{s.prefix}{s.value}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
                     {/* Add/Edit form */}
             {showAdd && (
@@ -468,87 +817,204 @@ export default function InventoryPage() {
                 </div>
             )}
 
-            {/* Table toolbar */}
-            <div className="flex items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-xs">
-                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                    <input value={globalFilter} onChange={e => setGlobalFilter(e.target.value)}
-                        placeholder="Search name, code, type…"
-                        className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/20" />
-                </div>
-                <div className="flex items-center gap-3">
-                    {selectedIds.length > 0 && (
-                        <button
-                            onClick={handleBulkDelete}
-                            className="flex items-center gap-2 bg-red-950/40 border border-red-500/30 text-red-400 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-red-900/40 hover:border-red-500/50 hover:text-red-300 transition-all shadow-lg shadow-red-950/20"
-                        >
-                            <FiTrash2 className="w-3.5 h-3.5" /> Delete ({selectedIds.length})
-                        </button>
-                    )}
-                    <p className="text-xs text-white/30 shrink-0">{table.getFilteredRowModel().rows.length} items</p>
-                </div>
-            </div>
-
-            {/* TanStack Table */}
-            <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                        <thead>
-                            {table.getHeaderGroups().map(hg => (
-                                <tr key={hg.id} className="border-b border-white/[0.06] bg-white/[0.02]">
-                                    {hg.headers.map(header => (
-                                        <th key={header.id} style={{ width: header.getSize() }}
-                                            className="px-4 py-3 text-left text-[11px] font-semibold text-white/35 uppercase tracking-wider select-none">
-                                            {header.column.getCanSort() ? (
-                                                <button onClick={header.column.getToggleSortingHandler()} className="flex items-center gap-1 hover:text-white/70 transition-colors">
-                                                    {flexRender(header.column.columnDef.header, header.getContext())}
-                                                    {header.column.getIsSorted() === 'asc' ? <FiChevronUp className="w-3 h-3" /> : header.column.getIsSorted() === 'desc' ? <FiChevronDown className="w-3 h-3" /> : <span className="w-3" />}
-                                                </button>
-                                            ) : flexRender(header.column.columnDef.header, header.getContext())}
-                                        </th>
-                                    ))}
-                                </tr>
-                            ))}
-                        </thead>
-                        <tbody className="divide-y divide-white/[0.04]">
-                            {loading ? (
-                                <tr><td colSpan={columns.length} className="py-16 text-center text-white/25 text-sm">Loading…</td></tr>
-                            ) : table.getRowModel().rows.length === 0 ? (
-                                <tr><td colSpan={columns.length} className="py-16 text-center text-white/25 text-sm">No items found in {activeCategory}</td></tr>
-                            ) : table.getRowModel().rows.map(row => {
-                                const low = row.original.stock_quantity < (row.original.min_stock || 0);
-                                const inactive = row.original.is_active === 0;
-                                return (
-                                    <tr key={row.id} className={`hover:bg-white/[0.02] transition-colors ${low ? 'bg-red-500/[0.04]' : ''} ${inactive ? 'opacity-50' : ''}`}>
-                                        {row.getVisibleCells().map(cell => (
-                                            <td key={cell.id} className="px-4 py-3">
-                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                {table.getPageCount() > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.05]">
-                        <div className="flex items-center gap-1">
-                            <button onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronsLeft className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronLeft className="w-3.5 h-3.5" /></button>
-                            <span className="text-xs text-white/35 px-2">Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span>
-                            <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronRight className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronsRight className="w-3.5 h-3.5" /></button>
+            {activeCategory === 'BOM Waiting List' ? (
+                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl">
+                    <div className="p-5 border-b border-white/[0.05] flex justify-between items-center flex-wrap gap-3 bg-white/[0.01]">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Pending BOM Material Allocations</h2>
+                            <p className="text-xs text-white/35 mt-0.5">Issues pending across all active Sales Orders</p>
                         </div>
-                        <select value={table.getState().pagination.pageSize} onChange={e => table.setPageSize(Number(e.target.value))}
-                            className="text-xs bg-black/40 border border-white/[0.07] rounded-lg px-2 py-1.5 text-white/40 focus:outline-none">
-                            {[10, 20, 50, 100].map(s => <option key={s} value={s}>{s} / page</option>)}
-                        </select>
+                        <button
+                            onClick={fetchWaitingList}
+                            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
+                        >
+                            <FiClock className="w-3.5 h-3.5" /> Refresh List
+                        </button>
                     </div>
-                )}
-            </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                            <thead>
+                                <tr className="bg-white/[0.02] border-b border-white/[0.05]">
+                                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Order</th>
+                                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Component</th>
+                                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Type</th>
+                                    <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Required</th>
+                                    <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Issued</th>
+                                    <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Remaining</th>
+                                    <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Available Stock</th>
+                                    <th className="text-center px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Status</th>
+                                    <th className="text-right px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider w-[240px]">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04]">
+                                {waitingListLoading ? (
+                                    <tr><td colSpan="9" className="py-16 text-center text-white/25 text-sm animate-pulse">Loading waiting list...</td></tr>
+                                ) : waitingList.length === 0 ? (
+                                    <tr><td colSpan="9" className="py-16 text-center text-white/25 text-sm italic">No pending material issuances found!</td></tr>
+                                ) : (
+                                    waitingList.map((item) => {
+                                        const req = parseFloat(item.required_qty);
+                                        const issued = parseFloat(item.issued_qty);
+                                        const remaining = Math.max(0, req - issued);
+                                        const available = parseFloat(item.available_qty || 0);
+
+                                        const isFullyIssued = remaining === 0;
+                                        const isPartiallyIssued = issued > 0 && remaining > 0;
+                                        const isPending = issued === 0;
+
+                                        return (
+                                            <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="px-5 py-3.5">
+                                                    <a
+                                                        href={`/dashboard/sales-orders/${item.sales_order_id}`}
+                                                        className="font-semibold text-white hover:text-emerald-400 transition-colors text-sm block"
+                                                    >
+                                                        {item.sales_order_code}
+                                                    </a>
+                                                    <span className="text-[10px] text-white/30 block mt-0.5 truncate max-w-[150px]" title={item.customer_name}>{item.customer_name}</span>
+                                                </td>
+                                                <td className="px-4 py-3.5">
+                                                    <p className="font-semibold text-white text-sm">{item.component_name}</p>
+                                                    {item.item_code && (
+                                                        <p className="text-xs text-white/30 mt-0.5 font-mono">{item.item_code}</p>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3.5">
+                                                    <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                                        item.component_type === 'paper' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                                                        item.component_type === 'plate' ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20' :
+                                                        item.component_type === 'sfg' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                                                        'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                    }`}>
+                                                        {item.component_type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3.5 text-right font-mono text-sm text-white font-medium">{req} {item.uom}</td>
+                                                <td className="px-4 py-3.5 text-right font-mono text-sm text-emerald-400 font-medium">{issued} {item.uom}</td>
+                                                <td className="px-4 py-3.5 text-right font-mono text-sm text-white/55">{remaining} {item.uom}</td>
+                                                <td className="px-4 py-3.5 text-right font-mono text-sm">
+                                                    <span className={available < remaining ? 'text-red-400 font-semibold' : 'text-white/60'}>
+                                                        {available} {item.uom}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3.5 text-center">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                        isFullyIssued ? 'bg-emerald-500/15 text-emerald-400' :
+                                                        isPartiallyIssued ? 'bg-amber-500/15 text-amber-400' :
+                                                        'bg-white/10 text-white/50'
+                                                    }`}>
+                                                        {isFullyIssued ? 'Fully Issued' : isPartiallyIssued ? 'Partial' : 'Pending'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-right">
+                                                    {!isFullyIssued ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedWaitingItem(item);
+                                                                setWaitingIssueModalQty(String(remaining));
+                                                            }}
+                                                            className="bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                                                        >
+                                                            Issue Stock
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-xs text-white/25 italic">No actions pending</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {/* Table toolbar */}
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-xs">
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                            <input value={globalFilter} onChange={e => setGlobalFilter(e.target.value)}
+                                placeholder="Search name, code, type…"
+                                className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/20" />
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {selectedIds.length > 0 && (
+                                <button
+                                    onClick={handleBulkDelete}
+                                    className="flex items-center gap-2 bg-red-950/40 border border-red-500/30 text-red-400 px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-red-900/40 hover:border-red-500/50 hover:text-red-300 transition-all shadow-lg shadow-red-950/20"
+                                >
+                                    <FiTrash2 className="w-3.5 h-3.5" /> Delete ({selectedIds.length})
+                                </button>
+                            )}
+                            <p className="text-xs text-white/30 shrink-0">{table.getFilteredRowModel().rows.length} items</p>
+                        </div>
+                    </div>
+
+                    {/* TanStack Table */}
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm border-collapse">
+                                <thead>
+                                    {table.getHeaderGroups().map(hg => (
+                                        <tr key={hg.id} className="border-b border-white/[0.06] bg-white/[0.02]">
+                                            {hg.headers.map(header => (
+                                                <th key={header.id} style={{ width: header.getSize() }}
+                                                    className="px-4 py-3 text-left text-[11px] font-semibold text-white/35 uppercase tracking-wider select-none">
+                                                    {header.column.getCanSort() ? (
+                                                        <button onClick={header.column.getToggleSortingHandler()} className="flex items-center gap-1 hover:text-white/70 transition-colors">
+                                                            {flexRender(header.column.columnDef.header, header.getContext())}
+                                                            {header.column.getIsSorted() === 'asc' ? <FiChevronUp className="w-3 h-3" /> : header.column.getIsSorted() === 'desc' ? <FiChevronDown className="w-3 h-3" /> : <span className="w-3" />}
+                                                        </button>
+                                                    ) : flexRender(header.column.columnDef.header, header.getContext())}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </thead>
+                                <tbody className="divide-y divide-white/[0.04]">
+                                    {loading ? (
+                                        <tr><td colSpan={columns.length} className="py-16 text-center text-white/25 text-sm">Loading…</td></tr>
+                                    ) : table.getRowModel().rows.length === 0 ? (
+                                        <tr><td colSpan={columns.length} className="py-16 text-center text-white/25 text-sm">No items found in {activeCategory}</td></tr>
+                                    ) : table.getRowModel().rows.map(row => {
+                                        const low = row.original.stock_quantity < (row.original.min_stock || 0);
+                                        const inactive = row.original.is_active === 0;
+                                        return (
+                                            <tr key={row.id} className={`hover:bg-white/[0.02] transition-colors ${low ? 'bg-red-500/[0.04]' : ''} ${inactive ? 'opacity-50' : ''}`}>
+                                                {row.getVisibleCells().map(cell => (
+                                                    <td key={cell.id} className="px-4 py-3">
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {table.getPageCount() > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.05]">
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronsLeft className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronLeft className="w-3.5 h-3.5" /></button>
+                                    <span className="text-xs text-white/35 px-2">Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span>
+                                    <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronRight className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()} className="p-1.5 rounded-lg disabled:opacity-30 hover:bg-white/[0.06] text-white/40 hover:text-white transition-all"><FiChevronsRight className="w-3.5 h-3.5" /></button>
+                                </div>
+                                <select value={table.getState().pagination.pageSize} onChange={e => table.setPageSize(Number(e.target.value))}
+                                    className="text-xs bg-black/40 border border-white/[0.07] rounded-lg px-2 py-1.5 text-white/40 focus:outline-none">
+                                    {[10, 20, 50, 100].map(s => <option key={s} value={s}>{s} / page</option>)}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
 
             {/* Restock Modal */}
             {restockItem && (
@@ -582,6 +1048,123 @@ export default function InventoryPage() {
                         <div className="flex gap-3 mt-6">
                             <Button onClick={() => setRestockItem(null)} className="flex-1 bg-transparent border border-white/10 hover:bg-white/5">Cancel</Button>
                             <Button onClick={handleRestock} className="flex-1 bg-white text-black hover:bg-white/90">Save</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stock Issue Modal */}
+            {selectedWaitingItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 className="text-base font-semibold text-white">Issue Stock</h2>
+                                <p className="text-xs text-white/40 mt-0.5">Sales Order: {selectedWaitingItem.sales_order_code}</p>
+                            </div>
+                            <button onClick={() => setSelectedWaitingItem(null)} className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"><FiX /></button>
+                        </div>
+
+                        <div className="space-y-4 flex-1">
+                            {/* Job Details Card */}
+                            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-white/40">Customer Name:</span>
+                                    <span className="text-white font-medium">{selectedWaitingItem.customer_name}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-white/40">Order Date:</span>
+                                    <span className="text-white font-medium">{new Date(selectedWaitingItem.order_date).toLocaleDateString()}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-white/40">Material Component:</span>
+                                    <span className="text-white font-medium">{selectedWaitingItem.component_name}</span>
+                                </div>
+                                {selectedWaitingItem.item_code && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-white/40">Item Code:</span>
+                                        <span className="font-mono text-white font-medium">{selectedWaitingItem.item_code}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Stock Metrics Card */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-3">
+                                    <p className="text-[10px] text-white/35 uppercase font-bold tracking-wider">Required</p>
+                                    <p className="text-lg font-semibold font-mono text-white mt-1">
+                                        {parseFloat(selectedWaitingItem.required_qty)} <span className="text-xs text-white/40">{selectedWaitingItem.uom}</span>
+                                    </p>
+                                </div>
+                                <div className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-3">
+                                    <p className="text-[10px] text-white/35 uppercase font-bold tracking-wider">Already Issued</p>
+                                    <p className="text-lg font-semibold font-mono text-emerald-400 mt-1">
+                                        {parseFloat(selectedWaitingItem.issued_qty)} <span className="text-xs text-emerald-400/60">{selectedWaitingItem.uom}</span>
+                                    </p>
+                                </div>
+                                <div className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-3">
+                                    <p className="text-[10px] text-white/35 uppercase font-bold tracking-wider">Remaining Needed</p>
+                                    <p className="text-lg font-semibold font-mono text-amber-400 mt-1">
+                                        {Math.max(0, parseFloat(selectedWaitingItem.required_qty) - parseFloat(selectedWaitingItem.issued_qty))} <span className="text-xs text-amber-400/60">{selectedWaitingItem.uom}</span>
+                                    </p>
+                                </div>
+                                <div className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-3">
+                                    <p className="text-[10px] text-white/35 uppercase font-bold tracking-wider">Available Stock</p>
+                                    <p className="text-lg font-semibold font-mono text-white mt-1">
+                                        {parseFloat(selectedWaitingItem.available_qty)} <span className="text-xs text-white/40">{selectedWaitingItem.uom}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Warning if stock is insufficient */}
+                            {parseFloat(selectedWaitingItem.available_qty) < (parseFloat(selectedWaitingItem.required_qty) - parseFloat(selectedWaitingItem.issued_qty)) && (
+                                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-red-500/20 bg-red-500/[0.04] text-red-400 text-xs">
+                                    <FiAlertTriangle className="flex-shrink-0 w-4 h-4" />
+                                    <span>Warning: Available stock is less than the remaining required quantity.</span>
+                                </div>
+                            )}
+
+                            {/* Input for Quantity to Issue */}
+                            <Input
+                                label="Quantity to Issue Now"
+                                type="number"
+                                step="any"
+                                min="0.0001"
+                                max={Math.max(0, parseFloat(selectedWaitingItem.required_qty) - parseFloat(selectedWaitingItem.issued_qty))}
+                                value={waitingIssueModalQty}
+                                onChange={e => setWaitingIssueModalQty(e.target.value)}
+                                className="bg-black/40 border-white/10"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2.5 mt-6">
+                            <Button
+                                onClick={() => setSelectedWaitingItem(null)}
+                                className="flex-1 bg-transparent border border-white/10 hover:bg-white/5 text-white"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => handlePrintIssueNote(selectedWaitingItem, waitingIssueModalQty)}
+                                className="flex-1 bg-white/[0.06] border border-white/10 hover:bg-white/10 text-white flex items-center justify-center gap-1.5"
+                            >
+                                Print Note
+                            </Button>
+                            <Button
+                                onClick={() => handleIssueWaitingStock(selectedWaitingItem, waitingIssueModalQty)}
+                                disabled={
+                                    issuingWaitingId === selectedWaitingItem.id ||
+                                    !waitingIssueModalQty ||
+                                    parseFloat(waitingIssueModalQty) <= 0 ||
+                                    parseFloat(waitingIssueModalQty) > parseFloat(selectedWaitingItem.available_qty) ||
+                                    parseFloat(waitingIssueModalQty) > (parseFloat(selectedWaitingItem.required_qty) - parseFloat(selectedWaitingItem.issued_qty))
+                                }
+                                className="flex-1 bg-emerald-500 text-black hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                            >
+                                {issuingWaitingId === selectedWaitingItem.id ? 'Issuing...' : 'Confirm Issue'}
+                            </Button>
                         </div>
                     </div>
                 </div>

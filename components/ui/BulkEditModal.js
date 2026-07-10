@@ -66,6 +66,33 @@ const CONFIGS = {
         ],
         previewCols: ['id', 'name', 'type', 'unit_cost', 'uom'],
     },
+    employees: {
+        title: 'Employees',
+        endpoint: '/api/employees/bulk-update',
+        fileName: 'employees',
+        columns: [
+            { key: 'id',            label: 'id (DO NOT CHANGE)' },
+            { key: 'employee_id',   label: 'employee_id' },
+            { key: 'name',          label: 'name' },
+            { key: 'job_title',     label: 'job_title' },
+            { key: 'department',    label: 'department' },
+            { key: 'phone',         label: 'phone' },
+            { key: 'email',         label: 'email' },
+            { key: 'date_of_birth', label: 'date_of_birth' },
+            { key: 'date_joined',   label: 'date_joined' },
+            { key: 'shift',         label: 'shift' },
+            { key: 'status',        label: 'status' },
+            { key: 'pay_type',      label: 'pay_type' },
+            { key: 'base_salary',   label: 'base_salary' },
+            { key: 'hourly_rate',   label: 'hourly_rate' },
+            { key: 'allowances',    label: 'allowances' },
+            { key: 'deductions',    label: 'deductions' },
+            { key: 'ot_rate_multiplier', label: 'ot_rate_multiplier' },
+            { key: 'standard_working_hours', label: 'standard_working_hours' },
+            { key: 'notes',         label: 'notes' },
+        ],
+        previewCols: ['id', 'name', 'job_title', 'department', 'email'],
+    },
 };
 
 /* ── Export helper (uses xlsx loaded dynamically) ───────────────────────── */

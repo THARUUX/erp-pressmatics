@@ -13,11 +13,36 @@ function toMySQL(isoStr) {
     }
 }
 
+// ─── Helper to resolve code or ID to numeric ID ─────────────────────────────
+async function getSalesOrderId(idOrCode) {
+    if (!isNaN(idOrCode)) {
+        return parseInt(idOrCode);
+    }
+    const [orders] = await pool.execute('SELECT id FROM sales_orders WHERE code = ?', [idOrCode]);
+    return orders[0]?.id || null;
+}
+
 export async function PUT(req, { params }) {
     try {
-        const { id, taskId } = await params;
+        const resolvedParams = await params;
+        const rawId = resolvedParams?.id;
+        const { taskId } = resolvedParams;
+        if (!rawId || rawId === 'undefined' || rawId === 'null') {
+            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
+        }
+
+        const id = await getSalesOrderId(rawId);
+        if (!id) {
+            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        }
+
         const body = await req.json();
-        const { name, status, completed_at, completed_by, assigned_to, description, machine_id, machine_name, estimated_minutes, scheduled_date } = body;
+        const {
+            name, status, completed_at, completed_by, assigned_to,
+            description, machine_id, machine_name, estimated_minutes,
+            scheduled_date, custom_make_ready_minutes, custom_speed, custom_speed_unit,
+            quantity, sheet_count, impression_count
+        } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
 
@@ -66,6 +91,30 @@ export async function PUT(req, { params }) {
             updates.push('scheduled_date = ?');
             paramsList.push(scheduled_date || null);
         }
+        if (custom_make_ready_minutes !== undefined) {
+            updates.push('custom_make_ready_minutes = ?');
+            paramsList.push(custom_make_ready_minutes !== null ? parseInt(custom_make_ready_minutes) : null);
+        }
+        if (custom_speed !== undefined) {
+            updates.push('custom_speed = ?');
+            paramsList.push(custom_speed !== null ? parseFloat(custom_speed) : null);
+        }
+        if (custom_speed_unit !== undefined) {
+            updates.push('custom_speed_unit = ?');
+            paramsList.push(custom_speed_unit || null);
+        }
+        if (quantity !== undefined) {
+            updates.push('quantity = ?');
+            paramsList.push(quantity !== null ? parseFloat(quantity) : null);
+        }
+        if (sheet_count !== undefined) {
+            updates.push('sheet_count = ?');
+            paramsList.push(sheet_count !== null ? parseFloat(sheet_count) : null);
+        }
+        if (impression_count !== undefined) {
+            updates.push('impression_count = ?');
+            paramsList.push(impression_count !== null ? parseFloat(impression_count) : null);
+        }
         if (hasMachineUpdate) {
             updates.push('machine_id = ?');
             paramsList.push(machine_id ?? null);
@@ -94,10 +143,22 @@ export async function PUT(req, { params }) {
 
 export async function DELETE(req, { params }) {
     try {
-        const { id, taskId } = await params;
+        const resolvedParams = await params;
+        const rawId = resolvedParams?.id;
+        const { taskId } = resolvedParams;
+        if (!rawId || rawId === 'undefined' || rawId === 'null') {
+            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
+        }
+
+        const id = await getSalesOrderId(rawId);
+        if (!id) {
+            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        }
+
         await pool.execute('DELETE FROM job_tasks WHERE id = ? AND sales_order_id = ?', [taskId, id]);
         return NextResponse.json({ success: true });
     } catch (err) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
+

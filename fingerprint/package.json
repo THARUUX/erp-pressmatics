@@ -1,0 +1,18 @@
+{
+  "name": "zkteco-fingerprint-server",
+  "version": "1.0.0",
+  "description": "ZKTeco fingerprint attendance logs server for Pressmatics ERP",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mysql2": "^3.9.7",
+    "node-zklib": "*"
+  }
+}

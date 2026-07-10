@@ -325,6 +325,8 @@ export default function NewQuotationPage() {
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
+                        makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        custom_make_ready_minutes: c.params.customMakeReadyMinutes || c.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit,
                         // Cover: pages must equal sides (input is display-only, state may be stale)
                         pages: c.name === 'Cover' ? c.params.sides : c.params.pages
@@ -385,6 +387,8 @@ export default function NewQuotationPage() {
                         machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
+                        makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        custom_make_ready_minutes: c.params.customMakeReadyMinutes || c.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit
                     }
                 };

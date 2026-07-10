@@ -11,7 +11,8 @@ import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { 
     FiChevronLeft, FiChevronRight, FiChevronDown, FiClock, FiPrinter, 
-    FiTrendingUp, FiAlertTriangle, FiBookOpen, FiActivity, FiDownload
+    FiTrendingUp, FiAlertTriangle, FiBookOpen, FiActivity, FiDownload,
+    FiX, FiInfo, FiZap, FiSettings, FiPackage, FiUser, FiCalendar, FiEdit2
 } from 'react-icons/fi';
 
 const G = {
@@ -83,126 +84,95 @@ function DroppableContainer({ id, children, style }) {
 }
 
 // ── Sortable Task Card ───────────────────────────────────────────────────
-function TaskCard({ task, order, onUpdateTask, accent }) {
+function TaskCard({ task, order, onUpdateTask, onTaskClick, onQuickCalc, machine, accent }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: `task-${task.id}`,
     });
+    const [calcLoading, setCalcLoading] = useState(false);
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editValue, setEditValue] = useState(task.estimated_minutes || 0);
-
-    const handleSave = () => {
-        setIsEditing(false);
-        const val = parseInt(editValue);
-        if (isNaN(val) || val < 0) return;
-        onUpdateTask(task.id, order.id, { estimated_minutes: val });
+    const handleQuickCalc = async (e) => {
+        e.stopPropagation();
+        const qty = parseFloat(task.quantity) || 0;
+        const speed = parseFloat(task.custom_speed || machine?.speed) || 0;
+        const setup = parseFloat(task.custom_make_ready_minutes != null ? task.custom_make_ready_minutes : (machine?.make_ready_minutes || 0));
+        if (!qty || !speed) return;
+        const newMins = Math.ceil((qty / speed) * 60) + setup;
+        setCalcLoading(true);
+        await onUpdateTask(task.id, order?.id, { estimated_minutes: newMins });
+        setCalcLoading(false);
     };
 
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.25 : 1,
-        background: 'rgba(255, 255, 255, 0.04)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        borderLeft: `3px solid ${accent}`,
-        borderRadius: 10,
-        padding: '10px 12px',
-        marginBottom: 6,
-        cursor: isEditing ? 'default' : 'grab',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        userSelect: 'none',
+        borderLeftColor: accent,
     };
 
     const jobName = order?.estimation_names || order?.customer_name || 'No Job Name';
     const customerName = order?.customer_name || '';
     const orderCode = order?.code || '—';
     const dot = STATUS_DOT[task.status] || STATUS_DOT.pending;
+    const hasCustom = task.custom_speed || task.custom_make_ready_minutes != null;
+    const canCalc = (parseFloat(task.quantity) || 0) > 0 && (parseFloat(task.custom_speed || machine?.speed) || 0) > 0;
 
     return (
-        <div 
-            ref={setNodeRef} 
-            style={style} 
-            {...(isEditing ? {} : listeners)} 
-            {...(isEditing ? {} : attributes)}
+        <div ref={setNodeRef} style={style} {...listeners} {...attributes}
+            className={`w-full text-left bg-white/[0.03] border-y border-r border-white/[0.07] border-l-[3px] rounded-xl p-3 mb-1.5 cursor-grab shadow-md select-none relative ${
+                isDragging ? 'opacity-25' : 'opacity-100'
+            }`}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                        width: 7, height: 7, borderRadius: '50%', background: dot,
-                        boxShadow: task.status === 'done' ? `0 0 6px ${dot}` : 'none',
-                    }} />
-                    <span style={{
-                        fontSize: 9, fontWeight: 700, color: '#f59e0b',
-                        background: 'rgba(245,158,11,0.1)', padding: '2px 5px',
-                        borderRadius: 4, letterSpacing: 0.4
-                    }}>{orderCode}</span>
-                </div>
-                
-                {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }} onClick={e => e.stopPropagation()}>
-                        <input
-                            type="number"
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            onBlur={handleSave}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') handleSave();
-                                if (e.key === 'Escape') setIsEditing(false);
-                            }}
-                            autoFocus
-                            style={{
-                                width: 44,
-                                background: '#111',
-                                color: '#fff',
-                                border: '1px solid #a78bfa',
-                                borderRadius: 4,
-                                padding: '1px 3px',
-                                fontSize: 9,
-                                textAlign: 'center',
-                                outline: 'none',
-                            }}
-                        />
-                        <span style={{ fontSize: 9, color: G.muted }}>m</span>
-                    </div>
-                ) : (
-                    <span
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsEditing(true);
-                            setEditValue(task.estimated_minutes || 0);
-                        }}
+            <div className="flex items-start justify-between gap-1.5">
+                <div className="flex items-center gap-1.5">
+                    <div
+                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         style={{
-                            fontSize: 9, fontWeight: 700, color: G.purple,
-                            background: 'rgba(167,139,250,0.1)', padding: '2px 6px',
-                            borderRadius: 4, cursor: 'pointer', border: '1px solid rgba(167,139,250,0.2)',
-                            transition: 'all 0.15s',
+                            backgroundColor: dot,
+                            boxShadow: task.status === 'done' ? `0 0 6px ${dot}` : 'none'
                         }}
-                        title="Click to edit estimated minutes"
-                    >
+                    />
+                    <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-wider">
+                        {orderCode}
+                    </span>
+                    {hasCustom && (
+                        <span className="inline-flex items-center gap-0.5 text-[8px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1 py-0.5 rounded" title="Custom overrides applied">
+                            <FiZap className="w-2 h-2" /> custom
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold text-white/40 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">
                         {task.estimated_minutes ? `${task.estimated_minutes}m` : '0m'}
                     </span>
-                )}
+                    {canCalc && (
+                        <button
+                            onClick={handleQuickCalc}
+                            onMouseDown={e => e.stopPropagation()}
+                            disabled={calcLoading}
+                            className="bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
+                            title={`Recalculate: ${parseFloat(task.quantity)||0} qty ÷ ${parseFloat(task.custom_speed||machine?.speed)||0} speed + ${parseFloat(task.custom_make_ready_minutes??machine?.make_ready_minutes??0)}m setup`}
+                        >
+                            <FiZap className="w-2.5 h-2.5" />
+                        </button>
+                    )}
+                    <button
+                        onClick={e => { e.stopPropagation(); onTaskClick && onTaskClick(task, order); }}
+                        onMouseDown={e => e.stopPropagation()}
+                        className="bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded p-1 flex items-center transition-all"
+                        title="View / edit task details"
+                    >
+                        <FiEdit2 className="w-2.5 h-2.5" />
+                    </button>
+                </div>
             </div>
 
-            <div style={{ marginTop: 6 }}>
-                <p style={{
-                    fontSize: 11, fontWeight: 700, color: '#f1f5f9',
-                    margin: '0 0 1px 0', overflow: 'hidden', textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                }} title={jobName}>{jobName}</p>
-                
-                <p style={{
-                    fontSize: 9.5, color: G.muted, margin: '0 0 5px 0',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                }}>{customerName}</p>
-                
-                <div style={{
-                    fontSize: 10, color: '#cbd5e1', background: 'rgba(255,255,255,0.02)',
-                    padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.04)',
-                    wordBreak: 'break-word', lineHeight: 1.3
-                }}>
+            <div className="mt-1.5">
+                <p className="font-bold text-white text-[12px] truncate block m-0 leading-snug" title={jobName}>
+                    {jobName}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate block m-0 mb-1">
+                    {customerName}
+                </p>
+                <div className="text-[11px] text-gray-300 bg-white/[0.01] border border-white/[0.03] rounded-lg px-2 py-1 leading-snug break-words">
                     {task.name.split('—')[task.name.split('—').length - 1].trim()}
                 </div>
             </div>
@@ -210,56 +180,392 @@ function TaskCard({ task, order, onUpdateTask, accent }) {
     );
 }
 
+// ── Task Detail & Override Modal ─────────────────────────────────────────
+
+function TaskModal({ task, order, machine, onClose, onSave }) {
+    const defaultSetup = machine?.make_ready_minutes || 0;
+    const defaultSpeed = machine?.speed || 0;
+    const defaultUnit = machine?.speed_unit || 'Sheets/Hr';
+
+    const initialUnit = task.custom_speed_unit || defaultUnit;
+    const getInitialQty = (u) => {
+        const lowerU = (u || '').toLowerCase();
+        if (lowerU === 'impressions/hr') {
+            return task.impression_count != null && task.impression_count !== 0
+                ? String(task.impression_count)
+                : (task.quantity != null ? String(task.quantity) : '');
+        } else if (lowerU === 'sheets/hr') {
+            return task.sheet_count != null && task.sheet_count !== 0
+                ? String(task.sheet_count)
+                : (task.quantity != null ? String(task.quantity) : '');
+        } else {
+            return task.job_qty != null && task.job_qty !== 0
+                ? String(task.job_qty)
+                : (task.quantity != null ? String(task.quantity) : '');
+        }
+    };
+
+    const [setupMin, setSetupMin] = useState(task.custom_make_ready_minutes != null ? String(task.custom_make_ready_minutes) : '');
+    const [speed, setSpeed]   = useState(task.custom_speed != null ? String(task.custom_speed) : '');
+    const [unit, setUnit]     = useState(initialUnit);
+    const [calcQty, setCalcQty] = useState(getInitialQty(initialUnit));
+    const [estimatedMins, setEstimatedMins] = useState(task.estimated_minutes || 0);
+    const [saving, setSaving] = useState(false);
+
+    const modeColor = {
+        offset: G.warning, digital: G.purple, finishing: G.success,
+        prepress: '#38bdf8', default: G.muted
+    };
+    const accentColor = modeColor[(machine?.type || '').toLowerCase()] || modeColor.default;
+
+    const statusLabel = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' };
+    const statusColor = { pending: G.dim, in_progress: G.warning, done: G.success };
+
+    const handleCalculate = () => {
+        const defaultQty = unit.toLowerCase() === 'impressions/hr'
+            ? (task.impression_count != null ? task.impression_count : task.quantity)
+            : (task.sheet_count != null ? task.sheet_count : task.quantity);
+        const q = parseFloat(calcQty !== '' ? calcQty : defaultQty) || 0;
+        const s = parseFloat(speed !== '' ? speed : defaultSpeed) || 0;
+        const t = parseFloat(setupMin !== '' ? setupMin : defaultSetup) || 0;
+
+        if (q && s > 0) {
+            const runMins = Math.ceil((q / s) * 60);
+            setEstimatedMins(runMins + t);
+        } else if (t) {
+            setEstimatedMins(t);
+        } else {
+            setEstimatedMins(0);
+        }
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        const payload = {
+            custom_make_ready_minutes: setupMin !== '' ? parseInt(setupMin) : null,
+            custom_speed: speed !== '' ? parseFloat(speed) : null,
+            custom_speed_unit: speed !== '' ? unit : null,
+            estimated_minutes: estimatedMins,
+        };
+        if (calcQty !== '') {
+            const numQty = parseFloat(calcQty);
+            payload.quantity = numQty;
+            if (unit.toLowerCase() === 'impressions/hr') {
+                payload.impression_count = numQty;
+            } else {
+                payload.sheet_count = numQty;
+            }
+        }
+        await onSave(task.id, order?.id, payload);
+        setSaving(false);
+        onClose();
+    };
+
+    const handleReset = async () => {
+        setSaving(true);
+        setSetupMin(''); setSpeed(''); setUnit(defaultUnit);
+        setCalcQty(getInitialQty(defaultUnit));
+        setEstimatedMins(task.estimated_minutes || 0);
+        await onSave(task.id, order?.id, {
+            custom_make_ready_minutes: null,
+            custom_speed: null,
+            custom_speed_unit: null,
+            estimated_minutes: task.estimated_minutes,
+            quantity: task.quantity,
+            sheet_count: task.sheet_count,
+            impression_count: task.impression_count,
+        });
+        setSaving(false);
+        onClose();
+    };
+
+    const inp = {
+        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+        color: '#fff', borderRadius: 8, padding: '8px 11px', fontSize: 12,
+        outline: 'none', width: '100%', boxSizing: 'border-box',
+    };
+    const lbl = { fontSize: 10, color: G.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block' };
+    const card = {
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 10, padding: '12px 14px',
+    };
+
+    return (
+        <div 
+            className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" 
+            onClick={onClose}
+        >
+            <div 
+                className="bg-black/40 backdrop-blur-lg border border-white/12 rounded-[18px] w-full max-w-[680px] max-h-[90vh] overflow-y-auto shadow-[0_32px_80px_rgba(0,0,0,0.95)]"
+                style={{ borderTop: `3px solid ${accentColor}` }} 
+                onClick={e => e.stopPropagation()}
+            >
+
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span
+                                className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border"
+                                style={{
+                                    backgroundColor: `${accentColor}18`,
+                                    color: accentColor,
+                                    borderColor: `${accentColor}33`
+                                }}
+                            >
+                                {machine?.type || 'Task'}
+                            </span>
+                            <span
+                                className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border tracking-wider"
+                                style={{
+                                    backgroundColor: `${statusColor[task.status] || G.dim}18`,
+                                    color: statusColor[task.status] || G.dim,
+                                    borderColor: `${statusColor[task.status] || G.dim}33`
+                                }}
+                            >
+                                {statusLabel[task.status] || task.status}
+                            </span>
+                            {(task.custom_speed || task.custom_make_ready_minutes) && (
+                                <span className="text-[9px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 inline-flex items-center gap-0.5">
+                                    <FiZap className="w-2.5 h-2.5" /> Custom Override Active
+                                </span>
+                            )}
+                        </div>
+                        <h2 className="m-0 text-base font-extrabold text-[#f1f5f9] leading-snug">{task.name}</h2>
+                        {task.description && <p className="m-0 mt-1 text-xs text-gray-400 leading-normal">{task.description}</p>}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg transition-all flex-shrink-0 ml-3"
+                    >
+                        <FiX className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-6 flex flex-col gap-4 overflow-y-auto max-h-[75vh]">
+
+                    {/* Job Info */}
+                    {order && (
+                        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                            <div className="text-[10px]  font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1">
+                                <FiPackage className="w-3.5 h-3.5" /> Job Information
+                            </div>
+                            <div className="grid grid-cols-2 gap-3.5">
+                                {[
+                                    ['Job Code', order.code || '—'],
+                                    ['Job Name', order.estimation_names || '—'],
+                                    ['Customer', order.customer_name || '—'],
+                                    ['Status', order.status || '—'],
+                                    ['Delivery', order.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : '—'],
+                                    ['Scheduled', task.scheduled_date ? new Date(task.scheduled_date).toLocaleDateString() : 'Unplanned'],
+                                ].map(([k, v]) => (
+                                    <div key={k}>
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{k}</span>
+                                        <div className="text-xs text-gray-300 font-semibold mt-0.5">{v}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Machine Specs */}
+                    {machine && (
+                        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                            <div
+                                className="text-[10px] font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1"
+                                style={{  }}
+                            >
+                                <FiSettings className="w-3.5 h-3.5" /> Machine Specs — {machine.name}
+                            </div>
+                            <div className="grid grid-cols-3 gap-3.5">
+                                {[
+                                    ['Default Speed', defaultSpeed ? `${defaultSpeed} ${defaultUnit}` : '—'],
+                                    ['Setup Time', defaultSetup ? `${defaultSetup} min` : '—'],
+                                    ['Shift Limit', `${machine.shift_limit || 8} hrs`],
+                                    ['Sheet Factor', machine.sheet_factor || '—'],
+                                    ['Assigned To', machine.assigned_employee_name || machine.assigned_team_name || '—'],
+                                    ['Quantity', task.quantity ? task.quantity.toLocaleString() : '—'],
+                                ].map(([k, v]) => (
+                                    <div key={k}>
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{k}</span>
+                                        <div className="text-xs text-gray-300 font-semibold mt-0.5">{v}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Custom Overrides */}
+                    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 border-purple-500/20">
+                        <div className="text-[10px]  font-bold uppercase tracking-wider mb-3 flex items-center gap-1">
+                            <FiZap className="w-3.5 h-3.5" /> Custom Overrides
+                            <span className="text-[9px] text-gray-500 font-normal lowercase tracking-normal ml-2">(leave blank to use defaults)</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-3.5">
+                            <div>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Run Qty</label>
+                                <input
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    type="number"
+                                    min="0"
+                                    placeholder={String(unit.toLowerCase() === 'impressions/hr' ? (task.impression_count != null ? task.impression_count : (task.quantity || 0)) : (task.sheet_count != null ? task.sheet_count : (task.quantity || 0)))}
+                                    value={calcQty}
+                                    onChange={e => setCalcQty(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Setup Time (min)</label>
+                                <input
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    type="number"
+                                    min="0"
+                                    placeholder={`Default: ${defaultSetup || 0}`}
+                                    value={setupMin}
+                                    onChange={e => setSetupMin(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Machine Speed</label>
+                                <input
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    type="number"
+                                    min="1"
+                                    placeholder={`Default: ${defaultSpeed || '—'}`}
+                                    value={speed}
+                                    onChange={e => setSpeed(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Speed Unit</label>
+                                <select
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark] cursor-pointer"
+                                    value={unit}
+                                    onChange={e => {
+                                        const newUnit = e.target.value;
+                                        setUnit(newUnit);
+                                        setCalcQty(getInitialQty(newUnit));
+                                    }}
+                                >
+                                    {['Sheets/Hr','Impressions/Hr','Copies/Hr','Pcs/Hr','m²/Hr','Meters/Hr','Units/Hr','Min/Job'].map(u => (
+                                        <option key={u} value={u}>{u}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Estimated Time Result */}
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                            <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <FiClock className="w-3.5 h-3.5" /> Estimated Time
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                                <input
+                                    type="number"
+                                    className="bg-transparent text-2xl font-black text-white w-20 focus:outline-none border-b border-white/20 focus:border-white/50 text-center"
+                                    value={estimatedMins}
+                                    onChange={e => setEstimatedMins(parseInt(e.target.value) || 0)}
+                                />
+                                <span className="text-xs text-gray-400 font-normal">min</span>
+                                <span className="text-xs text-gray-500 font-normal ml-2">({Math.round((estimatedMins / 60) * 10) / 10} hrs)</span>
+                                
+                                <button
+                                    type="button"
+                                    onClick={handleCalculate}
+                                    className="ml-4 px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30 hover:border-emerald-500/50 rounded-md text-xs font-bold transition-all flex items-center gap-1"
+                                >
+                                    <FiZap className="w-3.5 h-3.5" /> Calculate
+                                </button>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Original Est.</div>
+                            <div className="text-sm font-bold text-gray-400">{task.estimated_minutes || 0}m</div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 justify-end pt-2 border-t border-white/5">
+                        {(task.custom_speed || task.custom_make_ready_minutes) && (
+                            <button
+                                onClick={handleReset}
+                                disabled={saving}
+                                className="px-4 py-2 border border-red-500/25 bg-red-500/5 hover:bg-red-500/10 text-red-300 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                            >
+                                Reset to Defaults
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 border border-white/10 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            style={{
+                                    backgroundColor: `${accentColor}`,
+                                    borderColor: `${accentColor}33`
+                                }}
+                            className="px-5 py-2  text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                        >
+                            {saving ? 'Saving…' : 'Apply & Save'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Days Columns ─────────────────────────────────────────────────────────
-function DayColumn({ id, title, label, tasks, orderLookup, onUpdateTask, accent, capacityMins = 480 }) {
+function DayColumn({ id, title, label, tasks, orderLookup, onUpdateTask, onTaskClick, accent, capacityMins = 480 }) {
     const { setNodeRef, isOver } = useDroppable({ id });
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
     
     const isOverloaded = totalMins > capacityMins;
-    const badgeColor = isOverloaded ? G.danger : totalMins > 0 ? '#34d399' : G.dim;
-    const badgeBg = isOverloaded ? 'rgba(239,68,68,0.1)' : totalMins > 0 ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.03)';
-
+    
     return (
-        <div style={{
-            background: isOver ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
-            backdropFilter: 'blur(20px)',
-            borderLeft: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderRight: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderBottom: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderTop: `2px solid ${isOverloaded ? G.danger : accent}`,
-            borderRadius: 14,
-            padding: 10,
-            transition: 'all 0.2s',
-            boxShadow: isOver ? `0 0 16px ${accent}15` : 'none',
-            minWidth: 220, width: 220, flexShrink: 0,
-            display: 'flex', flexDirection: 'column', minHeight: 450
-        }}>
-            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+            className={`backdrop-blur-md rounded-2xl p-3.5 transition-all w-[230px] flex-shrink-0 flex flex-col min-h-[480px] border border-white/15 border-t-[3px] ${
+                isOver ? 'bg-white/[0.06] border-white/30' : 'bg-white/[0.01]'
+            }`}
+            style={{
+                borderTopColor: isOverloaded ? '#ef4444' : accent,
+                boxShadow: isOver ? `${accent}15 0px 0px 16px` : 'none'
+            }}
+        >
+            <div className="mb-3 flex justify-between items-center">
                 <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: G.text }}>{title}</div>
-                    <div style={{ fontSize: 9, color: G.dim }}>{label}</div>
+                    <div className="font-extrabold text-[12px] text-white leading-tight">{title}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">{label}</div>
                 </div>
-                <div style={{
-                    fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 20,
-                    background: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}22`
-                }}>
+                <div
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        isOverloaded
+                            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                            : totalMins > 0
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-white/5 text-gray-500 border-transparent'
+                    }`}
+                >
                     {totalHrs}h
                 </div>
             </div>
 
-            <div ref={setNodeRef} style={{
-                flex: 1, borderRadius: 8,
-                padding: isOver ? 2 : 0,
-                background: isOver ? 'rgba(255,255,255,0.01)' : 'transparent',
-                border: isOver ? `1px dashed ${accent}33` : '1px dashed transparent',
-                transition: 'all 0.2s',
-                minHeight: 120
-            }}>
+            <div
+                ref={setNodeRef}
+                className={`flex-1 rounded-xl p-1 transition-all min-h-[140px] ${
+                    isOver ? 'bg-white/[0.01] border border-dashed border-white/20' : 'border border-dashed border-transparent'
+                }`}
+            >
                 <SortableContext items={tasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
                     {tasks.length === 0 ? (
-                        <div style={{ padding: '30px 8px', textAlign: 'center', color: G.dim, fontSize: 10, fontStyle: 'italic' }}>
-                            No tasks
+                        <div className="py-10 text-center text-[11px] text-gray-500 italic">
+                            No tasks scheduled
                         </div>
                     ) : (
                         tasks.map(t => (
@@ -268,6 +574,7 @@ function DayColumn({ id, title, label, tasks, orderLookup, onUpdateTask, accent,
                                 task={t}
                                 order={orderLookup(t)}
                                 onUpdateTask={onUpdateTask}
+                                onTaskClick={onTaskClick}
                                 accent={accent}
                             />
                         ))
@@ -279,49 +586,39 @@ function DayColumn({ id, title, label, tasks, orderLookup, onUpdateTask, accent,
 }
 
 // ── Unplanned Queue Column ────────────────────────────────────────────────
-function UnplannedColumn({ id, tasks, orderLookup, onUpdateTask, accent }) {
+function UnplannedColumn({ id, tasks, orderLookup, onUpdateTask, onTaskClick, accent }) {
     const { setNodeRef, isOver } = useDroppable({ id });
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
 
     return (
-        <div style={{
-            background: isOver ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
-            backdropFilter: 'blur(20px)',
-            borderLeft: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderRight: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderBottom: `1px solid ${isOver ? accent + '44' : G.border}`,
-            borderTop: `2px solid ${G.dim}`,
-            borderRadius: 14,
-            padding: 10,
-            transition: 'all 0.2s',
-            minWidth: 220, width: 220, flexShrink: 0,
-            display: 'flex', flexDirection: 'column', minHeight: 450
-        }}>
-            <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+            className={`backdrop-blur-md rounded-2xl p-3.5 transition-all w-[230px] flex-shrink-0 flex flex-col min-h-[480px] border border-white/15 border-t-[3px] border-t-gray-500 ${
+                isOver ? 'bg-white/[0.06] border-white/30' : 'bg-white/[0.01]'
+            }`}
+            style={{
+                boxShadow: isOver ? `${accent}15 0px 0px 16px` : 'none'
+            }}
+        >
+            <div className="mb-3 flex justify-between items-center">
                 <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: G.text }}>Unplanned Queue</div>
-                    <div style={{ fontSize: 9, color: G.dim }}>Machine backlog</div>
+                    <div className="font-extrabold text-[12px] text-white leading-tight">Unplanned Queue</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Machine backlog</div>
                 </div>
-                <div style={{
-                    fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 20,
-                    background: 'rgba(255,255,255,0.03)', color: G.dim, border: `1px solid ${G.border}`
-                }}>
+                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
                     {totalHrs}h
                 </div>
             </div>
 
-            <div ref={setNodeRef} style={{
-                flex: 1, borderRadius: 8,
-                padding: isOver ? 2 : 0,
-                background: isOver ? 'rgba(255,255,255,0.01)' : 'transparent',
-                border: isOver ? `1px dashed ${accent}33` : '1px dashed transparent',
-                transition: 'all 0.2s',
-                minHeight: 120
-            }}>
+            <div
+                ref={setNodeRef}
+                className={`flex-1 rounded-xl p-1 transition-all min-h-[140px] ${
+                    isOver ? 'bg-white/[0.01] border border-dashed border-white/20' : 'border border-dashed border-transparent'
+                }`}
+            >
                 <SortableContext items={tasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
                     {tasks.length === 0 ? (
-                        <div style={{ padding: '30px 8px', textAlign: 'center', color: G.dim, fontSize: 10, fontStyle: 'italic' }}>
+                        <div className="py-10 text-center text-[11px] text-gray-500 italic">
                             Empty Queue
                         </div>
                     ) : (
@@ -331,7 +628,8 @@ function UnplannedColumn({ id, tasks, orderLookup, onUpdateTask, accent }) {
                                 task={t}
                                 order={orderLookup(t)}
                                 onUpdateTask={onUpdateTask}
-                                accent={G.dim}
+                                onTaskClick={onTaskClick}
+                                accent="#64748b"
                             />
                         ))
                     )}
@@ -353,6 +651,7 @@ export default function MachinePlanning({ machines, orders }) {
     });
 
     const [activeTask, setActiveTask] = useState(null);
+    const [selectedTaskModal, setSelectedTaskModal] = useState(null); // { task, order }
     const [showReport, setShowReport] = useState(true);
     const [showUnassigned, setShowUnassigned] = useState(false);
     const [collapsedCategories, setCollapsedCategories] = useState({
@@ -435,6 +734,7 @@ export default function MachinePlanning({ machines, orders }) {
                     }
                 }
             } else if (t.machine_id === null) {
+                // No machine — show all such tasks (finishings, manual tasks, etc.)
                 const isCompletedOrCancelled = ['delivered', 'cancelled', 'completed', 'ready'].includes(String(o.status || '').toLowerCase());
                 if (!isCompletedOrCancelled) {
                     unassignedTasks.push(t);
@@ -716,6 +1016,19 @@ export default function MachinePlanning({ machines, orders }) {
     const completedMins = scheduledWeekTasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const completionRate = totalTasksPlanned > 0 ? Math.round((completedTasks / totalTasksPlanned) * 100) : 0;
 
+    // Task Modal handlers
+    const handleTaskClick = (task, order) => {
+        setSelectedTaskModal({ task, order });
+    };
+    const handleTaskModalSave = async (taskId, orderId, fields) => {
+        await handleUpdateTask(taskId, orderId, fields);
+    };
+    const handleCloseModal = () => setSelectedTaskModal(null);
+
+    // Capacity: use machine shift_limit (default 8h)
+    const shiftLimitHrs = selectedMachine?.shift_limit || 8;
+    const shiftCapacityMins = shiftLimitHrs * 60;
+
     const machineAccent = selectedMachine?.type?.toLowerCase() === 'digital' ? G.purple : selectedMachine?.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
 
     return (
@@ -828,25 +1141,12 @@ export default function MachinePlanning({ machines, orders }) {
             )}
 
             {/* ─── SCREEN LAYOUT ─── */}
-            <div className="no-print" style={{ display: 'flex', gap: 24, minHeight: '80vh' }}>
+            <div className="no-print flex flex-col lg:flex-row gap-6 min-h-[80vh]">
                 
                 {/* 1. Left Sidebar Machine Selector & Unassigned List */}
-                <div style={{
-                    width: 250,
-                    background: G.glass,
-                    backdropFilter: 'blur(16px)',
-                    border: `1px solid ${G.border}`,
-                    borderRadius: 14,
-                    padding: 16,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 20,
-                    height: 'fit-content',
-                    maxHeight: '100vh',
-                    overflowY: 'auto'
-                }}>
+                <div className="w-full lg:w-[250px] bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-5 h-fit max-h-[90vh] overflow-y-auto">
                     <div>
-                        <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: G.dim, letterSpacing: 0.8, marginBottom: 12 }}>
+                        <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-gray-500 mb-3">
                             Machines
                         </h3>
                         {['prepress', 'offset', 'digital', 'finishing'].map(type => {
@@ -854,49 +1154,31 @@ export default function MachinePlanning({ machines, orders }) {
                             if (typeMachines.length === 0) return null;
                             const isCollapsed = collapsedCategories[type];
                             return (
-                                <div key={type} style={{ marginBottom: 14 }}>
+                                <div key={type} className="mb-3.5">
                                     <div 
                                         onClick={() => toggleCategory(type)}
-                                        style={{ 
-                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                            fontSize: 9.5, fontWeight: 700, color: G.muted, textTransform: 'uppercase', 
-                                            marginBottom: 5, letterSpacing: 0.4, cursor: 'pointer', userSelect: 'none'
-                                        }}
+                                        className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 cursor-pointer select-none"
                                     >
                                         <span>{type}</span>
-                                        {isCollapsed ? <FiChevronRight style={{ fontSize: 10 }} /> : <FiChevronDown style={{ fontSize: 10 }} />}
+                                        {isCollapsed ? <FiChevronRight className="w-2.5 h-2.5" /> : <FiChevronDown className="w-2.5 h-2.5" />}
                                     </div>
                                     {!isCollapsed && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        <div className="flex flex-col gap-0.5">
                                             {typeMachines.map(m => {
                                                 const isSelected = activeMachineId === m.id;
-                                                // Task count for this machine in current week
-                                                const mTasksCount = localOrders.reduce((sum, o) => {
-                                                    return sum + (o.tasks || []).filter(t => t.machine_id === m.id).length;
-                                                }, 0);
-
                                                 return (
                                                     <button
                                                         key={m.id}
                                                         onClick={() => setActiveMachineId(m.id)}
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                                            padding: '7px 9px', borderRadius: 8, border: 'none',
-                                                            background: isSelected ? 'rgba(255,255,255,0.08)' : 'transparent',
-                                                            color: isSelected ? '#fff' : G.muted,
-                                                            cursor: 'pointer', textAlign: 'left', fontSize: 11.5,
-                                                            transition: 'all 0.15s',
-                                                        }}
+                                                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all ${
+                                                            isSelected
+                                                                ? 'bg-white/[0.08] text-white font-semibold'
+                                                                : 'text-gray-400 hover:text-white bg-transparent'
+                                                        }`}
                                                     >
-                                                        <span style={{ fontWeight: isSelected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        <span className="truncate block pr-2">
                                                             {m.name}
                                                         </span>
-                                                        {/* {mTasksCount > 0 && (
-                                                            <span style={{
-                                                                fontSize: 8.5, background: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
-                                                                padding: '1px 5px', borderRadius: 10, color: isSelected ? '#fff' : G.dim
-                                                            }}>{mTasksCount}</span>
-                                                        )} */}
                                                     </button>
                                                 );
                                             })}
@@ -908,62 +1190,35 @@ export default function MachinePlanning({ machines, orders }) {
                     </div>
 
                     {!showUnassigned ? (
-                        <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column' }}>
+                        <div className="border-t border-white/10 pt-3.5 flex flex-col">
                             <button
                                 onClick={() => setShowUnassigned(true)}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 10px',
-                                    background: 'rgba(239, 68, 68, 0.05)',
-                                    border: '1px solid rgba(239, 68, 68, 0.15)',
-                                    borderRadius: 10,
-                                    color: '#fca5a5',
-                                    cursor: 'pointer',
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    textAlign: 'center',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: 0.6,
-                                    transition: 'all 0.15s'
-                                }}
+                                className="w-full py-2 bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 text-red-300 rounded-lg text-[10px] font-extrabold text-center uppercase tracking-wider transition-all"
                             >
                                 Show Unassigned ({unassignedTasks.length})
                             </button>
                         </div>
                     ) : (
-                        <div style={{ borderTop: `1px solid ${G.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', minHeight: 180 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                <h3 style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: G.danger, letterSpacing: 0.8, margin: 0 }}>
+                        <div className="border-t border-white/10 pt-3.5 flex flex-col min-h-[180px]">
+                            <div className="flex justify-between items-center mb-1">
+                                <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-red-400 m-0">
                                     Unassigned ({unassignedTasks.length})
                                 </h3>
                                 <button
                                     onClick={() => setShowUnassigned(false)}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: G.dim,
-                                        fontSize: 9.5,
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: 0.4
-                                    }}
+                                    className="background-none border-none text-gray-500 hover:text-white text-[9px] font-bold uppercase tracking-wider transition-colors"
                                 >
                                     Hide
                                 </button>
                             </div>
-                            <p style={{ fontSize: 9, color: G.dim, margin: '0 0 8px 0' }}>
+                            <p className="text-[9.5px] text-gray-500 m-0 mb-2">
                                 Drag to schedule
                             </p>
-                            <div style={{
-                                flex: 1, overflowY: 'auto',
-                                background: 'rgba(239,68,68,0.01)', borderRadius: 10, border: '1px dashed rgba(239,68,68,0.12)',
-                                padding: 6, minHeight: 120, maxHeight: 300
-                            }}>
+                            <div className="flex-1 overflow-y-auto bg-red-500/[0.01] rounded-xl border border-dashed border-red-500/15 p-2 min-h-[120px] max-h-[300px]">
                                 <DroppableContainer id="unassigned" style={{ minHeight: '100%' }}>
                                     <SortableContext items={unassignedTasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
                                         {unassignedTasks.length === 0 ? (
-                                            <div style={{ fontSize: 9.5, color: G.dim, textAlign: 'center', padding: '30px 0', fontStyle: 'italic' }}>
+                                            <div className="text-[10px] text-gray-500 text-center py-8 italic">
                                                 No unassigned tasks
                                             </div>
                                         ) : (
@@ -973,7 +1228,8 @@ export default function MachinePlanning({ machines, orders }) {
                                                     task={t}
                                                     order={getOrder(t)}
                                                     onUpdateTask={handleUpdateTask}
-                                                    accent={G.danger}
+                                                    onTaskClick={handleTaskClick}
+                                                    accent="#ef4444"
                                                 />
                                             ))
                                         )}
@@ -985,44 +1241,37 @@ export default function MachinePlanning({ machines, orders }) {
                 </div>
 
                 {/* 2. Main Planner Area */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+                <div className="flex-1 flex flex-col gap-4.5 min-w-0">
                     
                     {/* Header toolbar */}
                     {selectedMachine && (
-                        <div style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            background: G.glass, backdropFilter: 'blur(12px)',
-                            border: `1px solid ${G.border}`, borderRadius: 14,
-                            padding: '12px 18px', flexWrap: 'wrap', gap: 10
-                        }}>
+                        <div className="flex flex-wrap justify-between items-center bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 gap-3">
                             <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <h2 style={{ fontSize: 16, fontWeight: 800, color: G.text, margin: 0 }}>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h2 className="text-base font-extrabold text-white m-0">
                                         {selectedMachine.name}
                                     </h2>
-                                    <span style={{
-                                        fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                                        background: `${machineAccent}18`, color: machineAccent, border: `1px solid ${machineAccent}33`,
-                                        textTransform: 'uppercase'
-                                    }}>{selectedMachine.type}</span>
+                                    <span
+                                        className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border uppercase"
+                                        style={{
+                                            backgroundColor: `${machineAccent}18`,
+                                            color: machineAccent,
+                                            borderColor: `${machineAccent}33`
+                                        }}
+                                    >
+                                        {selectedMachine.type}
+                                    </span>
                                     
                                     <a
                                         href={`/machines/${selectedMachine.id}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        style={{
-                                            fontSize: 9.5, color: G.muted, textDecoration: 'none',
-                                            display: 'flex', alignItems: 'center', gap: 4,
-                                            padding: '2px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.04)',
-                                            border: `1px solid ${G.border}`, transition: 'all 0.15s'
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                                        onMouseLeave={e => e.currentTarget.style.color = G.muted}
+                                        className="text-[9.5px] text-gray-400 hover:text-white bg-white/5 border border-white/10 hover:border-white/20 px-2 py-1 rounded transition-all flex items-center gap-1"
                                     >
                                         Live Tracker ↗
                                     </a>
                                 </div>
-                                <p style={{ fontSize: 11, color: G.muted, margin: '2px 0 0 0' }}>
+                                <p className="text-xs text-gray-400 m-0 mt-0.5">
                                     Schedule &amp; track weekly tasks and machine reports
                                 </p>
                             </div>
@@ -1115,72 +1364,58 @@ export default function MachinePlanning({ machines, orders }) {
 
                     {/* Report Panel */}
                     {showReport && selectedMachine && (
-                        <div style={{
-                            background: G.glass, backdropFilter: 'blur(16px)',
-                            border: `1px solid ${G.border}`, borderRadius: 14,
-                            padding: 16, display: 'flex', flexDirection: 'column', gap: 12
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <FiTrendingUp style={{ color: G.purple, fontSize: 13 }} />
-                                <h3 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#fff', margin: 0, letterSpacing: 0.6 }}>
+                        <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+                            <div className="flex items-center gap-1.5">
+                                <FiTrendingUp className="text-purple-400 w-4 h-4" />
+                                <h3 className="text-xs font-extrabold uppercase tracking-wider text-white m-0">
                                     Machine Weekly Report &amp; Capacity
                                 </h3>
                             </div>
 
-                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                            <div className="flex flex-col md:flex-row gap-4">
                                 {/* Stat block */}
-                                <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 280 }}>
-                                    <div style={{
-                                        flex: 1, background: 'rgba(255,255,255,0.02)', border: `1px solid ${G.border}`,
-                                        padding: '10px 14px', borderRadius: 10, display: 'flex', flexDirection: 'column'
-                                    }}>
-                                        <span style={{ fontSize: 9, color: G.dim, textTransform: 'uppercase', letterSpacing: 0.5 }}>Weekly Load</span>
-                                        <span style={{ fontSize: 18, fontWeight: 800, marginTop: 2, color: '#fff' }}>
-                                            {totalTasksPlanned} <span style={{ fontSize: 11, fontWeight: 400, color: G.muted }}>tasks</span>
+                                <div className="flex gap-2 flex-1 min-w-[280px]">
+                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Weekly Load</span>
+                                        <span className="text-lg font-black text-white mt-1">
+                                            {totalTasksPlanned} <span className="text-xs font-normal text-gray-400">tasks</span>
                                         </span>
-                                        <span style={{ fontSize: 10.5, color: G.muted, marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <FiClock style={{ fontSize: 10 }} />
+                                        <span className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
+                                            <FiClock className="w-3 h-3" />
                                             {Math.round((totalEstimatedMins/60)*10)/10} hours scheduled
                                         </span>
                                     </div>
 
-                                    <div style={{
-                                        flex: 1, background: 'rgba(255,255,255,0.02)', border: `1px solid ${G.border}`,
-                                        padding: '10px 14px', borderRadius: 10, display: 'flex', flexDirection: 'column'
-                                    }}>
-                                        <span style={{ fontSize: 9, color: G.dim, textTransform: 'uppercase', letterSpacing: 0.5 }}>Completed</span>
-                                        <span style={{ fontSize: 18, fontWeight: 800, marginTop: 2, color: G.success }}>
+                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Completed</span>
+                                        <span className="text-lg font-black text-emerald-400 mt-1">
                                             {completionRate}%
                                         </span>
-                                        <span style={{ fontSize: 10.5, color: G.muted, marginTop: 1 }}>
+                                        <span className="text-[10px] text-gray-400 mt-1.5">
                                             {completedTasks} of {totalTasksPlanned} tasks done
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Daily bar chart */}
-                                <div style={{
-                                    flex: 2, minWidth: 350, background: 'rgba(255,255,255,0.01)', border: `1px solid ${G.border}`,
-                                    padding: '10px 16px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 6
-                                }}>
-                                    <span style={{ fontSize: 9, color: G.dim, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Daily Capacity Load (8h shift limit)</span>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-2.5">
+                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">Daily Capacity Load ({shiftLimitHrs}h shift)</span>
+                                    <div className="flex flex-col gap-2">
                                         {weekDays.map(day => {
                                             const dayTasks = dailyTasksMap[day.dateStr] || [];
                                             const mins = dayTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
                                             const hrs = Math.round((mins / 60) * 10) / 10;
-                                            const pct = Math.min(100, Math.round((mins / 480) * 100));
-                                            
-                                            const barColor = mins > 480 ? G.danger : mins > 0 ? '#34d399' : 'rgba(255,255,255,0.1)';
+                                            const pct = Math.min(100, Math.round((mins / shiftCapacityMins) * 100));
+                                            const barColor = mins > shiftCapacityMins ? '#ef4444' : mins > 0 ? '#10b981' : 'rgba(255,255,255,0.06)';
 
                                             return (
-                                                <div key={day.dateStr} style={{ display: 'flex', alignItems: 'center', fontSize: 10.5 }}>
-                                                    <span style={{ width: 65, color: G.muted, fontWeight: 500 }}>{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
-                                                    <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 3, margin: '0 10px', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width 0.3s' }} />
+                                                <div key={day.dateStr} className="flex items-center text-[10px] leading-none">
+                                                    <span className="w-16 text-gray-400 font-medium">{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
+                                                    <div className="flex-1 h-1.5 bg-white/5 rounded-full mx-2.5 overflow-hidden">
+                                                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, backgroundColor: barColor }} />
                                                     </div>
-                                                    <span style={{ width: 85, textAlign: 'right', color: mins > 480 ? G.danger : G.text, fontWeight: mins > 0 ? 600 : 400 }}>
-                                                        {hrs}h / 8h {pct > 0 && `(${pct}%)`}
+                                                    <span className={`w-20 text-right font-medium ${mins > shiftCapacityMins ? 'text-red-400 font-bold' : mins > 0 ? 'text-white' : 'text-gray-500'}`}>
+                                                        {hrs}h / {shiftLimitHrs}h {pct > 0 && `(${pct}%)`}
                                                     </span>
                                                 </div>
                                             );
@@ -1193,16 +1428,14 @@ export default function MachinePlanning({ machines, orders }) {
 
                     {/* Columns grid */}
                     {selectedMachine ? (
-                        <div style={{
-                            display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16,
-                            scrollSnapType: 'x mandatory'
-                        }}>
+                        <div className="flex gap-3 overflow-x-auto pb-4 scroll-smooth">
                             {/* 1. Unplanned Queue lane */}
                             <UnplannedColumn
                                 id="unplanned"
                                 tasks={unplannedTasks}
                                 orderLookup={getOrder}
                                 onUpdateTask={handleUpdateTask}
+                                onTaskClick={handleTaskClick}
                                 accent={machineAccent}
                             />
 
@@ -1216,17 +1449,16 @@ export default function MachinePlanning({ machines, orders }) {
                                     tasks={dailyTasksMap[day.dateStr] || []}
                                     orderLookup={getOrder}
                                     onUpdateTask={handleUpdateTask}
+                                    onTaskClick={handleTaskClick}
                                     accent={machineAccent}
+                                    capacityMins={shiftCapacityMins}
                                 />
                             ))}
                         </div>
                     ) : (
-                        <div style={{
-                            textAlign: 'center', padding: '60px 24px',
-                            background: G.glass, border: `1px dashed ${G.border}`, borderRadius: 14,
-                        }}>
-                            <p style={{ fontSize: 28, marginBottom: 8 }}>🖨️</p>
-                            <p style={{ color: G.subtle, fontSize: 13 }}>No machine selected or available.</p>
+                        <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
+                            <p className="text-3xl mb-2">🖨️</p>
+                            <p className="text-gray-400 text-xs">No machine selected or available.</p>
                         </div>
                     )}
                 </div>
@@ -1235,23 +1467,29 @@ export default function MachinePlanning({ machines, orders }) {
             {/* Drag Overlay */}
             <DragOverlay>
                 {activeTask && (
-                    <div style={{
-                        background: 'rgba(10,10,20,0.97)', backdropFilter: 'blur(24px)',
-                        border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10,
-                        padding: '10px 14px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-                        width: 220, cursor: 'grabbing',
-                    }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#f1f5f9', margin: 0, lineHeight: 1.4 }}>
+                    <div className="bg-[#0a0a14]/95 backdrop-blur-md border border-white/20 rounded-xl p-3 shadow-2xl w-[220px] cursor-grabbing">
+                        <p className="text-xs font-bold text-gray-200 m-0 leading-snug">
                             {activeTask.name}
                         </p>
                         {getOrder(activeTask) && (
-                            <span style={{ fontSize: 9, color: '#f59e0b', fontWeight: 700, letterSpacing: 0.4 }}>
+                            <span className="text-[9.5px] text-amber-400 font-bold tracking-wider mt-1 block">
                                 {getOrder(activeTask).code} · {getOrder(activeTask).customer_name}
                             </span>
                         )}
                     </div>
                 )}
             </DragOverlay>
+
+            {/* Task Detail Modal */}
+            {selectedTaskModal && (
+                <TaskModal
+                    task={selectedTaskModal.task}
+                    order={selectedTaskModal.order}
+                    machine={machines.find(m => m.id === selectedTaskModal.task.machine_id) || selectedMachine}
+                    onClose={handleCloseModal}
+                    onSave={handleTaskModalSave}
+                />
+            )}
         </DndContext>
     );
 }
