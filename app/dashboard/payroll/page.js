@@ -14,6 +14,7 @@ import {
     getPaginationRowModel,
     flexRender
 } from '@tanstack/react-table';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 const MONTHS = [
@@ -52,6 +53,7 @@ export default function PayrollPage() {
     // Quick Config Local Changes State
     const [configChanges, setConfigChanges] = useState({}); // empId -> changes object
     const [columnFilters, setColumnFilters] = useState([]);
+    const [columnVisibility, setColumnVisibility] = useState({});
     const [exportingPdf, setExportingPdf] = useState(false);
 
     const handleExportPDF = async () => {
@@ -254,8 +256,10 @@ export default function PayrollPage() {
         columns,
         state: {
             columnFilters,
+            columnVisibility,
         },
         onColumnFiltersChange: setColumnFilters,
+        onColumnVisibilityChange: setColumnVisibility,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -538,7 +542,8 @@ export default function PayrollPage() {
             {/* TAB: RUNS (HISTORY) */}
             {tab === 'runs' && (
                 <div className="space-y-4">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-3">
+                        <ColumnToggle table={table} />
                         <button
                             onClick={handleExportPDF}
                             disabled={exportingPdf}

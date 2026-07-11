@@ -18,6 +18,14 @@ const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', da
 const EMPTY_TEAM = { name:'', description:'', color:'#6366f1', member_ids:[] };
 
 const statusColor = s => s==='active'?'text-emerald-400 bg-emerald-500/10 border-emerald-500/20':s==='on_leave'?'text-amber-400 bg-amber-500/10 border-amber-500/20':'text-gray-400 bg-gray-500/10 border-gray-500/20';
+
+const avatarColor = (name) => {
+  if (!name) return 'from-violet-500';
+  const h = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const cols = ['from-violet-500', 'from-blue-500', 'from-emerald-500', 'from-rose-500', 'from-amber-500', 'from-pink-500'];
+  return cols[h % cols.length];
+};
+
 function ColumnFilter({ column }) {
   const val = column.getFilterValue() ?? '';
   return (

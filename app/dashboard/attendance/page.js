@@ -11,9 +11,11 @@ import {
     useReactTable,
     getCoreRowModel,
     getSortedRowModel,
+    getFilteredRowModel,
     getPaginationRowModel,
     flexRender
 } from '@tanstack/react-table';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
 
 const statusDotColor = (status) => {
     if (status === 'Checked In') return 'bg-emerald-400 border-emerald-500/30 text-emerald-400';
@@ -136,6 +138,7 @@ export default function AttendancePage() {
     const [viewMode, setViewMode] = useState('card'); // 'card' or 'list'
     const [sorting, setSorting] = useState([]);
     const [columnFilters, setColumnFilters] = useState([]);
+    const [columnVisibility, setColumnVisibility] = useState({});
     const [exportingPdf, setExportingPdf] = useState(false);
 
     const handleExportPDF = async () => {
@@ -579,9 +582,11 @@ export default function AttendancePage() {
         state: {
             sorting,
             columnFilters,
+            columnVisibility,
         },
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
+        onColumnVisibilityChange: setColumnVisibility,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -686,6 +691,7 @@ export default function AttendancePage() {
                         >
                             <FiActivity className="w-4 h-4 text-emerald-400" /> Refresh Board
                         </button>
+                        {viewMode === 'list' && <ColumnToggle table={table} />}
                         <button
                             onClick={handleExportPDF}
                             disabled={exportingPdf}

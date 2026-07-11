@@ -20,6 +20,7 @@ import { useSettings } from '@/components/SettingsContext';
 import BulkUploadModal from '@/components/inventory/BulkUploadModal';
 import { BulkEditModal } from '@/components/ui/BulkEditModal';
 import BomEditor from './components/BomEditor';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
 
 const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics', 'BOM Waiting List'];
 const BOM_CATEGORIES = ['SFG', 'FG'];
@@ -48,6 +49,7 @@ export default function InventoryPage() {
     const [sorting, setSorting] = useState([]);
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState([]);
+    const [columnVisibility, setColumnVisibility] = useState({});
     const [exportingPdf, setExportingPdf] = useState(false);
 
     const handleExportPDF = async () => {
@@ -554,11 +556,12 @@ export default function InventoryPage() {
     const table = useReactTable({
         data: items,
         columns,
-        state: { globalFilter, sorting, rowSelection, columnFilters },
+        state: { globalFilter, sorting, rowSelection, columnFilters, columnVisibility },
         onGlobalFilterChange: setGlobalFilter,
         onSortingChange: setSorting,
         onRowSelectionChange: setRowSelection,
         onColumnFiltersChange: setColumnFilters,
+        onColumnVisibilityChange: setColumnVisibility,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -1010,6 +1013,7 @@ export default function InventoryPage() {
                                 className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-white/20" />
                         </div>
                         <div className="flex items-center gap-3">
+                            <ColumnToggle table={table} />
                             <button
                                 onClick={handleExportPDF}
                                 disabled={exportingPdf}
