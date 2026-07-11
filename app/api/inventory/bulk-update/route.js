@@ -3,8 +3,8 @@ import pool from '@/lib/db';
 
 /**
  * PUT /api/inventory/bulk-update
- * Body: { rows: [{id, name, type, unit_cost, min_stock, uom, description, is_active}] }
- * Note: stock_quantity is intentionally excluded — use Restock for stock changes.
+ * Body: { rows: [{id, name, type, stock_quantity, unit_cost, min_stock, uom, description, is_active}] }
+ * Note: stock_quantity is now included.
  */
 export async function PUT(req) {
     try {
@@ -34,13 +34,14 @@ export async function PUT(req) {
             try {
                 const [result] = await pool.execute(
                     `UPDATE inventory_items SET
-                        item_code=?, name=?, type=?, unit_cost=?, min_stock=?,
+                        item_code=?, name=?, type=?, stock_quantity=?, unit_cost=?, min_stock=?,
                         uom=?, description=?, is_active=?
                      WHERE id=?`,
                     [
                         row.item_code.trim(),
                         row.name.trim(),
                         row.type?.trim() || '',
+                        parseFloat(row.stock_quantity) || 0,
                         parseFloat(row.unit_cost) || 0,
                         parseInt(row.min_stock) || 0,
                         row.uom?.trim() || 'Unit',
