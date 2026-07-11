@@ -2,11 +2,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUsers, FiUserPlus, FiGrid, FiList, FiChevronUp, FiChevronDown, FiUpload, FiPenTool } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUsers, FiUserPlus, FiGrid, FiList, FiChevronUp, FiChevronDown, FiUpload, FiPenTool, FiDownload } from 'react-icons/fi';
 import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { BulkImportModal } from '@/components/ui/BulkImportModal';
 import { BulkEditModal } from '@/components/ui/BulkEditModal';
+import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 const SHIFTS = ['Day', 'Night', 'Flexible'];
 const STATUSES = ['active', 'on_leave', 'inactive'];
@@ -17,7 +18,18 @@ const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', da
 const EMPTY_TEAM = { name:'', description:'', color:'#6366f1', member_ids:[] };
 
 const statusColor = s => s==='active'?'text-emerald-400 bg-emerald-500/10 border-emerald-500/20':s==='on_leave'?'text-amber-400 bg-amber-500/10 border-amber-500/20':'text-gray-400 bg-gray-500/10 border-gray-500/20';
-const avatarColor = name => { const h=name.split('').reduce((a,c)=>a+c.charCodeAt(0),0); const cols=['from-violet-500','from-blue-500','from-emerald-500','from-rose-500','from-amber-500','from-pink-500']; return cols[h%cols.length]; };
+function ColumnFilter({ column }) {
+  const val = column.getFilterValue() ?? '';
+  return (
+    <input
+      value={val}
+      onChange={e => column.setFilterValue(e.target.value)}
+      placeholder="Filter…"
+      onClick={e => e.stopPropagation()}
+      className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30"
+    />
+  );
+}
 
 export default function EmployeesPage() {
   const [tab, setTab] = useState('employees');
@@ -30,7 +42,63 @@ export default function EmployeesPage() {
   const [viewMode, setViewMode] = useState('card');
   const [sorting, setSorting] = useState([]);
   const [columnVisibility, setColumnVisibility] = useState({});
+  const [columnFilters, setColumnFilters] = useState([]);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [showImport, setShowImport] = useState(false);
+
+  const handleExportPDF = async () => {
+    setExportingPdf(true);
+    try {
+      const visibleCols = table.getVisibleLeafColumns()
+        .filter(col => col.id !== 'select' && col.id !== 'actions')
+        .map(col => ({
+          key: col.id || col.columnDef.accessorKey,
+          header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+        }));
+
+      const filteredRows = table.getFilteredRowModel().rows.map(row => {
+        const emp = row.original;
+        return {
+          ...emp,
+          salary: emp.pay_type === 'monthly' ? `${emp.base_salary} /mo` : `${emp.hourly_rate} /hr`
+        };
+      });
+
+      const res = await fetch('/api/pdf/dynamic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Employees Directory Report',
+          subtitle: 'Exported Employees List (Customized & Filtered)',
+          columns: visibleCols,
+          rows: filteredRows,
+          currency: 'LKR'
+        })
+      });
+
+      if (!res.ok) {
+        toast.error('Failed to generate PDF');
+        setExportingPdf(false);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `employees_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('Export PDF error:', error);
+      toast.error('An error occurred while generating PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
   const [deleteProgress, setDeleteProgress] = useState(null);
@@ -226,8 +294,10 @@ export default function EmployeesPage() {
       }
     },
     {
-      accessorKey: 'salary',
+      id: 'salary',
+      accessorFn: row => row.base_salary || row.hourly_rate || 0,
       header: 'Compensation',
+      filterFn: numericOperatorFilterFn,
       cell: ({ row }) => {
         const emp = row.original;
         const formattedPay = emp.pay_type === 'monthly'
@@ -263,10 +333,11 @@ export default function EmployeesPage() {
   const table = useReactTable({
     data: filteredEmps,
     columns,
-    state: { sorting, columnVisibility, rowSelection },
+    state: { sorting, columnVisibility, rowSelection, columnFilters },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel()
@@ -348,6 +419,12 @@ export default function EmployeesPage() {
           )}
           {tab==='employees' && (
             <>
+              <button
+                onClick={handleExportPDF}
+                disabled={exportingPdf}
+                className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50">
+                <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+              </button>
               <button
                 onClick={() => setShowImport(true)}
                 className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer">
@@ -470,6 +547,7 @@ export default function EmployeesPage() {
                                 desc: <FiChevronDown className="w-3.5 h-3.5 text-white" />
                               }[header.column.getIsSorted()] ?? null)}
                             </div>
+                            {header.column.getCanFilter() && <ColumnFilter column={header.column} />}
                           </th>
                         ))}
                       </tr>

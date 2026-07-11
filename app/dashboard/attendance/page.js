@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { 
     FiUsers, FiCalendar, FiClock, FiPlus, FiSearch, 
     FiFilter, FiX, FiCheckCircle, FiActivity, FiArrowRight, FiTrash2,
-    FiGrid, FiList, FiChevronUp, FiChevronDown
+    FiGrid, FiList, FiChevronUp, FiChevronDown, FiDownload
 } from 'react-icons/fi';
 import {
     useReactTable,
@@ -115,6 +115,19 @@ const getTimelineSegments = (todayLogs, currentStatus) => {
     return segments;
 };
 
+function ColumnFilter({ column }) {
+    const val = column.getFilterValue() ?? '';
+    return (
+        <input 
+            value={val} 
+            onChange={e => column.setFilterValue(e.target.value)} 
+            placeholder="Filter…"
+            onClick={e => e.stopPropagation()}
+            className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30" 
+        />
+    );
+}
+
 export default function AttendancePage() {
     const [tab, setTab] = useState('status'); // 'status' or 'logs'
     const [statusData, setStatusData] = useState({ summary: {}, employees: [] });
@@ -122,6 +135,55 @@ export default function AttendancePage() {
     const [employeesList, setEmployeesList] = useState([]); // For manual log dropdown
     const [viewMode, setViewMode] = useState('card'); // 'card' or 'list'
     const [sorting, setSorting] = useState([]);
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleExportPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'timeline' && col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
+
+            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Biometric Attendance Report',
+                    subtitle: `Live Status - ${new Date().toLocaleDateString('en-GB')}`,
+                    columns: visibleCols,
+                    rows: filteredRows
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `attendance_status_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
     
     // Status filters
     const [statusSearch, setStatusSearch] = useState('');
@@ -516,10 +578,13 @@ export default function AttendancePage() {
         columns,
         state: {
             sorting,
+            columnFilters,
         },
         onSortingChange: setSorting,
+        onColumnFiltersChange: setColumnFilters,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         initialState: {
             pagination: {
@@ -620,6 +685,13 @@ export default function AttendancePage() {
                             className="px-4 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl text-sm transition-all flex items-center gap-2 cursor-pointer ml-auto sm:ml-0"
                         >
                             <FiActivity className="w-4 h-4 text-emerald-400" /> Refresh Board
+                        </button>
+                        <button
+                            onClick={handleExportPDF}
+                            disabled={exportingPdf}
+                            className="px-4 py-2.5 bg-black/30 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
                         </button>
                         
                         {/* View Mode Toggle */}
@@ -769,6 +841,7 @@ export default function AttendancePage() {
                                                                     }[header.column.getIsSorted()] || null
                                                                 )}
                                                             </div>
+                                                            {header.column.getCanFilter() && <ColumnFilter column={header.column} />}
                                                         </th>
                                                     );
                                                 })}

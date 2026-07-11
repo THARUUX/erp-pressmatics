@@ -39,6 +39,33 @@ function PagBtn({ children, onClick, disabled }) {
         </button>
     );
 }
+const numericOperatorFilterFn = (row, columnId, filterValue) => {
+    const value = parseFloat(row.getValue(columnId) || 0);
+    const filter = String(filterValue).trim();
+
+    // Match operators: >=, <=, >, <, !=, =, == followed by optional spaces and a number
+    const match = filter.match(/^([><=!]=?)\s*(-?\d+(\.\d+)?)$/);
+    if (match) {
+        const op = match[1];
+        const num = parseFloat(match[2]);
+        switch (op) {
+            case '>':  return value > num;
+            case '>=': return value >= num;
+            case '<':  return value < num;
+            case '<=': return value <= num;
+            case '!=': return value !== num;
+            case '=':
+            case '==': return value === num;
+            default:   return true;
+        }
+    }
+
+    // Default: text inclusion or numeric exact match
+    if (!isNaN(filter) && filter !== '') {
+        return value === parseFloat(filter);
+    }
+    return String(value).toLowerCase().includes(filter.toLowerCase());
+};
 
 export default function CustomersPage() {
     const { settings } = useSettings();
@@ -52,6 +79,56 @@ export default function CustomersPage() {
     const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
+    const [exportingPdf, setExportingPdf] = useState(false);
+    const [columnFilters, setColumnFilters] = useState([]);
+
+    const handleExportPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'select' && col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
+
+            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Customers Directory Report',
+                    subtitle: 'Exported Customer List (Customized & Filtered)',
+                    columns: visibleCols,
+                    rows: filteredRows,
+                    currency: currency
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `customers_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     const stats = useMemo(() => {
         const total = data.length;
@@ -145,6 +222,18 @@ export default function CustomersPage() {
             ),
         },
         {
+            accessorKey: 'outstanding', header: 'Outstanding', size: 130,
+            filterFn: numericOperatorFilterFn,
+            cell: ({ getValue }) => {
+                const val = parseFloat(getValue() || 0);
+                return (
+                    <span className={`font-mono text-sm ${val > 0 ? 'text-amber-400 font-semibold' : 'text-gray-400'}`}>
+                        {currency} {val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                );
+            }
+        },
+        {
             id: 'actions', header: 'Actions', size: 100,
             enableSorting: false, enableColumnFilter: false,
             cell: ({ row }) => (
@@ -160,14 +249,15 @@ export default function CustomersPage() {
                 </div>
             ),
         },
-    ], []);
+    ], [currency, router]);
 
     const table = useReactTable({
         data, columns,
-        state: { globalFilter, columnVisibility, rowSelection },
+        state: { globalFilter, columnVisibility, rowSelection, columnFilters },
         onGlobalFilterChange: setGlobalFilter,
         onColumnVisibilityChange: setColumnVisibility,
         onRowSelectionChange: setRowSelection,
+        onColumnFiltersChange: setColumnFilters,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -281,6 +371,16 @@ export default function CustomersPage() {
                             className="bg-black/30 backdrop-blur border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm w-64 outline-none focus:border-white/30 placeholder-gray-600" />
                     </div>
                     <ColumnToggle table={table} />
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exportingPdf}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors disabled:opacity-50 animate-[fadeIn_0.15s_ease]">
+                        {exportingPdf ? (
+                            <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Exporting...</>
+                        ) : (
+                            <><FiDownload className="w-4 h-4" /> Export PDF</>
+                        )}
+                    </button>
                     <button
                         onClick={() => setShowImport(true)}
                         className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">

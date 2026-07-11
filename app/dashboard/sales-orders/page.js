@@ -15,6 +15,7 @@ import {
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiClock, FiCheckCircle, FiDollarSign,
 } from 'react-icons/fi';
+import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
 const STATUS_COLORS = {
@@ -72,6 +73,8 @@ export default function SalesOrdersPage() {
     const [statusFilter, setStatus]   = useState('All');
     const [globalFilter, setGlobal]   = useState('');
     const [columnVisibility, setColVis] = useState({});
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
 
     /* fetch all — TanStack handles pagination/sort/filter client-side */
     const fetchAll = useCallback(() => {
@@ -102,100 +105,52 @@ export default function SalesOrdersPage() {
     const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
 
     /* ── PDF export ─────────────────────────────────────────────────────── */
-    const exportToPDF = () => {
-        const rows = table.getFilteredRowModel().rows;
-        const totalAmt = rows.reduce((sum, r) => sum + Number(r.original.total_amount || 0), 0);
-        const now = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const filterDesc = [statusFilter !== 'All' && `Status: ${statusFilter}`, globalFilter && `Search: "${globalFilter}"`].filter(Boolean).join(' · ') || 'All orders';
+    const exportToPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
 
-        const STATUS_PRINT = {
-            'Pending': '#d97706',
-            'In Production': '#3b82f6',
-            'Ready': '#22c55e',
-            'Delivered': '#a855f7',
-            'Cancelled': '#ef4444',
-        };
+            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
 
-        const rowsHTML = rows.map((row, i) => {
-            const o = row.original;
-            const statusColor = STATUS_PRINT[o.status] || '#6b7280';
-            return `
-                <tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
-                    <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:#2563eb;border-bottom:1px solid #e5e7eb">${o.code || ''}</td>
-                    <td style="padding:8px 10px;font-weight:600;border-bottom:1px solid #e5e7eb">${o.customer_name || ''}</td>
-                    <td style="padding:8px 10px;font-size:11px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-bottom:1px solid #e5e7eb">${o.estimation_names || '—'}</td>
-                    <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">
-                        <span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}55">${o.status || ''}</span>
-                    </td>
-                    <td style="padding:8px 10px;font-family:monospace;font-weight:700;text-align:right;border-bottom:1px solid #e5e7eb">${fmt(o.total_amount)}</td>
-                    <td style="padding:8px 10px;font-size:11px;color:#6b7280;border-bottom:1px solid #e5e7eb">${fmtDate(o.order_date)}</td>
-                    <td style="padding:8px 10px;font-size:11px;color:#f97316;border-bottom:1px solid #e5e7eb">${fmtDate(o.delivery_date)}</td>
-                </tr>`;
-        }).join('');
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Sales Orders Directory Report',
+                    subtitle: 'Exported Sales Orders (Customized & Filtered)',
+                    columns: visibleCols,
+                    rows: filteredRows,
+                    currency: currency
+                })
+            });
 
-        const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
-<title>Sales Orders Report</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #111; background: #fff; padding: 32px; }
-  @page { size: A4 landscape; margin: 20mm 15mm; }
-  @media print { body { padding: 0; } .no-print { display: none; } }
-  .header { border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-  .title { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
-  .subtitle { font-size: 12px; color: #6b7280; margin-top: 4px; }
-  .meta { text-align: right; font-size: 11px; color: #6b7280; line-height: 1.6; }
-  .stats { display: flex; gap: 24px; margin-bottom: 20px; }
-  .stat { background: #f3f4f6; border-radius: 10px; padding: 12px 20px; }
-  .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: #9ca3af; margin-bottom: 4px; }
-  .stat-value { font-size: 18px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; }
-  thead tr { background: #111; color: #fff; }
-  thead th { padding: 10px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; white-space: nowrap; }
-  thead th:last-child { text-align: right; }
-  tbody tr:hover { background: #f0f9ff; }
-  .footer { margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 12px; font-size: 10px; color: #9ca3af; display: flex; justify-content: space-between; }
-  .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #111; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-</style>
-</head><body>
-<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
-<div class="header">
-  <div>
-    <div class="title">Sales Orders Report</div>
-    <div class="subtitle">Filter: ${filterDesc}</div>
-  </div>
-  <div class="meta">
-    Generated: ${now}<br/>
-    Total shown: ${rows.length} order${rows.length !== 1 ? 's' : ''}
-  </div>
-</div>
-<div class="stats">
-  <div class="stat"><div class="stat-label">Total Orders</div><div class="stat-value">${rows.length}</div></div>
-  <div class="stat"><div class="stat-label">Total Amount</div><div class="stat-value">${fmt(totalAmt)}</div></div>
-  <div class="stat"><div class="stat-label">Filter Applied</div><div class="stat-value" style="font-size:13px">${filterDesc}</div></div>
-</div>
-<table>
-  <thead><tr>
-    <th>SO Code</th><th>Customer</th><th>Jobs</th><th>Status</th><th style="text-align:right">Amount</th><th>Order Date</th><th>Delivery</th>
-  </tr></thead>
-  <tbody>${rowsHTML}</tbody>
-  <tfoot><tr style="background:#f3f4f6;font-weight:700">
-    <td colspan="4" style="padding:10px;border-top:2px solid #111">Total (${rows.length} orders)</td>
-    <td style="padding:10px;font-family:monospace;text-align:right;border-top:2px solid #111">${fmt(totalAmt)}</td>
-    <td colspan="2" style="border-top:2px solid #111"></td>
-  </tr></tfoot>
-</table>
-<div class="footer">
-  <span>Pressmatics ERP · Sales Orders Report</span>
-  <span>${now}</span>
-</div>
-<script>window.onload = () => setTimeout(() => window.print(), 400);<\/script>
-</body></html>`;
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
 
-        const win = window.open('', '_blank', 'width=1100,height=800');
-        win.document.write(html);
-        win.document.close();
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sales_orders_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
     };
 
     /* ── Column definitions ─────────────────────────────────────────────── */
@@ -224,6 +179,7 @@ export default function SalesOrdersPage() {
         },
         {
             accessorKey: 'total_amount', header: 'Amount', size: 150,
+            filterFn: numericOperatorFilterFn,
             cell: ({ getValue }) => (
                 <span className="font-mono font-bold text-white">{fmt(getValue())}</span>
             ),
@@ -264,9 +220,10 @@ export default function SalesOrdersPage() {
     /* ── Table instance ─────────────────────────────────────────────────── */
     const table = useReactTable({
         data, columns,
-        state: { globalFilter, columnVisibility },
+        state: { globalFilter, columnVisibility, columnFilters },
         onGlobalFilterChange: setGlobal,
         onColumnVisibilityChange: setColVis,
+        onColumnFiltersChange: setColumnFilters,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -296,8 +253,9 @@ export default function SalesOrdersPage() {
                     </div>
                     <ColumnToggle table={table} />
                     <button onClick={exportToPDF}
-                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors">
-                        <FiDownload className="w-4 h-4" /> Export PDF
+                        disabled={exportingPdf}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors disabled:opacity-50">
+                        <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
                     </button>
                 </div>
             </header>

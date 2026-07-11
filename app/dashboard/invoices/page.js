@@ -11,12 +11,13 @@ import {
     FiPlus, FiSearch, FiEye, FiTrash2,
     FiAlertCircle, FiCheckCircle, FiClock,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
-    FiChevronRight, FiChevronsRight, FiFileText,
+    FiChevronRight, FiChevronsRight, FiFileText, FiDownload,
 } from 'react-icons/fi';
 import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 const STATUS_CONFIG = {
     draft:   { label: 'Draft',    color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
@@ -69,6 +70,56 @@ export default function InvoicesPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
     const [deletingId, setDeletingId] = useState(null);
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleExportPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
+
+            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Invoices Directory Report',
+                    subtitle: 'Exported Invoices List (Customized & Filtered)',
+                    columns: visibleCols,
+                    rows: filteredRows,
+                    currency: currency
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `invoices_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     const loadInvoices = useCallback(async () => {
         setLoading(true);
@@ -112,14 +163,17 @@ export default function InvoicesPage() {
         },
         {
             accessorKey: 'amount_due', header: 'Amount Due', size: 130,
+            filterFn: numericOperatorFilterFn,
             cell: ({ getValue }) => <span className="font-mono">{currency} {fmt(getValue())}</span>,
         },
         {
             accessorKey: 'amount_paid', header: 'Paid', size: 130,
+            filterFn: numericOperatorFilterFn,
             cell: ({ getValue }) => <span className="font-mono text-emerald-400">{currency} {fmt(getValue())}</span>,
         },
         {
             accessorKey: 'balance', header: 'Balance', size: 130,
+            filterFn: numericOperatorFilterFn,
             cell: ({ getValue }) => <span className="font-mono text-amber-300 font-semibold">{currency} {fmt(getValue())}</span>,
         },
         {
@@ -160,9 +214,10 @@ export default function InvoicesPage() {
 
     const table = useReactTable({
         data, columns,
-        state: { globalFilter, columnVisibility },
+        state: { globalFilter, columnVisibility, columnFilters },
         onGlobalFilterChange: setGlobalFilter,
         onColumnVisibilityChange: setColumnVisibility,
+        onColumnFiltersChange: setColumnFilters,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -190,6 +245,12 @@ export default function InvoicesPage() {
                             className="bg-black/30 backdrop-blur border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm w-60 outline-none focus:border-white/30 placeholder-gray-600" />
                     </div>
                     <ColumnToggle table={table} />
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exportingPdf}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors disabled:opacity-50">
+                        <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                    </button>
                     <Link href="/dashboard/invoices/new">
                         <button className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors">
                             <FiPlus className="w-4 h-4" /> New Invoice

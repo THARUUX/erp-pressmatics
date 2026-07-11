@@ -8,9 +8,10 @@ export async function GET(request) {
 
         let query = `
             SELECT c.*,
-                (SELECT COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.amount_due - i.amount_paid ELSE 0 END), 0)
-                 FROM invoices i
-                 WHERE i.customer_id = c.id) AS outstanding
+                (COALESCE(c.starting_outstanding, 0) +
+                 COALESCE((SELECT SUM(CASE WHEN i.status != 'paid' THEN i.amount_due - i.amount_paid ELSE 0 END)
+                           FROM invoices i
+                           WHERE i.customer_id = c.id), 0)) AS outstanding
             FROM customers c
         `;
         const params = [];

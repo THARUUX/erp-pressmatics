@@ -16,12 +16,13 @@ import {
     FiShoppingCart, FiDollarSign, FiChevronUp, FiChevronDown,
     FiChevronsLeft, FiChevronLeft, FiChevronRight, FiChevronsRight,
     FiEdit2, FiFileText, FiClock, FiCheckCircle,
-    FiAlertTriangle, FiPackage,
+    FiAlertTriangle, FiPackage, FiDownload,
 } from 'react-icons/fi';
 import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
 const STATUS = {
@@ -113,6 +114,56 @@ export default function QuotationsPage() {
     const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
     const [convertingProgress, setConvertingProgress] = useState(0);
     const [convertingLabel, setConvertingLabel] = useState('');
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleExportPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'select' && col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
+
+            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Quotations Report',
+                    subtitle: 'Exported Quotations List (Customized & Filtered)',
+                    columns: visibleCols,
+                    rows: filteredRows,
+                    currency: currency
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quotations_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     /* ── Fetch all (TanStack handles pagination client-side) ───────────────── */
     const fetchAll = useCallback(() => {
@@ -303,6 +354,7 @@ export default function QuotationsPage() {
             accessorKey: 'total_amount',
             header: 'Amount',
             size: 140,
+            filterFn: numericOperatorFilterFn,
             cell: ({ getValue }) => (
                 <span className="font-mono font-bold text-white">
                     {currency} {fmt(getValue())}
@@ -381,9 +433,10 @@ export default function QuotationsPage() {
     const table = useReactTable({
         data,
         columns,
-        state: { globalFilter, columnVisibility },
+        state: { globalFilter, columnVisibility, columnFilters },
         onGlobalFilterChange: setGlobalFilter,
         onColumnVisibilityChange: setColumnVisibility,
+        onColumnFiltersChange: setColumnFilters,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -542,6 +595,12 @@ export default function QuotationsPage() {
                         />
                     </div>
                     <ColumnToggle table={table} />
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exportingPdf}
+                        className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:border-white/20 hover:text-white transition-colors disabled:opacity-50">
+                        <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                    </button>
                     <Link href="/dashboard/quotations/new">
                         <button className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors">
                             <FiPlus className="w-4 h-4" /> New Quote

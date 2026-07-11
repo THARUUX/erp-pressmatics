@@ -1,16 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
     FiDollarSign, FiCalendar, FiPlus, FiEye, FiCheck, 
-    FiTrash2, FiAlertCircle, FiSettings, FiEdit, FiX 
+    FiTrash2, FiAlertCircle, FiSettings, FiEdit, FiX, FiDownload, FiChevronUp, FiChevronDown
 } from 'react-icons/fi';
+import {
+    useReactTable,
+    getCoreRowModel,
+    getSortedRowModel,
+    getFilteredRowModel,
+    getPaginationRowModel,
+    flexRender
+} from '@tanstack/react-table';
+import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
 ];
+
+function ColumnFilter({ column }) {
+    const val = column.getFilterValue() ?? '';
+    return (
+        <input 
+            value={val} 
+            onChange={e => column.setFilterValue(e.target.value)} 
+            placeholder="Filter…"
+            onClick={e => e.stopPropagation()}
+            className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30 font-normal" 
+        />
+    );
+}
 
 export default function PayrollPage() {
     const [tab, setTab] = useState('runs'); // 'runs', 'generate', 'config'
@@ -29,6 +51,221 @@ export default function PayrollPage() {
     
     // Quick Config Local Changes State
     const [configChanges, setConfigChanges] = useState({}); // empId -> changes object
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    const handleExportPDF = async () => {
+        setExportingPdf(true);
+        try {
+            const visibleCols = table.getVisibleLeafColumns()
+                .filter(col => col.id !== 'actions')
+                .map(col => ({
+                    key: col.id || col.columnDef.accessorKey,
+                    header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                }));
+
+            const filteredRows = table.getFilteredRowModel().rows.map(row => {
+                const run = row.original;
+                return {
+                    ...run,
+                    period: `${MONTHS[run.month - 1]} ${run.year}`,
+                    outlay: run.total_payroll_amount
+                };
+            });
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Payroll History Report',
+                    subtitle: 'Exported Payroll Runs List (Customized & Filtered)',
+                    columns: visibleCols.map(c => c.key === 'period' ? { key: 'period', header: 'Payroll Period' } : c.key === 'total_payroll_amount' ? { key: 'outlay', header: 'Total Outlay' } : c),
+                    rows: filteredRows,
+                    currency: 'LKR'
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `payroll_history_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
+
+    const handleExportPayslipsPDF = async () => {
+        if (!activeRun) return;
+        setExportingPdf(true);
+        try {
+            const cols = [
+                { key: 'employee_name', header: 'Employee' },
+                { key: 'pay_type', header: 'Pay Type' },
+                { key: 'base_salary', header: 'Base Salary' },
+                { key: 'total_hours_worked', header: 'Hours Worked' },
+                { key: 'overtime_hours', header: 'OT Hours' },
+                { key: 'overtime_pay', header: 'OT Pay' },
+                { key: 'allowances', header: 'Allowances' },
+                { key: 'deductions', header: 'Deductions' },
+                { key: 'net_pay', header: 'Net Pay' }
+            ];
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Payroll Sheet - ${MONTHS[activeRun.month - 1]} ${activeRun.year}`,
+                    subtitle: `Status: ${activeRun.status.toUpperCase()} | Total Outlay: LKR ${activeRunPayslips.reduce((acc, p) => acc + parseFloat(p.net_pay), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    columns: cols,
+                    rows: activeRunPayslips,
+                    currency: 'LKR'
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate PDF');
+                setExportingPdf(false);
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `payslips_sheet_${MONTHS[activeRun.month - 1]}_${activeRun.year}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('PDF downloaded successfully');
+        } catch (error) {
+            console.error('Export PDF error:', error);
+            toast.error('An error occurred while generating PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
+
+    const SortIcon = ({ dir }) => {
+        if (!dir) return <span className="opacity-20 text-zinc-500">⇅</span>;
+        return dir === 'asc' ? <FiChevronUp className="w-3.5 h-3.5 text-white" /> : <FiChevronDown className="w-3.5 h-3.5 text-white" />;
+    };
+
+    const columns = useMemo(() => [
+        {
+            id: 'period',
+            header: 'Payroll Period',
+            accessorFn: run => `${MONTHS[run.month - 1]} ${run.year}`,
+            cell: ({ row }) => (
+                <span className="font-semibold text-white">
+                    {MONTHS[row.original.month - 1]} {row.original.year}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'employee_count',
+            header: 'Employees Paid',
+            filterFn: numericOperatorFilterFn,
+            cell: ({ getValue }) => <span className="text-zinc-300">{getValue()} employees</span>
+        },
+        {
+            accessorKey: 'total_payroll_amount',
+            header: 'Total Outlay',
+            filterFn: numericOperatorFilterFn,
+            cell: ({ getValue }) => (
+                <span className="font-mono font-bold text-white">
+                    LKR {parseFloat(getValue() || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'status',
+            header: 'Status',
+            cell: ({ getValue }) => (
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider border ${
+                    getValue() === 'paid' 
+                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                        : 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+                }`}>
+                    {getValue()}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'created_at',
+            header: 'Created At',
+            cell: ({ getValue }) => (
+                <span className="text-zinc-500 font-mono">
+                    {new Date(getValue()).toLocaleDateString()}
+                </span>
+            )
+        },
+        {
+            id: 'actions',
+            header: () => <div className="text-right">Actions</div>,
+            cell: ({ row }) => {
+                const run = row.original;
+                return (
+                    <div className="flex gap-2 justify-end">
+                        <button 
+                            onClick={() => loadRunDetails(run.id)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-lg transition-all cursor-pointer"
+                        >
+                            <FiEye className="w-3.5 h-3.5" /> Details
+                        </button>
+                        {run.status === 'draft' && (
+                            <button 
+                                onClick={() => finalizePayrollRun(run.id, 'paid')}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiCheck className="w-3.5 h-3.5" /> Finalize (Paid)
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => deletePayrollRun(run.id)}
+                            className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer animate-colors"
+                            title="Delete payroll run"
+                        >
+                            <FiTrash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                );
+            }
+        }
+    ], []);
+
+    const table = useReactTable({
+        data: runs,
+        columns,
+        state: {
+            columnFilters,
+        },
+        onColumnFiltersChange: setColumnFilters,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        initialState: {
+            pagination: {
+                pageSize: 15
+            }
+        }
+    });
 
     const loadRuns = async () => {
         try {
@@ -301,74 +538,61 @@ export default function PayrollPage() {
             {/* TAB: RUNS (HISTORY) */}
             {tab === 'runs' && (
                 <div className="space-y-4">
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleExportPDF}
+                            disabled={exportingPdf}
+                            className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-4 py-2 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                            <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                        </button>
+                    </div>
                     <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse text-left text-sm">
                                 <thead>
-                                    <tr className="border-b border-white/10 bg-white/[0.02]">
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Payroll Period</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Employees Paid</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Total Outlay</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Status</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Created At</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 text-right">Actions</th>
-                                    </tr>
+                                    {table.getHeaderGroups().map(headerGroup => (
+                                        <tr key={headerGroup.id} className="border-b border-white/10 bg-white/[0.02]">
+                                            {headerGroup.headers.map(header => {
+                                                const isSortable = header.column.getCanSort();
+                                                return (
+                                                    <th 
+                                                        key={header.id} 
+                                                        onClick={header.column.getToggleSortingHandler()}
+                                                        className={`p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 select-none ${
+                                                            isSortable ? 'cursor-pointer hover:text-white' : ''
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            {flexRender(header.column.columnDef.header, header.getContext())}
+                                                            {isSortable && (
+                                                                <SortIcon dir={header.column.getIsSorted()} />
+                                                            )}
+                                                        </div>
+                                                        {header.column.getCanFilter() && <ColumnFilter column={header.column} />}
+                                                    </th>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {loading ? (
                                         <tr>
                                             <td colSpan={6} className="p-8 text-center text-zinc-500">Loading payroll history...</td>
                                         </tr>
-                                    ) : runs.length === 0 ? (
+                                    ) : table.getRowModel().rows.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="p-8 text-center text-zinc-500">No payroll periods calculated yet. Click Run Payroll to generate.</td>
                                         </tr>
                                     ) : (
-                                        runs.map(run => (
-                                            <tr key={run.id} className="hover:bg-white/[0.01] transition-colors">
-                                                <td className="p-4 font-semibold text-white">
-                                                    {MONTHS[run.month - 1]} {run.year}
-                                                </td>
-                                                <td className="p-4 text-zinc-300">{run.employee_count} employees</td>
-                                                <td className="p-4 font-mono font-bold text-white">
-                                                    LKR {parseFloat(run.total_payroll_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </td>
-                                                <td className="p-4">
-                                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider border ${
-                                                        run.status === 'paid' 
-                                                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
-                                                            : 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
-                                                    }`}>
-                                                        {run.status}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-zinc-500 font-mono">
-                                                    {new Date(run.created_at).toLocaleDateString()}
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <div className="flex gap-2 justify-end">
-                                                        <button 
-                                                            onClick={() => loadRunDetails(run.id)}
-                                                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-lg transition-all cursor-pointer"
-                                                        >
-                                                            <FiEye className="w-3.5 h-3.5" /> Details
-                                                        </button>
-                                                        {run.status === 'draft' && (
-                                                            <button 
-                                                                onClick={() => finalizePayrollRun(run.id, 'paid')}
-                                                                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-all cursor-pointer"
-                                                            >
-                                                                <FiCheck className="w-3.5 h-3.5" /> Lock & Pay
-                                                            </button>
-                                                        )}
-                                                        <button 
-                                                            onClick={() => deletePayrollRun(run.id)}
-                                                            className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
-                                                        >
-                                                            <FiTrash2 className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                        table.getRowModel().rows.map(row => (
+                                            <tr key={row.id} className="hover:bg-white/[0.01] transition-colors">
+                                                {row.getVisibleCells().map(cell => (
+                                                    <td key={cell.id} className="p-4">
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </td>
+                                                ))}
                                             </tr>
                                         ))
                                     )}
@@ -585,7 +809,16 @@ export default function PayrollPage() {
                                 </h3>
                                 <p className="text-xs text-zinc-500 mt-0.5">Calculated total outlay: LKR {activeRunPayslips.reduce((acc, p) => acc + parseFloat(p.net_pay), 0).toLocaleString(undefined, { minimumFractionDigits:2 })}</p>
                             </div>
-                            <button onClick={() => setShowDetailModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleExportPayslipsPDF}
+                                    disabled={exportingPdf}
+                                    className="flex items-center gap-2 bg-black/30 border border-white/10 text-gray-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                                >
+                                    <FiDownload className="w-3.5 h-3.5" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                                </button>
+                                <button onClick={() => setShowDetailModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                            </div>
                         </div>
 
                         {/* Modal Body */}

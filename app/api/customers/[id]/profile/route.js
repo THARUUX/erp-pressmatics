@@ -86,6 +86,7 @@ export async function GET(req, { params }) {
             salesOrders,
             stats: {
                 ...invoiceStats,
+                outstanding: (parseFloat(invoiceStats.outstanding) || 0) + (parseFloat(customer.starting_outstanding) || 0),
                 ...quotationStats,
                 sales_order_count: salesOrders.length,
             },
