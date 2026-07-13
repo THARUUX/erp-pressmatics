@@ -11,7 +11,7 @@ import {
     FiPlus, FiSearch, FiEdit2, FiTrash2,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiUsers,
-    FiCheckCircle, FiDollarSign, FiUpload, FiDownload, FiPenTool,
+    FiCheckCircle, FiDollarSign, FiUpload, FiDownload, FiPenTool, FiLink,
 } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
@@ -78,6 +78,24 @@ export default function CustomersPage() {
     const [showImport, setShowImport]     = useState(false);
     const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
+
+    const copyPortalLink = async (customerId, e) => {
+        e.stopPropagation();
+        try {
+            const checkRes  = await fetch(`/api/customers/${customerId}/portal-token`);
+            const checkData = await checkRes.json();
+            let url = checkData.url;
+            if (!url) {
+                const genRes  = await fetch(`/api/customers/${customerId}/portal-token`, { method: 'POST' });
+                const genData = await genRes.json();
+                url = genData.url;
+            }
+            await navigator.clipboard.writeText(`${window.location.origin}${url}`);
+            toast.success('Portal link copied!');
+        } catch {
+            toast.error('Failed to copy portal link');
+        }
+    };
     const [deleteProgress, setDeleteProgress] = useState(null); // { current, total, currentName }
     const [exportingPdf, setExportingPdf] = useState(false);
     const [columnFilters, setColumnFilters] = useState([]);
@@ -238,6 +256,10 @@ export default function CustomersPage() {
             enableSorting: false, enableColumnFilter: false,
             cell: ({ row }) => (
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button onClick={e => copyPortalLink(row.original.id, e)}
+                        title="Copy Portal Link" className="p-1.5 rounded-lg text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
+                        <FiLink size={14} />
+                    </button>
                     <button onClick={() => router.push(`/dashboard/customers/${row.original.id}`)}
                         title="Edit" className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors">
                         <FiEdit2 size={14} />

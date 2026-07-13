@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUsers, FiUserPlus, FiGrid, FiList, FiChevronUp, FiChevronDown, FiUpload, FiPenTool, FiDownload } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiUsers, FiUserPlus, FiGrid, FiList, FiChevronUp, FiChevronDown, FiUpload, FiPenTool, FiDownload, FiEye } from 'react-icons/fi';
 import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { BulkImportModal } from '@/components/ui/BulkImportModal';
@@ -118,6 +118,29 @@ export default function EmployeesPage() {
   const [editTeam, setEditTeam] = useState(null);
   const [teamForm, setTeamForm] = useState(EMPTY_TEAM);
   const [memberSearch, setMemberSearch] = useState('');
+
+  // Employee Stock Actions Detail view states
+  const [viewEmployee, setViewEmployee] = useState(null);
+  const [empStockActions, setEmpStockActions] = useState([]);
+  const [empStockSummary, setEmpStockSummary] = useState({ totalSavedQty: 0, totalSavedValue: 0, totalWastedQty: 0, totalWastedValue: 0 });
+  const [loadingStockActions, setLoadingStockActions] = useState(false);
+
+  const handleOpenEmployeeProfile = async (emp) => {
+    setViewEmployee(emp);
+    setLoadingStockActions(true);
+    try {
+      const res = await fetch(`/api/employees/${emp.id}/stock-actions`);
+      const data = await res.json();
+      if (res.ok) {
+        setEmpStockActions(data.actions || []);
+        setEmpStockSummary(data.summary || { totalSavedQty: 0, totalSavedValue: 0, totalWastedQty: 0, totalWastedValue: 0 });
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingStockActions(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -326,6 +349,9 @@ export default function EmployeesPage() {
         const emp = row.original;
         return (
           <div className="flex justify-end gap-1">
+            <button onClick={() => handleOpenEmployeeProfile(emp)} className="p-2 text-gray-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg transition-colors cursor-pointer" title="View Profile">
+              <FiEye className="w-3.5 h-3.5" />
+            </button>
             <button onClick={() => openEditEmp(emp)} className="p-2 text-gray-400 hover:text-white bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg transition-colors cursor-pointer" title="Edit">
               <FiEdit2 className="w-3.5 h-3.5" />
             </button>
@@ -519,8 +545,9 @@ export default function EmployeesPage() {
                       {emp.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={()=>openEditEmp(emp)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"><FiEdit2 className="w-3.5 h-3.5"/></button>
-                      <button onClick={()=>deleteEmp(emp)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-400 transition-colors cursor-pointer"><FiTrash2 className="w-3.5 h-3.5"/></button>
+                      <button onClick={()=>handleOpenEmployeeProfile(emp)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer" title="View Profile"><FiEye className="w-3.5 h-3.5"/></button>
+                      <button onClick={()=>openEditEmp(emp)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer" title="Edit"><FiEdit2 className="w-3.5 h-3.5"/></button>
+                      <button onClick={()=>deleteEmp(emp)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-400 transition-colors cursor-pointer" title="Delete"><FiTrash2 className="w-3.5 h-3.5"/></button>
                     </div>
                   </div>
                   <p className="font-semibold text-white text-sm leading-tight">{emp.name}</p>
@@ -769,13 +796,150 @@ export default function EmployeesPage() {
         />
       )}
 
-      {showBulkEdit && (
-        <BulkEditModal
-          type="employees"
-          data={employees}
-          onClose={() => setShowBulkEdit(false)}
-          onComplete={() => { load(); toast.success('Employees updated!'); }}
-        />
+      {/* ── EMPLOYEE PROFILE / STOCK ACTIONS MODAL ── */}
+      {viewEmployee && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&setViewEmployee(null)}>
+          <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+            
+            {/* Header */}
+            <div className="p-6 border-b border-white/10 flex justify-between items-start shrink-0">
+              <div className="flex items-center gap-4">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${avatarColor(viewEmployee.name)} to-black/50 flex items-center justify-center text-white font-bold text-2xl shadow-lg`}>
+                  {viewEmployee.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white leading-tight">{viewEmployee.name}</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">{viewEmployee.job_title || 'No Job Title'} • {viewEmployee.department || 'No Department'}</p>
+                  <p className="text-xs text-gray-500 font-mono mt-1">{viewEmployee.employee_id}</p>
+                </div>
+              </div>
+              <button onClick={() => setViewEmployee(null)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer transition-colors">
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Grid of basic details */}
+              <div className="grid sm:grid-cols-4 gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Shift</label>
+                  <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.shift || 'Flexible'}</p>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Status</label>
+                  <p className="mt-1">
+                    <span className={`inline-flex text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusColor(viewEmployee.status)}`}>
+                      {viewEmployee.status?.replace('_', ' ')}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Phone</label>
+                  <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Email</label>
+                  <p className="text-sm text-white font-medium mt-0.5 truncate">{viewEmployee.email || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Inventory Savings & Wastage Summary cards */}
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Inventory Saved vs. Wasted</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {/* Saved Qty */}
+                  <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
+                    <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Items</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">{empStockSummary.totalSavedQty.toFixed(2)}</p>
+                  </div>
+                  {/* Saved Value */}
+                  <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
+                    <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Value</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">{fmtCurrency(empStockSummary.totalSavedValue)}</p>
+                  </div>
+                  {/* Wasted Qty */}
+                  <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
+                    <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Items</p>
+                    <p className="text-2xl font-bold text-rose-400 mt-1">{empStockSummary.totalWastedQty.toFixed(2)}</p>
+                  </div>
+                  {/* Wasted Value */}
+                  <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
+                    <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Value</p>
+                    <p className="text-2xl font-bold text-rose-400 mt-1">{fmtCurrency(empStockSummary.totalWastedValue)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Savings & Wastage Transactions</h3>
+                {loadingStockActions ? (
+                  <div className="text-center py-8 text-gray-500">Loading transactions...</div>
+                ) : empStockActions.length === 0 ? (
+                  <div className="text-center py-10 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
+                    No savings or wastage transactions recorded for this employee.
+                  </div>
+                ) : (
+                  <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-white/[0.02]">
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Date & Time</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Item</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Action</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Sales Order</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Team</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Quantity</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Cost</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Total Value</th>
+                            <th className="px-4 py-3 text-gray-400 font-semibold">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.05]">
+                          {empStockActions.map(action => (
+                            <tr key={action.id} className="hover:bg-white/[0.01]">
+                              <td className="px-4 py-3 text-gray-400 font-mono">{new Date(action.created_at).toLocaleString()}</td>
+                              <td className="px-4 py-3">
+                                <span className="font-semibold text-white">{action.item_name}</span>
+                                {action.item_code && <span className="block text-[10px] text-gray-500 font-mono">{action.item_code}</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex font-bold uppercase tracking-wider text-[9px] px-2 py-0.5 rounded-full border ${
+                                  action.action_type === 'saved'
+                                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                                    : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                                }`}>
+                                  {action.action_type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-blue-400">{action.so_code || '—'}</td>
+                              <td className="px-4 py-3 text-gray-300">{action.team_name || '—'}</td>
+                              <td className="px-4 py-3 text-right font-mono text-white">{parseFloat(action.quantity).toFixed(2)} {action.item_uom}</td>
+                              <td className="px-4 py-3 text-right font-mono text-gray-400">{fmtCurrency(action.unit_cost)}</td>
+                              <td className={`px-4 py-3 text-right font-mono font-semibold ${
+                                action.action_type === 'saved' ? 'text-emerald-400' : 'text-rose-400'
+                              }`}>{fmtCurrency(parseFloat(action.quantity) * parseFloat(action.unit_cost))}</td>
+                              <td className="px-4 py-3 text-gray-400 max-w-[150px] truncate" title={action.notes}>{action.notes || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 flex justify-end shrink-0">
+              <button onClick={() => setViewEmployee(null)} className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 text-sm font-semibold transition-colors cursor-pointer">
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

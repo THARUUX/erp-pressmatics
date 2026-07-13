@@ -14,7 +14,7 @@ export default function NewCustomerPage() {
     const [formData, setFormData] = useState({
         name: '', email: '', phone: '', address: '', is_vat: false, vat_number: '',
         contact_name: '', contact_phone: '', contact_email: '', contact_role: '',
-        starting_outstanding: '', category: ''
+        starting_outstanding: '', category: '', portal_password: ''
     });
 
     const handleChange = (e) => {
@@ -103,24 +103,28 @@ export default function NewCustomerPage() {
                     </div>
                 </div>
 
-                {/* Financial Section */}
+                {/* Financial Section & Security Section */}
                 <div className="border-t border-white/5 pt-4 mt-2 space-y-3">
-                    <h3 className="text-sm font-semibold text-gray-300">Financial</h3>
-                    <div>
-                        <label className="block text-xs text-gray-400 mb-1">Starting Outstanding Balance</label>
-                        <p className="text-[11px] text-gray-600 mb-2">Enter any pre-existing unpaid balance this customer carries before using the ERP.</p>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-mono">LKR</span>
-                            <input
-                                type="number"
-                                name="starting_outstanding"
-                                value={formData.starting_outstanding}
-                                onChange={handleChange}
-                                placeholder="0.00"
-                                step="0.01"
-                                min="0"
-                                className="w-full bg-secondary border border-white/10 rounded-lg pl-12 pr-4 py-2 text-sm text-amber-300 placeholder-gray-600 outline-none focus:border-amber-400/40 transition-colors font-mono"
-                            />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Starting Outstanding Balance</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-mono">LKR</span>
+                                <input
+                                    type="number"
+                                    name="starting_outstanding"
+                                    value={formData.starting_outstanding}
+                                    onChange={handleChange}
+                                    placeholder="0.00"
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full bg-secondary border border-white/10 rounded-lg pl-12 pr-4 py-2 text-sm text-amber-300 placeholder-gray-600 outline-none focus:border-amber-400/40 transition-colors font-mono"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Set Portal Password (Optional)</label>
+                            <Input name="portal_password" type="password" value={formData.portal_password} onChange={handleChange} className="bg-secondary border-white/10" placeholder="Enter password to secure portal" />
                         </div>
                     </div>
                 </div>

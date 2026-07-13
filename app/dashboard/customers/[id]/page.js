@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     FiArrowLeft, FiEdit2, FiSave, FiX, FiPhone, FiMail, FiMapPin,
     FiFileText, FiShoppingCart, FiDollarSign, FiTrendingUp,
-    FiExternalLink, FiAlertCircle, FiCheckCircle, FiClock, FiEye,
+    FiExternalLink, FiAlertCircle, FiCheckCircle, FiClock, FiEye, FiLink, FiLock,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
@@ -62,6 +62,32 @@ export default function CustomerProfilePage({ params }) {
     const [editing, setEditing]   = useState(false);
     const [saving, setSaving]     = useState(false);
     const [form, setForm]         = useState({});
+    const [portalLoading, setPortalLoading] = useState(false);
+
+    const sharePortalLink = async () => {
+        setPortalLoading(true);
+        try {
+            // Try existing token first
+            const checkRes  = await fetch(`/api/customers/${id}/portal-token`);
+            const checkData = await checkRes.json();
+            let url = checkData.url;
+
+            // Generate one if none exists
+            if (!url) {
+                const genRes  = await fetch(`/api/customers/${id}/portal-token`, { method: 'POST' });
+                const genData = await genRes.json();
+                url = genData.url;
+            }
+
+            const fullUrl = `${window.location.origin}${url}`;
+            await navigator.clipboard.writeText(fullUrl);
+            toast.success('Portal link copied to clipboard!');
+        } catch {
+            toast.error('Failed to generate portal link');
+        } finally {
+            setPortalLoading(false);
+        }
+    };
 
     const loadProfile = () => {
         setLoading(true);
@@ -111,6 +137,15 @@ export default function CustomerProfilePage({ params }) {
                     <p className="text-gray-500 text-sm">{customer.code}</p>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={sharePortalLink}
+                        disabled={portalLoading}
+                        title="Copy customer portal link"
+                        className="flex items-center gap-2 border border-white/10 text-gray-300 px-3 py-2 rounded-xl text-sm hover:border-indigo-400/40 hover:text-indigo-300 hover:bg-indigo-500/[0.06] transition-colors disabled:opacity-50"
+                    >
+                        <FiLink size={13} />
+                        <span className="hidden sm:inline">{portalLoading ? 'Generating…' : 'Portal Link'}</span>
+                    </button>
                     {editing ? (
                         <>
                             <button onClick={() => setEditing(false)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-colors"><FiX size={15} /></button>
@@ -176,6 +211,30 @@ export default function CustomerProfilePage({ params }) {
                             </div>
                         </div>
 
+                        <div>
+                            <label className="text-xs text-gray-500 mb-1 block">Set Portal Password</label>
+                            <p className="text-[10px] text-gray-600 mb-1.5">Secure the customer's self-service portal link.</p>
+                            <Input
+                                type="password"
+                                placeholder={customer.has_password ? "•••••••• (leave blank to keep)" : "Enter portal password"}
+                                value={form.portal_password || ''}
+                                onChange={e => setForm(f => ({ ...f, portal_password: e.target.value }))}
+                                className="bg-black/40 border-white/10"
+                            />
+                            {customer.has_password && (
+                                <div className="flex items-center gap-2 mt-2">
+                                    <input
+                                        type="checkbox"
+                                        id="clear_password"
+                                        checked={!!form.clear_password}
+                                        onChange={e => setForm(f => ({ ...f, clear_password: e.target.checked }))}
+                                        className="rounded"
+                                    />
+                                    <label htmlFor="clear_password" className="text-xs text-red-400 cursor-pointer select-none">Remove Password Protection</label>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Contact Person Details Section (Edit) */}
                         <div className="md:col-span-2 border-t border-white/5 pt-4 mt-2">
                             <h3 className="text-sm font-semibold text-gray-300 mb-3">Contact Person Details</h3>
@@ -221,6 +280,15 @@ export default function CustomerProfilePage({ params }) {
                             </div>
                         </div>
                         <div className="flex gap-2 flex-wrap">
+                            {customer.has_password ? (
+                                <span className="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                                    <FiLock size={12} /> Password Protected
+                                </span>
+                            ) : (
+                                <span className="text-xs bg-gray-500/10 text-gray-400 border border-white/5 px-3 py-1 rounded-full">
+                                    No Password Protection
+                                </span>
+                            )}
                             {customer.is_vat && (
                                 <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full">
                                     VAT Registered {customer.vat_number && `· ${customer.vat_number}`}

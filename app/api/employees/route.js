@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import pool, { dbQuery } from '@/lib/db';
 
 // ── GET /api/employees ────────────────────────────────────────────────────────
 export async function GET() {
     try {
-        const [rows] = await pool.execute(`
+        const [rows] = await dbQuery(`
             SELECT e.*,
                    COUNT(DISTINCT tm.team_id) AS team_count,
                    GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ', ') AS team_names
@@ -39,12 +39,12 @@ export async function POST(req) {
         }
 
         // Auto-generate employee_id: EMP-001, EMP-002 …
-        const [[{ maxId }]] = await pool.execute(
+        const [[{ maxId }]] = await dbQuery(
             `SELECT COALESCE(MAX(id), 0) AS maxId FROM employees`
         );
         const employeeId = `EMP-${String(maxId + 1).padStart(3, '0')}`;
 
-        const [result] = await pool.execute(
+        const [result] = await dbQuery(
             `INSERT INTO employees
              (employee_id, name, job_title, department, phone, email,
               date_of_birth, date_joined, shift, status, notes,

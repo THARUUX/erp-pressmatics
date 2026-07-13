@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
+/**
+ * Resolve the "run quantity" used in time estimation for a given speed unit.
+ *  Prints/Hr       → totalCutSheets × sides  (total impressions per sheet face)
+ *  Impressions/Hr  → totalImpressions  (pre-computed printed_sheets)
+ *  Sheets/Hr       → totalCutSheets
+ *  (fallback)      → item qty
+ */
+function resolveRunQty(speedUnit, { totalCutSheets, sidesVal, totalImpressions, itemQty }) {
+    const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
+    if (u === 'prints/hr') return totalCutSheets * sidesVal;
+    if (u === 'impressions/hr') return totalImpressions;
+    if (u === 'sheets/hr') return totalCutSheets;
+    return itemQty; // Units/Hr, Copies/Hr, Pcs/Hr, etc.
+}
+
 function getComponentTotalCutSheets(detail, qty) {
     const pagesVal = parseInt(detail.pages) || 1;
     const upsVal = parseInt(detail.ups) || 1;
@@ -125,11 +140,15 @@ async function generateJobTasks(id) {
                 const totalImpressions = parseFloat(detail.printed_sheets) || 0;
                 const offsetSpeed = parseFloat(detail.machine_speed) || 0;
                 const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
+                const sidesVal = parseInt(detail.sides) || 1;
                 const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
 
-                const runQty = speedUnit.toLowerCase() === 'impressions/hr'
-                    ? totalImpressions
-                    : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : item.quantity);
+                const runQty = resolveRunQty(speedUnit, {
+                    totalCutSheets,
+                    sidesVal,
+                    totalImpressions,
+                    itemQty: item.quantity
+                });
 
                 let offsetEstMins = null;
                 if (offsetSpeed > 0) {
@@ -153,11 +172,15 @@ async function generateJobTasks(id) {
                 const totalImpressions = parseFloat(detail.printed_sheets) || 0;
                 const digitalSpeed = parseFloat(detail.machine_speed) || 0;
                 const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
+                const sidesVal = parseInt(detail.sides) || 1;
                 const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
 
-                const runQty = speedUnit.toLowerCase() === 'impressions/hr'
-                    ? totalImpressions
-                    : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : item.quantity);
+                const runQty = resolveRunQty(speedUnit, {
+                    totalCutSheets,
+                    sidesVal,
+                    totalImpressions,
+                    itemQty: item.quantity
+                });
 
                 let digitalEstMins = null;
                 if (digitalSpeed > 0) {
@@ -332,9 +355,13 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
                 task.job_qty = detail.item_qty || 0;
                 if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
-                    task.quantity = speedUnit.toLowerCase() === 'impressions/hr'
-                        ? totalImpressions
-                        : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : detail.item_qty);
+                    const sidesVal = parseInt(detail.sides) || 1;
+                    task.quantity = resolveRunQty(speedUnit, {
+                        totalCutSheets,
+                        sidesVal,
+                        totalImpressions,
+                        itemQty: detail.item_qty || 0
+                    });
                 }
             }
         }

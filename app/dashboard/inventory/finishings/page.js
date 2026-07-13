@@ -469,6 +469,7 @@ export default function FinishingsPage() {
                                             value={formData.speed_unit}
                                             onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}
                                         >
+                                            <option value="Prints/Hr">Prints/Hr</option>
                                             <option value="Sheets/Hr">Sheets/Hr</option>
                                             <option value="Units/Hr">Units/Hr</option>
                                             <option value="Forms/Hr">Forms/Hr</option>

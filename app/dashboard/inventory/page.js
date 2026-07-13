@@ -1,7 +1,7 @@
 'use client';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     useReactTable, getCoreRowModel, getSortedRowModel,
     getFilteredRowModel, getPaginationRowModel, flexRender,
@@ -25,6 +25,79 @@ import { ColumnToggle } from '@/components/ui/ColumnToggle';
 const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics', 'BOM Waiting List'];
 const BOM_CATEGORIES = ['SFG', 'FG'];
 const EMPTY_FORM = { name: '', item_code: '', category: 'Paper', type: '', uom: 'Sheet', unit_cost: 0, stock_quantity: 0, min_stock: 0, width_cm: '', height_cm: '', description: '', is_active: 1 };
+
+function SearchableSelect({ label, placeholder, options, value, onChange }) {
+    const [search, setSearch] = useState('');
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (ref.current && !ref.current.contains(event.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filtered = options.filter(opt =>
+        opt.label.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const selectedOption = options.find(opt => opt.value === value);
+
+    return (
+        <div ref={ref} className="relative flex flex-col gap-1 w-full">
+            {label && <label className="text-xs font-semibold text-white/50">{label}</label>}
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-left text-sm text-white focus:outline-none focus:border-white/20 flex justify-between items-center"
+            >
+                <span>{selectedOption ? selectedOption.label : placeholder}</span>
+                <span className="text-white/30 text-xs">▼</span>
+            </button>
+
+            {open && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-[100] bg-[#161616] border border-white/10 rounded-xl shadow-2xl p-2 max-h-48 overflow-y-auto">
+                    <input
+                        type="text"
+                        autoFocus
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Type to filter..."
+                        className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none mb-2"
+                    />
+                    <div className="space-y-1">
+                        {filtered.length === 0 ? (
+                            <div className="text-xs text-white/30 px-3 py-2">No options found</div>
+                        ) : (
+                            filtered.map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(opt.value);
+                                        setOpen(false);
+                                        setSearch('');
+                                    }}
+                                    className={`w-full text-left text-xs px-3 py-2 rounded-lg transition-colors ${
+                                        value === opt.value
+                                            ? 'bg-white text-black'
+                                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                    }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 function ColumnFilter({ column }) {
     const val = column.getFilterValue() ?? '';
@@ -109,6 +182,22 @@ export default function InventoryPage() {
     const [formData, setFormData] = useState({ ...EMPTY_FORM });
     const [restockItem, setRestockItem] = useState(null);
     const [restockData, setRestockData] = useState({ quantity: 0, notes: '' });
+
+    // Stock Action (In / Out) States
+    const [stockActionItem, setStockActionItem] = useState(null);
+    const [stockActionData, setStockActionData] = useState({
+        action: 'in',
+        quantity: '',
+        reason: 'other',
+        employeeId: '',
+        teamId: '',
+        salesOrderId: '',
+        notes: ''
+    });
+    const [employeesList, setEmployeesList] = useState([]);
+    const [teamsList, setTeamsList] = useState([]);
+    const [salesOrdersList, setSalesOrdersList] = useState([]);
+    const [stockActionBom, setStockActionBom] = useState([]);
     const [historyItem, setHistoryItem] = useState(null);
     const [historyData, setHistoryData] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -540,7 +629,7 @@ export default function InventoryPage() {
                             <button onClick={() => openQrModal(item)} className="px-2 py-1 text-[11px] rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 text-violet-400 hover:text-violet-300 transition-all font-medium">QR</button>
                         ) : (
                             <>
-                                <button onClick={() => handleOpenRestock(item)} className="px-2 py-1 text-[11px] rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/50 hover:text-white transition-all">Restock</button>
+                                <button onClick={() => handleOpenStockAction(item)} className="px-2 py-1 text-[11px] rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-all font-medium">In / Out</button>
                                 <button onClick={() => handleViewHistory(item)} className="p-1.5 text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/[0.05]"><FiClock className="w-3.5 h-3.5" /></button>
                             </>
                         )}
@@ -664,6 +753,77 @@ export default function InventoryPage() {
         if (BOM_CATEGORIES.includes(item.category)) {
             const r = await fetch(`/api/inventory/${item.id}/bom`);
             if (r.ok) setRestockBom(await r.json());
+        }
+    };
+
+    const handleOpenStockAction = async (item) => {
+        setStockActionItem(item);
+        setStockActionData({
+            action: 'in',
+            quantity: '',
+            reason: 'other',
+            employeeId: '',
+            teamId: '',
+            salesOrderId: '',
+            notes: ''
+        });
+        setStockActionBom([]);
+
+        fetch('/api/employees').then(r => r.json()).then(d => setEmployeesList(Array.isArray(d) ? d : []));
+        fetch('/api/teams').then(r => r.json()).then(d => setTeamsList(Array.isArray(d) ? d : []));
+        fetch('/api/sales-orders/options').then(r => r.json()).then(d => setSalesOrdersList(Array.isArray(d) ? d : []));
+
+        if (BOM_CATEGORIES.includes(item.category)) {
+            const r = await fetch(`/api/inventory/${item.id}/bom`);
+            if (r.ok) setStockActionBom(await r.json());
+        }
+    };
+
+    const handleStockActionSubmit = async () => {
+        if (!stockActionData.quantity || parseFloat(stockActionData.quantity) <= 0) {
+            toast.error('Please enter a valid positive quantity');
+            return;
+        }
+
+        const subReason = stockActionData.reason === 'employee'
+            ? (stockActionData.action === 'in' ? 'saved' : 'wasted')
+            : null;
+
+        const payload = {
+            itemId: stockActionItem.id,
+            action: stockActionData.action,
+            quantity: parseFloat(stockActionData.quantity),
+            reason: stockActionData.reason,
+            subReason,
+            employeeId: stockActionData.employeeId ? parseInt(stockActionData.employeeId) : null,
+            teamId: stockActionData.teamId ? parseInt(stockActionData.teamId) : null,
+            salesOrderId: stockActionData.salesOrderId ? parseInt(stockActionData.salesOrderId) : null,
+            notes: stockActionData.notes
+        };
+
+        try {
+            const res = await fetch('/api/inventory/stock-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                toast.error(data.error || 'Stock action failed');
+                return;
+            }
+
+            toast.success('Stock updated successfully');
+            if (data.bomWarnings && data.bomWarnings.length > 0) {
+                data.bomWarnings.forEach(w => toast.error(w, { duration: 6000 }));
+            }
+
+            setStockActionItem(null);
+            fetchItems();
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to submit stock action');
         }
     };
     const f = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -1097,21 +1257,108 @@ export default function InventoryPage() {
                 </>
             )}
 
-            {/* Restock Modal */}
-            {restockItem && (
+            {/* Stock Action Modal (In / Out) */}
+            {stockActionItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                    <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-                        <h2 className="text-base font-semibold mb-1">Restock</h2>
-                        <p className="text-xs text-white/40 mb-5">{restockItem.name}</p>
+                    <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl overflow-visible max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-base font-semibold mb-1">In & Out Stock Action</h2>
+                        <p className="text-xs text-white/40 mb-4">{stockActionItem.name} (Current: {stockActionItem.stock_quantity} {stockActionItem.uom})</p>
+                        
                         <div className="space-y-4">
-                            <Input label="Quantity to Add" type="number" autoFocus value={restockData.quantity} onChange={e => setRestockData(p => ({ ...p, quantity: e.target.value }))} className="bg-black/40 border-white/10" />
-                            <Input label="Notes / Reference" value={restockData.notes} onChange={e => setRestockData(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. PO #123" className="bg-black/40 border-white/10" />
-                            {/* BOM deduction preview */}
-                            {restockBom.length > 0 && (
+                            {/* In / Out Selector */}
+                            <div className="flex gap-2 p-1 bg-black/40 border border-white/10 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setStockActionData(p => ({ ...p, action: 'in' }))}
+                                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition-all ${stockActionData.action === 'in' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Stock In (Add)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStockActionData(p => ({ ...p, action: 'out' }))}
+                                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition-all ${stockActionData.action === 'out' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Stock Out (Deduct)
+                                </button>
+                            </div>
+
+                            {/* Quantity */}
+                            <Input
+                                label="Quantity"
+                                type="number"
+                                autoFocus
+                                value={stockActionData.quantity}
+                                onChange={e => setStockActionData(p => ({ ...p, quantity: e.target.value }))}
+                                className="bg-black/40 border-white/10"
+                                placeholder={`Quantity in ${stockActionItem.uom || 'units'}`}
+                            />
+
+                            {/* Reason */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-semibold text-white/50">Reason</label>
+                                <select
+                                    value={stockActionData.reason}
+                                    onChange={e => setStockActionData(p => ({ ...p, reason: e.target.value }))}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/20"
+                                >
+                                    <option value="other" className="bg-[#111] text-white">Other</option>
+                                    <option value="employee" className="bg-[#111] text-white">Employee saved or wasted</option>
+                                </select>
+                            </div>
+
+                            {/* Employee specific fields */}
+                            {stockActionData.reason === 'employee' && (
+                                <div className="space-y-4 border-l border-white/10 pl-4 py-1">
+                                    <div className="text-xs font-medium">
+                                        {stockActionData.action === 'in' ? (
+                                            <span className="text-emerald-400">● Recorded as: Employee Saved (leftovers/savings)</span>
+                                        ) : (
+                                            <span className="text-rose-400">● Recorded as: Employee Wasted (spoils/waste)</span>
+                                        )}
+                                    </div>
+
+                                    <SearchableSelect
+                                        label="Employee"
+                                        placeholder="Select employee..."
+                                        options={employeesList.map(e => ({ value: e.id, label: `${e.name} (${e.employee_id || 'N/A'})` }))}
+                                        value={stockActionData.employeeId}
+                                        onChange={val => setStockActionData(p => ({ ...p, employeeId: val }))}
+                                    />
+
+                                    <SearchableSelect
+                                        label="Sales Order (Optional)"
+                                        placeholder="Select Sales Order..."
+                                        options={salesOrdersList.map(so => ({ value: so.id, label: `${so.code} - ${so.customer_name || 'N/A'}` }))}
+                                        value={stockActionData.salesOrderId}
+                                        onChange={val => setStockActionData(p => ({ ...p, salesOrderId: val }))}
+                                    />
+
+                                    <SearchableSelect
+                                        label="Team (Optional)"
+                                        placeholder="Select Team..."
+                                        options={teamsList.map(t => ({ value: t.id, label: t.name }))}
+                                        value={stockActionData.teamId}
+                                        onChange={val => setStockActionData(p => ({ ...p, teamId: val }))}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Notes */}
+                            <Input
+                                label="Notes / Reference"
+                                value={stockActionData.notes}
+                                onChange={e => setStockActionData(p => ({ ...p, notes: e.target.value }))}
+                                placeholder="e.g. Damage during printing"
+                                className="bg-black/40 border-white/10"
+                            />
+
+                            {/* BOM Deduction Preview */}
+                            {stockActionBom.length > 0 && stockActionData.action === 'in' && (
                                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
                                     <p className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">BOM — Components to deduct</p>
-                                    {restockBom.map((line, i) => {
-                                        const deduct = parseFloat(line.quantity) * (parseFloat(restockData.quantity) || 0);
+                                    {stockActionBom.map((line, i) => {
+                                        const deduct = parseFloat(line.quantity) * (parseFloat(stockActionData.quantity) || 0);
                                         const insufficient = deduct > parseFloat(line.component_stock || 0);
                                         return (
                                             <div key={i} className="flex justify-between items-center text-sm">
@@ -1126,9 +1373,10 @@ export default function InventoryPage() {
                                 </div>
                             )}
                         </div>
+
                         <div className="flex gap-3 mt-6">
-                            <Button onClick={() => setRestockItem(null)} className="flex-1 bg-transparent border border-white/10 hover:bg-white/5">Cancel</Button>
-                            <Button onClick={handleRestock} className="flex-1 bg-white text-black hover:bg-white/90">Save</Button>
+                            <Button onClick={() => setStockActionItem(null)} className="flex-1 bg-transparent border text-gray-400 border-white/10 hover:bg-white/5">Cancel</Button>
+                            <Button onClick={handleStockActionSubmit} className="flex-1 bg-white text-black hover:bg-white/90">Save</Button>
                         </div>
                     </div>
                 </div>
@@ -1252,7 +1500,7 @@ export default function InventoryPage() {
             )}
 
             {/* History Modal */}
-            {historyItem && !restockItem && (
+            {historyItem && !stockActionItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
                     <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[80vh] flex flex-col">
                         <div className="flex justify-between items-center mb-5">

@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
+// Resolve run quantity based on speed unit (mirrors tasks/route.js logic)
+function resolveRunQty(speedUnit, { totalCutSheets, sidesVal, totalImpressions, itemQty }) {
+    const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
+    if (u === 'prints/hr') return totalCutSheets * sidesVal;
+    if (u === 'impressions/hr') return totalImpressions;
+    if (u === 'sheets/hr') return totalCutSheets;
+    return itemQty;
+}
+
 // GET /api/job-planning
 // Returns { machines, orders }
 // orders includes tasks with machine_id + machine_name
@@ -106,9 +115,13 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                 task.job_qty = detail.item_qty || 0;
                 if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
-                    task.quantity = speedUnit.toLowerCase() === 'impressions/hr'
-                        ? totalImpressions
-                        : (speedUnit.toLowerCase() === 'sheets/hr' ? totalCutSheets : detail.item_qty);
+                    const sidesVal = parseInt(detail.sides) || 1;
+                    task.quantity = resolveRunQty(speedUnit, {
+                        totalCutSheets,
+                        sidesVal,
+                        totalImpressions,
+                        itemQty: detail.item_qty || 0
+                    });
                 }
             }
         }
