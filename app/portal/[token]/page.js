@@ -10,7 +10,7 @@ import { Dock, DockIcon } from '@/components/magicui/dock';
 import { AnimatedThemeToggler } from '@/components/magicui/animated-theme-toggler';
 import { TextAnimate } from '@/components/magicui/text-animate';
 import GradualSpacing from '@/components/magicui/gradual-spacing';
-import { Spotlight } from '@/components/magicui/spotlight';
+import { SpotlightCard } from '@/components/magicui/spotlight-card';
 
 const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -52,7 +52,7 @@ const getStatusStyles = (status, isDark) => {
 
 function Badge({ status, dark }) {
     return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusStyles(status, dark)}`}>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-slate-400/40 ${getStatusStyles(status, dark)}`}>
             {status}
         </span>
     );
@@ -115,82 +115,18 @@ export default function CustomerPortal({ params }) {
     const d = dark;
 
     return (
-        <div className={`min-h-screen relative flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 pb-24 ${d ? 'bg-[#07080f] text-white' : 'bg-[#f4f7fb] text-slate-800'}`}
+        <div className={`min-h-screen relative flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 pb-24 md:pb-0 ${d ? 'bg-[#07080f] text-white' : 'bg-[#f4f7fb] text-slate-800'}`}
             style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.4s' }}>
 
-            {/* ── Background decoration orbs (Moving Mesh Gradient) ───────────────────────── */}
+            {/* ── Background decoration (Static Green Linear Gradient) ───────────────────────── */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-                <Spotlight
-                    id="spotlight-left"
-                    className="-top-40 left-0 md:left-60 md:-top-20"
-                    fill={d ? "#818cf8" : "#a5b4fc"}
-                    style={{
-                        animation: "spotlightSweepLeft 18s ease-in-out infinite alternate",
-                    }}
-                />
-                <Spotlight
-                    id="spotlight-right"
-                    className="top-10 right-0 md:right-40 md:-top-10"
-                    fill={d ? "#c084fc" : "#d8b4fe"}
-                    style={{
-                        animation: "spotlightSweepRight 22s ease-in-out infinite alternate",
-                    }}
-                />
-                <div className={`absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full blur-[140px] opacity-40 transition-colors duration-500 ${d ? 'bg-indigo-950/30' : 'bg-indigo-200/40'}`}
-                    style={{ animation: 'moveOrb1 25s ease-in-out infinite alternate' }} />
-                <div className={`absolute bottom-[-15%] right-[-10%] w-[55%] h-[55%] rounded-full blur-[140px] opacity-35 transition-colors duration-500 ${d ? 'bg-violet-950/20' : 'bg-purple-200/30'}`}
-                    style={{ animation: 'moveOrb2 20s ease-in-out infinite alternate' }} />
-                {outstanding > 0 && (
-                    <div className={`absolute top-[30%] right-[-5%] w-[45%] h-[45%] rounded-full blur-[130px] opacity-20 transition-colors duration-500 ${d ? 'bg-amber-950/15' : 'bg-amber-100/30'}`}
-                        style={{ animation: 'moveOrb1 18s ease-in-out infinite alternate-reverse' }} />
-                )}
+                <div className={`absolute inset-0 transition-opacity duration-500 ${
+                    d ? 'bg-gradient-to-br from-emerald-950/10 via-[#07080f] to-teal-950/10'
+                      : 'bg-gradient-to-br from-emerald-100/25 via-[#f4f7fb] to-teal-100/15'
+                }`} />
             </div>
 
             <style>{`
-                @keyframes spotlightSweepLeft {
-                    0% {
-                        opacity: 0;
-                        transform: translate(-10%, -10%) scale(0.9) rotate(-15deg);
-                    }
-                    10% {
-                        opacity: 0.35;
-                    }
-                    50% {
-                        opacity: 0.45;
-                        transform: translate(10%, 5%) scale(1.05) rotate(0deg);
-                    }
-                    100% {
-                        opacity: 0.3;
-                        transform: translate(-5%, -5%) scale(0.95) rotate(15deg);
-                    }
-                }
-                @keyframes spotlightSweepRight {
-                    0% {
-                        opacity: 0;
-                        transform: translate(15%, -5%) scale(0.95) rotate(10deg);
-                    }
-                    15% {
-                        opacity: 0.25;
-                    }
-                    50% {
-                        opacity: 0.35;
-                        transform: translate(-10%, 10%) scale(1.05) rotate(-10deg);
-                    }
-                    100% {
-                        opacity: 0.2;
-                        transform: translate(5%, -10%) scale(0.9) rotate(5deg);
-                    }
-                }
-                @keyframes moveOrb1 {
-                    0% { transform: translate(0px, 0px) scale(1); }
-                    50% { transform: translate(60px, -40px) scale(1.1); }
-                    100% { transform: translate(-40px, 50px) scale(0.95); }
-                }
-                @keyframes moveOrb2 {
-                    0% { transform: translate(0px, 0px) scale(1.05); }
-                    50% { transform: translate(-70px, 60px) scale(0.9); }
-                    100% { transform: translate(50px, -30px) scale(1.15); }
-                }
                 .hover-spin:hover svg {
                     transform: rotate(15deg) scale(1.1);
                     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -284,26 +220,27 @@ export default function CustomerPortal({ params }) {
                 </div>
 
                 {/* Customer bottom card */}
-                <div className={`p-4 m-4 rounded-2xl border transition-all ${d ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-slate-50/50 border-slate-200/70 shadow-sm'
-                    }`}>
-                    <p className={`text-[9px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-400'}`}>Account</p>
-                    <h3 className={`text-sm font-extrabold truncate mt-1 ${d ? 'text-white' : 'text-slate-800'}`}>{customer.name}</h3>
-                    {customer.category && (
-                        <span className={`inline-block mt-2 text-[8px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${d ? 'text-amber-300 border-amber-500/20 bg-amber-500/10' : 'text-amber-700 border-amber-500/20 bg-amber-50/70'
-                            }`}>
-                            {customer.category}
-                        </span>
-                    )}
+                <SpotlightCard dark={d} className="m-4">
+                    <div className="p-4">
+                        <p className={`text-[9px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-400'}`}>Account</p>
+                        <h3 className={`text-sm font-extrabold truncate mt-1 ${d ? 'text-white' : 'text-slate-800'}`}>{customer.name}</h3>
+                        {customer.category && (
+                            <span className={`inline-block mt-2 text-[8px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${d ? 'text-amber-300 border-amber-500/20 bg-amber-500/10' : 'text-amber-700 border-amber-500/20 bg-amber-50/70'
+                                }`}>
+                                {customer.category}
+                            </span>
+                        )}
 
-                    {customer.email && (
-                        <div className="mt-3.5 pt-3 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-2">
-                            <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-[11px] opacity-75 hover:underline">
-                                <FiMail className="w-3 h-3 shrink-0" />
-                                <span className="truncate">{customer.email}</span>
-                            </a>
-                        </div>
-                    )}
-                </div>
+                        {customer.email && (
+                            <div className="mt-3.5 pt-3 border-t border-dashed border-slate-200/50 dark:border-white/5 space-y-2">
+                                <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-[11px] opacity-75 hover:underline">
+                                    <FiMail className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{customer.email}</span>
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                </SpotlightCard>
             </aside>
 
 
@@ -347,28 +284,31 @@ export default function CustomerPortal({ params }) {
 
                     {/* Financial Outstanding Glass Card */}
                     {outstanding > 0 && (
-                        <div className={`rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border transition-all duration-500 shadow-md ${d ? 'bg-amber-500/[0.04] border-amber-500/20 shadow-amber-950/10'
-                            : 'bg-white border-amber-250 shadow-amber-100/30'
-                            }`}
-                            style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0">
-                                    <FiAlertCircle className="w-6 h-6 text-amber-500 dark:text-amber-400 animate-pulse" />
+                        <SpotlightCard
+                            dark={d}
+                            className="shadow-md"
+                            spotlightColor={d ? "rgba(245, 158, 11, 0.18)" : "rgba(245, 158, 11, 0.08)"}
+                        >
+                            <div className="p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0">
+                                        <FiAlertCircle className="w-6 h-6 text-amber-500 dark:text-amber-400 animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <p className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-amber-300/80' : 'text-amber-700/80'}`}>Outstanding Balance</p>
+                                        <h3 className={`text-3xl font-black font-mono tracking-tight mt-0.5 ${d ? 'text-amber-300' : 'text-amber-600'}`}>{fmt(outstanding)}</h3>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-amber-300/80' : 'text-amber-700/80'}`}>Outstanding Balance</p>
-                                    <h3 className={`text-3xl font-black font-mono tracking-tight mt-0.5 ${d ? 'text-amber-300' : 'text-amber-600'}`}>{fmt(outstanding)}</h3>
-                                </div>
+                                {brand.company_email && (
+                                    <a
+                                        href={`mailto:${brand.company_email}?subject=Payment Details Request - ${customer.name}`}
+                                        className="inline-flex items-center justify-center font-bold text-xs bg-amber-550 hover:bg-amber-600 dark:bg-amber-450 dark:hover:bg-amber-350 text-black px-5 py-3 rounded-2xl transition-all shadow-md active:scale-98 shrink-0 text-center"
+                                    >
+                                        Request Bank Details
+                                    </a>
+                                )}
                             </div>
-                            {brand.company_email && (
-                                <a
-                                    href={`mailto:${brand.company_email}?subject=Payment Details Request - ${customer.name}`}
-                                    className="inline-flex items-center justify-center font-bold text-xs bg-amber-550 hover:bg-amber-600 dark:bg-amber-450 dark:hover:bg-amber-350 text-black px-5 py-3 rounded-2xl transition-all shadow-md active:scale-98 shrink-0 text-center"
-                                >
-                                    Request Bank Details
-                                </a>
-                            )}
-                        </div>
+                        </SpotlightCard>
                     )}
 
                     {/* Key Metrics Grid */}
@@ -379,27 +319,30 @@ export default function CustomerPortal({ params }) {
                             { label: 'Pending Orders', value: salesOrders.filter(so => so.status !== 'Delivered').length, icon: FiShoppingCart, colorClass: 'text-indigo-500 dark:text-indigo-400' },
                             { label: 'Quotes Requested', value: stats.total_quotes || 0, icon: FiFileText, colorClass: 'text-purple-600 dark:text-purple-400' }
                         ].map((item, idx) => (
-                            <div
+                            <SpotlightCard
                                 key={idx}
-                                className={`rounded-2xl p-4 border transition-all duration-300 hover:-translate-y-1 hover-spin ${d ? 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
-                                    : 'bg-white border-slate-200/90 hover:border-slate-350 hover:bg-slate-50/50 shadow-sm'
-                                    }`}
+                                dark={d}
+                                className="hover:-translate-y-1 transition-all duration-300"
+                                spotlightColor={
+                                    idx === 1 ? (d ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.08)") : // Emerald for Settled
+                                    idx === 2 ? (d ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.08)") : // Indigo for Orders
+                                    idx === 3 ? (d ? "rgba(168, 85, 247, 0.15)" : "rgba(168, 85, 247, 0.08)") : // Purple for Quotes
+                                    undefined // default
+                                }
                             >
-                                <div className="flex items-center justify-between mb-2.5">
-                                    <item.icon className={`w-4.5 h-4.5 ${item.colorClass} opacity-80`} />
+                                <div className="p-4 hover-spin">
+                                    <div className="flex items-center justify-between mb-2.5">
+                                        <item.icon className={`w-4.5 h-4.5 ${item.colorClass} opacity-80`} />
+                                    </div>
+                                    <p className={`text-xl font-bold font-mono ${item.colorClass}`}>{item.value}</p>
+                                    <p className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 ${d ? 'text-white/35' : 'text-slate-450'}`}>{item.label}</p>
                                 </div>
-                                <p className={`text-xl font-bold font-mono ${item.colorClass}`}>{item.value}</p>
-                                <p className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 ${d ? 'text-white/35' : 'text-slate-450'}`}>{item.label}</p>
-                            </div>
+                            </SpotlightCard>
                         ))}
                     </div>
 
                     {/* Content Detail Cards */}
-                    <div className={`rounded-3xl border overflow-hidden transition-all duration-500 shadow-xl ${d ? 'bg-white/[0.015] border-white/[0.06] shadow-black/20'
-                        : 'bg-white border-slate-200/80 shadow-slate-100/40'
-                        }`}
-                        style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-
+                    <SpotlightCard dark={d} className="shadow-xl">
                         <div className="p-5 md:p-6">
 
                             {/* OVERVIEW CONTENT */}
@@ -444,12 +387,16 @@ export default function CustomerPortal({ params }) {
                                                                 href={`/timeline/${so.order_id}`}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className={`p-2 rounded-xl border transition-colors ${d ? 'border-white/10 hover:border-white/20 text-white/50 hover:text-white'
-                                                                    : 'border-slate-200 hover:border-slate-350 text-slate-500 hover:text-slate-800 bg-white'
+                                                                className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/55 text-indigo-300 hover:bg-indigo-500/25'
+                                                                    : 'bg-indigo-50/60 border-indigo-200 hover:border-indigo-355 text-indigo-750 hover:bg-indigo-50/90'
                                                                     }`}
-                                                                title="Track real-time production"
                                                             >
-                                                                <FiExternalLink className="w-3.5 h-3.5" />
+                                                                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                                                </span>
+                                                                <FiPackage className="w-3.5 h-3.5" />
+                                                                <span>Track</span>
                                                             </a>
                                                         </div>
                                                     </div>
@@ -559,11 +506,16 @@ export default function CustomerPortal({ params }) {
                                                             href={`/timeline/${so.order_id}`}
                                                             target="_blank"
                                                             rel="noreferrer"
-                                                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-colors ${d ? 'bg-white/[0.03] border-white/10 hover:border-white/20 text-white/70'
-                                                                : 'bg-white border-slate-250 hover:border-slate-350 text-slate-600'
+                                                            className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/55 text-indigo-300 hover:bg-indigo-500/25'
+                                                                : 'bg-indigo-50/60 border-indigo-200 hover:border-indigo-350 text-indigo-750 hover:bg-indigo-50/90'
                                                                 }`}
                                                         >
-                                                            <FiPackage className="w-3.5 h-3.5" /> Track
+                                                            <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                                            </span>
+                                                            <FiPackage className="w-3.5 h-3.5" />
+                                                            <span>Track</span>
                                                         </a>
                                                     </div>
                                                 </div>
@@ -610,27 +562,28 @@ export default function CustomerPortal({ params }) {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </SpotlightCard>
 
                     {/* Contact Info Details Card */}
-                    <div className={`rounded-3xl p-5 md:p-6 border backdrop-blur-sm  transition-all duration-500 ${d ? 'bg-white/[0.015] border-white/[0.06]' : 'bg-white border-slate-400/5 shadow-sm'
-                        }`}>
-                        <h3 className={`text-sm font-extrabold mb-4 uppercase tracking-wider ${d ? 'text-white/40' : 'text-slate-400'}`}>Contact & Billing Addresses</h3>
-                        <div className="grid md:grid-cols-2 gap-6">
-                            {customer.phone && (
-                                <div className="space-y-1">
-                                    <p className={`text-[10px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Contact Phone</p>
-                                    <a href={`tel:${customer.phone}`} className="text-sm font-semibold hover:underline block">{customer.phone}</a>
-                                </div>
-                            )}
-                            {customer.address && (
-                                <div className="space-y-1">
-                                    <p className={`text-[10px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Billing Address</p>
-                                    <p className="text-sm leading-relaxed">{customer.address}</p>
-                                </div>
-                            )}
+                    <SpotlightCard dark={d} className="shadow-sm">
+                        <div className="p-5 md:p-6">
+                            <h3 className={`text-sm font-extrabold mb-4 uppercase tracking-wider ${d ? 'text-white/40' : 'text-slate-400'}`}>Contact & Billing Addresses</h3>
+                            <div className="grid md:grid-cols-2 gap-6">
+                                {customer.phone && (
+                                    <div className="space-y-1">
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Contact Phone</p>
+                                        <a href={`tel:${customer.phone}`} className="text-sm font-semibold hover:underline block">{customer.phone}</a>
+                                    </div>
+                                )}
+                                {customer.address && (
+                                    <div className="space-y-1">
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Billing Address</p>
+                                        <p className="text-sm leading-relaxed">{customer.address}</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    </SpotlightCard>
                 </div>
 
                 {/* Sticky Footer */}
