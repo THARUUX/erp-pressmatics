@@ -34,13 +34,15 @@ export async function PUT(req) {
             try {
                 const [result] = await pool.execute(
                     `UPDATE inventory_items SET
-                        item_code=?, name=?, type=?, stock_quantity=?, unit_cost=?, min_stock=?,
+                        item_code=?, name=?, type=?, width_cm=?, height_cm=?, stock_quantity=?, unit_cost=?, min_stock=?,
                         uom=?, description=?, is_active=?
                      WHERE id=?`,
                     [
                         row.item_code.trim(),
                         row.name.trim(),
                         row.type?.trim() || '',
+                        row.width_cm !== undefined && row.width_cm !== '' && row.width_cm !== null ? parseFloat(row.width_cm) : null,
+                        row.height_cm !== undefined && row.height_cm !== '' && row.height_cm !== null ? parseFloat(row.height_cm) : null,
                         parseFloat(row.stock_quantity) || 0,
                         parseFloat(row.unit_cost) || 0,
                         parseInt(row.min_stock) || 0,
