@@ -9,6 +9,39 @@ import { FiArrowLeft, FiCopy, FiTrash2, FiSave, FiRefreshCw, FiShoppingCart, FiD
 import Button from '@/components/ui/Button';
 import { useSettings } from '@/components/SettingsContext';
 
+function SalesOrderProgress({ visible, progress, label }) {
+    if (!visible) return null;
+    return (
+        <div className="fixed inset-0 z-[9999] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#soGrad)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="soGrad" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#10b981" />
+                                    <stop offset="100%" stopColor="#34d399" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
+                            <FiShoppingCart size={18} className="text-emerald-400" />
+                        </div>
+                    </div>
+                </div>
+                <div className="text-white font-bold text-base mb-1">Creating Sales Order</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
+                </div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
+            </div>
+        </div>
+    );
+}
+
 export default function EditQuotationPage({ params }) {
     const { id } = use(params);
     const router = useRouter();
@@ -22,6 +55,78 @@ export default function EditQuotationPage({ params }) {
     // 'idle' | 'saving' | 'saved'
     const [saveStatus, setSaveStatus] = useState('idle');
     const [stockShortages, setStockShortages] = useState(null); // null | shortage[]
+
+    const [convertingId, setConvertingId] = useState(null);
+    const [autoDeduct, setAutoDeduct] = useState(false);
+    const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
+    const [convertingProgress, setConvertingProgress] = useState(0);
+    const [convertingLabel, setConvertingLabel] = useState('');
+
+    const handleConvert = (id) => {
+        setConvertingId(id);
+        setAutoDeduct(false);
+    };
+
+    const submitConvert = async () => {
+        if (!convertingId) return;
+        const id = convertingId;
+        setConvertingId(null);
+
+        setConvertingProgressVisible(true);
+        setConvertingProgress(0);
+        setConvertingLabel('Initializing conversion...');
+
+        const stages = [
+            { pct: 15, label: 'Reading quotation details...' },
+            { pct: 35, label: 'Creating Sales Order header...' },
+            { pct: 55, label: 'Creating Sales Order items...' },
+            { pct: 75, label: 'Generating job tasks & routing...' },
+            { pct: 90, label: 'Allocating material requirements...' }
+        ];
+
+        let si = 0;
+        const tick = setInterval(() => {
+            if (si < stages.length) {
+                setConvertingProgress(stages[si].pct);
+                setConvertingLabel(stages[si].label);
+                si++;
+            }
+        }, 300);
+
+        try {
+            const res = await fetch('/api/sales-orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct }),
+            });
+            const d = await res.json();
+            clearInterval(tick);
+
+            if (res.ok) {
+                setConvertingProgress(100);
+                setConvertingLabel('Done!');
+                await new Promise(r => setTimeout(r, 600));
+                setConvertingProgressVisible(false);
+                toast.success('Sales Order created successfully!');
+                router.push('/dashboard/sales-orders');
+            } else {
+                setConvertingProgressVisible(false);
+                if (res.status === 422) {
+                    if (d.error === 'insufficient_stock' && d.shortages) {
+                        setStockShortages(d.shortages);
+                    } else {
+                        toast.error(d.message || 'Insufficient stock to convert');
+                    }
+                } else {
+                    toast.error('Failed to convert: ' + (d.error || 'Unknown error'));
+                }
+            }
+        } catch {
+            clearInterval(tick);
+            setConvertingProgressVisible(false);
+            toast.error('Error converting to sales order');
+        }
+    };
 
     const markSaved = () => {
         setSaveStatus('saved');
@@ -149,6 +254,70 @@ export default function EditQuotationPage({ params }) {
 
     return (
         <div className="min-h-screen bg-transparent text-white p-8">
+            <SalesOrderProgress visible={convertingProgressVisible} progress={convertingProgress} label={convertingLabel} />
+            
+            {/* ── Conversion Modal ─────────────────────────────────────────── */}
+            {convertingId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-8 w-full max-w-md shadow-2xl shadow-black/80">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                                <FiShoppingCart className="w-5 h-5 text-emerald-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Convert to Sales Order</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Configure stock settings for the new order</p>
+                            </div>
+                        </div>
+
+                        <div className="my-6 space-y-4">
+                            <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04] transition-all text-left">
+                                <input
+                                    type="radio"
+                                    name="autoDeduct"
+                                    checked={!autoDeduct}
+                                    onChange={() => setAutoDeduct(false)}
+                                    className="mt-1 accent-emerald-500"
+                                />
+                                <div>
+                                    <span className="block text-sm font-semibold text-white">Issue stocks manually / partially later</span>
+                                    <span className="block text-xs text-gray-400 mt-0.5">Recommended. Create the Sales Order immediately and issue items from the warehouse as they become available.</span>
+                                </div>
+                            </label>
+
+                            <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04] transition-all text-left">
+                                <input
+                                    type="radio"
+                                    name="autoDeduct"
+                                    checked={autoDeduct}
+                                    onChange={() => setAutoDeduct(true)}
+                                    className="mt-1 accent-emerald-500"
+                                />
+                                <div>
+                                    <span className="block text-sm font-semibold text-white">Auto-deduct stock immediately</span>
+                                    <span className="block text-xs text-gray-400 mt-0.5">Deduct all required materials from inventory right now. Fails if there is insufficient stock.</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setConvertingId(null)}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={submitConvert}
+                                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-sm font-semibold text-white transition-colors"
+                            >
+                                Convert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Stock Shortage Modal ─────────────────────────────────────── */}
             {stockShortages && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -227,35 +396,7 @@ export default function EditQuotationPage({ params }) {
                 <div className="flex gap-3">
                     {quote.status !== 'converted' && (
                         <Button
-                            onClick={async () => {
-                                if (!(await confirmDialog("Convert this quotation to a Sales Order?"))) return;
-                                setProcessing(true);
-                                try {
-                                    const res = await fetch(`/api/sales-orders`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ quotation_id: quote.id })
-                                    });
-                                    if (res.ok) {
-                                        toast.success("Sales Order created successfully!");
-                                        router.push('/dashboard/sales-orders');
-                                    } else if (res.status === 422) {
-                                        const data = await res.json();
-                                        if (data.error === 'insufficient_stock' && data.shortages) {
-                                            setStockShortages(data.shortages);
-                                        } else {
-                                            toast.error(data.message || 'Insufficient stock to convert');
-                                        }
-                                    } else {
-                                        const data = await res.json().catch(() => ({}));
-                                        toast.error(data.error || 'Failed to convert quotation');
-                                    }
-                                } catch (error) {
-                                    toast.error('Error converting quotation');
-                                } finally {
-                                    setProcessing(false);
-                                }
-                            }}
+                            onClick={() => handleConvert(quote.id)}
                             className="bg-green-600 hover:bg-green-700 text-white"
                         >
                             <FiShoppingCart className="mr-2" /> Convert to SO

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
     FiSave, FiArrowLeft, FiPlus, FiCheck, FiSearch,
     FiChevronUp, FiChevronDown, FiChevronsLeft,
-    FiChevronLeft, FiChevronRight, FiChevronsRight
+    FiChevronLeft, FiChevronRight, FiChevronsRight,
+    FiAlertCircle, FiPackage
 } from 'react-icons/fi';
 import {
     useReactTable,
@@ -68,9 +69,10 @@ export default function NewQuotationContainerPage() {
     const [customers, setCustomers] = useState([]);
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
-    // Items Selection
     const [availableItems, setAvailableItems] = useState([]);
     const [selectedItemIds, setSelectedItemIds] = useState([]);
+    const [quotationShortages, setQuotationShortages] = useState(null);
+    const [pendingQuoteData, setPendingQuoteData] = useState(null);
 
     // TanStack Table State
     const [globalFilter, setGlobalFilter] = useState('');
@@ -145,7 +147,7 @@ export default function NewQuotationContainerPage() {
         }
     };
 
-    const handleSave = async () => {
+    const handleSave = async (ignoreStock = false) => {
         if (!customerName || selectedItemIds.length === 0) {
             toast.error("Please enter customer name and select at least one item.");
             return;
@@ -159,18 +161,23 @@ export default function NewQuotationContainerPage() {
                 body: JSON.stringify({
                     customer_name: customerName,
                     customer_id: customerId,
-                    selected_item_ids: selectedItemIds
+                    selected_item_ids: selectedItemIds,
+                    ignore_stock_warning: ignoreStock
                 })
             });
 
+            const data = await res.json();
             if (res.ok) {
-                const data = await res.json();
                 router.push(`/dashboard/quotations/${data.quotationId}/edit`);
+            } else if (res.status === 422 && data.error === 'insufficient_stock') {
+                setQuotationShortages(data.shortages);
+                setPendingQuoteData({ customerName, customerId, selectedItemIds });
             } else {
-                toast.error('Failed to save quotation.');
+                toast.error(data.error || 'Failed to save quotation.');
             }
         } catch (error) {
             console.error(error);
+            toast.error('Error saving quotation.');
         } finally {
             setLoading(false);
         }
@@ -267,6 +274,82 @@ export default function NewQuotationContainerPage() {
 
     return (
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
+            {/* ── Stock Shortage Warning Modal ───────────────────────────────── */}
+            {quotationShortages && (
+                <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-amber-500/30 rounded-2xl p-8 w-full max-w-lg shadow-2xl shadow-amber-950/20">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                <FiAlertCircle className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Stock Shortage Warning</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Warning: There is insufficient stock for the following items</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 rounded-xl overflow-hidden border border-white/[0.07]">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-white/[0.04] border-b border-white/[0.07]">
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Item</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Required</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Available</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-amber-500/70">Short</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {quotationShortages.map((s, i) => (
+                                        <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                    s.type === 'sfg'
+                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                        : s.type === 'statics'
+                                                        ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                        : s.type === 'plate'
+                                                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
+                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                                }`}>
+                                                    <FiPackage className="w-2.5 h-2.5" />
+                                                    {s.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-200 font-medium text-xs text-left">{s.name}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.required}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.available}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs font-bold text-amber-400">{s.shortfall}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 text-left">Do you want to create the quotation anyway?</p>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setQuotationShortages(null);
+                                    setPendingQuoteData(null);
+                                }}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setQuotationShortages(null);
+                                    setPendingQuoteData(null);
+                                    handleSave(true);
+                                }}
+                                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 rounded-xl text-sm font-semibold text-black transition-colors font-bold"
+                            >
+                                Create Anyway
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
                     <Link href="/dashboard/quotations">

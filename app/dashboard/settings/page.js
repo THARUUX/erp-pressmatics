@@ -5,7 +5,8 @@ import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
     FiSettings, FiBriefcase, FiFileText, FiHash, FiTrash2,
-    FiSave, FiAlertTriangle, FiCheckCircle,
+    FiSave, FiAlertTriangle, FiCheckCircle, FiList, FiPlus, FiX,
+    FiArrowUp, FiArrowDown
 } from 'react-icons/fi';
 
 /* ── Reusable field primitives ────────────────────────────────────────────── */
@@ -48,6 +49,7 @@ const TABS = [
     { key: 'company',  label: 'Company',        icon: FiBriefcase  },
     { key: 'documents',label: 'Documents',      icon: FiFileText  },
     { key: 'ids',      label: 'ID Templates',   icon: FiHash      },
+    { key: 'tasks',    label: 'Tasks',          icon: FiList      },
     { key: 'data',     label: 'Data Management',icon: FiTrash2    },
 ];
 
@@ -78,6 +80,19 @@ function formatDateOnly(dateStr) {
         return '';
     }
 }
+
+const getTaskTypeBadge = (key) => {
+    if (['prepress', 'service', 'plate_making', 'offset_printing', 'digital_printing', 'finishing', 'quality_check', 'packing', 'delivery'].includes(key)) {
+        return <span className="bg-blue-500/10 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20 uppercase tracking-wider">System</span>;
+    }
+    if (key.startsWith('machine_')) {
+        return <span className="bg-purple-500/10 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/20 uppercase tracking-wider">Machine</span>;
+    }
+    if (key.startsWith('finishing_')) {
+        return <span className="bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/20 uppercase tracking-wider">Finishing</span>;
+    }
+    return <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/20 uppercase tracking-wider">Custom</span>;
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsPage() {
@@ -111,9 +126,36 @@ export default function SettingsPage() {
         }
     };
 
+    // Tasks Configuration
+    const [taskConfigs, setTaskConfigs] = useState([]);
+    const [machines, setMachines] = useState([]);
+    const [loadingTasks, setLoadingTasks] = useState(false);
+    const [savingTasks, setSavingTasks] = useState(false);
+
+    const fetchTaskConfigs = async () => {
+        setLoadingTasks(true);
+        try {
+            const res = await fetch('/api/settings/tasks');
+            const data = await res.json();
+            if (res.ok) {
+                const sorted = (data.configs || []).sort((a, b) => a.display_order - b.display_order);
+                setTaskConfigs(sorted);
+                setMachines(data.machines || []);
+            } else {
+                toast.error('Failed to load task configurations');
+            }
+        } catch (err) {
+            toast.error('Error fetching task configurations');
+        } finally {
+            setLoadingTasks(false);
+        }
+    };
+
     useEffect(() => {
         if (tab === 'data') {
             fetchStats();
+        } else if (tab === 'tasks') {
+            fetchTaskConfigs();
         }
     }, [tab]);
 
@@ -262,8 +304,46 @@ export default function SettingsPage() {
         ];
         let ok = true;
         for (const [key, val] of updates) { if (!(await updateSetting(key, val))) ok = false; }
-        ok ? toast.success('Settings saved') : toast.error('Some settings failed to save');
         setSaving(false);
+    };
+
+    const handleSaveTasks = async () => {
+        setSavingTasks(true);
+        try {
+            const res = await fetch('/api/settings/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ configs: taskConfigs })
+            });
+            if (res.ok) {
+                toast.success('Task configurations saved successfully');
+                fetchTaskConfigs();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to save task configurations');
+            }
+        } catch (err) {
+            toast.error('Error saving task configurations');
+        } finally {
+            setSavingTasks(false);
+        }
+    };
+
+    const moveConfig = (index, direction) => {
+        const newConfigs = [...taskConfigs];
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= newConfigs.length) return;
+        
+        const temp = newConfigs[index];
+        newConfigs[index] = newConfigs[targetIndex];
+        newConfigs[targetIndex] = temp;
+        
+        // Re-assign display_orders based on the new array index (index * 10)
+        newConfigs.forEach((c, idx) => {
+            c.display_order = (idx + 1) * 10;
+        });
+        
+        setTaskConfigs(newConfigs);
     };
 
     return (
@@ -274,11 +354,18 @@ export default function SettingsPage() {
                     <h1 className="text-3xl font-bold tracking-tighter">Settings</h1>
                     <p className="text-gray-500 text-sm mt-0.5">Configure your ERP system preferences</p>
                 </div>
-                {tab !== 'data' && (
+                {tab !== 'data' && tab !== 'tasks' && (
                     <button onClick={handleSave} disabled={saving}
                         className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50">
                         <FiSave className="w-4 h-4" />
                         {saving ? 'Saving…' : 'Save Changes'}
+                    </button>
+                )}
+                {tab === 'tasks' && (
+                    <button onClick={handleSaveTasks} disabled={savingTasks || loadingTasks}
+                        className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50">
+                        <FiSave className="w-4 h-4" />
+                        {savingTasks ? 'Saving…' : 'Save Task Configs'}
                     </button>
                 )}
             </div>
@@ -614,6 +701,171 @@ export default function SettingsPage() {
                             Clearing "Customers" with reset sequence will also reset Customer ID and Quotation ID sequences if the option is enabled.
                         </p>
                     </div>
+                </div>
+            )}
+
+            {/* TASKS TAB */}
+            {tab === 'tasks' && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-4 bg-black/20">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-white/5"><FiList className="w-4 h-4 text-gray-400" /></div>
+                            <div>
+                                <h2 className="text-sm font-semibold text-white">Default Task Templates</h2>
+                                <p className="text-xs text-gray-500 mt-0.5 font-medium">Configure default tasks generated for new sales orders, their execution order, and whether they separate for Back-to-Back (BB) jobs.</p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={() => {
+                            const newOrder = taskConfigs.length ? Math.max(...taskConfigs.map(c => c.display_order)) + 10 : 10;
+                            setTaskConfigs([...taskConfigs, {
+                                task_key: 'custom',
+                                name: 'New Default Task',
+                                description: 'Custom default task description',
+                                display_order: newOrder,
+                                is_bb_separated: 0,
+                                estimated_minutes: null,
+                                is_enabled: 1
+                            }]);
+                        }} className="flex items-center gap-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-2 rounded-xl transition-all cursor-pointer">
+                            <FiPlus className="w-3.5 h-3.5" />
+                            Add Default Task
+                        </button>
+                    </div>
+
+                    {loadingTasks ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+                            <span className="text-xs font-medium">Loading configurations...</span>
+                        </div>
+                    ) : (
+                        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-white/[0.05] bg-white/[0.01]">
+                                            <th className="p-4 w-16 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Active</th>
+                                            <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
+                                            <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Task Name / Label</th>
+                                            <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</th>
+                                            <th className="p-4 w-44 text-xs font-semibold text-gray-400 uppercase tracking-wider">Assigned Machine</th>
+                                            <th className="p-4 w-32 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Order</th>
+                                            <th className="p-4 w-28 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">BB Separate</th>
+                                            <th className="p-4 w-32 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Est. Mins</th>
+                                            <th className="p-4 w-12 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {taskConfigs.map((c, index) => (
+                                            <tr key={index} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
+                                                <td className="p-4 text-center">
+                                                    <input type="checkbox" checked={c.is_enabled === 1}
+                                                        onChange={(e) => {
+                                                            const copy = [...taskConfigs];
+                                                            copy[index].is_enabled = e.target.checked ? 1 : 0;
+                                                            setTaskConfigs(copy);
+                                                        }}
+                                                        className="rounded border-white/20 bg-black/30 text-white focus:ring-0 focus:ring-offset-0 cursor-pointer" />
+                                                </td>
+                                                <td className="p-4 whitespace-nowrap">
+                                                    {getTaskTypeBadge(c.task_key)}
+                                                </td>
+                                                <td className="p-4">
+                                                    <input type="text" value={c.name}
+                                                        onChange={(e) => {
+                                                            const copy = [...taskConfigs];
+                                                            copy[index].name = e.target.value;
+                                                            setTaskConfigs(copy);
+                                                        }}
+                                                        className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 w-full transition-colors" />
+                                                </td>
+                                                <td className="p-4">
+                                                    <input type="text" value={c.description || ''}
+                                                        onChange={(e) => {
+                                                            const copy = [...taskConfigs];
+                                                            copy[index].description = e.target.value;
+                                                            setTaskConfigs(copy);
+                                                        }}
+                                                        placeholder="Optional description"
+                                                        className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 w-full transition-colors placeholder-gray-700" />
+                                                </td>
+                                                <td className="p-4">
+                                                    {c.task_key.startsWith('machine_') ? (
+                                                        <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-md font-semibold uppercase tracking-wider">Auto-Bound</span>
+                                                    ) : (
+                                                        <select value={c.machine_id || ''}
+                                                            onChange={(e) => {
+                                                                const copy = [...taskConfigs];
+                                                                copy[index].machine_id = e.target.value === '' ? null : parseInt(e.target.value);
+                                                                setTaskConfigs(copy);
+                                                            }}
+                                                            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-white/30 w-full max-w-[170px] transition-colors cursor-pointer">
+                                                            <option value="" className="bg-[#18181b] text-gray-400">None (Dynamic)</option>
+                                                            {machines.map(m => (
+                                                                <option key={m.id} value={m.id} className="bg-[#18181b] text-white">
+                                                                    {m.name} ({m.type})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <button type="button" onClick={() => moveConfig(index, -1)} disabled={index === 0}
+                                                            className="p-1 hover:bg-white/5 disabled:opacity-20 rounded-lg text-gray-400 hover:text-white transition-all cursor-pointer">
+                                                            <FiArrowUp className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <input type="number" value={c.display_order}
+                                                            onChange={(e) => {
+                                                                const copy = [...taskConfigs];
+                                                                copy[index].display_order = parseInt(e.target.value) || 0;
+                                                                setTaskConfigs(copy.sort((a, b) => a.display_order - b.display_order));
+                                                            }}
+                                                            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-white/30 w-12 text-center transition-colors font-mono" />
+                                                        <button type="button" onClick={() => moveConfig(index, 1)} disabled={index === taskConfigs.length - 1}
+                                                            className="p-1 hover:bg-white/5 disabled:opacity-20 rounded-lg text-gray-400 hover:text-white transition-all cursor-pointer">
+                                                            <FiArrowDown className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex justify-center">
+                                                        <input type="checkbox" checked={c.is_bb_separated === 1}
+                                                            onChange={(e) => {
+                                                                const copy = [...taskConfigs];
+                                                                copy[index].is_bb_separated = e.target.checked ? 1 : 0;
+                                                                setTaskConfigs(copy);
+                                                            }}
+                                                            className="rounded border-white/20 bg-black/30 text-white focus:ring-0 focus:ring-offset-0 cursor-pointer" />
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <input type="number" value={c.estimated_minutes ?? ''}
+                                                        onChange={(e) => {
+                                                            const copy = [...taskConfigs];
+                                                            copy[index].estimated_minutes = e.target.value === '' ? null : parseInt(e.target.value);
+                                                            setTaskConfigs(copy);
+                                                        }}
+                                                        placeholder="Auto"
+                                                        className="bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 w-20 text-center transition-colors font-mono placeholder-gray-600" />
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {c.task_key === 'custom' ? (
+                                                        <button type="button" onClick={() => {
+                                                            setTaskConfigs(prev => prev.filter((_, idx) => idx !== index));
+                                                        }} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-white/5 rounded-lg transition-colors">
+                                                            <FiX className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] font-semibold text-gray-600 uppercase">System</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

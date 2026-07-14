@@ -192,28 +192,26 @@ export async function POST(req) {
             });
         }
 
-        // ── VALIDATION (ONLY IF auto_deduct_stock IS TRUE) ───────────────────
-        if (auto_deduct_stock) {
-            const shortages = [];
-            for (const item of bomItems) {
-                if (item.required_qty > item.available) {
-                    shortages.push({
-                        type: item.component_type,
-                        name: item.component_name,
-                        required: item.required_qty,
-                        available: item.available,
-                        shortfall: item.required_qty - item.available
-                    });
-                }
+        // ── VALIDATION (RUNS FOR ALL CASES) ───────────────────
+        const shortages = [];
+        for (const item of bomItems) {
+            if (item.required_qty > item.available) {
+                shortages.push({
+                    type: item.component_type,
+                    name: item.component_name,
+                    required: item.required_qty,
+                    available: item.available,
+                    shortfall: item.required_qty - item.available
+                });
             }
-            if (shortages.length > 0) {
-                conn.release();
-                return NextResponse.json({
-                    error: 'insufficient_stock',
-                    message: 'Cannot convert: insufficient stock for some items',
-                    shortages,
-                }, { status: 422 });
-            }
+        }
+        if (shortages.length > 0) {
+            conn.release();
+            return NextResponse.json({
+                error: 'insufficient_stock',
+                message: 'Cannot convert: insufficient stock for some items',
+                shortages,
+            }, { status: 422 });
         }
 
         // Begin transaction

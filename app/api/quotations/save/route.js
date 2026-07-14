@@ -14,6 +14,98 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing customer name or items' }, { status: 400 });
         }
 
+        const { ignore_stock_warning = false } = body;
+
+        // ── STOCK SHORTAGE WARNING CHECK ──────────────────────────────────────
+        if (!ignore_stock_warning) {
+            const placeholders = selected_item_ids.map(() => '?').join(',');
+
+            // 1. Paper needs
+            const [paperNeeds] = await pool.execute(`
+                SELECT qid.paper_id AS inventory_item_id,
+                       ii.name AS item_name,
+                       SUM(qid.full_sheets_used) AS qty_needed,
+                       ii.stock_quantity AS available
+                FROM quotation_item_details qid
+                JOIN inventory_items ii ON ii.id = qid.paper_id
+                WHERE qid.quotation_item_id IN (${placeholders})
+                  AND qid.paper_id IS NOT NULL
+                  AND qid.full_sheets_used > 0
+                GROUP BY qid.paper_id, ii.name, ii.stock_quantity
+            `, selected_item_ids);
+
+            // 2. Plate needs
+            const [plateNeeds] = await pool.execute(`
+                SELECT m.plate_id AS inventory_item_id,
+                       ii.name AS item_name,
+                       SUM(qid.plate_count) AS qty_needed,
+                       ii.stock_quantity AS available
+                FROM quotation_item_details qid
+                JOIN machines m ON m.id = qid.machine_id
+                JOIN inventory_items ii ON ii.id = m.plate_id
+                WHERE qid.quotation_item_id IN (${placeholders})
+                  AND qid.plate_count > 0
+                  AND m.plate_id IS NOT NULL
+                GROUP BY m.plate_id, ii.name, ii.stock_quantity
+            `, selected_item_ids);
+
+            // 3. SFG needs
+            const [sfgNeeds] = await pool.execute(`
+                SELECT sl.inventory_item_id,
+                       ii.name AS item_name,
+                       SUM(sl.quantity) AS qty_needed,
+                       ii.stock_quantity AS available
+                FROM quotation_item_sfg_lines sl
+                JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+                JOIN inventory_items ii ON ii.id = sl.inventory_item_id
+                WHERE qid.quotation_item_id IN (${placeholders})
+                  AND sl.is_statics = 0
+                GROUP BY sl.inventory_item_id, ii.name, ii.stock_quantity
+            `, selected_item_ids);
+
+            // 4. Statics needs
+            const [staticsNeeds] = await pool.execute(`
+                SELECT sl.inventory_item_id,
+                       ii.name AS item_name,
+                       SUM(sl.quantity) AS qty_needed,
+                       ii.stock_quantity AS available
+                FROM quotation_item_sfg_lines sl
+                JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+                JOIN inventory_items ii ON ii.id = sl.inventory_item_id
+                WHERE qid.quotation_item_id IN (${placeholders})
+                  AND sl.is_statics = 1
+                GROUP BY sl.inventory_item_id, ii.name, ii.stock_quantity
+            `, selected_item_ids);
+
+            const shortages = [];
+            const checkItem = (row, type) => {
+                const required = Math.ceil(parseFloat(row.qty_needed || 0));
+                const available = parseFloat(row.available || 0);
+                if (required > available) {
+                    shortages.push({
+                        type,
+                        name: row.item_name,
+                        required,
+                        available,
+                        shortfall: required - available
+                    });
+                }
+            };
+
+            paperNeeds.forEach(row => checkItem(row, 'paper'));
+            plateNeeds.forEach(row => checkItem(row, 'plate'));
+            sfgNeeds.forEach(row => checkItem(row, 'sfg'));
+            staticsNeeds.forEach(row => checkItem(row, 'statics'));
+
+            if (shortages.length > 0) {
+                return NextResponse.json({
+                    error: 'insufficient_stock',
+                    message: 'Warning: Insufficient stock for some items',
+                    shortages
+                }, { status: 422 });
+            }
+        }
+
         // 1. Calculate Total Amount from selected items
         // We fetch the amounts from the DB to ensure accuracy
         const placeholders = selected_item_ids.map(() => '?').join(',');
