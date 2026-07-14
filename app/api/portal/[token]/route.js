@@ -37,10 +37,10 @@ export async function GET(req, { params }) {
                  WHERE qli.quotation_id = q.id ORDER BY qli.display_order ASC LIMIT 1
                 ) AS first_item_name
             FROM quotations q
-            WHERE q.customer_id = ?
+            WHERE q.customer_id = ? OR (q.customer_id IS NULL AND q.customer_name = ?)
             ORDER BY q.created_at DESC
             LIMIT 30
-        `, [customerId]);
+        `, [customerId, customer.name]);
 
         // ── Invoices ───────────────────────────────────────────────────────
         const [invoices] = await pool.execute(`
@@ -50,10 +50,10 @@ export async function GET(req, { params }) {
                    q.code AS quotation_code
             FROM invoices i
             LEFT JOIN quotations q ON i.quotation_id = q.id
-            WHERE i.customer_id = ?
+            WHERE i.customer_id = ? OR (i.customer_id IS NULL AND i.customer_name = ?)
             ORDER BY i.created_at DESC
             LIMIT 50
-        `, [customerId]);
+        `, [customerId, customer.name]);
 
         // ── Sales Orders ───────────────────────────────────────────────────
         const [salesOrders] = await pool.execute(`
@@ -65,10 +65,10 @@ export async function GET(req, { params }) {
                     WHERE qli.quotation_id = so.quotation_id) AS job_names
             FROM sales_orders so
             JOIN quotations q ON so.quotation_id = q.id
-            WHERE q.customer_id = ?
+            WHERE q.customer_id = ? OR (q.customer_id IS NULL AND so.customer_name = ?)
             ORDER BY so.created_at DESC
             LIMIT 30
-        `, [customerId]);
+        `, [customerId, customer.name]);
 
         // ── Stats ──────────────────────────────────────────────────────────
         const [[invStats]] = await pool.execute(`
@@ -77,14 +77,16 @@ export async function GET(req, { params }) {
                 COALESCE(SUM(amount_due), 0)  AS total_billed,
                 COALESCE(SUM(CASE WHEN status != 'paid' THEN amount_due - amount_paid ELSE 0 END), 0) AS outstanding,
                 COUNT(*) AS invoice_count
-            FROM invoices WHERE customer_id = ?
-        `, [customerId]);
+            FROM invoices 
+            WHERE customer_id = ? OR (customer_id IS NULL AND customer_name = ?)
+        `, [customerId, customer.name]);
 
         const [[qStats]] = await pool.execute(`
             SELECT COUNT(*) AS total_quotes,
                    COUNT(CASE WHEN status = 'converted' THEN 1 END) AS converted_count
-            FROM quotations WHERE customer_id = ?
-        `, [customerId]);
+            FROM quotations 
+            WHERE customer_id = ? OR (customer_id IS NULL AND customer_name = ?)
+        `, [customerId, customer.name]);
 
         // ── Company Branding ───────────────────────────────────────────────
         const [settingRows] = await pool.execute(

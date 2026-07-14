@@ -279,8 +279,52 @@ export async function POST(req) {
             }
         }
 
+        // Fetch customer details for WhatsApp
+        let phone = null;
+        let token = null;
+        if (q.customer_id) {
+            const [custRows] = await conn.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE id = ?', [q.customer_id]);
+            if (custRows.length > 0) {
+                phone = custRows[0].phone || custRows[0].contact_phone;
+                token = custRows[0].portal_token;
+            }
+        }
+        if (!phone && q.customer_name) {
+            const [custRows] = await conn.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE name = ?', [q.customer_name]);
+            if (custRows.length > 0) {
+                phone = custRows[0].phone || custRows[0].contact_phone;
+                token = custRows[0].portal_token;
+            }
+        }
+
+        const [waSettingsRows] = await conn.execute(
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('whatsapp_enabled', 'whatsapp_auto_send_order', 'whatsapp_template_order')"
+        );
+        const waSettings = waSettingsRows.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
+
         await conn.commit();
         conn.release();
+
+        if (phone && waSettings['whatsapp_enabled'] === 'true' && waSettings['whatsapp_auto_send_order'] === 'true') {
+            const origin = req.headers.get('origin') || 'http://localhost:3000';
+            const portalLink = token ? `${origin}/portal/${token}` : '';
+            const templateText = waSettings['whatsapp_template_order'] || 'Hello {customer_name}, your order {order_code} has been successfully created. View status: {portal_link}';
+            
+            const message = templateText
+                .replace(/{customer_name}/g, q.customer_name || '')
+                .replace(/{order_code}/g, code || '')
+                .replace(/{portal_link}/g, portalLink || '')
+                .replace(/{order_status}/g, 'Pending')
+                .replace(/{delivery_date}/g, '');
+
+            fetch(`${process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001'}/api/whatsapp/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: phone, message })
+            }).catch(err => {
+                console.error('Background WhatsApp send error:', err);
+            });
+        }
 
         return NextResponse.json({
             success: true,

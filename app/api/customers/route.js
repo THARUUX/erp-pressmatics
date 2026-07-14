@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export async function GET(request) {
     try {
@@ -35,11 +36,13 @@ export async function GET(request) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, email, phone, address, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category, portal_password } = body;
+        const { name, email, phone, address, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category, portal_password, send_welcome } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-        const [settings] = await pool.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('customer_id_template', 'customer_id_seq')");
+        const [settings] = await pool.execute(
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('customer_id_template', 'customer_id_seq', 'whatsapp_enabled', 'whatsapp_template_welcome')"
+        );
         const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
 
         let seq = parseInt(settingsMap['customer_id_seq'] || '1');
@@ -50,12 +53,34 @@ export async function POST(req) {
             ? await bcrypt.hash(portal_password.trim(), 10) 
             : null;
 
+        const portalToken = crypto.randomBytes(32).toString('hex');
+
         const [result] = await pool.execute(
-            'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category, portal_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, email || null, phone || null, address || null, code, is_vat ? 1 : 0, vat_number || null, contact_name || null, contact_phone || null, contact_email || null, contact_role || null, parseFloat(starting_outstanding) || 0, category || null, passwordHash]
+            'INSERT INTO customers (name, email, phone, address, code, is_vat, vat_number, contact_name, contact_phone, contact_email, contact_role, starting_outstanding, category, portal_password, portal_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, email || null, phone || null, address || null, code, is_vat ? 1 : 0, vat_number || null, contact_name || null, contact_phone || null, contact_email || null, contact_role || null, parseFloat(starting_outstanding) || 0, category || null, passwordHash, portalToken]
         );
 
         await pool.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'customer_id_seq'", [String(seq + 1)]);
+
+        // Send welcome message if requested and number is available
+        const recipient = phone || contact_phone;
+        if (send_welcome && recipient && settingsMap['whatsapp_enabled'] === 'true') {
+            const origin = req.headers.get('origin') || 'http://localhost:3000';
+            const portalLink = portalToken ? `${origin}/portal/${portalToken}` : '';
+            const templateText = settingsMap['whatsapp_template_welcome'] || 'Hello {customer_name}, welcome to Pressmatics ERP. You can access your portal here: {portal_link}';
+            
+            const message = templateText
+                .replace(/{customer_name}/g, name || '')
+                .replace(/{portal_link}/g, portalLink || '');
+
+            fetch(`${process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001'}/api/whatsapp/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: recipient, message })
+            }).catch(err => {
+                console.error('Background WhatsApp welcome send error:', err);
+            });
+        }
 
         return NextResponse.json({ success: true, id: result.insertId });
     } catch (error) {

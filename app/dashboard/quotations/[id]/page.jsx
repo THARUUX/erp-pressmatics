@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { FiPrinter, FiArrowLeft, FiDollarSign, FiShoppingCart, FiAlertTriangle, FiPackage } from 'react-icons/fi';
+import { FiPrinter, FiArrowLeft, FiDollarSign, FiShoppingCart, FiAlertTriangle, FiPackage, FiMessageCircle, FiLink, FiFileText, FiX, FiSend, FiWifi } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -64,6 +64,130 @@ export default function QuotationViewPage({ params }) {
     const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
     const [convertingProgress, setConvertingProgress] = useState(0);
     const [convertingLabel, setConvertingLabel] = useState('');
+
+    // ── WhatsApp Quote Modal State ───────────────────────────────────────────
+    const [waModal, setWaModal] = useState(false);
+    const [waMode, setWaMode] = useState('link');  // 'link' | 'pdf'
+    const [waStatus, setWaStatus] = useState('LOADING'); // 'LOADING' | 'CONNECTED' | 'DISCONNECTED'
+    const [waPortalLink, setWaPortalLink] = useState('');
+    const [waMessage, setWaMessage] = useState('');
+    const [waSending, setWaSending] = useState(false);
+
+    const openWaModal = async () => {
+        setWaModal(true);
+        setWaMode('link');
+        setWaSending(false);
+        setWaStatus('LOADING');
+        setWaMessage('');
+        setWaPortalLink('');
+
+        // 1. Check WhatsApp connection status
+        try {
+            const statusRes = await fetch('/api/whatsapp/status');
+            const statusData = await statusRes.json();
+            setWaStatus(statusData.state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED');
+        } catch {
+            setWaStatus('DISCONNECTED');
+        }
+
+        // 2. Resolve customer portal token/link
+        if (quote?.customer_id) {
+            try {
+                const tokenRes = await fetch(`/api/customers/${quote.customer_id}/portal-token`, { method: 'GET' });
+                const tokenData = await tokenRes.json();
+                const baseUrl = window.location.origin;
+                const portalUrl = tokenData.token
+                    ? `${baseUrl}/portal/${tokenData.token}`
+                    : `${baseUrl}/portal`;
+                setWaPortalLink(portalUrl);
+
+                // 3. Build message from template
+                const tpl = settings.whatsapp_template_quote ||
+                    'Hello {customer_name}, here is your quotation {quote_code} for {quote_amount}. View it here: {portal_link}';
+                const resolved = tpl
+                    .replace('{customer_name}', quote.customer_name || '')
+                    .replace('{quote_code}', quote.code || `#${quote.id}`)
+                    .replace('{quote_amount}', `${currency}${parseFloat(quote.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+                    .replace('{portal_link}', portalUrl);
+                setWaMessage(resolved);
+            } catch {
+                setWaMessage('');
+            }
+        }
+    };
+
+    const handleSendWhatsApp = async () => {
+        if (!quote?.customer_phone) {
+            toast.error('No phone number linked to this customer.');
+            return;
+        }
+        setWaSending(true);
+
+        try {
+            if (waMode === 'pdf') {
+                // Fetch generated PDF as a base64 blob
+                const pdfRes = await fetch(`/api/quotations/${id}/pdf`);
+                if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+                const pdfBuffer = await pdfRes.arrayBuffer();
+                // Chunked base64 — spreading a large Uint8Array causes "max call stack" errors
+                const bytes = new Uint8Array(pdfBuffer);
+                let binary = '';
+                const CHUNK = 8192;
+                for (let i = 0; i < bytes.length; i += CHUNK) {
+                    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+                }
+                const base64 = btoa(binary);
+
+                const res = await fetch('/api/whatsapp/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        number: quote.customer_phone,
+                        quotation_id: quote.id,
+                        message: waMessage,
+                        media: {
+                            data: base64,
+                            mimetype: 'application/pdf',
+                            filename: `Quotation-${quote.code || id}.pdf`
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Send failed');
+                toast.success('Quotation PDF sent via WhatsApp!');
+            } else {
+                // Send as plain text with the portal link
+                const res = await fetch('/api/whatsapp/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: quote.customer_phone, quotation_id: quote.id, message: waMessage })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Send failed');
+                toast.success('Quotation link sent via WhatsApp!');
+            }
+            setWaModal(false);
+        } catch (err) {
+            toast.error(err.message || 'Failed to send WhatsApp message');
+        } finally {
+            setWaSending(false);
+        }
+    };
+
+    // ── WhatsApp Acceptance Notification ────────────────────────────────────
+    const [acceptanceNotif, setAcceptanceNotif] = useState(null);
+
+    useEffect(() => {
+        if (!id) return;
+        fetch(`/api/whatsapp/notifications?quotation_id=${id}&limit=1`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data?.notifications?.length) {
+                    setAcceptanceNotif(data.notifications[0]);
+                }
+            })
+            .catch(() => {});
+    }, [id]);
 
     const handleConvert = (id) => {
         setConvertingId(id);
@@ -311,59 +435,233 @@ export default function QuotationViewPage({ params }) {
                     </div>
                 </div>
             )}
-            {/* No Print Header */}
-            <div className="flex justify-between items-center mb-8 print:hidden">
-                <Link href="/dashboard/quotations">
-                    <Button className="bg-white/5 border border-white/20 text-white hover:bg-white/10">
-                        <FiArrowLeft className="mr-2" /> Back to List
-                    </Button>
-                </Link>
-                <div className="flex gap-4 items-center">
-                    {/* Status Dropdown */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Status:</span>
-                        <select
-                            value={quote.status || 'draft'}
-                            onChange={e => handleStatusChange(e.target.value)}
-                            className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider border cursor-pointer bg-black/60 focus:outline-none focus:ring-1 focus:ring-white/20 ${STATUS_COLORS[quote.status] || STATUS_COLORS.draft}`}
-                        >
-                            <option value="draft" className="bg-[#111] text-gray-300">Draft</option>
-                            <option value="sent" className="bg-[#111] text-blue-300">Sent</option>
-                            <option value="converted" className={`bg-[#111] ${quote.status === 'converted' ? '' : 'hidden'} text-emerald-300`}>Converted</option>
-                            <option value="cancelled" className="bg-[#111] text-red-300">Cancelled</option>
-                        </select>
+            {/* ── WhatsApp Quotation Modal ─────────────────────────────────── */}
+            {waModal && (
+                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0d0d0d] border border-white/10 rounded-2xl p-8 w-full max-w-lg shadow-2xl shadow-black/80">
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                    <FiMessageCircle className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-bold text-white">Send Quotation via WhatsApp</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {quote.customer_phone
+                                            ? <span>To: <span className="text-gray-300 font-mono">{quote.customer_phone}</span></span>
+                                            : <span className="text-red-400">No phone number on customer record</span>}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setWaModal(false)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all">
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Connection Status */}
+                        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 border ${
+                            waStatus === 'LOADING' ? 'bg-yellow-500/5 border-yellow-500/20'
+                            : waStatus === 'CONNECTED' ? 'bg-emerald-500/10 border-emerald-500/20'
+                            : 'bg-red-500/10 border-red-500/20'
+                        }`}>
+                            <FiWifi className={`w-4 h-4 ${
+                                waStatus === 'LOADING' ? 'text-yellow-400 animate-pulse'
+                                : waStatus === 'CONNECTED' ? 'text-emerald-400'
+                                : 'text-red-400'
+                            }`} />
+                            <span className={`text-xs font-semibold ${
+                                waStatus === 'LOADING' ? 'text-yellow-300'
+                                : waStatus === 'CONNECTED' ? 'text-emerald-300'
+                                : 'text-red-300'
+                            }`}>
+                                {waStatus === 'LOADING' ? 'Checking WhatsApp connection…'
+                                : waStatus === 'CONNECTED' ? 'WhatsApp Connected — Ready to Send'
+                                : 'WhatsApp Disconnected — Connect in Settings'}
+                            </span>
+                        </div>
+
+                        {/* Share Mode Toggle */}
+                        <div className="grid grid-cols-2 gap-3 mb-5">
+                            <button
+                                onClick={() => setWaMode('link')}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                                    waMode === 'link'
+                                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                        : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
+                                }`}
+                            >
+                                <FiLink className="w-5 h-5" />
+                                <span className="text-xs font-semibold">Send as Link</span>
+                                <span className="text-[10px] text-center opacity-70">Portal link in message text</span>
+                            </button>
+                            <button
+                                onClick={() => setWaMode('pdf')}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                                    waMode === 'pdf'
+                                        ? 'bg-blue-500/15 border-blue-500/40 text-blue-300'
+                                        : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
+                                }`}
+                            >
+                                <FiFileText className="w-5 h-5" />
+                                <span className="text-xs font-semibold">Send as PDF</span>
+                                <span className="text-[10px] text-center opacity-70">Generated PDF as attachment</span>
+                            </button>
+                        </div>
+
+                        {/* Message Preview/Editor */}
+                        <div className="mb-6">
+                            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Message Preview</label>
+                            <textarea
+                                value={waMessage}
+                                onChange={e => setWaMessage(e.target.value)}
+                                rows={5}
+                                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-white/20 resize-none font-mono leading-relaxed"
+                                placeholder="Message to send…"
+                            />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setWaModal(false)}
+                                disabled={waSending}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-gray-300 transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSendWhatsApp}
+                                disabled={waSending || waStatus !== 'CONNECTED' || !quote?.customer_phone}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-500 text-white"
+                            >
+                                {waSending ? (
+                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="40 20" />
+                                    </svg>
+                                ) : (
+                                    <FiSend className="w-4 h-4" />
+                                )}
+                                {waSending ? 'Sending…' : waMode === 'pdf' ? 'Send PDF' : 'Send Link'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Page Header (screen only) ───────────────────────────────── */}
+            <div className="mb-8 print:hidden space-y-4">
+
+                {/* Row 1: Navigation + Quote Identity */}
+                <div className="flex items-center gap-4">
+                    <Link href="/dashboard/quotations">
+                        <button className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-gray-400 hover:text-white text-sm transition-all">
+                            <FiArrowLeft className="w-4 h-4" />
+                            <span>Back</span>
+                        </button>
+                    </Link>
+                    <div className="h-5 w-px bg-white/10" />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                            <span className="text-xl font-bold text-white tracking-tight">
+                                {quote.code || `#${quote.id}`}
+                            </span>
+                            <span className="text-gray-600">·</span>
+                            <span className="text-sm text-gray-400 truncate">{quote.customer_name}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                            {new Date(quote.created_at).toLocaleDateString('en-GB', { dateStyle: 'long' })}
+                            {quote.total_amount && (
+                                <> · <span className="text-gray-500 font-medium">{currency}{parseFloat(quote.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></>
+                            )}
+                        </p>
                     </div>
 
+                    {/* WhatsApp Acceptance Badge — floats right in row 1 */}
+                    {acceptanceNotif && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold shrink-0">
+                            <FiMessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Accepted via WhatsApp</span>
+                            <span className="text-emerald-600 font-normal">
+                                {new Date(acceptanceNotif.received_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Row 2: Actions */}
+                <div className="flex items-center gap-2 flex-wrap">
+
+                    {/* Status selector */}
+                    <select
+                        value={quote.status || 'draft'}
+                        onChange={e => handleStatusChange(e.target.value)}
+                        className={`h-9 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer bg-black/60 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all ${STATUS_COLORS[quote.status] || STATUS_COLORS.draft}`}
+                    >
+                        <option value="draft"     className="bg-[#111] text-gray-300">Draft</option>
+                        <option value="sent"      className="bg-[#111] text-blue-300">Sent</option>
+                        <option value="converted" className={`bg-[#111] text-emerald-300 ${quote.status !== 'converted' ? 'hidden' : ''}`}>Converted</option>
+                        <option value="cancelled" className="bg-[#111] text-red-300">Cancelled</option>
+                    </select>
+
+                    <div className="h-6 w-px bg-white/10 mx-1" />
+
+                    {/* Edit */}
+                    <Link href={`/dashboard/quotations/${id}/edit`}>
+                        <button className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-gray-300 hover:text-white text-sm font-medium transition-all">
+                            <FiFileText className="w-3.5 h-3.5" />
+                            Edit
+                        </button>
+                    </Link>
+
+                    {/* Convert to SO */}
                     {quote.status !== 'converted' && (
-                        <Button
+                        <button
                             onClick={() => handleConvert(quote.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 text-sm font-semibold transition-all"
                         >
-                            <FiShoppingCart className="mr-2" /> Convert to SO
-                        </Button>
+                            <FiShoppingCart className="w-3.5 h-3.5" />
+                            Convert to SO
+                        </button>
                     )}
 
-                    <Link href={`/dashboard/quotations/${id}/edit`}>
-                        <Button className="bg-blue-600 text-white hover:bg-blue-700">
-                            Edit Quote
-                        </Button>
-                    </Link>
+                    {/* Invoice */}
                     {!quote.has_invoice ? (
                         <Link href={`/dashboard/invoices/new?quotation_id=${id}&customer_name=${encodeURIComponent(quote.customer_name || '')}&customer_id=${quote.customer_id || ''}&amount=${quote.total_amount || 0}&description=${encodeURIComponent(quote.first_item_name || quote.job_description || '')}`}>
-                            <Button className="bg-emerald-600 text-white hover:bg-emerald-500">
-                                <FiDollarSign className="mr-2" /> Create Invoice
-                            </Button>
+                            <button className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-blue-600/20 hover:bg-blue-600/35 border border-blue-500/30 text-blue-300 hover:text-blue-200 text-sm font-semibold transition-all">
+                                <FiDollarSign className="w-3.5 h-3.5" />
+                                Create Invoice
+                            </button>
                         </Link>
                     ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                            <FiDollarSign className="w-3.5 h-3.5" /> Invoice Created
-                        </span>
+                        <div className="h-9 inline-flex items-center gap-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold">
+                            <FiDollarSign className="w-3.5 h-3.5" />
+                            Invoice Created
+                        </div>
                     )}
-                    <Button onClick={() => window.print()} className="bg-white text-black hover:bg-gray-200">
-                        <FiPrinter className="mr-2" /> Print Quote
-                    </Button>
+
+                    <div className="h-6 w-px bg-white/10 mx-1" />
+
+                    {/* WhatsApp */}
+                    <button
+                        onClick={openWaModal}
+                        className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-[#128c7e]/20 hover:bg-[#128c7e]/40 border border-[#25d366]/25 text-[#25d366] hover:text-[#2edb6f] text-sm font-semibold transition-all"
+                    >
+                        <FiMessageCircle className="w-3.5 h-3.5" />
+                        Send via WhatsApp
+                    </button>
+
+                    {/* Print */}
+                    <button
+                        onClick={() => window.print()}
+                        className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-gray-400 hover:text-white text-sm font-medium transition-all"
+                    >
+                        <FiPrinter className="w-3.5 h-3.5" />
+                        Print
+                    </button>
                 </div>
             </div>
+
 
             {/* Printable Area - A4 Size constrained if needed, or fluid */}
             <div className="max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8"

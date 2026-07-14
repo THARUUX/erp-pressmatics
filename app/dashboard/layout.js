@@ -8,11 +8,12 @@ import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
     FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
-    FiTruck, FiBriefcase, FiUserCheck,
+    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
+
 
 // Grouped nav — each group has a label and its items
 const NAV_GROUPS = [
@@ -103,6 +104,52 @@ function LayoutInner({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [showDenied, setShowDenied] = useState(false);
     const [isSidebarHidden, setIsSidebarHidden] = useState(false);
+
+    // \u2500\u2500 WhatsApp Notification Bell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    const [waBellOpen, setWaBellOpen]         = useState(false);
+    const [waNotifs, setWaNotifs]             = useState([]);
+    const [waUnread, setWaUnread]             = useState(0);
+    const bellRef                             = useRef(null);
+
+    const fetchWaNotifs = async () => {
+        try {
+            const res = await fetch('/api/whatsapp/notifications?limit=20');
+            if (!res.ok) return;
+            const data = await res.json();
+            setWaNotifs(data.notifications || []);
+            setWaUnread((data.notifications || []).filter(n => !n.is_read).length);
+        } catch {}
+    };
+
+    useEffect(() => {
+        fetchWaNotifs();
+        const interval = setInterval(fetchWaNotifs, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handler = (e) => {
+            if (bellRef.current && !bellRef.current.contains(e.target)) {
+                setWaBellOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const markRead = async (notif) => {
+        if (!notif.is_read) {
+            await fetch(`/api/whatsapp/notifications/${notif.id}`, { method: 'PATCH' }).catch(() => {});
+            setWaNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
+            setWaUnread(prev => Math.max(0, prev - 1));
+        }
+        if (notif.quotation_id) {
+            router.push(`/dashboard/quotations/${notif.quotation_id}`);
+            setWaBellOpen(false);
+        }
+    };
+
 
     useEffect(() => {
         const saved = localStorage.getItem('sidebarHidden');
@@ -272,7 +319,86 @@ function LayoutInner({ children }) {
                     })}
                 </nav>
 
+                {/* WhatsApp Notification Bell */}
+                <div ref={bellRef} className="px-4 pb-1 relative">
+                    <button
+                        onClick={() => setWaBellOpen(prev => !prev)}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] transition-all text-gray-400 hover:text-white"
+                    >
+                        <div className="relative">
+                            <FiBell className="w-4 h-4" />
+                            {waUnread > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-emerald-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                                    {waUnread > 9 ? '9+' : waUnread}
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-xs font-medium flex-1 text-left">WhatsApp Replies</span>
+                        {waUnread > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-400">{waUnread} new</span>
+                        )}
+                    </button>
+
+                    {/* Dropdown */}
+                    <AnimatePresence>
+                        {waBellOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute bottom-full left-0 right-0 mb-2 mx-1 bg-[#0f0f0f] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50"
+                            >
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
+                                    <div className="flex items-center gap-2">
+                                        <FiMessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span className="text-xs font-bold text-white">Customer Acceptances</span>
+                                    </div>
+                                    <button onClick={() => setWaBellOpen(false)} className="text-gray-600 hover:text-gray-400">
+                                        <FiX className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+
+                                <div className="max-h-72 overflow-y-auto">
+                                    {waNotifs.length === 0 ? (
+                                        <div className="px-4 py-6 text-center text-xs text-gray-600">No notifications yet</div>
+                                    ) : (
+                                        waNotifs.map(notif => (
+                                            <button
+                                                key={notif.id}
+                                                onClick={() => markRead(notif)}
+                                                className={`w-full text-left px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.04] transition-all ${!notif.is_read ? 'bg-emerald-500/[0.05]' : ''}`}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    {!notif.is_read && (
+                                                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 shrink-0" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-semibold text-white truncate">
+                                                            {notif.customer_name || notif.from_number}
+                                                        </p>
+                                                        <p className="text-[10px] text-emerald-400 font-mono mt-0.5">
+                                                            {notif.quotation_code || 'Unknown Quote'}
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-500 mt-1 truncate italic">
+                                                            "{notif.message_body}"
+                                                        </p>
+                                                        <p className="text-[9px] text-gray-700 mt-1">
+                                                            {new Date(notif.received_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
                 {/* Current user strip */}
+
                 <div className="p-4 border-t border-white/10 space-y-3">
                     {currentUser ? (
                         <div className="flex items-center gap-3 px-2 py-2">

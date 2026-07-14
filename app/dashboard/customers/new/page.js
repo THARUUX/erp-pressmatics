@@ -1,7 +1,6 @@
 'use client';
 import toast from 'react-hot-toast';
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiArrowLeft, FiSave } from 'react-icons/fi';
@@ -16,6 +15,20 @@ export default function NewCustomerPage() {
         contact_name: '', contact_phone: '', contact_email: '', contact_role: '',
         starting_outstanding: '', category: '', portal_password: ''
     });
+    const [settings, setSettings] = useState({});
+    const [sendWelcome, setSendWelcome] = useState(false);
+
+    useEffect(() => {
+        fetch('/api/settings')
+            .then(res => res.json())
+            .then(data => {
+                setSettings(data);
+                if (data.whatsapp_enabled === 'true') {
+                    setSendWelcome(true);
+                }
+            })
+            .catch(err => console.error('Failed to load settings:', err));
+    }, []);
 
     const handleChange = (e) => {
         const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -29,7 +42,10 @@ export default function NewCustomerPage() {
             const res = await fetch('/api/customers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({
+                    ...formData,
+                    send_welcome: sendWelcome
+                })
             });
             if (res.ok) router.push('/dashboard/customers');
             else toast.error("Failed to create customer");
@@ -144,6 +160,17 @@ export default function NewCustomerPage() {
                         </div>
                     )}
                 </div>
+
+                {/* WhatsApp welcome notification */}
+                {settings.whatsapp_enabled === 'true' && (
+                    <div className="border border-white/10 rounded-lg p-4 space-y-3 bg-white/[0.02]">
+                        <div className="flex items-center gap-3">
+                            <input type="checkbox" id="send_welcome" checked={sendWelcome} onChange={e => setSendWelcome(e.target.checked)}
+                                className="w-4 h-4 rounded border-white/20 bg-black/20 focus:ring-blue-500 cursor-pointer"/>
+                            <label htmlFor="send_welcome" className="text-sm text-gray-300 cursor-pointer font-medium">Send welcome message via WhatsApp</label>
+                        </div>
+                    </div>
+                )}
 
                 <Button onClick={handleSubmit} disabled={loading} className="w-full bg-white text-black hover:bg-gray-200">
                     {loading ? 'Saving...' : 'Create Customer'}

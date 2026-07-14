@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     FiArrowLeft, FiEdit2, FiSave, FiX, FiPhone, FiMail, FiMapPin,
     FiFileText, FiShoppingCart, FiDollarSign, FiTrendingUp,
-    FiExternalLink, FiAlertCircle, FiCheckCircle, FiClock, FiEye, FiLink, FiLock,
+    FiExternalLink, FiAlertCircle, FiCheckCircle, FiClock, FiEye, FiLink, FiLock, FiMessageSquare,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
@@ -63,6 +63,79 @@ export default function CustomerProfilePage({ params }) {
     const [saving, setSaving]     = useState(false);
     const [form, setForm]         = useState({});
     const [portalLoading, setPortalLoading] = useState(false);
+
+    const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+    const [waNumber, setWaNumber] = useState('');
+    const [waMessage, setWaMessage] = useState('');
+    const [waStatus, setWaStatus] = useState('LOADING');
+    const [sendingWa, setSendingWa] = useState(false);
+
+    const openSendGreetingModal = async () => {
+        try {
+            const statusRes = await fetch('/api/whatsapp/status');
+            const statusData = await statusRes.json();
+            setWaStatus(statusData.state);
+        } catch {
+            setWaStatus('OFFLINE');
+        }
+
+        const customer = profile?.customer;
+        const number = customer?.phone || customer?.contact_phone || '';
+        setWaNumber(number);
+
+        let token = customer?.portal_token;
+        if (!token) {
+            try {
+                const checkRes = await fetch(`/api/customers/${id}/portal-token`);
+                const checkData = await checkRes.json();
+                let url = checkData.url;
+                if (!url) {
+                    const genRes = await fetch(`/api/customers/${id}/portal-token`, { method: 'POST' });
+                    const genData = await genRes.json();
+                    url = genData.url;
+                }
+                if (url) {
+                    token = url.split('/').pop();
+                }
+            } catch (tokenErr) {
+                console.error('Failed to resolve token:', tokenErr);
+            }
+        }
+
+        const origin = window.location.origin;
+        const portalLink = token ? `${origin}/portal/${token}` : '';
+        const templateText = settings.whatsapp_template_welcome || 'Hello {customer_name}, welcome to Pressmatics ERP. You can access your portal here: {portal_link}';
+
+        const message = templateText
+            .replace(/{customer_name}/g, customer?.name || '')
+            .replace(/{portal_link}/g, portalLink);
+
+        setWaMessage(message);
+        setWhatsappModalOpen(true);
+    };
+
+    const handleSendGreeting = async () => {
+        if (!waNumber) return toast.error('Recipient phone number is required');
+        setSendingWa(true);
+        try {
+            const res = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: waNumber, message: waMessage })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('WhatsApp greeting sent successfully!');
+                setWhatsappModalOpen(false);
+            } else {
+                toast.error(data.error || 'Failed to send WhatsApp message');
+            }
+        } catch (err) {
+            toast.error('Failed to send WhatsApp message');
+        } finally {
+            setSendingWa(false);
+        }
+    };
 
     const sharePortalLink = async () => {
         setPortalLoading(true);
@@ -146,6 +219,16 @@ export default function CustomerProfilePage({ params }) {
                         <FiLink size={13} />
                         <span className="hidden sm:inline">{portalLoading ? 'Generating…' : 'Portal Link'}</span>
                     </button>
+                    {settings.whatsapp_enabled === 'true' && (
+                        <button
+                            onClick={openSendGreetingModal}
+                            title="Send Welcome/Greeting via WhatsApp"
+                            className="flex items-center gap-2 border border-emerald-500/20 text-emerald-400 px-3 py-2 rounded-xl text-sm hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-colors"
+                        >
+                            <FiMessageSquare size={13} />
+                            <span className="hidden sm:inline">WhatsApp Greeting</span>
+                        </button>
+                    )}
                     {editing ? (
                         <>
                             <button onClick={() => setEditing(false)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-colors"><FiX size={15} /></button>
@@ -521,6 +604,86 @@ export default function CustomerProfilePage({ params }) {
                     </button>
                 </Link>
             </div>
+
+            {/* WhatsApp Manual Send Modal */}
+            {whatsappModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+                    <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
+                            <div className="flex items-center gap-2.5">
+                                <FiMessageSquare className="w-5 h-5 text-emerald-400" />
+                                <h3 className="text-base font-bold text-white">Send WhatsApp Greeting</h3>
+                            </div>
+                            <button type="button" onClick={() => setWhatsappModalOpen(false)}
+                                className="p-1 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors">
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Connection status warning */}
+                        {waStatus !== 'CONNECTED' && (
+                            <div className="px-6 py-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs font-medium flex items-center justify-between gap-3">
+                                <span>
+                                    {waStatus === 'OFFLINE' ? 'WhatsApp Daemon is offline (Port 5001).' : `WhatsApp is currently not connected (Status: ${waStatus}).`}
+                                </span>
+                                <Link href="/dashboard/settings" className="underline hover:text-red-300 font-semibold">
+                                    Configure
+                                </Link>
+                            </div>
+                        )}
+
+                        {/* Form */}
+                        <div className="p-6 space-y-4">
+                            {/* Phone number */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Recipient Number</label>
+                                <input
+                                    type="text"
+                                    value={waNumber}
+                                    onChange={e => setWaNumber(e.target.value)}
+                                    placeholder="e.g. +94771234567"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-600 focus:border-white/30 outline-none transition-colors"
+                                />
+                            </div>
+
+                            {/* Message Preview */}
+                            <div>
+                                <div className="flex justify-between items-baseline mb-1.5">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">Message Content</label>
+                                    <span className="text-[10px] text-gray-500 font-medium">Editable greeting preview</span>
+                                </div>
+                                <textarea
+                                    value={waMessage}
+                                    onChange={e => setWaMessage(e.target.value)}
+                                    placeholder="Type welcome message..."
+                                    rows={6}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-600 focus:border-white/30 outline-none transition-colors font-mono text-xs resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10 bg-black/20">
+                            <button
+                                type="button"
+                                onClick={() => setWhatsappModalOpen(false)}
+                                className="px-4 py-2 border border-white/10 text-white rounded-xl text-sm hover:bg-white/5 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSendGreeting}
+                                disabled={sendingWa || waStatus !== 'CONNECTED'}
+                                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-black px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                            >
+                                {sendingWa ? 'Sending...' : 'Send Now'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

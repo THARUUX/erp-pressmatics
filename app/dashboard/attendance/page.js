@@ -926,6 +926,8 @@ export default function AttendancePage() {
                                     <option value="">All Actions</option>
                                     <option value="0">Check In Only</option>
                                     <option value="1">Check Out Only</option>
+                                    <option value="4">Break Out Only</option>
+                                    <option value="5">Break In Only</option>
                                 </select>
                             </div>
                             <div>
@@ -1012,9 +1014,13 @@ export default function AttendancePage() {
                                                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                                         log.state === 0 
                                                             ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' 
-                                                            : 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
+                                                            : log.state === 4
+                                                            ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
+                                                            : log.state === 5
+                                                            ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
+                                                            : 'text-zinc-400 bg-zinc-500/10 border border-zinc-500/20'
                                                     }`}>
-                                                        {log.state === 0 ? 'Check In' : 'Check Out'}
+                                                        {log.state === 0 ? 'Check In' : log.state === 4 ? 'Break Out' : log.state === 5 ? 'Break In' : 'Check Out'}
                                                     </span>
                                                 </td>
                                                 <td className="p-4">
@@ -1215,6 +1221,8 @@ export default function AttendancePage() {
                                 >
                                     <option value="0">Check In</option>
                                     <option value="1">Check Out</option>
+                                    <option value="4">Break Out</option>
+                                    <option value="5">Break In</option>
                                 </select>
                             </div>
                             <div>

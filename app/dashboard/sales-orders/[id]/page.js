@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu } from 'react-icons/fi';
+import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu, FiMessageSquare, FiX } from 'react-icons/fi';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -276,6 +276,113 @@ export default function SalesOrderDetailPage({ params }) {
         }
     }, [id]);
 
+    // WhatsApp Manual Send Modal State
+    const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+    const [waStatus, setWaStatus] = useState('LOADING');
+    const [waNumber, setWaNumber] = useState('');
+    const [waMessage, setWaMessage] = useState('');
+    const [waSending, setWaSending] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState('order_created');
+    const [templates, setTemplates] = useState({
+        order_created: '',
+        order_dispatch: '',
+        custom: ''
+    });
+
+    const handleOpenWhatsappModal = async () => {
+        setWhatsappModalOpen(true);
+        setWaNumber(order?.customer_phone || '');
+        
+        // Fetch status
+        try {
+            const statusRes = await fetch('/api/whatsapp/status');
+            if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                setWaStatus(statusData.state);
+            } else {
+                setWaStatus('OFFLINE');
+            }
+        } catch {
+            setWaStatus('OFFLINE');
+        }
+
+        // Fetch settings for templates
+        try {
+            const settingsRes = await fetch('/api/settings');
+            if (settingsRes.ok) {
+                const settings = await settingsRes.json();
+                
+                const templateOrder = settings.whatsapp_template_order || 'Hello {customer_name}, your order {order_code} has been successfully created. View status: {portal_link}';
+                const templateDispatch = settings.whatsapp_template_dispatch || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}';
+                
+                const origin = window.location.origin;
+                const portalLink = order?.customer_portal_token ? `${origin}/portal/${order.customer_portal_token}` : '';
+                
+                const formatMsg = (tpl) => {
+                    return tpl
+                        .replace(/{customer_name}/g, order?.customer_name || '')
+                        .replace(/{order_code}/g, order?.code || '')
+                        .replace(/{portal_link}/g, portalLink)
+                        .replace(/{order_status}/g, order?.status || 'Pending')
+                        .replace(/{delivery_date}/g, order?.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : 'TBD');
+                };
+
+                const orderMsg = formatMsg(templateOrder);
+                const dispatchMsg = formatMsg(templateDispatch);
+
+                setTemplates({
+                    order_created: orderMsg,
+                    order_dispatch: dispatchMsg,
+                    custom: ''
+                });
+
+                setWaMessage(orderMsg);
+                setSelectedTemplate('order_created');
+            }
+        } catch (err) {
+            console.error('Error loading templates:', err);
+        }
+    };
+
+    const handleTemplateChange = (tplKey) => {
+        setSelectedTemplate(tplKey);
+        if (tplKey === 'custom') {
+            setWaMessage('');
+        } else {
+            setWaMessage(templates[tplKey] || '');
+        }
+    };
+
+    const handleSendWhatsapp = async () => {
+        if (!waNumber.trim()) {
+            toast.error('Please specify a phone number');
+            return;
+        }
+        if (!waMessage.trim()) {
+            toast.error('Please specify message content');
+            return;
+        }
+        setWaSending(true);
+        try {
+            const res = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: waNumber.trim(), message: waMessage.trim() })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('WhatsApp message sent successfully!');
+                setWhatsappModalOpen(false);
+            } else {
+                toast.error(data.error || 'Failed to send WhatsApp message');
+            }
+        } catch {
+            toast.error('Failed to send WhatsApp message (network error)');
+        } finally {
+            setWaSending(false);
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -360,8 +467,11 @@ export default function SalesOrderDetailPage({ params }) {
                             className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white outline-none focus:border-blue-500 w-48 style-calendar"
                         />
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-white hover:bg-white/70 ">
+                    <Button onClick={handleSave} disabled={saving} className="bg-white hover:bg-white/70 text-black">
                         {saving ? '...' : <><FiSave className="mr-2" /> Update Order</>}
+                    </Button>
+                    <Button onClick={handleOpenWhatsappModal} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        <FiMessageSquare className="mr-2" /> Send WhatsApp
                     </Button>
                 </div>
             </div>
@@ -976,6 +1086,95 @@ export default function SalesOrderDetailPage({ params }) {
                 </div>
             )}
             </div>  */}
+
+            {/* WhatsApp Manual Send Modal */}
+            {whatsappModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+                    <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20">
+                            <div className="flex items-center gap-2.5">
+                                <FiMessageSquare className="w-5 h-5 text-emerald-400" />
+                                <h3 className="text-base font-bold text-white">Send WhatsApp Update</h3>
+                            </div>
+                            <button type="button" onClick={() => setWhatsappModalOpen(false)}
+                                className="p-1 rounded-lg text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors">
+                                <FiX className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Connection status warning */}
+                        {waStatus !== 'CONNECTED' && (
+                            <div className="px-6 py-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs font-medium flex items-center justify-between gap-3">
+                                <span>
+                                    {waStatus === 'OFFLINE' ? 'WhatsApp Daemon is offline (Port 5001).' : `WhatsApp is currently not connected (Status: ${waStatus}).`}
+                                </span>
+                                <Link href="/dashboard/settings" className="underline hover:text-red-300 font-semibold">
+                                    Configure
+                                </Link>
+                            </div>
+                        )}
+
+                        {/* Form */}
+                        <div className="p-6 space-y-4">
+                            {/* Phone number */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Recipient Number</label>
+                                <input
+                                    type="text"
+                                    value={waNumber}
+                                    onChange={e => setWaNumber(e.target.value)}
+                                    placeholder="e.g. +94771234567"
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-600 focus:border-white/30 outline-none transition-colors"
+                                />
+                            </div>
+
+                            {/* Template selector */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Select Message Template</label>
+                                <select
+                                    value={selectedTemplate}
+                                    onChange={e => handleTemplateChange(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-white/30 outline-none transition-colors"
+                                >
+                                    <option value="order_created" className="bg-zinc-900 text-white">Order Created Notification</option>
+                                    <option value="order_dispatch" className="bg-zinc-900 text-white">Order Ready / Delivered Notification</option>
+                                    <option value="custom" className="bg-zinc-900 text-white">Custom Blank Message</option>
+                                </select>
+                            </div>
+
+                            {/* Message Preview */}
+                            <div>
+                                <div className="flex justify-between items-baseline mb-1.5">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">Message Content</label>
+                                    {selectedTemplate !== 'custom' && (
+                                        <span className="text-[10px] text-gray-500 font-medium">Auto-templated preview</span>
+                                    )}
+                                </div>
+                                <textarea
+                                    value={waMessage}
+                                    onChange={e => setWaMessage(e.target.value)}
+                                    placeholder="Type your custom message here..."
+                                    rows={6}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-600 focus:border-white/30 outline-none transition-colors resize-none font-sans leading-relaxed"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/10 bg-black/20">
+                            <button type="button" onClick={() => setWhatsappModalOpen(false)}
+                                className="px-4 py-2 border border-white/10 text-white/70 hover:bg-white/5 rounded-xl text-sm font-semibold transition-colors">
+                                Cancel
+                            </button>
+                            <button type="button" onClick={handleSendWhatsapp} disabled={waSending || waStatus !== 'CONNECTED'}
+                                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-1.5">
+                                {waSending ? 'Sending...' : 'Send Message'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style dangerouslySetInnerHTML={{
                 __html: `

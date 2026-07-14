@@ -13,6 +13,24 @@ export async function GET(req, { params }) {
 
         const salesOrder = salesOrders[0];
 
+        // Fetch Customer Phone & Portal Token for WhatsApp
+        salesOrder.customer_phone = null;
+        salesOrder.customer_portal_token = null;
+        if (salesOrder.customer_id) {
+            const [custRows] = await pool.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE id = ?', [salesOrder.customer_id]);
+            if (custRows.length > 0) {
+                salesOrder.customer_phone = custRows[0].phone || custRows[0].contact_phone;
+                salesOrder.customer_portal_token = custRows[0].portal_token;
+            }
+        }
+        if (!salesOrder.customer_phone && salesOrder.customer_name) {
+            const [custRows] = await pool.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE name = ?', [salesOrder.customer_name]);
+            if (custRows.length > 0) {
+                salesOrder.customer_phone = custRows[0].phone || custRows[0].contact_phone;
+                salesOrder.customer_portal_token = custRows[0].portal_token;
+            }
+        }
+
         // Fetch linked quotation container
         const [quotations] = await pool.execute('SELECT * FROM quotations WHERE id = ?', [salesOrder.quotation_id]);
         salesOrder.quotation = quotations[0] || null;
@@ -82,6 +100,13 @@ export async function PUT(req, { params }) {
         const body = await req.json();
         const { status, delivery_date } = body;
 
+        // Fetch existing Sales Order first
+        const [existing] = await pool.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
+        if (existing.length === 0) {
+            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        }
+        const oldOrder = existing[0];
+
         let query = 'UPDATE sales_orders SET ';
         const queryParams = [];
 
@@ -100,6 +125,52 @@ export async function PUT(req, { params }) {
         queryParams.push(id);
 
         await pool.execute(query, queryParams);
+
+        // If status changed to Delivered, check if we should notify via WhatsApp
+        if (status === 'Delivered' && oldOrder.status !== 'Delivered') {
+            let phone = null;
+            let token = null;
+            if (oldOrder.customer_id) {
+                const [custRows] = await pool.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE id = ?', [oldOrder.customer_id]);
+                if (custRows.length > 0) {
+                    phone = custRows[0].phone || custRows[0].contact_phone;
+                    token = custRows[0].portal_token;
+                }
+            }
+            if (!phone && oldOrder.customer_name) {
+                const [custRows] = await pool.execute('SELECT phone, contact_phone, portal_token FROM customers WHERE name = ?', [oldOrder.customer_name]);
+                if (custRows.length > 0) {
+                    phone = custRows[0].phone || custRows[0].contact_phone;
+                    token = custRows[0].portal_token;
+                }
+            }
+
+            const [waSettingsRows] = await pool.execute(
+                "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('whatsapp_enabled', 'whatsapp_auto_send_dispatch', 'whatsapp_template_dispatch')"
+            );
+            const waSettings = waSettingsRows.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
+
+            if (phone && waSettings['whatsapp_enabled'] === 'true' && waSettings['whatsapp_auto_send_dispatch'] === 'true') {
+                const origin = req.headers.get('origin') || 'http://localhost:3000';
+                const portalLink = token ? `${origin}/portal/${token}` : '';
+                const templateText = waSettings['whatsapp_template_dispatch'] || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}';
+                
+                const message = templateText
+                    .replace(/{customer_name}/g, oldOrder.customer_name || '')
+                    .replace(/{order_code}/g, oldOrder.code || '')
+                    .replace(/{portal_link}/g, portalLink || '')
+                    .replace(/{order_status}/g, 'Delivered')
+                    .replace(/{delivery_date}/g, delivery_date || '');
+
+                fetch(`${process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001'}/api/whatsapp/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: phone, message })
+                }).catch(err => {
+                    console.error('Background WhatsApp dispatch send error:', err);
+                });
+            }
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

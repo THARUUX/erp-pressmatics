@@ -6,7 +6,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
     FiSettings, FiBriefcase, FiFileText, FiHash, FiTrash2,
     FiSave, FiAlertTriangle, FiCheckCircle, FiList, FiPlus, FiX,
-    FiArrowUp, FiArrowDown
+    FiArrowUp, FiArrowDown, FiMessageSquare
 } from 'react-icons/fi';
 
 /* ── Reusable field primitives ────────────────────────────────────────────── */
@@ -50,6 +50,7 @@ const TABS = [
     { key: 'documents',label: 'Documents',      icon: FiFileText  },
     { key: 'ids',      label: 'ID Templates',   icon: FiHash      },
     { key: 'tasks',    label: 'Tasks',          icon: FiList      },
+    { key: 'whatsapp', label: 'WhatsApp',       icon: FiMessageSquare },
     { key: 'data',     label: 'Data Management',icon: FiTrash2    },
 ];
 
@@ -258,6 +259,110 @@ export default function SettingsPage() {
     const [quoteIdTemplate, setQuoteIdTemplate] = useState('');
     const [quoteIdSeq, setQuoteIdSeq]           = useState('');
 
+    // WhatsApp Configuration Settings
+    const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+    const [whatsappAutoSendOrder, setWhatsappAutoSendOrder] = useState(false);
+    const [whatsappAutoSendDispatch, setWhatsappAutoSendDispatch] = useState(false);
+    const [whatsappTemplateOrder, setWhatsappTemplateOrder] = useState('');
+    const [whatsappTemplateDispatch, setWhatsappTemplateDispatch] = useState('');
+    const [whatsappTemplateWelcome, setWhatsappTemplateWelcome] = useState('');
+    const [whatsappTemplateQuote, setWhatsappTemplateQuote]     = useState('');
+
+    // WhatsApp Live State (microservice polling)
+    const [whatsappStatus, setWhatsappStatus] = useState('LOADING');
+    const [whatsappQr, setWhatsappQr] = useState(null);
+    const [whatsappProfile, setWhatsappProfile] = useState(null);
+
+    const [testNumber, setTestNumber] = useState('');
+    const [testMessage, setTestMessage] = useState('This is a test message from Pressmatics ERP!');
+    const [sendingTest, setSendingTest] = useState(false);
+
+    const fetchWhatsappStatus = async () => {
+        try {
+            const res = await fetch('/api/whatsapp/status');
+            if (res.ok) {
+                const data = await res.json();
+                setWhatsappStatus(data.state);
+                setWhatsappQr(data.qr);
+                setWhatsappProfile(data.profile);
+            } else {
+                setWhatsappStatus('OFFLINE');
+            }
+        } catch (err) {
+            setWhatsappStatus('OFFLINE');
+        }
+    };
+
+    useEffect(() => {
+        if (tab === 'whatsapp') {
+            fetchWhatsappStatus();
+            const interval = setInterval(() => {
+                fetchWhatsappStatus();
+            }, 3000);
+            return () => clearInterval(interval);
+        }
+    }, [tab]);
+
+    const handleConnectWhatsapp = async () => {
+        try {
+            setWhatsappStatus('CONNECTING');
+            const res = await fetch('/api/whatsapp/connect', { method: 'POST' });
+            if (res.ok) {
+                fetchWhatsappStatus();
+            } else {
+                toast.error('Failed to initiate connection');
+            }
+        } catch {
+            toast.error('Failed to initiate connection');
+        }
+    };
+
+    const handleDisconnectWhatsapp = async () => {
+        const confirmed = await confirmDialog('Are you sure you want to disconnect WhatsApp and clear the session?', {
+            danger: true,
+            confirmLabel: 'Disconnect'
+        });
+        if (!confirmed) return;
+
+        try {
+            setWhatsappStatus('LOADING');
+            const res = await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+            if (res.ok) {
+                toast.success('WhatsApp disconnected');
+                fetchWhatsappStatus();
+            } else {
+                toast.error('Failed to disconnect');
+            }
+        } catch {
+            toast.error('Failed to disconnect');
+        }
+    };
+
+    const handleSendTestMessage = async () => {
+        if (!testNumber.trim() || !testMessage.trim()) {
+            toast.error('Please specify both test phone number and message content');
+            return;
+        }
+        setSendingTest(true);
+        try {
+            const res = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: testNumber.trim(), message: testMessage.trim() })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('Test WhatsApp message sent successfully!');
+            } else {
+                toast.error(data.error || 'Failed to send test message');
+            }
+        } catch {
+            toast.error('Network error sending test message');
+        } finally {
+            setSendingTest(false);
+        }
+    };
+
     useEffect(() => {
         setCurrency(settings.currency || 'LKR');
         setTaxRate(settings.default_tax_percentage || '0');
@@ -277,6 +382,14 @@ export default function SettingsPage() {
         setCustIdSeq(settings.customer_id_seq || '1');
         setQuoteIdTemplate(settings.quotation_id_template || 'QTN-{0000}');
         setQuoteIdSeq(settings.quotation_id_seq || '1');
+
+        setWhatsappEnabled(settings.whatsapp_enabled === 'true');
+        setWhatsappAutoSendOrder(settings.whatsapp_auto_send_order === 'true');
+        setWhatsappAutoSendDispatch(settings.whatsapp_auto_send_dispatch === 'true');
+        setWhatsappTemplateOrder(settings.whatsapp_template_order || 'Hello {customer_name}, your order {order_code} has been successfully created. View status: {portal_link}');
+        setWhatsappTemplateDispatch(settings.whatsapp_template_dispatch || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}');
+        setWhatsappTemplateWelcome(settings.whatsapp_template_welcome || 'Hello {customer_name}, welcome to Pressmatics ERP. You can access your portal here: {portal_link}');
+        setWhatsappTemplateQuote(settings.whatsapp_template_quote || 'Hello {customer_name}, here is your quotation {quote_code} for {quote_amount}. You can view it here: {portal_link}');
     }, [settings]);
 
     const handleImageUpload = (setter) => (e) => {
@@ -301,9 +414,19 @@ export default function SettingsPage() {
             ['item_code_template', template], ['item_code_seq', seq],
             ['customer_id_template', custIdTemplate], ['customer_id_seq', custIdSeq],
             ['quotation_id_template', quoteIdTemplate], ['quotation_id_seq', quoteIdSeq],
+            ['whatsapp_enabled', whatsappEnabled ? 'true' : 'false'],
+            ['whatsapp_auto_send_order', whatsappAutoSendOrder ? 'true' : 'false'],
+            ['whatsapp_auto_send_dispatch', whatsappAutoSendDispatch ? 'true' : 'false'],
+            ['whatsapp_template_order', whatsappTemplateOrder],
+            ['whatsapp_template_dispatch', whatsappTemplateDispatch],
+            ['whatsapp_template_welcome', whatsappTemplateWelcome],
+            ['whatsapp_template_quote', whatsappTemplateQuote],
         ];
         let ok = true;
         for (const [key, val] of updates) { if (!(await updateSetting(key, val))) ok = false; }
+        if (ok) {
+            toast.success('Settings saved successfully');
+        }
         setSaving(false);
     };
 
@@ -866,6 +989,212 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* WHATSAPP TAB */}
+            {tab === 'whatsapp' && (
+                <div className="space-y-6">
+                    {/* Header Card / Status Indicator */}
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden p-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div>
+                                <h2 className="text-lg font-bold text-white">WhatsApp Integration Status</h2>
+                                <p className="text-gray-500 text-xs mt-1">
+                                    Link your phone number to automatically send messages on status updates and templates.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {whatsappStatus === 'CONNECTED' && (
+                                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Connected: {whatsappProfile?.name} (+{whatsappProfile?.number})
+                                    </span>
+                                )}
+                                {whatsappStatus === 'CONNECTING' && (
+                                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
+                                        <span className="w-2.5 h-2.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                                        Initializing Connection...
+                                    </span>
+                                )}
+                                {whatsappStatus === 'QR' && (
+                                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
+                                        Scan QR Code below
+                                    </span>
+                                )}
+                                {whatsappStatus === 'DISCONNECTED' && (
+                                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+                                        Disconnected
+                                    </span>
+                                )}
+                                {whatsappStatus === 'OFFLINE' && (
+                                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold">
+                                        WhatsApp Service Offline (Port 5001)
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Connection interface */}
+                        <div className="mt-6 border-t border-white/[0.08] pt-6">
+                            {whatsappStatus === 'OFFLINE' && (
+                                <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl text-center">
+                                    <p className="text-sm text-red-300 font-semibold">WhatsApp Daemon service is not running.</p>
+                                    <p className="text-xs text-red-400/70 mt-1">Please start the service by running <code className="bg-white/10 px-1.5 py-0.5 rounded font-mono">node whatsapp/server.js</code> on the backend.</p>
+                                </div>
+                            )}
+
+                            {whatsappStatus === 'DISCONNECTED' && (
+                                <div className="text-center py-6">
+                                    <button type="button" onClick={handleConnectWhatsapp}
+                                        className="bg-white text-black px-6 py-3 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer">
+                                        Link WhatsApp Account
+                                    </button>
+                                </div>
+                            )}
+
+                            {whatsappStatus === 'QR' && whatsappQr && (
+                                <div className="flex flex-col items-center justify-center py-6">
+                                    <div className="bg-white p-4 rounded-2xl shadow-xl">
+                                        <img src={whatsappQr} alt="WhatsApp QR Code" className="w-56 h-56" />
+                                    </div>
+                                    <p className="text-sm text-gray-300 font-semibold mt-4">Scan the QR code with WhatsApp on your phone</p>
+                                    <p className="text-xs text-gray-500 mt-1">Open WhatsApp &gt; Settings &gt; Linked Devices &gt; Link a Device.</p>
+                                </div>
+                            )}
+
+                            {whatsappStatus === 'CONNECTING' && (
+                                <div className="text-center py-10">
+                                    <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-3" />
+                                    <p className="text-xs text-gray-400">Negotiating WhatsApp servers connection...</p>
+                                </div>
+                            )}
+
+                            {whatsappStatus === 'CONNECTED' && (
+                                <div className="flex flex-col items-center justify-center py-6">
+                                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-5 w-full max-w-md">
+                                        <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-xl font-bold text-emerald-400">
+                                            {whatsappProfile?.name?.charAt(0) || 'W'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold text-white truncate">{whatsappProfile?.name}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5 font-mono">+{whatsappProfile?.number}</p>
+                                        </div>
+                                        <button type="button" onClick={handleDisconnectWhatsapp}
+                                            className="px-4 py-2 border border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl text-xs font-semibold transition-colors cursor-pointer">
+                                            Disconnect
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Messaging Rules Card */}
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6">
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Automated Notification Rules</h3>
+                        
+                        <div className="grid sm:grid-cols-2 gap-6 pt-2">
+                            {/* Master toggle */}
+                            <div className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-2xl">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Enable WhatsApp Notifications</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Allow the system to send automatic text alerts.</p>
+                                </div>
+                                <div className="relative">
+                                    <input type="checkbox" id="wa_enabled" checked={whatsappEnabled} onChange={e => setWhatsappEnabled(e.target.checked)} className="sr-only" />
+                                    <div onClick={() => setWhatsappEnabled(!whatsappEnabled)}
+                                        className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${whatsappEnabled ? 'bg-white' : 'bg-white/10'}`}>
+                                        <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${whatsappEnabled ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Order Created */}
+                            <div className={`flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-2xl transition-opacity ${!whatsappEnabled && 'opacity-40 pointer-events-none'}`}>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Send on Order Created</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Send a confirmation when a Sales Order is generated.</p>
+                                </div>
+                                <div className="relative">
+                                    <input type="checkbox" id="wa_auto_order" checked={whatsappAutoSendOrder} onChange={e => setWhatsappAutoSendOrder(e.target.checked)} className="sr-only" />
+                                    <div onClick={() => setWhatsappAutoSendOrder(!whatsappAutoSendOrder)}
+                                        className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${whatsappAutoSendOrder ? 'bg-white' : 'bg-white/10'}`}>
+                                        <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${whatsappAutoSendOrder ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Order Dispatch */}
+                            <div className={`flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-2xl transition-opacity ${!whatsappEnabled && 'opacity-40 pointer-events-none'}`}>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Send on Completion/Delivery</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Notify the customer when status is marked "Delivered".</p>
+                                </div>
+                                <div className="relative">
+                                    <input type="checkbox" id="wa_auto_dispatch" checked={whatsappAutoSendDispatch} onChange={e => setWhatsappAutoSendDispatch(e.target.checked)} className="sr-only" />
+                                    <div onClick={() => setWhatsappAutoSendDispatch(!whatsappAutoSendDispatch)}
+                                        className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${whatsappAutoSendDispatch ? 'bg-white' : 'bg-white/10'}`}>
+                                        <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${whatsappAutoSendDispatch ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Customize Templates Card */}
+                    <div className={`bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6 transition-opacity ${!whatsappEnabled && 'opacity-40 pointer-events-none'}`}>
+                        <div>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Message Templates</h3>
+                            <p className="text-xs text-gray-500 mt-1 font-medium">
+                                Customize the notification content. Placeholders: <code className="bg-white/10 px-1 rounded text-white font-mono">{`{customer_name}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{order_code}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{quote_code}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{quote_amount}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{portal_link}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{order_status}`}</code>, <code className="bg-white/10 px-1 rounded text-white font-mono">{`{delivery_date}`}</code>.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <Field label="Sales Order Created Template">
+                                <TextArea value={whatsappTemplateOrder} onChange={e => setWhatsappTemplateOrder(e.target.value)} placeholder="Enter template text..." />
+                            </Field>
+                            
+                            <Field label="Sales Order Delivered/Dispatched Template">
+                                <TextArea value={whatsappTemplateDispatch} onChange={e => setWhatsappTemplateDispatch(e.target.value)} placeholder="Enter template text..." />
+                            </Field>
+
+                            <Field label="Customer Welcome/Registration Greeting Template">
+                                <TextArea value={whatsappTemplateWelcome} onChange={e => setWhatsappTemplateWelcome(e.target.value)} placeholder="Enter welcome template text..." />
+                            </Field>
+
+                            <Field label="Quotation Shared Template">
+                                <TextArea value={whatsappTemplateQuote} onChange={e => setWhatsappTemplateQuote(e.target.value)} placeholder="Enter quote template text..." />
+                            </Field>
+                        </div>
+                    </div>
+
+                    {/* Direct Test Message Card */}
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6">
+                        <div>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Test WhatsApp Connection</h3>
+                            <p className="text-xs text-gray-500 mt-1 font-medium">
+                                Send a live text message directly to check if the connection is functional.
+                            </p>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-5">
+                            <Field label="Test Phone Number" hint="e.g. +94771234567 or 0771234567">
+                                <TextInput value={testNumber} onChange={e => setTestNumber(e.target.value)} placeholder="0771234567" />
+                            </Field>
+                            <Field label="Message Text">
+                                <TextInput value={testMessage} onChange={e => setTestMessage(e.target.value)} placeholder="Test message contents" />
+                            </Field>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button type="button" onClick={handleSendTestMessage} disabled={sendingTest || whatsappStatus !== 'CONNECTED'}
+                                className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 cursor-pointer">
+                                {sendingTest ? 'Sending...' : 'Send Test Message'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

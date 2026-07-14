@@ -30,7 +30,7 @@ async function setupQuotationsDB() {
       CREATE TABLE IF NOT EXISTS finishings (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        unit_cost DECIMAL(10, 2) DEFAULT 0.00,
+        unit_cost DECIMAL(15, 3) DEFAULT 0.000,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -77,7 +77,7 @@ async function setupQuotationsDB() {
         final_paper_cost DECIMAL(15, 2),
         final_plate_cost DECIMAL(15, 2),
         final_printing_cost DECIMAL(15, 2),
-        final_finishing_cost DECIMAL(15, 2),
+        final_finishing_cost DECIMAL(15, 3),
         
         FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE,
         FOREIGN KEY (machine_id) REFERENCES machines(id)
@@ -92,8 +92,8 @@ async function setupQuotationsDB() {
         quotation_id INT NOT NULL,
         name VARCHAR(255) NOT NULL, -- Snapshot name in case original finishing is deleted 
         quantity INT NOT NULL,
-        unit_cost DECIMAL(10, 2) NOT NULL,
-        total_cost DECIMAL(15, 2) NOT NULL,
+        unit_cost DECIMAL(15, 3) NOT NULL,
+        total_cost DECIMAL(15, 3) NOT NULL,
         FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
       )
     `);

@@ -17,8 +17,8 @@ export async function GET(req) {
         let countParams = [];
         let whereClauses = [];
 
-        // Ignore states 4 & 5
-        whereClauses.push('l.state IN (0, 1)');
+        // Allow states 0, 1, 4, 5 (Check In, Check Out, Break Out, Break In)
+        whereClauses.push('l.state IN (0, 1, 4, 5)');
 
         if (search) {
             whereClauses.push('(e.name LIKE ? OR e.employee_id LIKE ? OR l.device_user_id LIKE ?)');
