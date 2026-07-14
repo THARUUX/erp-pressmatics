@@ -11,10 +11,9 @@ export async function GET(req, { params }) {
 
     try {
         // Get machine
-        const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
-        if (!machines.length) return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
-        const machine = machines[0];
-
+        let machine;
+        let tasks;
+        
         // Parse week dates
         let currentWeekStart;
         if (weekStartStr) {
@@ -49,21 +48,45 @@ export async function GET(req, { params }) {
         const endDateStr = weekDays[6].dateStr;
         const weekRangeStr = `${new Date(startDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(endDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-        // Fetch all active tasks assigned to this machine and either scheduled in this week or unplanned
-        const [tasks] = await pool.execute(
-            `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM job_tasks jt
-             JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.machine_id = ? AND (
-                 (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
-             )
-             ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
-            [id, startDateStr, endDateStr]
-        );
+        if (id === 'manual') {
+            machine = { id: 'manual', name: 'Manual / Hand Operations', type: 'finishing', speed: 0, make_ready_minutes: 0, shift_limit: 8 };
+            
+            const [rows] = await pool.execute(
+                `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date,
+                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
+                         FROM quotation_items qi
+                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
+                 FROM job_tasks jt
+                 JOIN sales_orders so ON jt.sales_order_id = so.id
+                 WHERE jt.machine_id IS NULL AND (
+                     (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
+                 )
+                 ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                [startDateStr, endDateStr]
+            );
+            tasks = rows;
+        } else {
+            const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
+            if (!machines.length) return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
+            machine = machines[0];
+
+            const [rows] = await pool.execute(
+                `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date,
+                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
+                         FROM quotation_items qi
+                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
+                 FROM job_tasks jt
+                 JOIN sales_orders so ON jt.sales_order_id = so.id
+                 WHERE jt.machine_id = ? AND (
+                     (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
+                 )
+                 ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                [id, startDateStr, endDateStr]
+            );
+            tasks = rows;
+        }
 
         // Group tasks
         const unplannedTasks = [];

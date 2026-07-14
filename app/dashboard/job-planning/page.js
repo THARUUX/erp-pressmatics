@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiRefreshCw, FiGrid, FiCpu, FiLayers } from 'react-icons/fi';
+import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DnD components (client-only)
 const KanbanBoard = dynamic(() => import('./components/KanbanBoard'), { ssr: false });
 const MachinePlanning = dynamic(() => import('./components/MachinePlanning'), { ssr: false });
+const FinishingPlanning = dynamic(() => import('./components/FinishingPlanning'), { ssr: false });
 const ServicesPlanning = dynamic(() => import('./components/ServicesPlanning'), { ssr: false });
 
 const G = {
@@ -35,7 +36,7 @@ function StatPill({ label, value, accent }) {
 
 export default function JobPlanningPage() {
     const [tab, setTab] = useState('kanban');
-    const [data, setData] = useState({ machines: [], orders: [] });
+    const [data, setData] = useState({ machines: [], finishings: [], orders: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -64,7 +65,7 @@ export default function JobPlanningPage() {
         }));
     };
 
-    const { machines, orders } = data;
+    const { machines, finishings = [], orders } = data;
     const totalTasks = orders.reduce((a, o) => a + o.tasks.length, 0);
     const doneTasks = orders.reduce((a, o) => a + o.tasks.filter(t => t.status === 'done').length, 0);
     const pct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0;
@@ -73,6 +74,7 @@ export default function JobPlanningPage() {
     const tabs = [
         { key: 'kanban', label: 'Job Planning', icon: FiGrid },
         { key: 'machine', label: 'Machine Planning', icon: FiCpu },
+        { key: 'finishing', label: 'Finishing Planning', icon: FiActivity },
         { key: 'services', label: 'Services Planning', icon: FiLayers },
     ];
 
@@ -197,7 +199,30 @@ export default function JobPlanningPage() {
                                     <p style={{ color: G.subtle, fontSize: 12 }}>Add machines in Settings → Machines.</p>
                                 </div>
                             ) : (
-                                <MachinePlanning machines={machines} orders={orders} />
+                                <MachinePlanning machines={machines} finishings={finishings} orders={orders} onRefresh={load} />
+                            )}
+                        </div>
+                    )}
+
+                    {/* Finishing Planning */}
+                    {tab === 'finishing' && (
+                        <div>
+                            <div style={{ marginBottom: 20 }}>
+                                <p style={{ fontSize: 13, color: G.subtle, margin: 0, lineHeight: 1.6 }}>
+                                    Plan daily and weekly manual finishing operations that do not have a dedicated machine assigned.
+                                </p>
+                            </div>
+                            {finishings.length === 0 ? (
+                                <div style={{
+                                    textAlign: 'center', padding: '60px 24px',
+                                    background: G.glass, border: `1px dashed ${G.border}`,
+                                    borderRadius: 16,
+                                }}>
+                                    <p style={{ fontSize: 32, marginBottom: 10 }}>✨</p>
+                                    <p style={{ color: G.subtle, fontSize: 14 }}>No finishing operations configured yet.</p>
+                                </div>
+                            ) : (
+                                <FinishingPlanning finishings={finishings} machines={machines} orders={orders} onRefresh={load} />
                             )}
                         </div>
                     )}

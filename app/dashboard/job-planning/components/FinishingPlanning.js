@@ -1221,8 +1221,8 @@ function BacklogColumn({
     );
 }
 
-// ── Main MachinePlanning Component ───────────────────────────────────────
-export default function MachinePlanning({ machines, finishings = [], orders, onRefresh }) {
+// ── Main FinishingPlanning Component ───────────────────────────────────────
+export default function FinishingPlanning({ finishings = [], machines = [], orders, onRefresh }) {
     const [viewMode, setViewMode] = useState('daily');
     const [activeDate, setActiveDate] = useState(() => {
         const today = new Date();
@@ -1230,8 +1230,8 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
         return today;
     });
     const [localOrders, setLocalOrders] = useState(orders);
-    const [activeMachineId, setActiveMachineId] = useState(() => {
-        return machines.length > 0 ? machines[0].id : null;
+    const [activeFinishingId, setActiveFinishingId] = useState(() => {
+        return finishings.length > 0 ? finishings[0].id : null;
     });
 
     const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -1241,19 +1241,10 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const [activeTask, setActiveTask] = useState(null);
     const [selectedTaskModal, setSelectedTaskModal] = useState(null); // { task, order }
     const [showReport, setShowReport] = useState(true);
-    const [showUnassigned, setShowUnassigned] = useState(false);
-    const [collapsedCategories, setCollapsedCategories] = useState({
-        prepress: true,
-        offset: true,
-        digital: true,
-        finishing: true,
-    });
 
-    const toggleCategory = (type) => {
-        setCollapsedCategories(prev => ({
-            ...prev,
-            [type]: !prev[type]
-        }));
+    const matchesFinishing = (taskName, finishingName) => {
+        if (!taskName || !finishingName) return false;
+        return taskName.toLowerCase().startsWith(finishingName.toLowerCase());
     };
 
     // Sync prop changes
@@ -1266,12 +1257,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const [dragOverColumnId, setDragOverColumnId] = useState(null);
 
-    const isManualFinishing = (taskName) => {
-        if (!taskName) return false;
-        return finishings.some(f => taskName.toLowerCase().startsWith(f.name.toLowerCase()));
-    };
-
-    const selectedMachine = machines.find(m => m.id === activeMachineId) || machines[0];
+    const selectedFinishing = finishings.find(f => f.id === activeFinishingId) || finishings[0];
 
     // Navigate Weeks
     const handlePrevWeek = () => {
@@ -1339,29 +1325,30 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const unplannedTasks = [];
     const dailyTasksMap = {};
     weekDays.forEach(day => { dailyTasksMap[day.dateStr] = []; });
-    const unassignedTasks = [];
 
     // Daily View specific groupings
     const backlogTasks = [];
-    const machineTasksMap = {};
-    machines.forEach(m => { machineTasksMap[m.id] = []; });
+    const finishingTasksMap = {};
+    finishings.forEach(f => { finishingTasksMap[f.id] = []; });
 
-    const machineUnplannedCounts = {};
-    machines.forEach(m => { machineUnplannedCounts[m.id] = 0; });
+    const finishingUnplannedCounts = {};
+    finishings.forEach(f => { finishingUnplannedCounts[f.id] = 0; });
 
     localOrders.forEach(o => {
         const isCompletedOrCancelled = ['delivered', 'cancelled', 'completed', 'ready'].includes(String(o.status || '').toLowerCase());
 
         (o.tasks || []).forEach(t => {
-            if (!t.scheduled_date && !isCompletedOrCancelled) {
-                if (t.machine_id !== null) {
-                    if (machineUnplannedCounts[t.machine_id] !== undefined) {
-                        machineUnplannedCounts[t.machine_id]++;
+            // A task belongs to a finishing operation if it does not have a machine assigned and name matches
+            if (t.machine_id === null && !isCompletedOrCancelled) {
+                const matchingFin = finishings.find(f => matchesFinishing(t.name, f.name));
+                if (matchingFin) {
+                    if (!t.scheduled_date) {
+                        finishingUnplannedCounts[matchingFin.id]++;
                     }
                 }
             }
-            // Weekly groupings
-            const isAssignedToActive = (t.machine_id === activeMachineId);
+
+            const isAssignedToActive = t.machine_id === null && selectedFinishing && matchesFinishing(t.name, selectedFinishing.name);
             if (isAssignedToActive) {
                 if (!t.scheduled_date) {
                     unplannedTasks.push(t);
@@ -1371,23 +1358,19 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                         dailyTasksMap[dStr].push(t);
                     }
                 }
-            } else if (t.machine_id === null) {
-                if (!isCompletedOrCancelled && !isManualFinishing(t.name)) {
-                    unassignedTasks.push(t);
-                }
             }
 
             // Daily groupings
             if (!isCompletedOrCancelled) {
-                if (t.machine_id === activeMachineId) {
+                if (isAssignedToActive) {
                     if (!t.scheduled_date) {
                         backlogTasks.push(t);
                     } else {
                         const dStr = getLocalDateString(t.scheduled_date);
                         const activeStr = getLocalDateString(activeDate);
                         if (dStr === activeStr) {
-                            if (machineTasksMap[t.machine_id]) {
-                                machineTasksMap[t.machine_id].push(t);
+                            if (selectedFinishing && finishingTasksMap[selectedFinishing.id]) {
+                                finishingTasksMap[selectedFinishing.id].push(t);
                             }
                         }
                     }
@@ -1412,10 +1395,9 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     };
 
     sortTasks(unplannedTasks);
-    sortTasks(unassignedTasks);
     Object.keys(dailyTasksMap).forEach(k => sortTasks(dailyTasksMap[k]));
     sortTasks(backlogTasks);
-    Object.keys(machineTasksMap).forEach(k => sortTasks(machineTasksMap[k]));
+    Object.keys(finishingTasksMap).forEach(k => sortTasks(finishingTasksMap[k]));
 
     // arrayMove helper for reordering
     const arrayMove = (arr, fromIndex, toIndex) => {
@@ -1449,20 +1431,16 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
 
         const originalTask = parentOrder.tasks.find(t => t.id === taskId);
 
-        const checkIsActiveMachine = (mId) => {
-            return mId === activeMachineId;
+        const checkIsActiveFinishing = (mId, taskName) => {
+            return mId === null && selectedFinishing && matchesFinishing(taskName, selectedFinishing.name);
         };
 
-        let newMachineId = activeMachineId;
-        let newMachineName = selectedMachine?.name || null;
+        let newMachineId = null;
+        let newMachineName = null;
         let newScheduledDate = originalTask.scheduled_date;
 
         if (viewMode === 'weekly') {
-            if (overId === 'unassigned') {
-                newMachineId = null;
-                newMachineName = null;
-                newScheduledDate = null;
-            } else if (overId === 'unplanned') {
+            if (overId === 'unplanned') {
                 newScheduledDate = null;
             } else if (overId.startsWith('day-')) {
                 newScheduledDate = overId.replace('day-', '');
@@ -1471,12 +1449,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
             // Daily View
             if (overId === 'backlog') {
                 newScheduledDate = null;
-            } else if (overId.startsWith('machine-')) {
-                const targetMachineId = overId.replace('machine-', '');
-                const parsedId = parseInt(targetMachineId);
-                const targetMachine = machines.find(m => m.id === parsedId);
-                newMachineId = parsedId;
-                newMachineName = targetMachine?.name || null;
+            } else if (overId.startsWith('finishing-')) {
                 newScheduledDate = formatDateKey(activeDate);
             }
         }
@@ -1489,27 +1462,27 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                 if (found) { targetTask = found; break; }
             }
             if (targetTask) {
-                newMachineId = targetTask.machine_id;
-                newMachineName = targetTask.machine_name;
+                newMachineId = null;
+                newMachineName = null;
                 newScheduledDate = targetTask.scheduled_date;
             }
         }
 
-        const containerChanged = originalTask.machine_id !== newMachineId || originalTask.scheduled_date !== newScheduledDate;
+        const containerChanged = originalTask.scheduled_date !== newScheduledDate;
 
-        // 1. Gather all tasks for the active machine (including active task, with updated container properties)
+        // 1. Gather all tasks for the active finishing (including active task, with updated container properties)
         const unplannedList = [];
         const dailyLists = {};
 
         localOrders.forEach(order => {
             (order.tasks || []).forEach(task => {
-                const isTargetMachine = checkIsActiveMachine(task.id === taskId ? newMachineId : task.machine_id);
-                if (isTargetMachine) {
+                const isTargetFinishing = checkIsActiveFinishing(task.id === taskId ? null : task.machine_id, task.id === taskId ? originalTask.name : task.name);
+                if (isTargetFinishing) {
                     const taskObj = {
                         ...task,
                         ...(task.id === taskId ? {
-                            machine_id: newMachineId,
-                            machine_name: newMachineName,
+                            machine_id: null,
+                            machine_name: null,
                             scheduled_date: newScheduledDate,
                         } : {})
                     };
@@ -1550,7 +1523,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
             sortWithFallback(dailyLists[dKey]);
         });
 
-        if (checkIsActiveMachine(newMachineId)) {
+        if (checkIsActiveFinishing(null, originalTask.name)) {
             const targetContainer = newScheduledDate ? getLocalDateString(newScheduledDate) : 'unplanned';
 
             if (targetTaskId) {
@@ -1604,8 +1577,8 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                         if (t.id === taskId) {
                             return {
                                 ...t,
-                                machine_id: newMachineId,
-                                machine_name: newMachineName,
+                                machine_id: null,
+                                machine_name: null,
                                 scheduled_date: newScheduledDate,
                                 machine_position: positionMap[t.id] || null,
                             };
@@ -1630,23 +1603,12 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    machine_id: newMachineId,
-                    machine_name: newMachineName,
+                    machine_id: null,
+                    machine_name: null,
                     scheduled_date: newScheduledDate,
                     machine_position: positionMap[taskId] || null,
                 }),
             });
-
-            if (activeMachineId) {
-                const taskIds = finalFlatTasks.map(t => t.id);
-                if (taskIds.length > 0) {
-                    await fetch(`/api/machines/${activeMachineId}/reorder`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ taskIds }),
-                    });
-                }
-            }
         } catch (e) {
             console.error('Drag update error:', e);
             setLocalOrders(orders); // Revert
@@ -1693,7 +1655,6 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const totalTasksPlanned = scheduledWeekTasks.length;
     const totalEstimatedMins = scheduledWeekTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const completedTasks = scheduledWeekTasks.filter(t => t.status === 'done').length;
-    const completedMins = scheduledWeekTasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const completionRate = totalTasksPlanned > 0 ? Math.round((completedTasks / totalTasksPlanned) * 100) : 0;
 
     // Task Modal handlers
@@ -1705,11 +1666,11 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     };
     const handleCloseModal = () => setSelectedTaskModal(null);
 
-    // Capacity: use machine shift_limit (default 8h)
-    const shiftLimitHrs = selectedMachine?.shift_limit || 8;
+    // Capacity: default to 8h for manual finishing operations
+    const shiftLimitHrs = 8;
     const shiftCapacityMins = shiftLimitHrs * 60;
 
-    const machineAccent = selectedMachine?.type?.toLowerCase() === 'digital' ? G.purple : selectedMachine?.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
+    const machineAccent = G.success; // Green accent for Finishing Planning
 
     return (
         <>
@@ -1725,22 +1686,6 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                     .print-only {
                         display: block !important;
                     }
-                    .print-report-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-top: 18px;
-                    }
-                    .print-report-table th, .print-report-table td {
-                        border: 1px solid #c0c0c0;
-                        padding: 6px 8px;
-                        text-align: left;
-                        font-size: 10.5px;
-                        color: black !important;
-                    }
-                    .print-report-table th {
-                        background-color: #e5e5e5;
-                        font-weight: bold;
-                    }
                 }
                 @media screen {
                     .print-only {
@@ -1750,242 +1695,105 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
             `}</style>
 
             {/* ─── PRINT ONLY LAYOUT ─── */}
-            {selectedMachine && (
+            {selectedFinishing && (
                 <div className="print-only" style={{ padding: 24, background: '#fff', color: '#000' }}>
                     <div style={{ borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
-                        <h1 style={{ fontSize: 20, fontWeight: 'bold', color: '#000', margin: 0 }}>Weekly Machine Schedule Report</h1>
+                        <h1 style={{ fontSize: 20, fontWeight: 'bold', color: '#000', margin: 0 }}>Weekly Finishing Schedule Report</h1>
                         <p style={{ margin: '4px 0 0', fontSize: 11, color: '#333' }}>
-                            Machine: <strong>{selectedMachine.name}</strong> ({selectedMachine.type})
+                            Finishing: <strong>{selectedFinishing.name}</strong>
                         </p>
                         <p style={{ margin: '2px 0 0', fontSize: 11, color: '#333' }}>
                             Week: <strong>{dateRangeStr}</strong>
                         </p>
                     </div>
-
-                    <div style={{ display: 'flex', gap: 24, marginBottom: 16, fontSize: 11 }}>
-                        <div><strong>Total Tasks Planned:</strong> {totalTasksPlanned} ({Math.round(totalEstimatedMins / 60 * 10) / 10} hrs)</div>
-                        <div><strong>Completed Tasks:</strong> {completedTasks} ({Math.round(completedMins / 60 * 10) / 10} hrs)</div>
-                        <div><strong>Completion Rate:</strong> {completionRate}%</div>
-                    </div>
-
-                    <table className="print-report-table">
-                        <thead>
-                            <tr>
-                                <th style={{ width: '15%' }}>Day / Date</th>
-                                <th style={{ width: '10%' }}>Job Code</th>
-                                <th style={{ width: '30%' }}>Job Name</th>
-                                <th style={{ width: '30%' }}>Task Detail</th>
-                                <th style={{ width: '8%' }}>Est. Time</th>
-                                <th style={{ width: '7%' }}>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {weekDays.map(day => {
-                                const dayTasks = dailyTasksMap[day.dateStr] || [];
-                                if (dayTasks.length === 0) {
-                                    return (
-                                        <tr key={day.dateStr}>
-                                            <td><strong>{day.name}</strong><br /><span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span></td>
-                                            <td colSpan="5" style={{ color: '#666', fontStyle: 'italic' }}>No tasks scheduled</td>
-                                        </tr>
-                                    );
-                                }
-                                return dayTasks.map((t, idx) => {
-                                    const ord = getOrder(t);
-                                    return (
-                                        <tr key={t.id}>
-                                            {idx === 0 && (
-                                                <td rowSpan={dayTasks.length} style={{ verticalAlign: 'top' }}>
-                                                    <strong>{day.name}</strong><br />
-                                                    <span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span>
-                                                </td>
-                                            )}
-                                            <td>{ord?.code || '—'}</td>
-                                            <td>{ord?.estimation_names || ord?.customer_name || '—'}</td>
-                                            <td>{t.name.split('—')[t.name.split('—').length - 1].trim()}</td>
-                                            <td>{t.estimated_minutes ? `${t.estimated_minutes}m` : '0m'}</td>
-                                            <td style={{ textTransform: 'capitalize' }}>{t.status}</td>
-                                        </tr>
-                                    );
-                                });
-                            })}
-                        </tbody>
-                    </table>
                 </div>
             )}
 
             {/* ─── SCREEN LAYOUT ─── */}
             <div className="no-print flex flex-col lg:flex-row gap-6 min-h-[80vh]">
 
-                {/* 1. Left Sidebar Machine Selector & Unassigned List */}
+                {/* 1. Left Sidebar Finishing Selector */}
                 <div className="w-full lg:w-[250px] bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-5 h-fit max-h-[90vh] overflow-y-auto">
                     <div>
                         <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-gray-500 mb-3">
-                            Machines
+                            Finishing Operations
                         </h3>
-                        {['prepress', 'offset', 'digital', 'finishing'].map(type => {
-                            const typeMachines = [...machines.filter(m => (m.type || '').toLowerCase() === type)];
-                            if (typeMachines.length === 0) return null;
-                            const isCollapsed = collapsedCategories[type];
-                            return (
-                                <div key={type} className="mb-3.5">
-                                    <div
-                                        onClick={() => toggleCategory(type)}
-                                        className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 cursor-pointer select-none"
+                        <div className="flex flex-col gap-0.5">
+                            {finishings.map(f => {
+                                const isSelected = activeFinishingId === f.id;
+                                const unplannedCount = finishingUnplannedCounts[f.id] || 0;
+                                const countStr = unplannedCount > 0 ? ` (${unplannedCount})` : '';
+                                return (
+                                    <button
+                                        key={f.id}
+                                        onClick={() => {
+                                            setActiveFinishingId(f.id);
+                                        }}
+                                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isSelected
+                                            ? 'bg-white/[0.08] text-white font-semibold'
+                                            : 'text-gray-400 hover:text-white bg-transparent'
+                                            }`}
                                     >
-                                        <span>{type}</span>
-                                        {isCollapsed ? <FiChevronRight className="w-2.5 h-2.5" /> : <FiChevronDown className="w-2.5 h-2.5" />}
-                                    </div>
-                                    {!isCollapsed && (
-                                        <div className="flex flex-col gap-0.5">
-                                            {typeMachines.map(m => {
-                                                const isSelected = activeMachineId === m.id;
-                                                const unplannedCount = machineUnplannedCounts[m.id] || 0;
-                                                const countStr = unplannedCount > 0 ? ` (${unplannedCount})` : '';
-                                                return (
-                                                    <button
-                                                        key={m.id}
-                                                        onClick={() => {
-                                                            setActiveMachineId(m.id);
-                                                        }}
-                                                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isSelected
-                                                            ? 'bg-white/[0.08] text-white font-semibold'
-                                                            : 'text-gray-400 hover:text-white bg-transparent'
-                                                            }`}
-                                                    >
-                                                        <span className="truncate block pr-2">
-                                                            {m.name}{countStr}
-                                                        </span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                        <span className="truncate block pr-2">
+                                            {f.name}{countStr}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-
-                    {!showUnassigned ? (
-                        <div className="border-t border-white/10 pt-3.5 flex flex-col">
-                            <button
-                                onClick={() => setShowUnassigned(true)}
-                                className="w-full py-2 bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 text-red-300 rounded-lg text-[10px] font-extrabold text-center uppercase tracking-wider transition-all"
-                            >
-                                Show Unassigned ({unassignedTasks.length})
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="border-t border-white/10 pt-3.5 flex flex-col min-h-[180px]">
-                            <div className="flex justify-between items-center mb-1">
-                                <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-red-400 m-0">
-                                    Unassigned ({unassignedTasks.length})
-                                </h3>
-                                <button
-                                    onClick={() => setShowUnassigned(false)}
-                                    className="background-none border-none text-gray-500 hover:text-white text-[9px] font-bold uppercase tracking-wider transition-colors"
-                                >
-                                    Hide
-                                </button>
-                            </div>
-                            <p className="text-[9.5px] text-gray-500 m-0 mb-2">
-                                Drag to schedule
-                            </p>
-                            <div className="flex-1 overflow-y-auto bg-red-500/[0.01] rounded-xl border border-dashed border-red-500/15 p-2 min-h-[120px] max-h-[300px]">
-                                <DroppableContainer
-                                    id="unassigned"
-                                    style={{ minHeight: '100%' }}
-                                    onDrop={handleDrop}
-                                    dragOverColumnId={dragOverColumnId}
-                                    setDragOverColumnId={setDragOverColumnId}
-                                >
-                                    {unassignedTasks.length === 0 ? (
-                                        <div className="text-[10px] text-gray-500 text-center py-8 italic">
-                                            No unassigned tasks
-                                        </div>
-                                    ) : (
-                                        unassignedTasks.map(t => (
-                                            <TaskCard
-                                                key={t.id}
-                                                task={t}
-                                                order={getOrder(t)}
-                                                onUpdateTask={handleUpdateTask}
-                                                onTaskClick={handleTaskClick}
-                                                accent="#ef4444"
-                                                draggedTaskId={draggedTaskId}
-                                                setDraggedTaskId={setDraggedTaskId}
-                                                dragOverTaskId={dragOverTaskId}
-                                                setDragOverTaskId={setDragOverTaskId}
-                                                dragOverPosition={dragOverPosition}
-                                                setDragOverPosition={setDragOverPosition}
-                                                onDrop={handleDrop}
-                                                columnId="unassigned"
-                                            />
-                                        ))
-                                    )}
-                                </DroppableContainer>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* 2. Main Planner Area */}
                 <div className="flex-1 flex flex-col gap-4.5 min-w-0">
 
                     {/* Header toolbar */}
-                    {(selectedMachine || viewMode === 'daily') && (
+                    {(selectedFinishing || viewMode === 'daily') && (
                         <div className="flex flex-wrap justify-between items-center bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 gap-3">
                             <div>
                                 {viewMode === 'weekly' ? (
                                     <>
                                         <div className="flex items-center gap-2.5 flex-wrap">
                                             <h2 className="text-base font-extrabold text-white m-0">
-                                                {selectedMachine?.name}
+                                                {selectedFinishing?.name}
                                             </h2>
                                             <span
-                                                className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border uppercase"
-                                                style={{
-                                                    backgroundColor: `${machineAccent}18`,
-                                                    color: machineAccent,
-                                                    borderColor: `${machineAccent}33`
-                                                }}
+                                                className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border uppercase bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                             >
-                                                {selectedMachine?.type}
+                                                MANUAL / HAND
                                             </span>
-
-                                            <a
-                                                href={`/machines/${selectedMachine?.id}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-[9.5px] text-gray-400 hover:text-white bg-white/5 border border-white/10 hover:border-white/20 px-2 py-1 rounded transition-all flex items-center gap-1"
-                                            >
-                                                Live Tracker ↗
-                                            </a>
                                         </div>
-                                        <p className="text-xs text-gray-400 m-0 mt-0.5">
-                                            Schedule &amp; track weekly tasks and machine reports
-                                        </p>
                                     </>
                                 ) : (
-                                    <>
-                                        <div className="flex items-center gap-2.5 flex-wrap">
-                                            <h2 className="text-base font-extrabold text-white m-0">
-                                                All Machines Planner
-                                            </h2>
-                                            <span className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border border-purple-500/20 bg-purple-500/10 text-purple-400 uppercase">
-                                                Daily View
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-400 m-0 mt-0.5">
-                                            Manage tasks across all machines side-by-side for today or selected date
-                                        </p>
-                                    </>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handlePrevDay}
+                                            className="p-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-all"
+                                        >
+                                            <FiChevronLeft className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={handleTodayDay}
+                                            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-white transition-all"
+                                        >
+                                            Today
+                                        </button>
+                                        <button
+                                            onClick={handleNextDay}
+                                            className="p-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-all"
+                                        >
+                                            <FiChevronRight className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-sm font-bold text-white ml-2">
+                                            {activeDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                {/* Segmented control for view mode selection */}
-                                <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/10 gap-1 mr-2">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                {/* Daily / Weekly switch */}
+                                <div className="bg-black/20 p-1 rounded-lg border border-white/10 flex">
                                     <button
                                         onClick={() => setViewMode('daily')}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'daily'
@@ -1994,7 +1802,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                             }`}
                                     >
                                         <FiCalendar className="w-3.5 h-3.5" />
-                                        Daily View
+                                        Daily
                                     </button>
                                     <button
                                         onClick={() => setViewMode('weekly')}
@@ -2004,42 +1812,17 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                             }`}
                                     >
                                         <FiLayers className="w-3.5 h-3.5" />
-                                        Weekly View
+                                        Weekly
                                     </button>
                                 </div>
 
                                 {viewMode === 'weekly' ? (
                                     <>
-                                        {/* Week navigation */}
                                         <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 3, border: `1px solid ${G.border}` }}>
-                                            <button
-                                                onClick={handlePrevWeek}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Previous Week"
-                                            >
-                                                <FiChevronLeft style={{ fontSize: 14 }} />
-                                            </button>
-                                            <button
-                                                onClick={handleToday}
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px'
-                                                }}
-                                            >
-                                                Today
-                                            </button>
-                                            <button
-                                                onClick={handleNextWeek}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Next Week"
-                                            >
-                                                <FiChevronRight style={{ fontSize: 14 }} />
-                                            </button>
+                                            <button onClick={handlePrevWeek} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}><FiChevronLeft style={{ fontSize: 14 }} /></button>
+                                            <button onClick={handleToday} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px' }}>Today</button>
+                                            <button onClick={handleNextWeek} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}><FiChevronRight style={{ fontSize: 14 }} /></button>
                                         </div>
-
-                                        <span style={{ fontSize: 11.5, fontWeight: 600, color: G.text, fontFamily: 'monospace' }}>
-                                            {dateRangeStr}
-                                        </span>
 
                                         <button
                                             onClick={() => setShowReport(!showReport)}
@@ -2056,132 +1839,55 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                         </button>
 
                                         <button
-                                            onClick={() => {
-                                                if (!selectedMachine) return;
-                                                const y = currentWeekStart.getFullYear();
-                                                const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
-                                                const d = String(currentWeekStart.getDate()).padStart(2, '0');
-                                                const weekStartStr = `${y}-${m}-${d}`;
-                                                window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?weekStart=${weekStartStr}`, '_blank');
-                                            }}
+                                            onClick={() => window.print()}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 6,
                                                 padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
-                                                background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
-                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                background: 'rgba(255,255,255,0.03)', color: G.text, cursor: 'pointer',
+                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.15s'
                                             }}
-                                            onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
-                                            onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
                                         >
-                                            <FiDownload style={{ fontSize: 12 }} />
-                                            PDF
+                                            <FiPrinter style={{ fontSize: 12 }} />
+                                            Print / PDF
                                         </button>
                                     </>
                                 ) : (
-                                    <>
-                                        {/* Day navigation */}
-                                        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 3, border: `1px solid ${G.border}` }}>
-                                            <button
-                                                onClick={handlePrevDay}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Previous Day"
-                                            >
-                                                <FiChevronLeft style={{ fontSize: 14 }} />
-                                            </button>
-                                            <button
-                                                onClick={handleTodayDay}
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px'
-                                                }}
-                                            >
-                                                Today
-                                            </button>
-                                            <button
-                                                onClick={handleNextDay}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Next Day"
-                                            >
-                                                <FiChevronRight style={{ fontSize: 14 }} />
-                                            </button>
-                                        </div>
-
-                                        <span style={{ fontSize: 11.5, fontWeight: 600, color: G.text, fontFamily: 'monospace' }}>
-                                            {activeDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10">
+                                        <FiClock className="w-3.5 h-3.5 text-gray-400" />
+                                        <span className="text-xs font-bold text-gray-300">
+                                            Shift limit: {shiftLimitHrs}h
                                         </span>
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* Report Panel */}
-                    {showReport && selectedMachine && (
-                        <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
-                            <div className="flex items-center gap-1.5">
-                                <FiTrendingUp className="text-purple-400 w-4 h-4" />
-                                <h3 className="text-xs font-extrabold uppercase tracking-wider text-white m-0">
-                                    Machine Weekly Report &amp; Capacity
-                                </h3>
+                    {/* Report Analytics Widget */}
+                    {viewMode === 'weekly' && showReport && selectedFinishing && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/[0.02] border border-white/8 rounded-2xl p-4">
+                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Tasks</div>
+                                <div className="text-xl font-black text-white">{totalTasksPlanned}</div>
                             </div>
-
-                            <div className="flex flex-col md:flex-row gap-4">
-                                {/* Stat block */}
-                                <div className="flex gap-2 flex-1 min-w-[280px]">
-                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
-                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Weekly Load</span>
-                                        <span className="text-lg font-black text-white mt-1">
-                                            {totalTasksPlanned} <span className="text-xs font-normal text-gray-400">tasks</span>
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                            <FiClock className="w-3 h-3" />
-                                            {Math.round((totalEstimatedMins / 60) * 10) / 10} hours scheduled
-                                        </span>
-                                    </div>
-
-                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
-                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Completed</span>
-                                        <span className="text-lg font-black text-emerald-400 mt-1">
-                                            {completionRate}%
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 mt-1.5">
-                                            {completedTasks} of {totalTasksPlanned} tasks done
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Daily bar chart */}
-                                <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-2.5">
-                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">Daily Capacity Load ({shiftLimitHrs}h shift)</span>
-                                    <div className="flex flex-col gap-2">
-                                        {weekDays.map(day => {
-                                            const dayTasks = dailyTasksMap[day.dateStr] || [];
-                                            const mins = dayTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-                                            const hrs = Math.round((mins / 60) * 10) / 10;
-                                            const pct = Math.min(100, Math.round((mins / shiftCapacityMins) * 100));
-                                            const barColor = mins > shiftCapacityMins ? '#ef4444' : mins > 0 ? '#10b981' : 'rgba(255,255,255,0.06)';
-
-                                            return (
-                                                <div key={day.dateStr} className="flex items-center text-[10px] leading-none">
-                                                    <span className="w-16 text-gray-400 font-medium">{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
-                                                    <div className="flex-1 h-1.5 bg-white/5 rounded-full mx-2.5 overflow-hidden">
-                                                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, backgroundColor: barColor }} />
-                                                    </div>
-                                                    <span className={`w-20 text-right font-medium ${mins > shiftCapacityMins ? 'text-red-400 font-bold' : mins > 0 ? 'text-white' : 'text-gray-500'}`}>
-                                                        {hrs}h / {shiftLimitHrs}h {pct > 0 && `(${pct}%)`}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Duration</div>
+                                <div className="text-xl font-black text-white">{(totalEstimatedMins / 60).toFixed(1)}h</div>
+                            </div>
+                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Completed</div>
+                                <div className="text-xl font-black text-emerald-400">{completedTasks}</div>
+                            </div>
+                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Completion Rate</div>
+                                <div className="text-xl font-black text-purple-400">{completionRate}%</div>
                             </div>
                         </div>
                     )}
 
                     {/* Columns grid */}
                     {viewMode === 'weekly' ? (
-                        selectedMachine ? (
+                        selectedFinishing ? (
                             <div className="flex gap-3 overflow-x-auto pb-4 scroll-smooth">
                                 {/* 1. Unplanned Queue lane */}
                                 <UnplannedColumn
@@ -2231,8 +1937,8 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                             </div>
                         ) : (
                             <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
-                                <p className="text-3xl mb-2">🖨️</p>
-                                <p className="text-gray-400 text-xs">No machine selected or available.</p>
+                                <p className="text-3xl mb-2">✨</p>
+                                <p className="text-gray-400 text-xs">No finishing operation selected.</p>
                             </div>
                         )
                     ) : (
@@ -2257,40 +1963,34 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                 machines={machines}
                             />
 
-                            {/* 2. Selected Machine lane */}
-                            {selectedMachine ? (
-                                (() => {
-                                    const mAccent = selectedMachine.type?.toLowerCase() === 'digital' ? G.purple : selectedMachine.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
-                                    const mCapacity = (selectedMachine.shift_limit || 8) * 60;
-                                    return (
-                                        <MachineColumn
-                                            id={`machine-${selectedMachine.id}`}
-                                            title={selectedMachine.name}
-                                            label={selectedMachine.type?.toUpperCase()}
-                                            tasks={machineTasksMap[selectedMachine.id] || []}
-                                            orderLookup={getOrder}
-                                            onUpdateTask={handleUpdateTask}
-                                            onTaskClick={handleTaskClick}
-                                            accent={mAccent}
-                                            capacityMins={mCapacity}
-                                            widthClass="flex-1 max-w-[650px] min-w-[320px]"
-                                            draggedTaskId={draggedTaskId}
-                                            setDraggedTaskId={setDraggedTaskId}
-                                            dragOverTaskId={dragOverTaskId}
-                                            setDragOverTaskId={setDragOverTaskId}
-                                            dragOverPosition={dragOverPosition}
-                                            setDragOverPosition={setDragOverPosition}
-                                            dragOverColumnId={dragOverColumnId}
-                                            setDragOverColumnId={setDragOverColumnId}
-                                            onDrop={handleDrop}
-                                            machines={machines}
-                                        />
-                                    );
-                                })()
+                            {/* 2. Selected Finishing lane */}
+                            {selectedFinishing ? (
+                                <MachineColumn
+                                    id={`finishing-${selectedFinishing.id}`}
+                                    title={selectedFinishing.name}
+                                    label="FINISHING"
+                                    tasks={finishingTasksMap[selectedFinishing.id] || []}
+                                    orderLookup={getOrder}
+                                    onUpdateTask={handleUpdateTask}
+                                    onTaskClick={handleTaskClick}
+                                    accent={machineAccent}
+                                    capacityMins={shiftCapacityMins}
+                                    widthClass="flex-1 max-w-[650px] min-w-[320px]"
+                                    draggedTaskId={draggedTaskId}
+                                    setDraggedTaskId={setDraggedTaskId}
+                                    dragOverTaskId={dragOverTaskId}
+                                    setDragOverTaskId={setDragOverTaskId}
+                                    dragOverPosition={dragOverPosition}
+                                    setDragOverPosition={setDragOverPosition}
+                                    dragOverColumnId={dragOverColumnId}
+                                    setDragOverColumnId={setDragOverColumnId}
+                                    onDrop={handleDrop}
+                                    machines={machines}
+                                />
                             ) : (
                                 <div className="flex-1 text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
-                                    <p className="text-3xl mb-2">🖨️</p>
-                                    <p className="text-gray-400 text-xs">No machine selected or available.</p>
+                                    <p className="text-3xl mb-2">✨</p>
+                                    <p className="text-gray-400 text-xs">No finishing operation selected.</p>
                                 </div>
                             )}
                         </div>

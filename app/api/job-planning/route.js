@@ -36,6 +36,11 @@ export async function GET() {
              ORDER BY so.delivery_date ASC, so.id DESC`
         );
 
+        // Fetch all finishings that do NOT have a machine assigned
+        const [finishings] = await pool.execute(
+            `SELECT id, name, cost_unit, speed, speed_unit FROM finishings WHERE machine_id IS NULL OR is_machine = 0 ORDER BY name ASC`
+        );
+
         const orderIds = orders.map(o => o.id);
         let tasks = [];
         if (orderIds.length > 0) {
@@ -58,7 +63,7 @@ export async function GET() {
             tasks: tasks.filter(t => t.sales_order_id === o.id),
         }));
 
-        return NextResponse.json({ machines, orders: ordersWithTasks });
+        return NextResponse.json({ machines, orders: ordersWithTasks, finishings });
     } catch (err) {
         console.error('Job planning GET error:', err);
         return NextResponse.json({ error: err.message }, { status: 500 });

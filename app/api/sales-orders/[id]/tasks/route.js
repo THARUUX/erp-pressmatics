@@ -86,8 +86,8 @@ async function generateJobTasks(id) {
     // 1. Pre-press / File Check Config
     const prepressConfig = configs.find(c => c.task_key === 'prepress');
     if (prepressConfig && prepressConfig.is_enabled) {
-        const machineId = prepressConfig.machine_id || ctpMachine?.id || null;
-        const machineName = prepressConfig.machine_id ? machineMap.get(prepressConfig.machine_id) : (ctpMachine?.name || null);
+        const machineId = prepressConfig.machine_id || null;
+        const machineName = prepressConfig.machine_id ? machineMap.get(prepressConfig.machine_id) : null;
         taskList.push({
             name: prepressConfig.name,
             description: prepressConfig.description || 'Check artwork files, preflight & colour profile verification',
@@ -510,10 +510,10 @@ async function generateJobTasks(id) {
                     const qty = parseFloat(f.quantity) || 0;
                     const speed = parseFloat(f.speed) || 0;
                     let estMins = null;
-                    if (qty && speed) {
+                    if (f.total_time && parseFloat(f.total_time) > 0) {
+                        estMins = Math.round(parseFloat(f.total_time) * 60);
+                    } else if (qty && speed && f.cost_unit === 'Unit') {
                         estMins = Math.ceil((qty / speed) * 60);
-                    } else {
-                        estMins = parseFloat(f.total_time) || null;
                     }
                     const finalMins = finConfig.estimated_minutes !== null ? finConfig.estimated_minutes : estMins;
 
@@ -547,10 +547,10 @@ async function generateJobTasks(id) {
 
                     const speed = parseFloat(f.speed) || 0;
                     let estMins = null;
-                    if (qty && speed) {
+                    if (f.total_time && parseFloat(f.total_time) > 0) {
+                        estMins = Math.round(parseFloat(f.total_time) * 60);
+                    } else if (qty && speed && f.cost_unit === 'Unit') {
                         estMins = Math.ceil((qty / speed) * 60);
-                    } else {
-                        estMins = parseFloat(f.total_time) || null;
                     }
                     if (estMins !== null) {
                         combinedEstMins += estMins;

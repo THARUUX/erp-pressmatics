@@ -658,8 +658,8 @@ export default function EditQuotationPage({ params }) {
                                                 <h4 className="text-xs text-gray-500 font-semibold mb-1">Finishings</h4>
                                                 {calculationResults.flatMap(r => r.computedFinishings || []).map((f, idx) => (
                                                     <div key={idx} className="flex justify-between text-xs text-gray-300 pl-2 border-l-2 border-white/10">
-                                                        <span>{f.name} ({f.quantity}) {f.total_time > 0 && <span className="text-blue-300 text-[10px] ml-1">({f.total_time.toFixed(2)} h)</span>}</span>
-                                                        <span>{currency}{f.total_cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                        <span>{f.name} ({f.quantity}) {Number(f.total_time) > 0 && <span className="text-blue-300 text-[10px] ml-1">({Number(f.total_time).toFixed(2)} h)</span>}</span>
+                                                        <span>{currency}{Number(f.total_cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                                     </div>
                                                 ))}
                                                 <div className="flex justify-between text-sm pt-1 font-medium">

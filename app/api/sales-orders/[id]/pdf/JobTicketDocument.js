@@ -88,7 +88,7 @@ const s = StyleSheet.create({
 
 // ─── Formatting Tools ────────────────────────────────────────────────────────
 const fmt = v => (v != null ? String(v) : '—');
-const fmtTime = t => (parseFloat(t) > 0 ? `${parseFloat(t).toFixed(1)} m` : '—');
+const fmtTime = t => (parseFloat(t) > 0 ? `${parseFloat(t).toFixed(1)} hr` : '—');
 
 // ─── Precision Imposition Vector Block ───────────────────────────────────────
 function ImpositionSVG({ detail, svgW = 340, svgH = 160 }) {
@@ -185,11 +185,18 @@ const fmtFinishTime = (f, tasks) => {
         return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} hr`;
     }
 
+    if (f.total_time && parseFloat(f.total_time) > 0) {
+        return fmtTime(f.total_time);
+    }
+
     const qty   = parseFloat(f.quantity)  || 0;
     const speed = parseFloat(f.speed)     || 0;
-    if (!qty || !speed) return fmtTime(f.total_time); // fallback to stored value
-    const minsCalc = Math.ceil((qty / speed) * 60);
-    return minsCalc < 60 ? `~${minsCalc} min` : `~${(minsCalc / 60).toFixed(1)} hr`;
+    if (!qty || !speed) return '—';
+    if (f.cost_unit === 'Unit') {
+        const minsCalc = Math.ceil((qty / speed) * 60);
+        return minsCalc < 60 ? `~${minsCalc} min` : `~${(minsCalc / 60).toFixed(1)} hr`;
+    }
+    return '—';
 };
 
 function FinishingsTable({ finishings, tasks }) {

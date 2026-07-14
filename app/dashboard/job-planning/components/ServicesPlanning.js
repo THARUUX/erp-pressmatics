@@ -90,11 +90,11 @@ function DraggableTaskCard({ task, employees, isDragging, onEmployeeChange }) {
                 padding: '6px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.02)'
             }}>
                 {details.unit && <div>Unit: <span style={{ color: G.muted }}>{details.unit}</span></div>}
-                {details.rate !== undefined && <div>Rate: <span style={{ color: G.muted }}>LKR {details.rate.toFixed(2)}</span></div>}
+                {details.rate !== undefined && <div>Rate: <span style={{ color: G.muted }}>LKR {Number(details.rate).toFixed(2)}</span></div>}
                 {details.multiply_by !== undefined && <div>Qty: <span style={{ color: G.muted }}>{details.multiply_by}</span></div>}
                 {details.total_cost !== undefined && (
                     <div style={{ width: '100%', marginTop: 2, display: 'flex', alignItems: 'center', color: '#10b981', fontWeight: 600 }}>
-                        LKR {details.total_cost.toFixed(2)}
+                        LKR {Number(details.total_cost).toFixed(2)}
                     </div>
                 )}
             </div>

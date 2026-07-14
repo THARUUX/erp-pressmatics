@@ -100,7 +100,13 @@ export async function POST(req, { params }) {
         if (!details.length) return NextResponse.json({ error: 'Item details not found' }, { status: 400 });
 
         const [allFinishings] = await pool.execute(
-            'SELECT * FROM quotation_item_finishings WHERE quotation_item_id = ?',
+            `SELECT qif.*, 
+                    COALESCE(m.speed, f.speed) as speed, 
+                    COALESCE(m.speed_unit, f.speed_unit) as speed_unit
+             FROM quotation_item_finishings qif
+             LEFT JOIN machines m ON qif.machine_id = m.id
+             LEFT JOIN finishings f ON qif.name = f.name
+             WHERE qif.quotation_item_id = ?`,
             [itemId]
         );
 

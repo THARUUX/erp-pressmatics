@@ -1054,8 +1054,8 @@ export default function EstimationComponentForm({
                                                     )}
                                                 </span>
                                                 <div className="flex items-center gap-4 shrink-0">
-                                                    {f.total_time > 0 && (
-                                                        <span className="text-blue-300 text-xs">{f.total_time.toFixed(2)} hrs</span>
+                                                    {Number(f.total_time) > 0 && (
+                                                        <span className="text-blue-300 text-xs">{Number(f.total_time).toFixed(2)} hrs</span>
                                                     )}
                                                     <span className="text-gray-400 font-mono w-20 text-right">{currency}{(Number(f.total_cost) || 0).toFixed(2)}</span>
                                                     <button onClick={() => onRemoveFinishing(index, f.id)} className="text-red-400 hover:text-red-300 transition-colors p-1">&times;</button>
