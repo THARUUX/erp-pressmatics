@@ -321,6 +321,11 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
+                    {user?.companyName && (
+                        <h2 className="text-xs font-extrabold text-emerald-400 uppercase tracking-[0.2em] mb-1.5 select-none">
+                            {user.companyName}
+                        </h2>
+                    )}
                     <p className="text-white/25 text-sm mb-1">{getGreeting()}</p>
                     <h1 className="text-3xl font-bold tracking-tighter text-white">
                         Welcome back, {user?.name ?? '…'}

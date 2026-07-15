@@ -1,12 +1,15 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 const SettingsContext = createContext();
 
 export function SettingsProvider({ children }) {
     const [settings, setSettings] = useState({ currency: 'LKR' });
     const [loading, setLoading] = useState(true);
+    const [currentCompanyId, setCurrentCompanyId] = useState('');
+    const pathname = usePathname();
 
     const fetchSettings = async () => {
         try {
@@ -19,6 +22,15 @@ export function SettingsProvider({ children }) {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const match = document.cookie.match(/(?:^|; )company_id=([^;]*)/);
+        const cid = match ? match[1] : '1';
+        if (cid !== currentCompanyId) {
+            setCurrentCompanyId(cid);
+            fetchSettings();
+        }
+    }, [pathname, currentCompanyId]);
 
     const updateSetting = async (key, value) => {
         try {

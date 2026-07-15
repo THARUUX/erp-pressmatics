@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiPrinter, FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
 
@@ -9,6 +9,52 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+
+    // Company selection state
+    const [companyNames, setCompanyNames] = useState({
+        company1: 'Pressmatics Co. 1',
+        company2: 'Pressmatics Co. 2'
+    });
+    const [selectedCompany, setSelectedCompany] = useState('1');
+
+    // Success splash state
+    const [loginSuccessData, setLoginSuccessData] = useState(null);
+    const [progressWidth, setProgressWidth] = useState('0%');
+
+    // Fetch dynamic company names on mount
+    useEffect(() => {
+        fetch('/api/auth/companies')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) {
+                    setCompanyNames({
+                        company1: data.company1,
+                        company2: data.company2
+                    });
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    // Handle splash redirect
+    useEffect(() => {
+        if (loginSuccessData) {
+            // Initiate progress bar growth
+            const progressTimer = setTimeout(() => {
+                setProgressWidth('100%');
+            }, 100);
+
+            // Redirect to dashboard after animation completes
+            const redirectTimer = setTimeout(() => {
+                router.push('/dashboard');
+            }, 2700);
+
+            return () => {
+                clearTimeout(progressTimer);
+                clearTimeout(redirectTimer);
+            };
+        }
+    }, [loginSuccessData, router]);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -22,17 +68,78 @@ export default function LoginPage() {
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
+                body: JSON.stringify({ email: data.email, password: data.password }),
             });
 
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || 'Login failed');
-            router.push('/dashboard');
+
+            // Save selected company context in lax cookie
+            document.cookie = `company_id=${selectedCompany}; path=/; max-age=31536000; SameSite=Lax`;
+
+            // Trigger success splash overlay
+            setLoginSuccessData({
+                name: json.user?.name || 'Administrator',
+                companyName: selectedCompany === '2' ? companyNames.company2 : companyNames.company1
+            });
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
+    }
+
+    if (loginSuccessData) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-black overflow-hidden relative px-4 text-center select-none">
+                {/* Ambient background glows */}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-emerald-600/15 rounded-full blur-[140px]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-white/[0.01] rounded-full blur-[90px]" />
+                </div>
+
+                {/* Splash container */}
+                <div className="relative space-y-7 max-w-md w-full animate-[fadeIn_0.6s_ease]">
+                    {/* Bouncing glowing printer logo - Emerald themed */}
+                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-[28px] bg-white/5 border border-white/10 relative shadow-[0_0_60px_rgba(16,185,129,0.25)] animate-[bounce_2s_infinite]">
+                        <FiPrinter className="w-11 h-11 text-emerald-400" />
+                        <div className="absolute inset-0 rounded-[28px] border border-emerald-500/20 animate-ping opacity-75" />
+                    </div>
+
+                    <div className="space-y-3">
+                        <h2 className="text-3xl font-extrabold tracking-tight text-white animate-[slideUp_0.4s_ease]">
+                            Welcome back, {loginSuccessData.name}!
+                        </h2>
+                        <p className="text-white/50 text-sm font-medium tracking-wide animate-[slideUp_0.6s_ease_both]">
+                            Logging you into <span className="text-emerald-400 font-extrabold">{loginSuccessData.companyName}</span>
+                        </p>
+                    </div>
+
+                    {/* Premium Progress Bar */}
+                    <div className="w-64 mx-auto bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5 relative">
+                        <div 
+                            className="bg-gradient-to-r from-emerald-500 to-green-500 h-full rounded-full transition-all duration-[2400ms] ease-out"
+                            style={{ width: progressWidth }}
+                        />
+                    </div>
+                    
+                    <p className="text-[10px] text-white/30 tracking-[0.2em] uppercase animate-pulse">
+                        Configuring environment...
+                    </p>
+                </div>
+
+                <style>{`
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to   { opacity: 1; }
+                    }
+                    @keyframes slideUp {
+                        from { opacity: 0; transform: translateY(16px); }
+                        to   { opacity: 1; transform: translateY(0); }
+                    }
+                `}</style>
+            </div>
+        );
     }
 
     return (
@@ -82,6 +189,37 @@ export default function LoginPage() {
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Company Selection */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-[0.1em]">
+                                Select Workspace
+                            </label>
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/[0.09] gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedCompany('1')}
+                                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                                        selectedCompany === '1'
+                                            ? 'bg-white/[0.08] text-white border border-white/10 shadow-sm'
+                                            : 'text-gray-400 hover:text-white border border-transparent'
+                                    }`}
+                                >
+                                    {companyNames.company1}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedCompany('2')}
+                                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                                        selectedCompany === '2'
+                                            ? 'bg-white/[0.08] text-white border border-white/10 shadow-sm'
+                                            : 'text-gray-400 hover:text-white border border-transparent'
+                                    }`}
+                                >
+                                    {companyNames.company2}
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Email */}
                         <div className="space-y-1.5">
                             <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-[0.1em]">

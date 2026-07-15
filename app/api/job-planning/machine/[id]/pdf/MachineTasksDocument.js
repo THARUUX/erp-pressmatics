@@ -32,16 +32,22 @@ const s = StyleSheet.create({
     footer: { position: 'absolute', bottom: 14, left: 24, right: 24, borderTopWidth: 0.5, borderTopColor: '#e5e7eb', paddingTop: 4, textAlign: 'center', fontSize: 6.5, color: '#9ca3af' },
 });
 
-export default function MachineTasksDocument({ machine, weekRangeStr, stats, tasksByDay }) {
+export default function MachineTasksDocument({ machine, weekRangeStr, stats, tasksByDay, reportType = 'weekly' }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
+    const isDailyReport = reportType === 'daily';
     
+    // Filter out rows/days where there are no tasks
+    const activeTasksByDay = tasksByDay.filter(item => item.tasks && item.tasks.length > 0);
+
     return (
         <Document title={`MachineSchedule-${machine.name}`} author="Pressmatics Cloud ERP">
             <Page size="A4" orientation="landscape" style={s.page}>
                 {/* Header */}
                 <View style={s.headerRow}>
                     <View style={s.headerLeft}>
-                        <Text style={s.headerTitle}>Weekly Machine Schedule Report</Text>
+                        <Text style={s.headerTitle}>
+                            {isDailyReport ? 'Daily Machine Schedule Report' : 'Weekly Machine Schedule Report'}
+                        </Text>
                         <Text style={s.headerMachine}>{machine.name} • {machine.type.toUpperCase()}</Text>
                         <Text style={s.headerSub}>Production Task List Wise Report</Text>
                     </View>
@@ -54,7 +60,7 @@ export default function MachineTasksDocument({ machine, weekRangeStr, stats, tas
                 {/* Stats */}
                 <View style={s.statsGrid}>
                     <View style={s.statCell}>
-                        <Text style={s.statLabel}>Weekly Load</Text>
+                        <Text style={s.statLabel}>{isDailyReport ? 'Daily Load' : 'Weekly Load'}</Text>
                         <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
                         <Text style={s.statSub}>{(stats.totalMinutes / 60).toFixed(1)} Hours Scheduled</Text>
                     </View>
@@ -80,25 +86,24 @@ export default function MachineTasksDocument({ machine, weekRangeStr, stats, tas
                         <Text style={[s.tableHeaderText, { width: '7%', textAlign: 'right' }]}>Status</Text>
                     </View>
 
-                    {tasksByDay.map(({ dayLabel, dayDate, tasks }) => {
-                        return (
-                            <React.Fragment key={dayLabel}>
-                                {/* Day Divider Row */}
-                                <View style={s.tableRowDayHeader}>
-                                    <Text style={s.tableRowDayHeaderText}>
-                                        {dayLabel} {dayDate ? `(${dayDate})` : ''} — {tasks.length} tasks planned
-                                    </Text>
-                                </View>
-
-                                {tasks.length === 0 ? (
-                                    <View style={s.tableRow}>
-                                        <Text style={[s.tableCell, { color: '#9ca3af', fontStyle: 'italic', width: '100%' }]}>
-                                            No tasks scheduled for this day
+                    {activeTasksByDay.length === 0 ? (
+                        <View style={s.tableRow}>
+                            <Text style={[s.tableCell, { color: '#9ca3af', fontStyle: 'italic', width: '100%' }]}>
+                                No tasks scheduled for this period
+                            </Text>
+                        </View>
+                    ) : (
+                        activeTasksByDay.map(({ dayLabel, dayDate, tasks }) => {
+                            return (
+                                <React.Fragment key={dayLabel}>
+                                    {/* Day Divider Row */}
+                                    <View style={s.tableRowDayHeader}>
+                                        <Text style={s.tableRowDayHeaderText}>
+                                            {dayLabel} {dayDate ? `(${dayDate})` : ''} — {tasks.length} tasks planned
                                         </Text>
                                     </View>
-                                ) : (
-                                    tasks.map(t => {
-                                        // clean prefix (e.g. "Offset Printing - ") to keep it clean
+
+                                    {tasks.map(t => {
                                         const cleanName = t.name.includes('—')
                                             ? t.name.split('—')[t.name.split('—').length - 1].trim()
                                             : t.name;
@@ -120,11 +125,11 @@ export default function MachineTasksDocument({ machine, weekRangeStr, stats, tas
                                                 </Text>
                                             </View>
                                         );
-                                    })
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
+                                    })}
+                                </React.Fragment>
+                            );
+                        })
+                    )}
                 </View>
 
                 {/* Footer */}

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "whatsapp:co1": "WHATSAPP_PORT=5001 node whatsapp/server.js",
+    "whatsapp:co2": "WHATSAPP_PORT=5002 USE_COMPANY_2_DB=true node whatsapp/server.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

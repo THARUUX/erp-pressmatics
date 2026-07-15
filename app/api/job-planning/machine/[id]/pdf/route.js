@@ -8,29 +8,18 @@ export async function GET(req, { params }) {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
     const weekStartStr = searchParams.get('weekStart');
+    const dateParam = searchParams.get('date');
+    const isDaily = !!dateParam;
 
     try {
-        // Get machine
         let machine;
         let tasks;
         
-        // Parse week dates
-        let currentWeekStart;
-        if (weekStartStr) {
-            currentWeekStart = new Date(weekStartStr);
-        } else {
-            // Find current week start
-            const today = new Date();
-            const day = today.getDay();
-            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-            currentWeekStart = new Date(today.setDate(diff));
-        }
-        currentWeekStart.setHours(0, 0, 0, 0);
-
         const weekDays = [];
-        for (let i = 0; i < 7; i++) {
-            const day = new Date(currentWeekStart);
-            day.setDate(currentWeekStart.getDate() + i);
+
+        if (isDaily) {
+            const day = new Date(dateParam);
+            day.setHours(0, 0, 0, 0);
             
             const y = day.getFullYear();
             const m = String(day.getMonth() + 1).padStart(2, '0');
@@ -42,11 +31,46 @@ export async function GET(req, { params }) {
                 label: day.toLocaleDateString('en-US', { weekday: 'long' }),
                 shortLabel: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             });
+        } else {
+            // Parse week dates
+            let currentWeekStart;
+            if (weekStartStr) {
+                currentWeekStart = new Date(weekStartStr);
+            } else {
+                // Find current week start
+                const today = new Date();
+                const day = today.getDay();
+                const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                currentWeekStart = new Date(today.setDate(diff));
+            }
+            currentWeekStart.setHours(0, 0, 0, 0);
+
+            for (let i = 0; i < 7; i++) {
+                const day = new Date(currentWeekStart);
+                day.setDate(currentWeekStart.getDate() + i);
+                
+                const y = day.getFullYear();
+                const m = String(day.getMonth() + 1).padStart(2, '0');
+                const d = String(day.getDate()).padStart(2, '0');
+                const dateStr = `${y}-${m}-${d}`;
+
+                weekDays.push({
+                    dateStr,
+                    label: day.toLocaleDateString('en-US', { weekday: 'long' }),
+                    shortLabel: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                });
+            }
         }
 
         const startDateStr = weekDays[0].dateStr;
-        const endDateStr = weekDays[6].dateStr;
-        const weekRangeStr = `${new Date(startDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(endDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        const endDateStr = weekDays[weekDays.length - 1].dateStr;
+        
+        let weekRangeStr = '';
+        if (isDaily) {
+            weekRangeStr = new Date(startDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } else {
+            weekRangeStr = `${new Date(startDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(endDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        }
 
         if (id === 'manual') {
             machine = { id: 'manual', name: 'Manual / Hand Operations', type: 'finishing', speed: 0, make_ready_minutes: 0, shift_limit: 8 };
@@ -57,12 +81,12 @@ export async function GET(req, { params }) {
                          FROM quotation_items qi
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-                 FROM job_tasks jt
-                 JOIN sales_orders so ON jt.sales_order_id = so.id
-                 WHERE jt.machine_id IS NULL AND (
-                     (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
-                 )
-                 ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                  FROM job_tasks jt
+                  JOIN sales_orders so ON jt.sales_order_id = so.id
+                  WHERE jt.machine_id IS NULL AND (
+                      (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
+                  )
+                  ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
                 [startDateStr, endDateStr]
             );
             tasks = rows;
@@ -77,12 +101,12 @@ export async function GET(req, { params }) {
                          FROM quotation_items qi
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-                 FROM job_tasks jt
-                 JOIN sales_orders so ON jt.sales_order_id = so.id
-                 WHERE jt.machine_id = ? AND (
-                     (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
-                 )
-                 ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                  FROM job_tasks jt
+                  JOIN sales_orders so ON jt.sales_order_id = so.id
+                  WHERE jt.machine_id = ? AND (
+                      (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
+                  )
+                  ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
                 [id, startDateStr, endDateStr]
             );
             tasks = rows;
@@ -127,19 +151,29 @@ export async function GET(req, { params }) {
         };
 
         // Prepare tasksByDay array for rendering
-        const tasksByDay = [
-            { dayLabel: 'Unplanned Queue', dayDate: '', tasks: unplannedTasks }
-        ];
+        const tasksByDay = [];
+        
+        // Only include unplanned queue in weekly report
+        if (!isDaily) {
+            tasksByDay.push({ dayLabel: 'Unplanned Queue', dayDate: '', tasks: unplannedTasks });
+        }
+        
         weekDays.forEach(d => {
             tasksByDay.push({
                 dayLabel: d.label,
                 dayDate: d.shortLabel,
-                tasks: dailyTasksMap[d.dateStr]
+                tasks: dailyTasksMap[d.dateStr] || []
             });
         });
 
         const pdfBuffer = await renderToBuffer(
-            React.createElement(MachineTasksDocument, { machine, weekRangeStr, stats, tasksByDay })
+            React.createElement(MachineTasksDocument, { 
+                machine, 
+                weekRangeStr, 
+                stats, 
+                tasksByDay, 
+                reportType: isDaily ? 'daily' : 'weekly' 
+            })
         );
 
         return new NextResponse(pdfBuffer, {
@@ -155,3 +189,5 @@ export async function GET(req, { params }) {
         return NextResponse.json({ error: 'Failed to generate PDF', detail: error.message }, { status: 500 });
     }
 }
+
+export const dynamic = 'force-dynamic';

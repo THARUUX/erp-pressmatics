@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -73,12 +73,16 @@ export async function POST(req) {
                 .replace(/{customer_name}/g, name || '')
                 .replace(/{portal_link}/g, portalLink || '');
 
-            fetch(`${process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001'}/api/whatsapp/send`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number: recipient, message })
+            getWhatsAppDaemonUrl().then(daemonUrl => {
+                fetch(`${daemonUrl}/api/whatsapp/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: recipient, message })
+                }).catch(err => {
+                    console.error('Background WhatsApp welcome send error:', err);
+                });
             }).catch(err => {
-                console.error('Background WhatsApp welcome send error:', err);
+                console.error('Failed to get WhatsApp daemon URL in background:', err);
             });
         }
 

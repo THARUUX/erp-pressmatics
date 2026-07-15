@@ -31,11 +31,24 @@ export async function GET() {
             return NextResponse.json({ error: 'Account is banned' }, { status: 403 });
         }
 
+        let companyName = 'Pressmatics';
+        try {
+            const [settingsRows] = await pool.execute(
+                "SELECT setting_value FROM settings WHERE setting_key = 'company_name' LIMIT 1"
+            );
+            if (settingsRows.length > 0 && settingsRows[0].setting_value) {
+                companyName = settingsRows[0].setting_value;
+            }
+        } catch (e) {
+            console.error('Failed to fetch active company name in /api/auth/me:', e.message);
+        }
+
         return NextResponse.json({
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role
+            role: user.role,
+            companyName: companyName
         });
 
     } catch (error) {

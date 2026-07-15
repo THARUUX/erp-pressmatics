@@ -1780,35 +1780,35 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                             </tr>
                         </thead>
                         <tbody>
-                            {weekDays.map(day => {
-                                const dayTasks = dailyTasksMap[day.dateStr] || [];
-                                if (dayTasks.length === 0) {
-                                    return (
-                                        <tr key={day.dateStr}>
-                                            <td><strong>{day.name}</strong><br /><span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span></td>
-                                            <td colSpan="5" style={{ color: '#666', fontStyle: 'italic' }}>No tasks scheduled</td>
-                                        </tr>
-                                    );
-                                }
-                                return dayTasks.map((t, idx) => {
-                                    const ord = getOrder(t);
-                                    return (
-                                        <tr key={t.id}>
-                                            {idx === 0 && (
-                                                <td rowSpan={dayTasks.length} style={{ verticalAlign: 'top' }}>
-                                                    <strong>{day.name}</strong><br />
-                                                    <span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span>
-                                                </td>
-                                            )}
-                                            <td>{ord?.code || '—'}</td>
-                                            <td>{ord?.estimation_names || ord?.customer_name || '—'}</td>
-                                            <td>{t.name.split('—')[t.name.split('—').length - 1].trim()}</td>
-                                            <td>{t.estimated_minutes ? `${t.estimated_minutes}m` : '0m'}</td>
-                                            <td style={{ textTransform: 'capitalize' }}>{t.status}</td>
-                                        </tr>
-                                    );
-                                });
-                            })}
+                            {weekDays.filter(day => (dailyTasksMap[day.dateStr] || []).length > 0).length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>
+                                        No tasks scheduled for this week
+                                    </td>
+                                </tr>
+                            ) : (
+                                weekDays.filter(day => (dailyTasksMap[day.dateStr] || []).length > 0).map(day => {
+                                    const dayTasks = dailyTasksMap[day.dateStr] || [];
+                                    return dayTasks.map((t, idx) => {
+                                        const ord = getOrder(t);
+                                        return (
+                                            <tr key={t.id}>
+                                                {idx === 0 && (
+                                                    <td rowSpan={dayTasks.length} style={{ verticalAlign: 'top' }}>
+                                                        <strong>{day.name}</strong><br />
+                                                        <span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span>
+                                                    </td>
+                                                )}
+                                                <td>{ord?.code || '—'}</td>
+                                                <td>{ord?.estimation_names || ord?.customer_name || '—'}</td>
+                                                <td>{t.name.split('—')[t.name.split('—').length - 1].trim()}</td>
+                                                <td>{t.estimated_minutes ? `${t.estimated_minutes}m` : '0m'}</td>
+                                                <td style={{ textTransform: 'capitalize' }}>{t.status}</td>
+                                            </tr>
+                                        );
+                                    });
+                                })
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -2109,6 +2109,30 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                         <span style={{ fontSize: 11.5, fontWeight: 600, color: G.text, fontFamily: 'monospace' }}>
                                             {activeDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                         </span>
+
+                                        {selectedMachine && (
+                                            <button
+                                                onClick={() => {
+                                                    const y = activeDate.getFullYear();
+                                                    const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                                    const d = String(activeDate.getDate()).padStart(2, '0');
+                                                    const dateStr = `${y}-${m}-${d}`;
+                                                    window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?date=${dateStr}`, '_blank');
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                    background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s',
+                                                    marginLeft: 8
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                            >
+                                                <FiDownload style={{ fontSize: 12 }} />
+                                                PDF
+                                            </button>
+                                        )}
                                     </>
                                 )}
                             </div>

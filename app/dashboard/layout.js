@@ -26,60 +26,61 @@ const NAV_GROUPS = [
     {
         label: 'Sales',
         items: [
-            { icon: FiUser,         label: 'Customers',    href: '/dashboard/customers',    roles: ['admin', 'manager'] },
-            { icon: FiFileText,     label: 'Quotations',   href: '/dashboard/quotations',   roles: ['admin', 'manager'] },
+            { icon: FiUser, label: 'Customers', href: '/dashboard/customers', roles: ['admin', 'manager'] },
+            { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations', roles: ['admin', 'manager'] },
             { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders', roles: ['admin', 'manager'] },
-            { icon: FiDollarSign,   label: 'Invoices',     href: '/dashboard/invoices',     roles: ['admin', 'manager'] },
+            { icon: FiDollarSign, label: 'Invoices', href: '/dashboard/invoices', roles: ['admin', 'manager'] },
         ],
     },
     {
         label: 'Production',
         items: [
-            { icon: FiPrinter,    label: 'Estimations', href: '/dashboard/estimations',  roles: ['admin', 'manager'] },
-            { icon: FiBox,        label: 'Items',        href: '/dashboard/items',        roles: ['admin', 'manager'] },
-            { icon: FiBriefcase,  label: 'Services',     href: '/dashboard/services',     roles: ['admin', 'manager'] },
-            { icon: FiCalendar,   label: 'Planning',     href: '/dashboard/job-planning' },
+            { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations', roles: ['admin', 'manager'] },
+            { icon: FiBox, label: 'Items', href: '/dashboard/items', roles: ['admin', 'manager'] },
+            { icon: FiBriefcase, label: 'Services', href: '/dashboard/services', roles: ['admin', 'manager'] },
+            { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning' },
         ],
     },
     {
         label: 'HR & Payroll',
         items: [
-            { icon: FiUserCheck,  label: 'Employees',    href: '/dashboard/employees',    roles: ['admin', 'manager'] },
-            { icon: FiCalendar,   label: 'Attendance',   href: '/dashboard/attendance',   roles: ['admin', 'manager'] },
-            { icon: FiDollarSign, label: 'Payroll',      href: '/dashboard/payroll',      roles: ['admin', 'manager'] },
+            { icon: FiUserCheck, label: 'Employees', href: '/dashboard/employees', roles: ['admin', 'manager'] },
+            { icon: FiCalendar, label: 'Attendance', href: '/dashboard/attendance', roles: ['admin', 'manager'] },
+            { icon: FiDollarSign, label: 'Payroll', href: '/dashboard/payroll', roles: ['admin', 'manager'] },
         ],
     },
     {
         label: 'Inventory',
         items: [
-            { icon: FiBox,      label: 'Stock Items',  href: '/dashboard/inventory' },
-            { icon: FiLayers,   label: 'Finishings',   href: '/dashboard/inventory/finishings' },
-            { icon: FiSettings, label: 'Machines',     href: '/dashboard/inventory/machines' },
-            { icon: FiTruck,    label: 'Suppliers',    href: '/dashboard/suppliers' },
+            { icon: FiBox, label: 'Stock Items', href: '/dashboard/inventory' },
+            { icon: FiLayers, label: 'Finishings', href: '/dashboard/inventory/finishings' },
+            { icon: FiSettings, label: 'Machines', href: '/dashboard/inventory/machines' },
+            { icon: FiTruck, label: 'Suppliers', href: '/dashboard/suppliers' },
         ],
     },
     {
         label: 'Intelligence',
         items: [
-            { icon: FiBarChart2, label: 'Analytics',          href: '/dashboard/analytics',           roles: ['admin', 'manager'] },
-            { icon: FiTarget,    label: 'Competitor Analysis', href: '/dashboard/competitor-analysis', roles: ['admin', 'manager'] },
+            { icon: FiBarChart2, label: 'Analytics', href: '/dashboard/analytics', roles: ['admin', 'manager'] },
+            { icon: FiTarget, label: 'Competitor Analysis', href: '/dashboard/competitor-analysis', roles: ['admin', 'manager'] },
         ],
     },
     {
         label: 'System',
         items: [
-            { icon: FiUsers,    label: 'Users',       href: '/dashboard/users',        roles: ['admin'] },
-            { icon: FiSettings, label: 'Settings',    href: '/dashboard/settings',     roles: ['admin'] },
-            { icon: FiBookOpen, label: 'Guide',       href: '/dashboard/guide' },
-            { icon: FiInfo,     label: 'System Info', href: '/dashboard/system-info',  roles: ['admin'] },
+            { icon: FiUsers, label: 'Users', href: '/dashboard/users', roles: ['admin'] },
+            { icon: FiSettings, label: 'Settings', href: '/dashboard/settings', roles: ['admin'] },
+            { icon: FiBookOpen, label: 'Guide', href: '/dashboard/guide' },
+            { icon: FiInfo, label: 'System Info', href: '/dashboard/system-info', roles: ['admin'] },
+            { icon: FiMessageCircle, label: 'WhatsApp', href: '/dashboard/whatsapp', roles: ['admin', 'manager'] },
         ],
     },
 ];
 
 const ROLE_BADGE = {
-    admin:    { label: 'Admin',    color: 'bg-purple-500/15 text-purple-400 border-purple-500/25' },
-    manager:  { label: 'Manager', color: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
-    operator: { label: 'Operator',color: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+    admin: { label: 'Admin', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' },
+    manager: { label: 'Manager', color: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+    operator: { label: 'Operator', color: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
 };
 
 function DeniedBanner({ onDismiss }) {
@@ -98,58 +99,40 @@ function DeniedBanner({ onDismiss }) {
 
 function LayoutInner({ children }) {
     const pathname = usePathname();
-    const router   = useRouter();
+    const router = useRouter();
     const searchParams = useSearchParams();
 
     const [currentUser, setCurrentUser] = useState(null);
     const [showDenied, setShowDenied] = useState(false);
     const [isSidebarHidden, setIsSidebarHidden] = useState(false);
-
-    // \u2500\u2500 WhatsApp Notification Bell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    const [waBellOpen, setWaBellOpen]         = useState(false);
-    const [waNotifs, setWaNotifs]             = useState([]);
-    const [waUnread, setWaUnread]             = useState(0);
-    const bellRef                             = useRef(null);
-
-    const fetchWaNotifs = async () => {
-        try {
-            const res = await fetch('/api/whatsapp/notifications?limit=20');
-            if (!res.ok) return;
-            const data = await res.json();
-            setWaNotifs(data.notifications || []);
-            setWaUnread((data.notifications || []).filter(n => !n.is_read).length);
-        } catch {}
-    };
+    const [activeCompany, setActiveCompany] = useState('1');
+    const [companyNames, setCompanyNames] = useState({
+        company1: 'Pressmatics Co. 1',
+        company2: 'Pressmatics Co. 2'
+    });
 
     useEffect(() => {
-        fetchWaNotifs();
-        const interval = setInterval(fetchWaNotifs, 30000);
-        return () => clearInterval(interval);
+        const match = document.cookie.match(/(?:^|; )company_id=([^;]*)/);
+        if (match) {
+            setActiveCompany(match[1]);
+        }
     }, []);
 
-    // Close dropdown when clicking outside
     useEffect(() => {
-        const handler = (e) => {
-            if (bellRef.current && !bellRef.current.contains(e.target)) {
-                setWaBellOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
+        fetch('/api/auth/companies')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) {
+                    setCompanyNames({
+                        company1: data.company1,
+                        company2: data.company2
+                    });
+                }
+            })
+            .catch(() => {});
     }, []);
 
-    const markRead = async (notif) => {
-        if (!notif.is_read) {
-            await fetch(`/api/whatsapp/notifications/${notif.id}`, { method: 'PATCH' }).catch(() => {});
-            setWaNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
-            setWaUnread(prev => Math.max(0, prev - 1));
-        }
-        if (notif.quotation_id) {
-            router.push(`/dashboard/quotations/${notif.quotation_id}`);
-            setWaBellOpen(false);
-        }
-    };
-
+    // WhatsApp notification state removed (moved to dedicated WhatsApp section page)
 
     useEffect(() => {
         const saved = localStorage.getItem('sidebarHidden');
@@ -173,7 +156,7 @@ function LayoutInner({ children }) {
             .then(data => {
                 if (data && data.id) setCurrentUser(data);
             })
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     // Show access-denied banner when redirected with ?denied=1
@@ -237,9 +220,8 @@ function LayoutInner({ children }) {
                         transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                     />
                 )}
-                <div className={`relative flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                    active ? 'text-white font-medium' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}>
+                <div className={`relative flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${active ? 'text-white font-medium' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}>
                     <item.icon className="w-4 h-4 shrink-0" />
                     <span className="text-sm">{item.label}</span>
                 </div>
@@ -250,9 +232,8 @@ function LayoutInner({ children }) {
     return (
         <div className="h-screen bg-transparent text-white flex overflow-hidden">
             {/* Sidebar */}
-            <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto transition-all duration-300 ${
-                isSidebarHidden ? 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none' : 'w-64'
-            }`}>
+            <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto transition-all duration-300 ${isSidebarHidden ? 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none' : 'w-64'
+                }`}>
                 <div className="p-6 pb-4 flex items-center justify-between">
                     <Link href="/dashboard">
                         <h1 className="text-2xl font-bold text-white flex items-center gap-2 tracking-tighter cursor-pointer">
@@ -260,7 +241,7 @@ function LayoutInner({ children }) {
                             Pressmatics
                         </h1>
                     </Link>
-                    <button 
+                    <button
                         onClick={toggleSidebar}
                         className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/5 cursor-pointer transition-colors"
                         title="Hide Sidebar"
@@ -281,9 +262,8 @@ function LayoutInner({ children }) {
                                 {/* Group header — clickable to toggle */}
                                 <button
                                     onClick={() => toggleGroup(group.label)}
-                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-colors group ${
-                                        hasActive ? 'text-white/60' : 'text-white/25 hover:text-white/50'
-                                    }`}
+                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-colors group ${hasActive ? 'text-white/60' : 'text-white/25 hover:text-white/50'
+                                        }`}
                                 >
                                     <span className="text-[10px] font-semibold uppercase tracking-widest select-none">
                                         {group.label}
@@ -319,87 +299,21 @@ function LayoutInner({ children }) {
                     })}
                 </nav>
 
-                {/* WhatsApp Notification Bell */}
-                <div ref={bellRef} className="px-4 pb-1 relative">
-                    <button
-                        onClick={() => setWaBellOpen(prev => !prev)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] transition-all text-gray-400 hover:text-white"
-                    >
-                        <div className="relative">
-                            <FiBell className="w-4 h-4" />
-                            {waUnread > 0 && (
-                                <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-emerald-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
-                                    {waUnread > 9 ? '9+' : waUnread}
-                                </span>
-                            )}
-                        </div>
-                        <span className="text-xs font-medium flex-1 text-left">WhatsApp Replies</span>
-                        {waUnread > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-400">{waUnread} new</span>
-                        )}
-                    </button>
-
-                    {/* Dropdown */}
-                    <AnimatePresence>
-                        {waBellOpen && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute bottom-full left-0 right-0 mb-2 mx-1 bg-[#0f0f0f] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-50"
-                            >
-                                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07]">
-                                    <div className="flex items-center gap-2">
-                                        <FiMessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                                        <span className="text-xs font-bold text-white">Customer Acceptances</span>
-                                    </div>
-                                    <button onClick={() => setWaBellOpen(false)} className="text-gray-600 hover:text-gray-400">
-                                        <FiX className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-
-                                <div className="max-h-72 overflow-y-auto">
-                                    {waNotifs.length === 0 ? (
-                                        <div className="px-4 py-6 text-center text-xs text-gray-600">No notifications yet</div>
-                                    ) : (
-                                        waNotifs.map(notif => (
-                                            <button
-                                                key={notif.id}
-                                                onClick={() => markRead(notif)}
-                                                className={`w-full text-left px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.04] transition-all ${!notif.is_read ? 'bg-emerald-500/[0.05]' : ''}`}
-                                            >
-                                                <div className="flex items-start gap-2">
-                                                    {!notif.is_read && (
-                                                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1.5 shrink-0" />
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-semibold text-white truncate">
-                                                            {notif.customer_name || notif.from_number}
-                                                        </p>
-                                                        <p className="text-[10px] text-emerald-400 font-mono mt-0.5">
-                                                            {notif.quotation_code || 'Unknown Quote'}
-                                                        </p>
-                                                        <p className="text-[10px] text-gray-500 mt-1 truncate italic">
-                                                            "{notif.message_body}"
-                                                        </p>
-                                                        <p className="text-[9px] text-gray-700 mt-1">
-                                                            {new Date(notif.received_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        ))
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                {/* WhatsApp Notification Bell removed (moved to WhatsApp Center) */}
 
                 {/* Current user strip */}
 
                 <div className="p-4 border-t border-white/10 space-y-3">
+                    {/* Active Company Name (Read-Only) */}
+                    <div className="px-2 pb-1">
+                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-gray-500 block mb-1.5 select-none">
+                            Active Workspace
+                        </span>
+                        <div className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl text-center select-none truncate">
+                            {activeCompany === '2' ? companyNames.company2 : companyNames.company1}
+                        </div>
+                    </div>
+
                     {currentUser ? (
                         <div className="flex items-center gap-3 px-2 py-2">
                             <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white font-semibold text-sm shrink-0">
@@ -450,7 +364,7 @@ function LayoutInner({ children }) {
                             fontSize: '14px',
                         },
                         success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
-                        error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+                        error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
                     }}
                 />
                 <ConfirmDialogContainer />

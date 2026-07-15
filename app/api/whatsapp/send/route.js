@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
-
-const DAEMON = process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001';
+import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
 
 function normalizePhone(raw) {
     if (!raw) return null;
@@ -15,6 +13,7 @@ function normalizePhone(raw) {
 export async function POST(req) {
     try {
         const body = await req.json();
+        const DAEMON = await getWhatsAppDaemonUrl();
         const res = await fetch(`${DAEMON}/api/whatsapp/send`, {
 
             method: 'POST',

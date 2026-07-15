@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
 
 export async function GET(req, { params }) {
     try {
@@ -162,12 +162,16 @@ export async function PUT(req, { params }) {
                     .replace(/{order_status}/g, 'Delivered')
                     .replace(/{delivery_date}/g, delivery_date || '');
 
-                fetch(`${process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001'}/api/whatsapp/send`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ number: phone, message })
+                getWhatsAppDaemonUrl().then(daemonUrl => {
+                    fetch(`${daemonUrl}/api/whatsapp/send`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ number: phone, message })
+                    }).catch(err => {
+                        console.error('Background WhatsApp dispatch send error:', err);
+                    });
                 }).catch(err => {
-                    console.error('Background WhatsApp dispatch send error:', err);
+                    console.error('Failed to get WhatsApp daemon URL in background:', err);
                 });
             }
         }

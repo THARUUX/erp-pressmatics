@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-
-const DAEMON = process.env.WHATSAPP_DAEMON_URL || 'http://localhost:5001';
+import { getWhatsAppDaemonUrl } from '@/lib/db';
 
 export async function POST() {
     try {
+        const DAEMON = await getWhatsAppDaemonUrl();
         const res = await fetch(`${DAEMON}/api/whatsapp/connect`, {
             method: 'POST',
             headers: { 'Cache-Control': 'no-cache' },
