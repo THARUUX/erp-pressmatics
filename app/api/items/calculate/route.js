@@ -20,7 +20,7 @@ export async function POST(req) {
         let grandTotal = 0;
 
         for (const comp of components) {
-            const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isSFGComp = comp.type === 'sfg' || (comp.name || '').toLowerCase().includes('assets') || (comp.name || '').toLowerCase().includes('sfg');
             const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('service');
             let result;
 
@@ -40,11 +40,84 @@ export async function POST(req) {
                 // Also include any staticsLines attached to this component
                 const staticsLinesCost = (comp.staticsLines || []).reduce((acc, sl) =>
                     acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+
+                // Calculate finishings if present for SFG/Asset components
+                const finishings = comp.finishings || [];
+                const qty = parseInt(comp.quantity) || 0;
+                const pagesVal = parseInt(comp.params?.pages) || 1;
+                const upsVal = parseInt(comp.params?.ups) || 1;
+                const sidesVal = parseInt(comp.params?.sides) || 1;
+                const totalPages = pagesVal * qty;
+                const divisor = upsVal * sidesVal;
+                const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+                const wastePct = parseFloat(comp.params?.wastagePercent) || 0;
+                const customWasteVal = parseInt(comp.params?.customWastageSheets ?? comp.params?.custom_waste_sheets ?? comp.params?.custom_wastage_sheets);
+                const wastageCutSheets = (!isNaN(customWasteVal) && customWasteVal >= 0)
+                    ? customWasteVal * (pagesVal / (upsVal * sidesVal))
+                    : wastePct;
+                const totalCutSheets = Math.ceil(cutSheets + wastageCutSheets);
+
+                const compWidthCm = parseFloat(comp.params?.compWidthCm) || 21.0;
+                const compHeightCm = parseFloat(comp.params?.compHeightCm) || 29.7;
+
+                let finishingCost = 0;
+                let finishingTime = 0;
+                const computedFinishings = finishings.map(item => {
+                    let unitQty = parseInt(item.quantity) || 0;
+                    const costUnit = item.cost_unit || 'Unit';
+
+                    if (costUnit === 'Page') {
+                        unitQty = totalPages; 
+                    } else if (costUnit === 'Cut Sheet') {
+                        unitQty = Math.ceil(cutSheets);
+                    } else if (costUnit === 'Form') {
+                        const itemForms = parseInt(item.forms) || 1;
+                        unitQty = itemForms * qty;
+                    } else if (costUnit === 'SqInch') {
+                        const widthInches = ((compWidthCm / 2.54) + 0.5);
+                        const heightInches = ((compHeightCm / 2.54) + 0.5);
+                        const sqInQty = widthInches * heightInches * (qty + wastageCutSheets);
+                        unitQty = sqInQty;
+                    } else {
+                        unitQty = Math.ceil(qty);
+                    }
+
+                    const total = unitQty * (parseFloat(item.unit_cost) || 0);
+
+                    // Time Calculation (SFG Finishing)
+                    let totalTime = 0;
+                    if (item.speed && (parseFloat(item.speed) > 0)) {
+                        const speed = parseFloat(item.speed);
+                        const u = (item.speed_unit || 'Sheets/Hr').toLowerCase().trim();
+                        if (u === 'prints/hr') {
+                            totalTime = (totalCutSheets * sidesVal) / speed;
+                        } else if (u === 'sheets/hr') {
+                            totalTime = totalCutSheets / speed;
+                        } else if (u === 'impressions/hr') {
+                            const impressions = pagesVal * (qty <= 1000 ? 1000 : qty) / (sidesVal * upsVal) * (sidesVal * 4);
+                            totalTime = impressions / speed;
+                        } else {
+                            totalTime = qty / speed;
+                        }
+                    }
+
+                    return {
+                        ...item,
+                        quantity: unitQty,
+                        total_cost: total,
+                        total_time: totalTime
+                    };
+                });
+
+                finishingCost = computedFinishings.reduce((acc, item) => acc + item.total_cost, 0);
+                finishingTime = computedFinishings.reduce((acc, item) => acc + (item.total_time || 0), 0);
+
                 result = {
-                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: sfgLinesCost + staticsLinesCost },
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: finishingCost, total: sfgLinesCost + staticsLinesCost + finishingCost },
                     printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
                     totalSheetsRequired: 0, plateCount: 0,
-                    computedFinishings: []
+                    time: { printing: 0, finishing: finishingTime, setup: 0, total: finishingTime },
+                    computedFinishings: computedFinishings
                 };
             } else {
                 const compParams = {

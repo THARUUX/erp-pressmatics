@@ -84,6 +84,43 @@ function canAccess(role, pathname) {
 export async function middleware(request) {
     const { pathname } = request.nextUrl;
 
+    // Protect API routes
+    if (pathname.startsWith('/api')) {
+        const isPublicApi = 
+            pathname === '/api/auth/login' ||
+            pathname === '/api/auth/companies' ||
+            pathname.startsWith('/api/portal/') ||
+            pathname === '/api/whatsapp/incoming';
+
+        if (!isPublicApi) {
+            const token = request.cookies.get('token')?.value;
+            if (!token) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
+
+            const payload = await verifyJWT(token);
+            if (!payload) {
+                return NextResponse.json({ error: 'Unauthorized – Invalid or expired token' }, { status: 401 });
+            }
+
+            // Role-based check for admin API routes
+            if (pathname.startsWith('/api/admin')) {
+                if (payload.role !== 'admin') {
+                    return NextResponse.json({ error: 'Forbidden – Admin only' }, { status: 403 });
+                }
+            }
+
+            // Forward user headers to api routes
+            const requestHeaders = new Headers(request.headers);
+            requestHeaders.set('x-user-role', payload.role || 'operator');
+            requestHeaders.set('x-user-name', payload.name || '');
+            requestHeaders.set('x-user-email', payload.email || '');
+            requestHeaders.set('x-user-id', String(payload.id || ''));
+
+            return NextResponse.next({ request: { headers: requestHeaders } });
+        }
+    }
+
     // Protect all /dashboard routes
     if (pathname.startsWith('/dashboard')) {
         const token = request.cookies.get('token')?.value;
@@ -117,19 +154,6 @@ export async function middleware(request) {
         return NextResponse.next({ request: { headers: requestHeaders } });
     }
 
-    // Protect admin API routes 
-    if (pathname.startsWith('/api/admin')) {
-        const token = request.cookies.get('token')?.value;
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const payload = await verifyJWT(token);
-        if (!payload || payload.role !== 'admin') {
-            return NextResponse.json({ error: 'Forbidden – Admin only' }, { status: 403 });
-        }
-        return NextResponse.next();
-    }
-
     // Redirect root appropriately
     if (pathname === '/') {
         const token = request.cookies.get('token')?.value;
@@ -144,5 +168,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-    matcher: ['/', '/dashboard/:path*', '/api/admin/:path*'],
+    matcher: ['/', '/dashboard/:path*', '/api/:path*'],
 };

@@ -68,7 +68,7 @@ export default function EstimationComponentForm({
     const { params, type, finishings: selectedFinishings } = data;
     const sfgLines = data.sfgLines || [];
     const staticsLines = data.staticsLines || [];
-    const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
+    const isSFGComponent = type === 'sfg' || (data.name || '').toLowerCase().includes('assets') || (data.name || '').toLowerCase().includes('sfg');
     const isServicesComponent = type === 'services' || (data.name || '').toLowerCase().includes('service');
 
     const [allServices, setAllServices] = useState([]);
@@ -282,18 +282,28 @@ export default function EstimationComponentForm({
             <div className="mb-4 border-b border-white/10 pb-4">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-md font-semibold text-gray-300">Specifications</h3>
-                    {!isServicesComponent && (
-                        <div className="flex bg-black/50 rounded-lg p-1 border mr-20 border-white/10">
-                            <button
-                                onClick={() => onChange(index, 'type', 'offset')}
-                                className={`px-3 py-1 rounded text-xs ${type === 'offset' ? 'bg-white text-black' : 'text-gray-400'}`}
-                            >Offset</button>
-                            <button
-                                onClick={() => onChange(index, 'type', 'digital')}
-                                className={`px-3 py-1 rounded text-xs ${type === 'digital' ? 'bg-white text-black' : 'text-gray-400'}`}
-                            >Digital</button>
-                        </div>
-                    )}
+                    <div className="flex bg-black/50 rounded-lg p-1 border border-white/10 gap-1 mr-20">
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'offset')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'offset' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >Offset</button>
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'digital')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'digital' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >Digital</button>
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'sfg')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'sfg' ? 'bg-amber-500 text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >SFG / Assets</button>
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'services')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'services' ? 'bg-violet-600 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >Services</button>
+                    </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4 mb-2">

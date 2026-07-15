@@ -251,7 +251,10 @@ export default function EditQuotationPage({ params }) {
                     customWastageSheets: '',
                     customPlateCount: ''
                 },
-                finishings: []
+                finishings: [],
+                sfgLines: [],
+                staticsLines: [],
+                services: []
             }];
             setActiveTab(prev.length);
             return newComps;
@@ -281,6 +284,7 @@ export default function EditQuotationPage({ params }) {
             params: { ...compToCopy.params },
             finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` })),
             sfgLines: (compToCopy.sfgLines || []).map(sl => ({ ...sl, id: `sfg-${Date.now()}-${Math.random()}` })),
+            staticsLines: (compToCopy.staticsLines || []).map(sl => ({ ...sl, id: `statics-${Date.now()}-${Math.random()}` })),
             services: (compToCopy.services || []).map(s => ({ ...s, id: `svc-emp-${Date.now()}-${Math.random()}` }))
         };
         setComponents(prev => {
@@ -309,7 +313,7 @@ export default function EditQuotationPage({ params }) {
             const total = qty * item.unit_cost;
             const totalTime = qty * item.time_per_unit;
 
-            comp.finishings = [...comp.finishings, { ...item, quantity: qty, total_cost: total, total_time: totalTime }];
+            comp.finishings = [...(comp.finishings || []), { ...item, quantity: qty, total_cost: total, total_time: totalTime }];
 
             newComps[index] = comp;
             return newComps;
@@ -320,7 +324,7 @@ export default function EditQuotationPage({ params }) {
         setComponents(prev => {
             const newComps = [...prev];
             const comp = { ...newComps[index] };
-            comp.finishings = comp.finishings.filter(f => f.id !== finishingId);
+            comp.finishings = (comp.finishings || []).filter(f => f.id !== finishingId);
             newComps[index] = comp;
             return newComps;
         });
@@ -329,7 +333,8 @@ export default function EditQuotationPage({ params }) {
     // Zero out printing-specific costs for non-Cover/non-Inner components
     const normalizeComponent = (c) => {
         const isCoverOrInner = (c.name || '').toLowerCase().includes('cover') || (c.name || '').toLowerCase().includes('inner') || (c.name || '').toLowerCase().includes('main');
-        if (isCoverOrInner) return c;
+        const isPrintComponent = c.type === 'offset' || c.type === 'digital' || (!c.type && isCoverOrInner);
+        if (isPrintComponent) return c;
         return {
             ...c,
             params: {

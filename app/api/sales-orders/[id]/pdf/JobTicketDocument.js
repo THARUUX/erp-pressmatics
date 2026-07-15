@@ -302,7 +302,7 @@ function ServicesTable({ services }) {
 function DetailCard({ detail, tasks }) {
     const isFinishing = detail.component_name === 'Finishing';
     const isDigital = detail.type === 'digital';
-    const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').includes('Assets') || (detail.component_name || '').includes('SFG');
+    const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').toLowerCase().includes('assets') || (detail.component_name || '').toLowerCase().includes('sfg');
     const isServicesComp = detail.type === 'services' || (detail.component_name || '').toLowerCase().includes('service');
     const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
 
@@ -465,7 +465,7 @@ function ImpositionLayoutsPage({ order }) {
     const layouts = [];
     order.items?.forEach((item, itemIdx) => {
         item.details
-            ?.filter(d => d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' && !d.component_name.toLowerCase().includes('services') && !d.component_name.includes('SFG') && !d.component_name.includes('Assets') && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
+            ?.filter(d => d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' && !d.component_name.toLowerCase().includes('services') && !d.component_name.toLowerCase().includes('sfg') && !d.component_name.toLowerCase().includes('assets') && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
             .forEach((detail, dIdx) => {
                 layouts.push({ item, itemIdx, detail, dIdx });
             });

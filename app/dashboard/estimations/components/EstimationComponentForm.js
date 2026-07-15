@@ -67,7 +67,46 @@ export default function EstimationComponentForm({
     const { params, type, finishings: selectedFinishings } = data;
     const sfgLines = data.sfgLines || [];
     const staticsLines = data.staticsLines || [];
-    const isSFGComponent = (data.name || '').includes('Assets') || (data.name || '').includes('SFG');
+    const isSFGComponent = type === 'sfg' || (data.name || '').toLowerCase().includes('assets') || (data.name || '').toLowerCase().includes('sfg');
+    const isServicesComponent = type === 'services' || (data.name || '').toLowerCase().includes('service');
+
+    const [allServices, setAllServices] = useState([]);
+    const [selectedServiceId, setSelectedServiceId] = useState('');
+
+    useEffect(() => {
+        if (isServicesComponent) {
+            fetch('/api/services')
+                .then(r => r.ok ? r.json() : [])
+                .then(d => setAllServices(d))
+                .catch(() => {});
+        }
+    }, [isServicesComponent]);
+
+    useEffect(() => {
+        if (isServicesComponent && data.services && data.services.length > 0) {
+            const qty = parseFloat(data.quantity) || 1;
+            const updated = data.services.map(s => {
+                if (s.rate_unit === 'per unit' && parseFloat(s.multiply_by) !== qty) {
+                    return {
+                        ...s,
+                        multiply_by: qty,
+                        total_cost: parseFloat(s.rate) * qty
+                    };
+                }
+                return s;
+            });
+            const hasChanged = JSON.stringify(updated) !== JSON.stringify(data.services);
+            if (hasChanged) {
+                onChange(index, 'services', updated);
+            }
+        }
+    }, [isServicesComponent, data.quantity, data.services, index, onChange]);
+
+    useEffect(() => {
+        if (isServicesComponent && type !== 'services') {
+            onChange(index, 'type', 'services');
+        }
+    }, [isServicesComponent, type, index, onChange]);
 
     // Local state for searches (keep UI responsive)
     const [paperSearch, setPaperSearch] = useState(params.paperName || '');
@@ -240,15 +279,27 @@ export default function EstimationComponentForm({
             <div className="mb-4 border-b border-white/10 pb-4">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-md font-semibold text-gray-300">Specifications</h3>
-                    <div className="flex bg-black/50 rounded-lg p-1 border mr-20 border-white/10">
+                    <div className="flex bg-black/50 rounded-lg p-1 border border-white/10 gap-1 mr-20">
                         <button
+                            type="button"
                             onClick={() => onChange(index, 'type', 'offset')}
-                            className={`px-3 py-1 rounded text-xs ${type === 'offset' ? 'bg-white text-black' : 'text-gray-400'}`}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'offset' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
                         >Offset</button>
                         <button
+                            type="button"
                             onClick={() => onChange(index, 'type', 'digital')}
-                            className={`px-3 py-1 rounded text-xs ${type === 'digital' ? 'bg-white text-black' : 'text-gray-400'}`}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'digital' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
                         >Digital</button>
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'sfg')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'sfg' ? 'bg-amber-500 text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >SFG / Assets</button>
+                        <button
+                            type="button"
+                            onClick={() => onChange(index, 'type', 'services')}
+                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'services' ? 'bg-violet-600 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}
+                        >Services</button>
                     </div>
                 </div>
 
@@ -275,7 +326,7 @@ export default function EstimationComponentForm({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
-                {(data.name.includes('Inner') || data.name.includes('Cover')) || data.name.includes('Main') && (
+                {!isSFGComponent && !isServicesComponent && (
                     <>
                         {/* 1. Print Sides */}
                         <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-2xl">
@@ -357,8 +408,194 @@ export default function EstimationComponentForm({
             <div className="grid lg:grid-cols-3 gap-8">
                 {/* Left: Input Form */}
                 <div className="lg:col-span-2 space-y-6">
-                    {type === 'offset' && !data.name.includes("Finishing") && (
+                    {isServicesComponent ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Service</label>
+                                    <select
+                                        value={selectedServiceId}
+                                        onChange={(e) => {
+                                            setSelectedServiceId(e.target.value);
+                                        }}
+                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                    >
+                                        <option value="">Select Service...</option>
+                                        {allServices.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {selectedServiceId && (
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Employee</label>
+                                        <select
+                                            value=""
+                                            onChange={(e) => {
+                                                const empName = e.target.value;
+                                                if (!empName) return;
+                                                const svc = allServices.find(s => s.id === parseInt(selectedServiceId));
+                                                if (svc) {
+                                                    const emp = svc.employees.find(em => em.employee_name === empName);
+                                                    if (emp) {
+                                                        const newSvcLine = {
+                                                            id: `svc-emp-${Date.now()}-${Math.random()}`,
+                                                            service_id: svc.id,
+                                                            service_name: svc.name,
+                                                            employee_name: emp.employee_name,
+                                                            rate_unit: emp.default_rate_unit,
+                                                            rate: emp.rate,
+                                                            multiply_by: emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1,
+                                                            note: '',
+                                                            total_cost: emp.rate * (emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1)
+                                                        };
+                                                        // Check if already added to prevent duplicates
+                                                        const alreadyAdded = (data.services || []).some(s => s.service_id === svc.id && s.employee_name === emp.employee_name);
+                                                        if (!alreadyAdded) {
+                                                            onChange(index, 'services', [...(data.services || []), newSvcLine]);
+                                                        }
+                                                        // Reset selection
+                                                        setSelectedServiceId('');
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                        >
+                                            <option value="">Select Employee...</option>
+                                            {allServices.find(s => s.id === parseInt(selectedServiceId))?.employees.map(emp => (
+                                                <option key={emp.employee_name} value={emp.employee_name}>
+                                                    {emp.employee_name} — {emp.default_rate_unit} ({currency}{parseFloat(emp.rate).toFixed(2)})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+
+                            {data.services && data.services.length > 0 ? (
+                                <div className="space-y-4">
+                                    {data.services.map((line, lIdx) => (
+                                        <div key={line.id || lIdx} className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4 relative">
+                                            {/* Header with Title and Delete Button */}
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-bold text-white text-base">{line.service_name}</h4>
+                                                    <p className="text-sm text-gray-400 mt-0.5">Employee: <span className="text-gray-300 font-medium">{line.employee_name}</span></p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const updated = data.services.filter((_, idx) => idx !== lIdx);
+                                                        onChange(index, 'services', updated);
+                                                    }}
+                                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded-lg transition-all"
+                                                    title="Remove Service"
+                                                >
+                                                    <FiTrash2 className="text-lg" />
+                                                </button>
+                                            </div>
+
+                                            {/* Inputs row */}
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Rate Unit</label>
+                                                    <select
+                                                        value={line.rate_unit}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            const mult = val === 'per unit' ? (parseFloat(data.quantity) || 1) : (val === 'per job' ? 1 : parseFloat(line.multiply_by) || 1);
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                rate_unit: val,
+                                                                multiply_by: mult,
+                                                                total_cost: parseFloat(s.rate) * mult
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                    >
+                                                        <option value="per hour">Per Hour</option>
+                                                        <option value="per job">Per Job</option>
+                                                        <option value="per unit">Per Unit</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Rate ({currency})</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={line.rate}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                rate: val,
+                                                                total_cost: val * (parseFloat(s.multiply_by) || 0)
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-right text-white focus:outline-none focus:border-white/30"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Multiplier</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={line.multiply_by}
+                                                        disabled={line.rate_unit === 'per job'}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                multiply_by: val,
+                                                                total_cost: parseFloat(s.rate) * val
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-center text-white focus:outline-none focus:border-white/30 disabled:opacity-50 disabled:bg-secondary/40"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Cost ({currency})</label>
+                                                    <div className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-right text-emerald-400 font-mono font-bold text-sm">
+                                                        {(parseFloat(line.total_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Textarea for note */}
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Note</label>
+                                                <textarea
+                                                    value={line.note || ''}
+                                                    rows={2}
+                                                    placeholder="Add service configuration note or instructions..."
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        const updated = data.services.map((s, idx) => idx === lIdx ? { ...s, note: val } : s);
+                                                        onChange(index, 'services', updated);
+                                                    }}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 placeholder-gray-600 resize-y min-h-[60px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500 italic text-sm border border-dashed border-white/10 rounded-xl">
+                                    No services selected. Add services using the dropdown above.
+                                </div>
+                            )}
+                        </div>
+                    ) : !isSFGComponent && (
                         <>
+                            {type === 'offset' && !data.name.includes("Finishing") && (
+                                <>
                         <div className="grid md:grid-cols-3 gap-4 mb-6">
                             <div>
                                 <label className="block text-sm text-gray-400 mb-1">Machine</label>
@@ -746,7 +983,7 @@ export default function EstimationComponentForm({
                     )}
 
                     <div>
-                        <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name.includes("Finishing") ? 'hidden' : ''}`}>Finishings</h3>
+                        <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Finishings</h3>
                         <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
                             <div className="grid md:grid-cols-12  gap-3 mb-3">
                                 <div className="md:col-span-8 relative">
@@ -814,6 +1051,8 @@ export default function EstimationComponentForm({
                             </div>
                         </div>
                     </div>
+                    </>
+                    )}
 
                     {/* ── SFG / Assets Section ── */}
                     {isSFGComponent && (

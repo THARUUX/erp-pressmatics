@@ -164,15 +164,9 @@ export async function PUT(req, { params }) {
         const processedComponents = [];
 
         for (const comp of components) {
-            let result;
-            const isSFGComp = comp.type === 'sfg' || (comp.name || '').includes('Assets') || (comp.name || '').includes('SFG');
+            const isSFGComp = comp.type === 'sfg' || (comp.name || '').toLowerCase().includes('assets') || (comp.name || '').toLowerCase().includes('sfg');
             const isServicesComp = comp.type === 'services' || (comp.name || '').toLowerCase().includes('service');
-            const compParams = {
-                ...comp.params,
-                quantity: comp.quantity,
-                finishings: comp.finishings || [],
-                compName: comp.name
-            };
+            let result;
 
             if (isServicesComp) {
                 const servicesCost = (comp.services || []).reduce((acc, s) =>
@@ -180,21 +174,124 @@ export async function PUT(req, { params }) {
                 result = {
                     costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
                     printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
-                    totalSheetsRequired: 0, plateCount: 0
+                    totalSheetsRequired: 0, plateCount: 0,
+                    computedFinishings: []
                 };
-            } else if (comp.type === 'offset') {
-                result = calculateOffset(compParams);
-            } else if (comp.type === 'digital') {
-                result = calculateDigital(compParams);
             } else if (isSFGComp) {
-                // SFG/Asset components don't need print calculation — use zero-cost result
+                // SFG/Asset components: sum their sfgLines as cost, no print calculation
+                const sfgLinesCost = (comp.sfgLines || []).reduce((acc, sl) =>
+                    acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+                // Also include any staticsLines attached to this component
+                const staticsLinesCost = (comp.staticsLines || []).reduce((acc, sl) =>
+                    acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+
+                // Calculate finishings if present for SFG/Asset components
+                const finishings = comp.finishings || [];
+                const qty = parseInt(comp.quantity) || 0;
+                const pagesVal = parseInt(comp.params?.pages) || 1;
+                const upsVal = parseInt(comp.params?.ups) || 1;
+                const sidesVal = parseInt(comp.params?.sides) || 1;
+                const totalPages = pagesVal * qty;
+                const divisor = upsVal * sidesVal;
+                const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+                const wastePct = parseFloat(comp.params?.wastagePercent) || 0;
+                const customWasteVal = parseInt(comp.params?.customWastageSheets ?? comp.params?.custom_waste_sheets ?? comp.params?.custom_wastage_sheets);
+                const wastageCutSheets = (!isNaN(customWasteVal) && customWasteVal >= 0)
+                    ? customWasteVal * (pagesVal / (upsVal * sidesVal))
+                    : wastePct;
+                const totalCutSheets = Math.ceil(cutSheets + wastageCutSheets);
+
+                const compWidthCm = parseFloat(comp.params?.compWidthCm) || 21.0;
+                const compHeightCm = parseFloat(comp.params?.compHeightCm) || 29.7;
+
+                let finishingCost = 0;
+                let finishingTime = 0;
+                const computedFinishings = finishings.map(item => {
+                    let unitQty = parseInt(item.quantity) || 0;
+                    const costUnit = item.cost_unit || 'Unit';
+
+                    if (costUnit === 'Page') {
+                        unitQty = totalPages; 
+                    } else if (costUnit === 'Cut Sheet') {
+                        unitQty = Math.ceil(cutSheets);
+                    } else if (costUnit === 'Form') {
+                        const itemForms = parseInt(item.forms) || 1;
+                        unitQty = itemForms * qty;
+                    } else if (costUnit === 'SqInch') {
+                        const widthInches = ((compWidthCm / 2.54) + 0.5);
+                        const heightInches = ((compHeightCm / 2.54) + 0.5);
+                        const sqInQty = widthInches * heightInches * (qty + wastageCutSheets);
+                        unitQty = sqInQty;
+                    } else {
+                        unitQty = Math.ceil(qty);
+                    }
+
+                    const total = unitQty * (parseFloat(item.unit_cost) || 0);
+
+                    // Time Calculation (SFG Finishing)
+                    let totalTime = 0;
+                    if (item.speed && (parseFloat(item.speed) > 0)) {
+                        const speed = parseFloat(item.speed);
+                        const u = (item.speed_unit || 'Sheets/Hr').toLowerCase().trim();
+                        if (u === 'prints/hr') {
+                            totalTime = (totalCutSheets * sidesVal) / speed;
+                        } else if (u === 'sheets/hr') {
+                            totalTime = totalCutSheets / speed;
+                        } else if (u === 'impressions/hr') {
+                            const impressions = pagesVal * (qty <= 1000 ? 1000 : qty) / (sidesVal * upsVal) * (sidesVal * 4);
+                            totalTime = impressions / speed;
+                        } else {
+                            totalTime = qty / speed;
+                        }
+                    }
+
+                    return {
+                        ...item,
+                        quantity: unitQty,
+                        total_cost: total,
+                        total_time: totalTime
+                    };
+                });
+
+                finishingCost = computedFinishings.reduce((acc, item) => acc + item.total_cost, 0);
+                finishingTime = computedFinishings.reduce((acc, item) => acc + (item.total_time || 0), 0);
+
                 result = {
-                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: 0 },
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: finishingCost, total: sfgLinesCost + staticsLinesCost + finishingCost },
                     printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
-                    totalSheetsRequired: 0, plateCount: 0
+                    totalSheetsRequired: 0, plateCount: 0,
+                    time: { printing: 0, finishing: finishingTime, setup: 0, total: finishingTime },
+                    computedFinishings: computedFinishings
                 };
             } else {
-                continue; // Skip unrecognised types
+                const compParams = {
+                    ...comp.params,
+                    quantity: comp.quantity,
+                    finishings: comp.finishings || [],
+                    compName: comp.name
+                };
+
+                if (comp.type === 'offset') {
+                    result = calculateOffset(compParams);
+                } else if (comp.type === 'digital') {
+                    result = calculateDigital(compParams);
+                } else {
+                    continue; // Skip unrecognized types
+                }
+            }
+
+            // For every component type, add staticsLines cost on top of the computed result
+            const staticsLinesCostAll = (comp.staticsLines || []).reduce((acc, sl) =>
+                acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+            // Only add once — SFG branch already includes staticsLinesCost, others don't
+            if (!isSFGComp && staticsLinesCostAll > 0) {
+                result = {
+                    ...result,
+                    costs: {
+                        ...result.costs,
+                        total: (result.costs.total || 0) + staticsLinesCostAll,
+                    }
+                };
             }
 
             subTotal += result.costs.total;
@@ -215,16 +312,8 @@ export async function PUT(req, { params }) {
             };
         });
 
-        // Add SFG lines cost from each component
-        let sfgTotal = 0;
-        for (const comp of components) {
-            for (const sl of (comp.sfgLines || [])) {
-                sfgTotal += (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0);
-            }
-        }
-
         // Apply Markup
-        const totalBeforeMarkup = subTotal + sfgTotal + globalFinishingCost;
+        const totalBeforeMarkup = subTotal + globalFinishingCost;
         const markupAmount = totalBeforeMarkup * ((parseFloat(markup_percent) || 0) / 100);
         const grandTotal = totalBeforeMarkup + markupAmount;
         const mainType = processedComponents[0]?.meta?.type || 'offset'; // Simplification
@@ -253,6 +342,7 @@ export async function PUT(req, { params }) {
                 const costs = calc.costs;
 
                 const isServicesComp = meta.type === 'services' || (meta.name || '').toLowerCase().includes('service');
+                const isSFGComp = meta.type === 'sfg' || (meta.name || '').toLowerCase().includes('assets') || (meta.name || '').toLowerCase().includes('sfg');
                 const [detailResult] = await connection.execute(
                     `INSERT INTO quotation_item_details (
                 quotation_item_id, component_name, type, machine_id, pages, paper_cost_per_sheet, plate_cost_unit, 
@@ -264,7 +354,7 @@ export async function PUT(req, { params }) {
                     [
                         id,
                         meta.name || 'Main',
-                        meta.type || (isServicesComp ? 'services' : 'offset'),
+                        isSFGComp ? 'sfg' : (isServicesComp ? 'services' : (meta.type || 'offset')),
                         params.machineId || null,
                         params.pages || 1,
                         params.paperCostPerSheet || 0,
@@ -307,7 +397,7 @@ export async function PUT(req, { params }) {
                 const detailId = detailResult.insertId;
 
                 // Insert Finishings
-                const finishings = meta.finishings || [];
+                const finishings = calc.computedFinishings || [];
                 if (finishings.length > 0) {
                     for (const fItem of finishings) {
                         await connection.execute(

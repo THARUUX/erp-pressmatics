@@ -78,6 +78,36 @@ export async function POST(req, { params }) {
             }
         }
 
+        // Fetch SFG lines and Services for source components
+        const detailIds = sourceDetails.map(d => d.id);
+        let sfgByDetail = {};
+        let servicesByDetail = {};
+        if (detailIds.length > 0) {
+            const placeholders = detailIds.map(() => '?').join(',');
+            const [sfgRows] = await pool.execute(
+                `SELECT s.*, i.stock_quantity, i.uom FROM quotation_item_sfg_lines s
+                 LEFT JOIN inventory_items i ON i.id = s.inventory_item_id
+                 WHERE s.quotation_item_detail_id IN (${placeholders})
+                 ORDER BY s.id ASC`,
+                detailIds
+            );
+            for (const row of sfgRows) {
+                if (!sfgByDetail[row.quotation_item_detail_id]) sfgByDetail[row.quotation_item_detail_id] = [];
+                sfgByDetail[row.quotation_item_detail_id].push(row);
+            }
+
+            const [svcRows] = await pool.execute(
+                `SELECT * FROM quotation_item_services
+                 WHERE quotation_item_detail_id IN (${placeholders})
+                 ORDER BY id ASC`,
+                detailIds
+            );
+            for (const row of svcRows) {
+                if (!servicesByDetail[row.quotation_item_detail_id]) servicesByDetail[row.quotation_item_detail_id] = [];
+                servicesByDetail[row.quotation_item_detail_id].push(row);
+            }
+        }
+
         // ── 5. Fetch machine & paper lookups for recalculation ───────────────────
         const [allMachines] = await pool.execute('SELECT * FROM machines');
         const machineMap = Object.fromEntries(allMachines.map(m => [m.id, m]));
@@ -87,52 +117,158 @@ export async function POST(req, { params }) {
 
         // ── 6. Copy ALL components, recalculating each with live machine/paper data
         let subTotal = 0;
+        const processedComponents = [];
 
         for (const detail of sourceDetails) {
+            const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').toLowerCase().includes('assets') || (detail.component_name || '').toLowerCase().includes('sfg');
+            const isServicesComp = detail.type === 'services' || (detail.component_name || '').toLowerCase().includes('service');
+
             const machine = machineMap[detail.machine_id] || null;
             const paper   = paperMap[detail.paper_id]     || null;
             const compFinishings = finishingsByDetail[detail.id] || [];
 
-            // Run calculation with real machine sheet factor (same as item edit page)
-            const compParams = {
-                quantity:               parseInt(sourceItem.quantity),
-                pages:                  detail.pages,
-                ups:                    detail.ups,
-                sides:                  detail.sides,
-                colors:                 detail.colors,
-                colorsFront:            detail.colors_front,
-                colorsBack:             detail.colors_back,
-                paperCostPerSheet:      detail.paper_cost_per_sheet,
-                plateCostPerUnit:       detail.plate_cost_unit,
-                impressionCostPerUnit:  detail.impression_cost_unit,
-                wastagePercent:         detail.wastage_percent,
-                customImpressions:      detail.custom_impressions,
-                customWastageSheets:    detail.custom_wastage_sheets,
-                customPlateCount:       detail.custom_plate_count,
-                machineSheetFactor:     machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0,
-                machineSpeed:           machine ? parseFloat(machine.speed)        || 0   : 0,
-                machineSpeedUnit:       machine ? machine.speed_unit || 'Sheets/Hr'       : 'Sheets/Hr',
-                makeReadyMinutes:       machine ? parseFloat(machine.make_ready_minutes)   || 0   : 0,
-                paperWidthCm:           paper ? parseFloat(paper.width)  || 0 : (detail.paper_width_cm  || 0),
-                paperHeightCm:          paper ? parseFloat(paper.height) || 0 : (detail.paper_height_cm || 0),
-                cutWidthCm:             detail.cut_width_cm,
-                cutHeightCm:            detail.cut_height_cm,
-                digitalPricePerSqCm:    detail.digital_price_per_sq_cm || 0,
-                finishings:             compFinishings,
-                compName:               detail.component_name,
-            };
-
             let result;
-            if (detail.type === 'offset') {
-                result = calculateOffset(compParams);
-            } else if (detail.type === 'digital') {
-                result = calculateDigital(compParams);
+
+            if (isServicesComp) {
+                const svcLines = servicesByDetail[detail.id] || [];
+                const servicesCost = svcLines.reduce((acc, s) =>
+                    acc + (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 0), 0);
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0,
+                    computedFinishings: []
+                };
+                processedComponents.push({ detail, result, finishings: [], sfgLines: [], staticsLines: [], services: svcLines });
+                subTotal += servicesCost;
+            } else if (isSFGComp) {
+                const detailSfgLines = sfgByDetail[detail.id] || [];
+                const sfgLines = detailSfgLines.filter(s => s.is_statics === 0);
+                const staticsLines = detailSfgLines.filter(s => s.is_statics === 1);
+
+                const sfgLinesCost = sfgLines.reduce((acc, sl) =>
+                    acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+                const staticsLinesCost = staticsLines.reduce((acc, sl) =>
+                    acc + (parseFloat(sl.quantity) || 0) * (parseFloat(sl.unit_price) || 0), 0);
+
+                // Calculate finishings if present for SFG/Asset components
+                const qty = parseInt(sourceItem.quantity) || 0;
+                const pagesVal = parseInt(detail.pages) || 1;
+                const upsVal = parseInt(detail.ups) || 1;
+                const sidesVal = parseInt(detail.sides) || 1;
+                const totalPages = pagesVal * qty;
+                const divisor = upsVal * sidesVal;
+                const cutSheets = divisor > 0 ? (totalPages / divisor) : 0;
+                const wastePct = parseFloat(detail.wastage_percent) || 0;
+                const customWasteVal = parseInt(detail.custom_wastage_sheets);
+                const wastageCutSheets = (!isNaN(customWasteVal) && customWasteVal >= 0)
+                    ? customWasteVal * (pagesVal / (upsVal * sidesVal))
+                    : wastePct;
+                const totalCutSheets = Math.ceil(cutSheets + wastageCutSheets);
+
+                const compWidthCm = parseFloat(detail.comp_width_cm) || 21.0;
+                const compHeightCm = parseFloat(detail.comp_height_cm) || 29.7;
+
+                const computedFinishings = compFinishings.map(item => {
+                    let unitQty = parseInt(item.quantity) || 0;
+                    const costUnit = item.cost_unit || 'Unit';
+
+                    if (costUnit === 'Page') {
+                        unitQty = totalPages; 
+                    } else if (costUnit === 'Cut Sheet') {
+                        unitQty = Math.ceil(cutSheets);
+                    } else if (costUnit === 'Form') {
+                        const itemForms = parseInt(item.forms) || 1;
+                        unitQty = itemForms * qty;
+                    } else if (costUnit === 'SqInch') {
+                        const widthInches = ((compWidthCm / 2.54) + 0.5);
+                        const heightInches = ((compHeightCm / 2.54) + 0.5);
+                        const sqInQty = widthInches * heightInches * (qty + wastageCutSheets);
+                        unitQty = sqInQty;
+                    } else {
+                        unitQty = Math.ceil(qty);
+                    }
+
+                    const total = unitQty * (parseFloat(item.unit_cost) || 0);
+
+                    // Time Calculation (SFG Finishing)
+                    let totalTime = 0;
+                    if (item.speed && (parseFloat(item.speed) > 0)) {
+                        const speed = parseFloat(item.speed);
+                        const u = (item.speed_unit || 'Sheets/Hr').toLowerCase().trim();
+                        if (u === 'prints/hr') {
+                            totalTime = (totalCutSheets * sidesVal) / speed;
+                        } else if (u === 'sheets/hr') {
+                            totalTime = totalCutSheets / speed;
+                        } else if (u === 'impressions/hr') {
+                            const impressions = pagesVal * (qty <= 1000 ? 1000 : qty) / (sidesVal * upsVal) * (sidesVal * 4);
+                            totalTime = impressions / speed;
+                        } else {
+                            totalTime = qty / speed;
+                        }
+                    }
+
+                    return {
+                        ...item,
+                        quantity: unitQty,
+                        total_cost: total,
+                        total_time: totalTime
+                    };
+                });
+
+                const finishingCost = computedFinishings.reduce((acc, item) => acc + item.total_cost, 0);
+                result = {
+                    costs: { paper: 0, plate: 0, printing: 0, finishing: finishingCost, total: sfgLinesCost + staticsLinesCost + finishingCost },
+                    printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,
+                    totalSheetsRequired: 0, plateCount: 0,
+                    computedFinishings: computedFinishings
+                };
+                processedComponents.push({ detail, result, finishings: computedFinishings, sfgLines, staticsLines, services: [] });
+                subTotal += result.costs.total;
             } else {
-                continue;
+                // Run calculation with real machine sheet factor (same as item edit page)
+                const compParams = {
+                    quantity:               parseInt(sourceItem.quantity),
+                    pages:                  detail.pages,
+                    ups:                    detail.ups,
+                    sides:                  detail.sides,
+                    colors:                 detail.colors,
+                    colorsFront:            detail.colors_front,
+                    colorsBack:             detail.colors_back,
+                    paperCostPerSheet:      detail.paper_cost_per_sheet,
+                    plateCostPerUnit:       detail.plate_cost_unit,
+                    impressionCostPerUnit:  detail.impression_cost_unit,
+                    wastagePercent:         detail.wastage_percent,
+                    customImpressions:      detail.custom_impressions,
+                    customWastageSheets:    detail.custom_wastage_sheets,
+                    customPlateCount:       detail.custom_plate_count,
+                    machineSheetFactor:     machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0,
+                    machineSpeed:           machine ? parseFloat(machine.speed)        || 0   : 0,
+                    machineSpeedUnit:       machine ? machine.speed_unit || 'Sheets/Hr'       : 'Sheets/Hr',
+                    makeReadyMinutes:       machine ? parseFloat(machine.make_ready_minutes)   || 0   : 0,
+                    paperWidthCm:           paper ? parseFloat(paper.width)  || 0 : (detail.paper_width_cm  || 0),
+                    paperHeightCm:          paper ? parseFloat(paper.height) || 0 : (detail.paper_height_cm || 0),
+                    cutWidthCm:             detail.cut_width_cm,
+                    cutHeightCm:            detail.cut_height_cm,
+                    digitalPricePerSqCm:    detail.digital_price_per_sq_cm || 0,
+                    finishings:             compFinishings,
+                    compName:               detail.component_name,
+                };
+
+                if (detail.type === 'offset') {
+                    result = calculateOffset(compParams);
+                } else if (detail.type === 'digital') {
+                    result = calculateDigital(compParams);
+                } else {
+                    continue;
+                }
+
+                subTotal += result.costs.total;
+                processedComponents.push({ detail, result, finishings: result.computedFinishings || [], sfgLines: [], staticsLines: [], services: [] });
             }
+        }
 
-            subTotal += result.costs.total;
-
+        for (const { detail, result, finishings: compFinishings, sfgLines, staticsLines, services } of processedComponents) {
             // Insert new detail row with freshly calculated values
             const [detRes] = await pool.execute(
                 `INSERT INTO quotation_item_details (
@@ -148,7 +284,7 @@ export async function POST(req, { params }) {
                 [
                     newItemId,
                     detail.component_name || 'Main',
-                    detail.type,
+                    detail.type || 'offset',
                     detail.machine_id || null,
                     detail.pages,
                     detail.paper_cost_per_sheet,
@@ -204,6 +340,67 @@ export async function POST(req, { params }) {
                         f.time_per_unit || 0, f.total_time || 0,
                         f.cost_unit || 'Unit',
                         f.forms != null ? parseInt(f.forms) : null,
+                    ]
+                );
+            }
+
+            // Copy SFG lines
+            for (const sl of sfgLines) {
+                const qty = parseFloat(sl.quantity) || 0;
+                const price = parseFloat(sl.unit_price) || 0;
+                await pool.execute(
+                    `INSERT INTO quotation_item_sfg_lines
+                    (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+                    [
+                        newDetailId,
+                        sl.inventory_item_id,
+                        sl.item_name || '',
+                        sl.item_code || '',
+                        qty,
+                        price,
+                        qty * price
+                    ]
+                );
+            }
+
+            // Copy Statics lines
+            for (const sl of staticsLines) {
+                const qty = parseFloat(sl.quantity) || 0;
+                const price = parseFloat(sl.unit_price) || 0;
+                await pool.execute(
+                    `INSERT INTO quotation_item_sfg_lines
+                    (quotation_item_detail_id, inventory_item_id, item_name, item_code, quantity, unit_price, total_price, is_statics)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+                    [
+                        newDetailId,
+                        sl.inventory_item_id,
+                        sl.item_name || '',
+                        sl.item_code || '',
+                        qty,
+                        price,
+                        qty * price
+                    ]
+                );
+            }
+
+            // Copy Services
+            for (const s of services) {
+                await pool.execute(
+                    `INSERT INTO quotation_item_services
+                    (quotation_item_id, quotation_item_detail_id, service_id, service_name, employee_name, rate_unit, rate, multiply_by, note, total_cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        newItemId,
+                        newDetailId,
+                        s.service_id,
+                        s.service_name || '',
+                        s.employee_name || '',
+                        s.rate_unit || 'per hour',
+                        parseFloat(s.rate) || 0.00,
+                        parseFloat(s.multiply_by) || 1.00,
+                        s.note || null,
+                        parseFloat(s.total_cost) || 0.00
                     ]
                 );
             }

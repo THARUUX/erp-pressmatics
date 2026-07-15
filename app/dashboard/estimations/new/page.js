@@ -70,7 +70,9 @@ export default function NewQuotationPage() {
                  customPlateCount: ''
             },
             finishings: [],
-            sfgLines: []
+            sfgLines: [],
+            staticsLines: [],
+            services: []
         }
     ]);
     const [activeTab, setActiveTab] = useState(0);
@@ -219,7 +221,10 @@ export default function NewQuotationPage() {
                     customWastageSheets: '',
                     customPlateCount: ''
                 },
-                finishings: []
+                finishings: [],
+                sfgLines: [],
+                staticsLines: [],
+                services: []
             }];
             setActiveTab(prev.length);
             return newComps;
@@ -249,6 +254,7 @@ export default function NewQuotationPage() {
             params: { ...compToCopy.params },
             finishings: compToCopy.finishings.map(f => ({ ...f, id: `f-${Date.now()}-${Math.random()}` })),
             sfgLines: (compToCopy.sfgLines || []).map(sl => ({ ...sl, id: `sfg-${Date.now()}-${Math.random()}` })),
+            staticsLines: (compToCopy.staticsLines || []).map(sl => ({ ...sl, id: `statics-${Date.now()}-${Math.random()}` })),
             services: (compToCopy.services || []).map(s => ({ ...s, id: `svc-emp-${Date.now()}-${Math.random()}` }))
         };
         setComponents(prev => {
@@ -289,7 +295,7 @@ export default function NewQuotationPage() {
             const total = qty * item.unit_cost;
             const totalTime = qty * item.time_per_unit;
 
-            comp.finishings = [...comp.finishings, {
+            comp.finishings = [...(comp.finishings || []), {
                 ...item,
                 quantity: qty,
                 total_cost: total,
@@ -305,7 +311,7 @@ export default function NewQuotationPage() {
         setComponents(prev => {
             const newComps = [...prev];
             const comp = { ...newComps[index] };
-            comp.finishings = comp.finishings.filter(f => f.id !== finishingId);
+            comp.finishings = (comp.finishings || []).filter(f => f.id !== finishingId);
             newComps[index] = comp;
             return newComps;
         });
