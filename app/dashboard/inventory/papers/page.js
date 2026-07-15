@@ -16,14 +16,14 @@ export default function PapersPage() {
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
 
-    // Form State
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         type: 'Art',
         cost_per_sheet: 0,
-        stock_quantity: 0
+        stock_quantity: 0,
+        min_stock: 0
     });
 
     const fetchPapers = () => {
@@ -79,7 +79,8 @@ export default function PapersPage() {
             name: item.name,
             type: item.type,
             cost_per_sheet: item.cost_per_sheet,
-            stock_quantity: item.stock_quantity
+            stock_quantity: item.stock_quantity,
+            min_stock: item.min_stock || 0
         });
         setShowAdd(true);
     };
@@ -88,7 +89,7 @@ export default function PapersPage() {
         setShowAdd(false);
         setIsEditing(false);
         setEditId(null);
-        setFormData({ name: '', type: 'Art', cost_per_sheet: 0, stock_quantity: 0 });
+        setFormData({ name: '', type: 'Art', cost_per_sheet: 0, stock_quantity: 0, min_stock: 0 });
     };
 
     return (
@@ -108,7 +109,7 @@ export default function PapersPage() {
                         <span>{isEditing ? 'Edit Paper' : 'Add Paper Stock'}</span>
                         <button onClick={resetForm}><FiX className="text-gray-400 hover:text-white" /></button>
                     </h2>
-                    <div className="grid md:grid-cols-4 gap-4">
+                    <div className="grid md:grid-cols-5 gap-4">
                         <Input
                             label="Paper Name"
                             className="bg-secondary border-white/10"
@@ -135,7 +136,14 @@ export default function PapersPage() {
                             value={formData.stock_quantity}
                             onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
                         />
-                        <div className="flex items-end md:col-span-4">
+                        <Input
+                            label="Min Stock"
+                            type="number"
+                            className="bg-secondary border-white/10"
+                            value={formData.min_stock}
+                            onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
+                        />
+                        <div className="flex items-end md:col-span-5">
                             <Button onClick={handleSubmit} className="w-full bg-white text-black hover:bg-gray-200 h-[46px]">
                                 {isEditing ? 'Update Stock' : 'Save Stock'}
                             </Button>
@@ -151,6 +159,7 @@ export default function PapersPage() {
                             <th className="p-4 font-semibold text-gray-300">Name</th>
                             <th className="p-4 font-semibold text-gray-300">Type</th>
                             <th className="p-4 font-semibold text-gray-300">Stock Qty</th>
+                            <th className="p-4 font-semibold text-gray-300">Min Stock</th>
                             <th className="p-4 font-semibold text-gray-300 text-right">Cost Per Sheet</th>
                             <th className="p-4 font-semibold text-gray-300 text-right">Actions</th>
                         </tr>
@@ -161,6 +170,7 @@ export default function PapersPage() {
                                 <td className="p-4 font-medium">{paper.name}</td>
                                 <td className="p-4 text-gray-400">{paper.type}</td>
                                 <td className="p-4 font-mono">{paper.stock_quantity}</td>
+                                <td className="p-4 font-mono text-gray-400">{paper.min_stock || 0}</td>
                                 <td className="p-4 font-mono text-right text-green-400">{currency}{parseFloat(paper.cost_per_sheet).toFixed(4)}</td>
                                 <td className="p-4 text-right flex justify-end gap-2">
                                     <button onClick={async () => handleEdit(paper)} className="p-2 text-gray-400 hover:text-white transition-colors"><FiEdit2 /></button>

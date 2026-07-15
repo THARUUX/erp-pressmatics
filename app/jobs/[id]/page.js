@@ -6,6 +6,7 @@ import { use, useState, useEffect, useCallback } from 'react';
 const STATUS_CFG = {
     pending:     { label: 'Pending',     dot: 'bg-slate-500',  ring: 'border-slate-500',  badge: 'bg-slate-500/10 text-slate-400 border-slate-500/20',  btn: 'border-slate-500/60 bg-slate-500/10 text-slate-300' },
     in_progress: { label: 'In Progress', dot: 'bg-amber-400',  ring: 'border-amber-400',  badge: 'bg-amber-400/10  text-amber-300  border-amber-400/20',  btn: 'border-amber-400/60  bg-amber-400/10  text-amber-200' },
+    paused:      { label: 'Paused',      dot: 'bg-rose-500',   ring: 'border-rose-500',   badge: 'bg-rose-500/10 text-rose-400 border-rose-500/20',    btn: 'border-rose-500/60 bg-rose-500/10 text-rose-300' },
     done:        { label: 'Done',        dot: 'bg-emerald-500',ring: 'border-emerald-500',badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',btn: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300' },
 };
 
@@ -151,11 +152,14 @@ function TaskItem({ task, orderId, onUpdated }) {
                             {Object.entries(STATUS_CFG).map(([s, cfg]) => {
                                 // Hide the current status (already there, no point pressing it)
                                 if (s === task.status) return null;
-                                // Block pending → done (must go through in_progress first)
-                                if (task.status === 'pending' && s === 'done') return null;
-                                // Block going backwards: done → in_progress or done → pending, in_progress → pending
+                                // Block transitions from completed tasks
                                 if (task.status === 'done') return null;
+                                // Block transitions from pending to done or paused (must start first)
+                                if (task.status === 'pending' && s !== 'in_progress') return null;
+                                // Block transitions from in_progress back to pending
                                 if (task.status === 'in_progress' && s === 'pending') return null;
+                                // Block transitions from paused back to pending
+                                if (task.status === 'paused' && s === 'pending') return null;
                                 return (
                                     <button key={s} onClick={() => setStatus(s)}
                                         className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all duration-150 border
@@ -207,7 +211,7 @@ export default function JobTrackerPage({ params }) {
     const [data, setData]     = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError]   = useState(null);
-    const [tab, setTab]       = useState('tasks');
+    const [tab, setTab]       = useState('active_tasks');
 
     const load = useCallback(async () => {
         try {
@@ -306,8 +310,9 @@ export default function JobTrackerPage({ params }) {
                 <div className="sticky top-0 z-10 backdrop-blur-xl bg-[rgba(7,7,15,0.85)] border-b border-white/[0.07]">
                     <div className="max-w-[620px] mx-auto flex px-5">
                         {[
-                            { key: 'tasks',   label: 'Tasks',   badge: `${done}/${tasks.length}` },
-                            { key: 'details', label: 'Details', badge: items.length },
+                            { key: 'active_tasks',    label: 'Active',    badge: tasks.filter(t => t.status !== 'done').length },
+                            { key: 'completed_tasks', label: 'Completed', badge: tasks.filter(t => t.status === 'done').length },
+                            { key: 'details',         label: 'Details',   badge: items.length },
                         ].map(({ key, label, badge }) => (
                             <button key={key} onClick={() => setTab(key)}
                                 className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all duration-200 border-b-2
@@ -329,17 +334,34 @@ export default function JobTrackerPage({ params }) {
                 {/* ── Content ─────────────────────────────────────────────── */}
                 <div className="max-w-[620px] mx-auto px-5 pt-5 pb-16">
 
-                    {/* Tasks tab */}
-                    {tab === 'tasks' && (
+                    {/* Active Tasks tab */}
+                    {tab === 'active_tasks' && (
                         <>
-                            {tasks.length > 0
-                                ? tasks.map(task => (
+                            {tasks.filter(t => t.status !== 'done').length > 0
+                                ? tasks.filter(t => t.status !== 'done').map(task => (
                                     <TaskItem key={task.id} task={task} orderId={id} onUpdated={handleTaskUpdated} />
                                 ))
                                 : (
                                     <div className="text-center py-12 px-6 bg-white/[0.03] border border-dashed border-white/[0.07] rounded-2xl backdrop-blur-xl">
                                         <div className="text-3xl mb-2.5">📋</div>
-                                        <p className="text-slate-600 text-sm">No tasks assigned yet</p>
+                                        <p className="text-slate-600 text-sm">No active tasks</p>
+                                    </div>
+                                )
+                            }
+                        </>
+                    )}
+
+                    {/* Completed Tasks tab */}
+                    {tab === 'completed_tasks' && (
+                        <>
+                            {tasks.filter(t => t.status === 'done').length > 0
+                                ? tasks.filter(t => t.status === 'done').map(task => (
+                                    <TaskItem key={task.id} task={task} orderId={id} onUpdated={handleTaskUpdated} />
+                                ))
+                                : (
+                                    <div className="text-center py-12 px-6 bg-white/[0.03] border border-dashed border-white/[0.07] rounded-2xl backdrop-blur-xl">
+                                        <div className="text-3xl mb-2.5">✓</div>
+                                        <p className="text-slate-600 text-sm">No completed tasks yet</p>
                                     </div>
                                 )
                             }

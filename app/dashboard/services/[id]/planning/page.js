@@ -25,6 +25,7 @@ const G = {
 const STATUS_CFG = {
     'pending': { label: 'Pending', accent: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
     'in_progress': { label: 'In Progress', accent: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+    'paused': { label: 'Paused', accent: '#f43f5e', bg: 'rgba(244,63,94,0.1)' },
     'done': { label: 'Completed', accent: '#10b981', bg: 'rgba(16,185,129,0.1)' }
 };
 
@@ -164,6 +165,7 @@ function DraggableTaskCard({ task, isDragging, onStatusChange, onViewNote }) {
                     >
                         <option value="pending" style={{ color: STATUS_CFG.pending.accent }}>● Pending</option>
                         <option value="in_progress" style={{ color: STATUS_CFG.in_progress.accent }}>● In Progress</option>
+                        <option value="paused" style={{ color: STATUS_CFG.paused.accent }}>● Paused</option>
                         <option value="done" style={{ color: STATUS_CFG.done.accent }}>● Completed</option>
                     </select>
                 </div>

@@ -19,6 +19,7 @@ import { toast } from 'react-hot-toast';
 const STATUS_CFG = {
     pending: { label: 'Pending', accent: '#f59e0b', bg: '#f59e0b15' },
     in_progress: { label: 'In Progress', accent: '#3b82f6', bg: '#3b82f615' },
+    paused: { label: 'Paused', accent: '#f43f5e', bg: '#f43f5e15' },
     done: { label: 'Completed', accent: '#10b981', bg: '#10b98115' }
 };
 
@@ -282,6 +283,7 @@ export default function EmployeeWorkspacePage({ params }) {
                                                     >
                                                         <option value="pending">● Pending</option>
                                                         <option value="in_progress">● In Progress</option>
+                                                        <option value="paused">● Paused</option>
                                                         <option value="done">● Completed</option>
                                                     </select>
                                                 </td>

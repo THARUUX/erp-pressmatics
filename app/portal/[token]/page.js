@@ -3,7 +3,8 @@ import { use, useEffect, useState } from 'react';
 import {
     FiPhone, FiMail, FiMapPin, FiFileText, FiShoppingCart, FiDollarSign,
     FiExternalLink, FiCheckCircle, FiClock, FiAlertCircle, FiTrendingUp,
-    FiPackage, FiSun, FiMoon, FiInfo, FiMenu, FiX, FiShield, FiSend
+    FiPackage, FiSun, FiMoon, FiInfo, FiMenu, FiX, FiShield, FiSend,
+    FiAward, FiGift, FiStar
 } from 'react-icons/fi';
 
 import { Dock, DockIcon } from '@/components/magicui/dock';
@@ -11,11 +12,13 @@ import { AnimatedThemeToggler } from '@/components/magicui/animated-theme-toggle
 import { TextAnimate } from '@/components/magicui/text-animate';
 import GradualSpacing from '@/components/magicui/gradual-spacing';
 import { SpotlightCard } from '@/components/magicui/spotlight-card';
+import { Toaster, toast } from 'react-hot-toast';
 
 const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const getStatusStyles = (status, isDark) => {
+    const s = (status || '').toLowerCase();
     const darkStyles = {
         paid: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
         partial: 'bg-amber-500/10  text-amber-300  border-amber-500/20',
@@ -26,28 +29,28 @@ const getStatusStyles = (status, isDark) => {
         converted: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
         completed: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
         cancelled: 'bg-red-500/10    text-red-300    border-red-500/20',
-        Delivered: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-        'In Production': 'bg-blue-500/10   text-blue-300   border-blue-500/20',
-        'Ready': 'bg-purple-500/10 text-purple-300  border-purple-500/20',
+        delivered: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+        'in production': 'bg-blue-500/10   text-blue-300   border-blue-500/20',
+        ready: 'bg-purple-500/10 text-purple-300  border-purple-500/20',
     };
 
     const lightStyles = {
-        paid: 'bg-emerald-50 text-emerald-700 border-emerald-250',
-        partial: 'bg-amber-50  text-amber-750  border-amber-250',
-        overdue: 'bg-red-50    text-red-700    border-red-250',
-        pending: 'bg-yellow-50 text-yellow-750 border-yellow-250',
-        draft: 'bg-slate-55  text-slate-550  border-slate-250',
-        sent: 'bg-blue-50   text-blue-700   border-blue-250',
-        converted: 'bg-emerald-50 text-emerald-700 border-emerald-250',
-        completed: 'bg-emerald-50 text-emerald-700 border-emerald-250',
-        cancelled: 'bg-red-50    text-red-700    border-red-250',
-        Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-250',
-        'In Production': 'bg-blue-50   text-blue-750   border-blue-250',
-        'Ready': 'bg-purple-50 text-purple-750  border-purple-250',
+        paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        partial: 'bg-amber-50  text-amber-700  border-amber-200',
+        overdue: 'bg-red-50    text-red-700    border-red-200',
+        pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+        draft: 'bg-slate-50  text-slate-500  border-slate-200',
+        sent: 'bg-blue-50   text-blue-700   border-blue-200',
+        converted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        cancelled: 'bg-red-50    text-red-700    border-red-200',
+        delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'in production': 'bg-blue-50   text-blue-700   border-blue-200',
+        ready: 'bg-purple-50 text-purple-700  border-purple-200',
     };
 
     const styles = isDark ? darkStyles : lightStyles;
-    return styles[status] || styles.draft;
+    return styles[s] || styles.draft;
 };
 
 function Badge({ status, dark }) {
@@ -62,7 +65,8 @@ const TABS = [
     { name: 'Overview', icon: FiTrendingUp },
     { name: 'Invoices', icon: FiFileText },
     { name: 'Orders', icon: FiShoppingCart },
-    { name: 'Quotations', icon: FiSend }
+    { name: 'Quotations', icon: FiSend },
+    { name: 'Loyalty Points', icon: FiAward }
 ];
 
 export default function CustomerPortal({ params }) {
@@ -73,17 +77,33 @@ export default function CustomerPortal({ params }) {
     const [dark, setDark] = useState(true);
     const [mounted, setMounted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [currentPoints, setCurrentPoints] = useState(null);
+    const [redeemedVouchers, setRedeemedVouchers] = useState([]);
 
     useEffect(() => {
         const saved = localStorage.getItem('portal-theme');
-        if (saved) setDark(saved === 'dark');
-        setMounted(true);
+        setTimeout(() => {
+            if (saved) setDark(saved === 'dark');
+            setMounted(true);
+        }, 0);
 
         fetch(`/api/portal/${token}`)
             .then(r => r.json())
-            .then(d => { setData(d); setLoading(false); })
+            .then(d => {
+                setData(d);
+                if (d.customer) {
+                    setCurrentPoints(d.customer.points || 0);
+                }
+                setLoading(false);
+            })
             .catch(() => setLoading(false));
     }, [token]);
+
+    useEffect(() => {
+        if (data && data.brand?.loyalty_enabled === 'false' && tab === 'Loyalty Points') {
+            setTab('Overview');
+        }
+    }, [data, tab]);
 
     const toggleTheme = () => {
         const next = !dark;
@@ -93,37 +113,38 @@ export default function CustomerPortal({ params }) {
 
     if (loading) return (
         <div className="min-h-screen bg-[#07080f] flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-emerald-500/20 border-t-emerald-500 animate-spin" />
         </div>
     );
 
     if (!data || data.error) return (
         <div className="min-h-screen bg-[#07080f] flex flex-col items-center justify-center gap-4 text-center px-4">
             <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center mb-2 shadow-2xl">
-                <FiAlertCircle className="w-7 h-7 text-indigo-400 animate-bounce" />
+                <FiAlertCircle className="w-7 h-7 text-emerald-400 animate-bounce" />
             </div>
             <h2 className="text-white text-xl font-bold">Portal Link Expired or Invalid</h2>
             <p className="text-white/40 text-sm max-w-sm">Please verify the URL you entered, or request your account manager to generate a new portal link.</p>
         </div>
     );
 
-    const { customer, quotations = [], invoices = [], salesOrders = [], stats = {}, brand = {} } = data;
+    const { customer, quotations = [], invoices = [], salesOrders = [], pointsTransactions = [], stats = {}, brand = {} } = data;
     const outstanding = parseFloat(stats.outstanding || 0);
     const totalPaid = parseFloat(stats.total_paid || 0);
     const totalBilled = parseFloat(stats.total_billed || 0);
 
     const d = dark;
+    const activeTabs = brand?.loyalty_enabled === 'false' ? TABS.filter(t => t.name !== 'Loyalty Points') : TABS;
 
     return (
-        <div className={`min-h-screen relative flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 pb-24 md:pb-0 ${d ? 'bg-[#07080f] text-white' : 'bg-[#f4f7fb] text-slate-800'}`}
+        <div className={`min-h-screen relative flex flex-col md:flex-row overflow-x-clip transition-colors duration-500 pb-24 md:pb-0 ${d ? 'bg-[#07080f] text-white' : 'bg-[#f4f7fb] text-slate-800'}`}
             style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.4s' }}>
+            <Toaster position="top-right" reverseOrder={false} />
 
             {/* ── Background decoration (Static Green Linear Gradient) ───────────────────────── */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-                <div className={`absolute inset-0 transition-opacity duration-500 ${
-                    d ? 'bg-gradient-to-br from-emerald-950/10 via-[#07080f] to-teal-950/10'
-                      : 'bg-gradient-to-br from-emerald-100/25 via-[#f4f7fb] to-teal-100/15'
-                }`} />
+                <div className={`absolute inset-0 transition-opacity duration-500 ${d ? 'bg-gradient-to-br from-emerald-950/10 via-[#07080f] to-teal-950/10'
+                        : 'bg-gradient-to-br from-emerald-100/25 via-[#f4f7fb] to-teal-100/15'
+                    }`} />
             </div>
 
             <style>{`
@@ -144,7 +165,7 @@ export default function CustomerPortal({ params }) {
                     {brand.company_logo ? (
                         <img src={brand.company_logo} alt="Logo" className="w-8 h-8 object-contain rounded-lg border border-slate-200/50 p-0.5 bg-white" />
                     ) : (
-                        <div className="w-8 h-8 rounded-lg bg-indigo-650 flex items-center justify-center text-white font-black text-sm">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-sm">
                             {(brand.company_name || 'C')[0]}
                         </div>
                     )}
@@ -167,7 +188,7 @@ export default function CustomerPortal({ params }) {
                             {brand.company_logo ? (
                                 <img src={brand.company_logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl p-1 bg-white border border-slate-100 shadow-sm" />
                             ) : (
-                                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-extrabold text-lg">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-extrabold text-lg">
                                     {(brand.company_name || 'C')[0]}
                                 </div>
                             )}
@@ -184,7 +205,7 @@ export default function CustomerPortal({ params }) {
 
                     {/* Navigation list (as fallback, but primary is the bottom Dock) */}
                     <nav className="p-4 space-y-1.5 mt-4">
-                        {TABS.map((t) => {
+                        {activeTabs.map((t) => {
                             let count = 0;
                             if (t.name === 'Invoices') count = invoices.length;
                             else if (t.name === 'Orders') count = salesOrders.length;
@@ -197,7 +218,7 @@ export default function CustomerPortal({ params }) {
                                     key={t.name}
                                     onClick={() => { setTab(t.name); setSidebarOpen(false); }}
                                     className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all hover-pulse ${isActive
-                                        ? (d ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20' : 'bg-indigo-50 text-indigo-700 border border-indigo-100')
+                                        ? (d ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-100')
                                         : `border border-transparent ${d ? 'text-white/60 hover:text-white hover:bg-white/[0.03]' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'}`
                                         }`}
                                 >
@@ -207,7 +228,7 @@ export default function CustomerPortal({ params }) {
                                     </span>
                                     {t.name !== 'Overview' && count > 0 && (
                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isActive
-                                            ? (d ? 'bg-indigo-400/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700')
+                                            ? (d ? 'bg-emerald-400/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
                                             : `${d ? 'bg-white/[0.05] text-white/35' : 'bg-slate-100 text-slate-400'}`
                                             }`}>
                                             {count}
@@ -249,7 +270,7 @@ export default function CustomerPortal({ params }) {
             <main className="flex-1 min-w-0 z-10 flex flex-col min-h-screen">
 
                 {/* Desktop Topbar */}
-                <header className={`hidden md:flex items-center justify-between px-8 py-5 border-b backdrop-blur-md transition-colors ${d ? 'bg-[#07080f]/50 border-white/[0.06]' : 'bg-[#f4f7fb]/60 border-slate-200'
+                <header className={`hidden md:flex sticky top-0 z-20 items-center justify-between px-8 py-5 border-b backdrop-blur-md transition-colors ${d ? 'bg-[#07080f]/50 border-white/[0.06]' : 'bg-[#f4f7fb]/60 border-slate-200'
                     }`}>
                     <h1 className={`text-xl font-black tracking-tight ${d ? 'text-white' : 'text-slate-800'}`}>
                         {tab}
@@ -282,6 +303,44 @@ export default function CustomerPortal({ params }) {
                         </h2>
                     </div>
 
+                    {/* Horizontal tab headers (Overview, Invoices, Orders, Quotations) */}
+                    {/* <div className={`flex items-center gap-1.5 p-1 rounded-2xl border backdrop-blur-md overflow-x-auto scrollbar-none ${
+                        d ? 'bg-[#090b14]/65 border-white/[0.07]' : 'bg-white/80 border-slate-200 shadow-sm'
+                    }`}>
+                        {TABS.map((t) => {
+                            let count = 0;
+                            if (t.name === 'Invoices') count = invoices.length;
+                            else if (t.name === 'Orders') count = salesOrders.length;
+                            else if (t.name === 'Quotations') count = quotations.length;
+
+                            const isActive = tab === t.name;
+
+                            return (
+                                <button
+                                    key={t.name}
+                                    onClick={() => setTab(t.name)}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                        isActive
+                                            ? (d ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-100')
+                                            : `${d ? 'text-white/60 hover:text-white hover:bg-white/[0.02]' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'}`
+                                    }`}
+                                >
+                                    <t.icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : ''}`} />
+                                    <span>{t.name}</span>
+                                    {t.name !== 'Overview' && count > 0 && (
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                            isActive
+                                                ? (d ? 'bg-emerald-400/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
+                                                : `${d ? 'bg-white/[0.05] text-white/35' : 'bg-slate-100 text-slate-400'}`
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div> */}
+
                     {/* Financial Outstanding Glass Card */}
                     {outstanding > 0 && (
                         <SpotlightCard
@@ -302,7 +361,7 @@ export default function CustomerPortal({ params }) {
                                 {brand.company_email && (
                                     <a
                                         href={`mailto:${brand.company_email}?subject=Payment Details Request - ${customer.name}`}
-                                        className="inline-flex items-center justify-center font-bold text-xs bg-amber-550 hover:bg-amber-600 dark:bg-amber-450 dark:hover:bg-amber-350 text-black px-5 py-3 rounded-2xl transition-all shadow-md active:scale-98 shrink-0 text-center"
+                                        className="inline-flex items-center justify-center font-bold text-xs bg-amber-500 hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-400 text-black px-5 py-3 rounded-2xl transition-all shadow-md active:scale-98 shrink-0 text-center"
                                     >
                                         Request Bank Details
                                     </a>
@@ -312,11 +371,12 @@ export default function CustomerPortal({ params }) {
                     )}
 
                     {/* Key Metrics Grid */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         {[
                             { label: 'Total Invoiced', value: fmt(totalBilled), icon: FiTrendingUp, colorClass: d ? 'text-white/80' : 'text-slate-700' },
-                            { label: 'Total Settled', value: fmt(totalPaid), icon: FiCheckCircle, colorClass: 'text-emerald-500 dark:text-emerald-450' },
-                            { label: 'Pending Orders', value: salesOrders.filter(so => so.status !== 'Delivered').length, icon: FiShoppingCart, colorClass: 'text-indigo-500 dark:text-indigo-400' },
+                            { label: 'Total Settled', value: fmt(totalPaid), icon: FiCheckCircle, colorClass: 'text-emerald-500 dark:text-emerald-400' },
+                            { label: 'Loyalty Points', value: currentPoints !== null ? currentPoints : (customer.points || 0), icon: FiAward, colorClass: 'text-amber-500 dark:text-amber-400' },
+                            { label: 'Pending Orders', value: salesOrders.filter(so => so.status !== 'Delivered').length, icon: FiShoppingCart, colorClass: 'text-blue-500 dark:text-blue-400' },
                             { label: 'Quotes Requested', value: stats.total_quotes || 0, icon: FiFileText, colorClass: 'text-purple-600 dark:text-purple-400' }
                         ].map((item, idx) => (
                             <SpotlightCard
@@ -325,9 +385,10 @@ export default function CustomerPortal({ params }) {
                                 className="hover:-translate-y-1 transition-all duration-300"
                                 spotlightColor={
                                     idx === 1 ? (d ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.08)") : // Emerald for Settled
-                                    idx === 2 ? (d ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.08)") : // Indigo for Orders
-                                    idx === 3 ? (d ? "rgba(168, 85, 247, 0.15)" : "rgba(168, 85, 247, 0.08)") : // Purple for Quotes
-                                    undefined // default
+                                    idx === 2 ? (d ? "rgba(245, 158, 11, 0.15)" : "rgba(245, 158, 11, 0.08)") : // Amber for Points
+                                    idx === 3 ? (d ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.08)") : // Indigo for Orders
+                                    idx === 4 ? (d ? "rgba(168, 85, 247, 0.15)" : "rgba(168, 85, 247, 0.08)") : // Purple for Quotes
+                                                undefined // default
                                 }
                             >
                                 <div className="p-4 hover-spin">
@@ -335,7 +396,7 @@ export default function CustomerPortal({ params }) {
                                         <item.icon className={`w-4.5 h-4.5 ${item.colorClass} opacity-80`} />
                                     </div>
                                     <p className={`text-xl font-bold font-mono ${item.colorClass}`}>{item.value}</p>
-                                    <p className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 ${d ? 'text-white/35' : 'text-slate-450'}`}>{item.label}</p>
+                                    <p className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 ${d ? 'text-white/35' : 'text-slate-400'}`}>{item.label}</p>
                                 </div>
                             </SpotlightCard>
                         ))}
@@ -348,17 +409,24 @@ export default function CustomerPortal({ params }) {
                             {/* OVERVIEW CONTENT */}
                             {tab === 'Overview' && (
                                 <div className="space-y-6">
+                                    <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
+                                        <h3 className={`text-lg font-black flex items-center gap-2.5 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                            <FiTrendingUp className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                                            Overview
+                                        </h3>
+                                        <p className={`text-xs mt-1 font-medium ${d ? 'text-white/40' : 'text-slate-400'}`}>Key metrics and recent account activity.</p>
+                                    </div>
                                     {/* Brand Support Banner */}
-                                    <div className={`rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${d ? 'bg-indigo-500/[0.02] border-indigo-500/10' : 'bg-indigo-50/20 border-indigo-100/60'
+                                    <div className={`rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${d ? 'bg-emerald-500/[0.02] border-emerald-500/10' : 'bg-emerald-50/20 border-emerald-100/60'
                                         }`}>
                                         <div className="flex items-center gap-3">
-                                            <FiInfo className="w-5 h-5 text-indigo-650 dark:text-indigo-400 shrink-0" />
+                                            <FiInfo className="w-5 h-5 text-emerald-650 dark:text-emerald-400 shrink-0" />
                                             <p className={`text-xs font-semibold leading-relaxed ${d ? 'text-white/70' : 'text-slate-700'}`}>
                                                 Need help or have questions about your invoices or order status?
                                             </p>
                                         </div>
                                         {brand.company_phone && (
-                                            <a href={`tel:${brand.company_phone}`} className={`shrink-0 text-xs font-extrabold transition-all hover:underline ${d ? 'text-indigo-455' : 'text-indigo-650'}`}>
+                                            <a href={`tel:${brand.company_phone}`} className={`shrink-0 text-xs font-extrabold transition-all hover:underline ${d ? 'text-emerald-450' : 'text-emerald-600'}`}>
                                                 Call Support →
                                             </a>
                                         )}
@@ -387,8 +455,8 @@ export default function CustomerPortal({ params }) {
                                                                 href={`/timeline/${so.order_id}`}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/55 text-indigo-300 hover:bg-indigo-500/25'
-                                                                    : 'bg-indigo-50/60 border-indigo-200 hover:border-indigo-355 text-indigo-750 hover:bg-indigo-50/90'
+                                                                className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/25'
+                                                                    : 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-300 text-emerald-700 hover:bg-emerald-50/90'
                                                                     }`}
                                                             >
                                                                 <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -438,7 +506,14 @@ export default function CustomerPortal({ params }) {
 
                             {/* INVOICES CONTENT */}
                             {tab === 'Invoices' && (
-                                <div className="space-y-3">
+                                <div className="space-y-5">
+                                    <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
+                                        <h3 className={`text-lg font-black flex items-center gap-2.5 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                            <FiFileText className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                                            Invoices
+                                        </h3>
+                                        <p className={`text-xs mt-1 font-medium ${d ? 'text-white/40' : 'text-slate-400'}`}>View billing history, outstanding balances, and payment records.</p>
+                                    </div>
                                     {invoices.length === 0 ? (
                                         <p className="text-center py-8 opacity-40 text-sm">No invoice history available.</p>
                                     ) : (
@@ -463,7 +538,7 @@ export default function CustomerPortal({ params }) {
                                                     </div>
                                                     <div>
                                                         <p className={`text-[9px] font-extrabold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Paid</p>
-                                                        <p className="text-sm font-mono font-bold text-emerald-555 dark:text-emerald-400 mt-0.5">{fmt(inv.amount_paid)}</p>
+                                                        <p className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{fmt(inv.amount_paid)}</p>
                                                     </div>
                                                     <div>
                                                         <p className={`text-[9px] font-extrabold uppercase tracking-wider ${d ? 'text-white/30' : 'text-slate-450'}`}>Balance</p>
@@ -485,7 +560,14 @@ export default function CustomerPortal({ params }) {
 
                             {/* ORDERS CONTENT */}
                             {tab === 'Orders' && (
-                                <div className="space-y-3">
+                                <div className="space-y-5">
+                                    <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
+                                        <h3 className={`text-lg font-black flex items-center gap-2.5 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                            <FiShoppingCart className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                                            Orders
+                                        </h3>
+                                        <p className={`text-xs mt-1 font-medium ${d ? 'text-white/40' : 'text-slate-400'}`}>Track progress and delivery status of your print orders.</p>
+                                    </div>
                                     {salesOrders.length === 0 ? (
                                         <p className="text-center py-8 opacity-40 text-sm">No order records.</p>
                                     ) : (
@@ -506,8 +588,8 @@ export default function CustomerPortal({ params }) {
                                                             href={`/timeline/${so.order_id}`}
                                                             target="_blank"
                                                             rel="noreferrer"
-                                                            className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-indigo-500/10 border-indigo-500/30 hover:border-indigo-500/55 text-indigo-300 hover:bg-indigo-500/25'
-                                                                : 'bg-indigo-50/60 border-indigo-200 hover:border-indigo-350 text-indigo-750 hover:bg-indigo-50/90'
+                                                            className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${d ? 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/25'
+                                                                : 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-300 text-emerald-700 hover:bg-emerald-50/90'
                                                                 }`}
                                                         >
                                                             <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -537,7 +619,14 @@ export default function CustomerPortal({ params }) {
 
                             {/* QUOTATIONS CONTENT */}
                             {tab === 'Quotations' && (
-                                <div className="space-y-3">
+                                <div className="space-y-5">
+                                    <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
+                                        <h3 className={`text-lg font-black flex items-center gap-2.5 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                            <FiSend className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                                            Quotations
+                                        </h3>
+                                        <p className={`text-xs mt-1 font-medium ${d ? 'text-white/40' : 'text-slate-400'}`}>Review requested estimations and pricing quotations.</p>
+                                    </div>
                                     {quotations.length === 0 ? (
                                         <p className="text-center py-8 opacity-40 text-sm">No estimation or quotation history.</p>
                                     ) : (
@@ -561,6 +650,260 @@ export default function CustomerPortal({ params }) {
                                     )}
                                 </div>
                             )}
+
+                             {/* LOYALTY POINTS CONTENT */}
+                            {tab === 'Loyalty Points' && (() => {
+                                const pts = currentPoints !== null ? currentPoints : (customer.points || 0);
+                                
+                                // Dynamic tier logic
+                                const getTierDetails = (p) => {
+                                    if (p < 1000) {
+                                        return { name: 'Bronze', color: 'text-orange-400 border-orange-500/20 bg-orange-500/10', next: 1000, nextTier: 'Silver', prev: 0 };
+                                    } else if (p < 2500) {
+                                        return { name: 'Silver', color: 'text-slate-300 border-slate-500/20 bg-slate-500/10', next: 2500, nextTier: 'Gold', prev: 1000 };
+                                    } else if (p < 5000) {
+                                        return { name: 'Gold', color: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10', next: 5000, nextTier: 'Platinum', prev: 2500 };
+                                    } else {
+                                        return { name: 'Platinum', color: 'text-purple-400 border-purple-500/20 bg-purple-500/10', next: null, nextTier: null, prev: 5000 };
+                                    }
+                                };
+                                
+                                const tier = getTierDetails(pts);
+                                const progressPercent = tier.next 
+                                    ? Math.min(100, Math.max(0, ((pts - tier.prev) / (tier.next - tier.prev)) * 100))
+                                    : 100;
+
+                                const REWARDS = (() => {
+                                    try {
+                                        return brand?.loyalty_rewards ? JSON.parse(brand.loyalty_rewards) : [
+                                            { id: 'v5', title: '5% Off Voucher', cost: 500, desc: 'Receive a 5% discount code valid for your next print order.' },
+                                            { id: 'v10', title: '10% Off Voucher', cost: 1000, desc: 'Receive a 10% discount code valid for your next print order.' },
+                                            { id: 'v20', title: '20% Off Voucher', cost: 1800, desc: 'Receive a 20% discount code valid for your next print order.' },
+                                            { id: 'vfree', title: 'Free Delivery', cost: 300, desc: 'Waive the shipping/handling fee on your next print delivery.' }
+                                        ];
+                                    } catch (e) {
+                                        return [];
+                                    }
+                                })();
+
+                                const handleRedeem = (reward) => {
+                                    if (pts < reward.cost) {
+                                        toast.error('Insufficient points to redeem this reward!');
+                                        return;
+                                    }
+                                    const codePrefix = reward.title.replace(/[^A-Za-z0-9]/g, '').substring(0, 6).toUpperCase() || 'VCHR';
+                                    const code = `LOYAL-${codePrefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+                                    setCurrentPoints(prev => prev - reward.cost);
+                                    setRedeemedVouchers(prev => [
+                                        { code, title: reward.title, cost: reward.cost, date: new Date().toISOString() },
+                                        ...prev
+                                    ]);
+                                    toast.success(`Redeemed successfully! Use code: ${code}`, { duration: 6000 });
+                                };
+
+                                return (
+                                    <div className="space-y-6">
+                                        {/* Header */}
+                                        <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
+                                            <h3 className={`text-lg font-black flex items-center gap-2.5 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                                <FiAward className="w-5 h-5 text-emerald-500" />
+                                                Loyalty & Rewards Program
+                                            </h3>
+                                            <p className={`text-xs mt-1 font-medium ${d ? 'text-white/40' : 'text-slate-400'}`}>Earn points on print orders and redeem them for discount vouchers.</p>
+                                        </div>
+
+                                        {/* Status and Progress */}
+                                        <div className={`grid md:grid-cols-3 gap-5 p-5 rounded-2xl border ${d ? 'bg-white/[0.01] border-white/[0.05]' : 'bg-slate-50 border-slate-200/60'}`}>
+                                            {/* Column 1: Current Points */}
+                                            <div className="flex flex-col justify-center items-center text-center p-3 border-b md:border-b-0 md:border-r border-slate-200/50 dark:border-white/5">
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-white/40' : 'text-slate-400'}`}>Total Balance</span>
+                                                <h1 className="text-5xl font-black text-emerald-500 mt-2 font-mono">{pts}</h1>
+                                                <span className={`text-xs font-semibold mt-1 ${d ? 'text-white/50' : 'text-slate-500'}`}>Available Points</span>
+                                            </div>
+
+                                            {/* Column 2: Current Tier */}
+                                            <div className="flex flex-col justify-center items-center text-center p-3 border-b md:border-b-0 md:border-r border-slate-200/50 dark:border-white/5">
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-white/40' : 'text-slate-400'}`}>Membership Level</span>
+                                                <div className={`inline-flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-wider px-4 py-2 rounded-xl border mt-3.5 shadow-sm ${tier.color}`}>
+                                                    <FiStar className="w-4 h-4 fill-current" />
+                                                    {tier.name}
+                                                </div>
+                                                <span className={`text-[10px] font-bold mt-2 ${d ? 'text-white/30' : 'text-slate-400'}`}>Pressmatics VIP Club</span>
+                                            </div>
+
+                                            {/* Column 3: Progress to next level */}
+                                            <div className="flex flex-col justify-center p-3">
+                                                {tier.next ? (
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-end">
+                                                            <span className={`text-[10px] font-bold uppercase tracking-widest ${d ? 'text-white/40' : 'text-slate-400'}`}>Next Level Progress</span>
+                                                            <span className="text-xs font-mono font-bold text-emerald-500">{Math.round(progressPercent)}%</span>
+                                                        </div>
+                                                        <div className={`h-2.5 rounded-full overflow-hidden ${d ? 'bg-white/[0.05]' : 'bg-slate-200'}`}>
+                                                            <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                                        </div>
+                                                        <p className={`text-[10px] font-semibold leading-relaxed ${d ? 'text-white/45' : 'text-slate-500'}`}>
+                                                            Earn <span className="font-mono text-emerald-500 font-bold">{tier.next - pts}</span> more points to reach <span className="font-bold text-emerald-400">{tier.nextTier}</span> tier.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <span className="text-3xl">👑</span>
+                                                        <h4 className="text-sm font-bold text-purple-400 mt-2">Maximum Level Reached</h4>
+                                                        <p className="text-[10px] text-white/40 mt-1">Enjoy elite benefits and high-value rewards.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* How to Earn Points Section */}
+                                        <div className={`p-5 rounded-2xl border ${d ? 'bg-emerald-500/[0.02] border-emerald-500/10' : 'bg-emerald-50/20 border-emerald-100/60'}`}>
+                                            <h4 className={`text-sm font-bold flex items-center gap-2 mb-3 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                                <FiInfo className="w-4 h-4 text-emerald-500" />
+                                                How to Earn Points
+                                            </h4>
+                                            <div className="grid sm:grid-cols-3 gap-5 text-xs">
+                                                <div className="space-y-1">
+                                                    <p className={`font-extrabold ${d ? 'text-emerald-400' : 'text-emerald-700'}`}>1. Settled Orders</p>
+                                                    <p className={`leading-relaxed opacity-70`}>Earn 1 point for every 100 LKR settled on printing, packaging, or publication orders.</p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className={`font-extrabold ${d ? 'text-emerald-400' : 'text-emerald-700'}`}>2. Early Settlements</p>
+                                                    <p className={`leading-relaxed opacity-70`}>Get a 10% bonus points multiplier when invoice balances are cleared within 7 days of issue.</p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className={`font-extrabold ${d ? 'text-emerald-400' : 'text-emerald-700'}`}>3. Setup Bonus</p>
+                                                    <p className={`leading-relaxed opacity-70`}>Get a one-time 200 points welcome bonus when your customer portal registration is finalized.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Redeemable Rewards Grid */}
+                                        <div>
+                                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${d ? 'text-white/35' : 'text-slate-400'}`}>Available Rewards</p>
+                                            <div className="grid sm:grid-cols-2 gap-4">
+                                                {REWARDS.map((reward) => {
+                                                    const canAfford = pts >= reward.cost;
+                                                    return (
+                                                        <div 
+                                                            key={reward.id} 
+                                                            className={`rounded-2xl p-4 border flex flex-col justify-between transition-all duration-300 ${
+                                                                canAfford 
+                                                                    ? (d ? 'bg-emerald-500/[0.01] border-emerald-500/10 hover:bg-emerald-500/[0.03] hover:border-emerald-500/25' : 'bg-emerald-50/10 border-emerald-200/50 hover:bg-emerald-50/20 hover:border-emerald-300')
+                                                                    : (d ? 'bg-white/[0.005] border-white/[0.03] opacity-60' : 'bg-slate-50/50 border-slate-200 opacity-60')
+                                                            }`}
+                                                        >
+                                                            <div>
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <h4 className={`text-sm font-bold flex items-center gap-2 ${d ? 'text-white' : 'text-slate-800'}`}>
+                                                                        <FiGift className={canAfford ? 'text-emerald-500' : 'text-slate-400'} />
+                                                                        {reward.title}
+                                                                    </h4>
+                                                                    <span className="text-xs font-mono font-extrabold bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2 py-0.5 rounded-lg shrink-0">
+                                                                        {reward.cost} pts
+                                                                    </span>
+                                                                </div>
+                                                                <p className={`text-xs mt-2 leading-relaxed ${d ? 'text-white/50' : 'text-slate-500'}`}>
+                                                                    {reward.desc}
+                                                                </p>
+                                                            </div>
+                                                            <div className="mt-4 pt-3 border-t border-slate-200/30 dark:border-white/5 flex justify-end">
+                                                                <button
+                                                                    onClick={() => handleRedeem(reward)}
+                                                                    disabled={!canAfford}
+                                                                    className={`px-4 py-2 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                                                                        canAfford
+                                                                            ? 'bg-emerald-500 hover:bg-emerald-600 text-black shadow-md hover:-translate-y-0.5 active:translate-y-0'
+                                                                            : 'bg-slate-500/10 text-slate-400/60 border border-slate-500/10 cursor-not-allowed'
+                                                                    }`}
+                                                                >
+                                                                    Redeem Reward
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* My Redeemed Vouchers */}
+                                        {redeemedVouchers.length > 0 && (
+                                            <div>
+                                                <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 text-emerald-500`}>Active Redeemed Vouchers</p>
+                                                <div className="space-y-2">
+                                                    {redeemedVouchers.map((v) => (
+                                                        <div 
+                                                            key={v.code} 
+                                                            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl px-4 py-3.5 border border-emerald-500/20 bg-emerald-500/[0.02]`}
+                                                        >
+                                                            <div>
+                                                                <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">{v.title}</span>
+                                                                <p className={`text-[10px] mt-0.5 ${d ? 'text-white/40' : 'text-slate-400'}`}>Redeemed on {new Date(v.date).toLocaleDateString()}</p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-mono font-bold bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-emerald-300 select-all">
+                                                                    {v.code}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(v.code);
+                                                                        toast.success('Code copied to clipboard!');
+                                                                    }}
+                                                                    className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-xl transition-all cursor-pointer"
+                                                                    title="Copy Code"
+                                                                >
+                                                                    <FiExternalLink className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Points Ledger / Transactions */}
+                                        <div>
+                                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-3 ${d ? 'text-white/35' : 'text-slate-400'}`}>Points Transaction History</p>
+                                            {pointsTransactions.length === 0 ? (
+                                                <p className="text-sm italic opacity-50 py-2">No loyalty points history found.</p>
+                                            ) : (
+                                                <div className={`border rounded-2xl overflow-hidden ${d ? 'border-white/[0.05]' : 'border-slate-200/80'}`}>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left text-xs border-collapse">
+                                                            <thead>
+                                                                <tr className={`${d ? 'bg-white/[0.01] border-b border-white/[0.04]' : 'bg-slate-50 border-b border-slate-200'}`}>
+                                                                    <th className="p-3 font-bold uppercase tracking-wider text-[10px] opacity-60">Date</th>
+                                                                    <th className="p-3 font-bold uppercase tracking-wider text-[10px] opacity-60">Description</th>
+                                                                    <th className="p-3 font-bold uppercase tracking-wider text-[10px] opacity-60">Ref</th>
+                                                                    <th className="p-3 font-bold uppercase tracking-wider text-[10px] opacity-60 text-right">Points</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {pointsTransactions.map((tx, idx) => {
+                                                                    const isEarn = tx.points > 0;
+                                                                    return (
+                                                                        <tr 
+                                                                            key={idx} 
+                                                                            className={`border-b last:border-0 ${d ? 'border-white/[0.03] hover:bg-white/[0.01]' : 'border-slate-100 hover:bg-slate-50/50'}`}
+                                                                        >
+                                                                            <td className="p-3 opacity-80">{fmtDate(tx.created_at)}</td>
+                                                                            <td className="p-3 font-semibold">{tx.description}</td>
+                                                                            <td className="p-3 font-mono opacity-60">{tx.reference_id || '—'}</td>
+                                                                            <td className={`p-3 font-mono font-bold text-right ${isEarn ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                                {isEarn ? `+${tx.points}` : tx.points}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </SpotlightCard>
 
@@ -615,21 +958,21 @@ export default function CustomerPortal({ params }) {
                     iconDistance={120}
                     className={d ? ' border-white/[0.09] shadow-black/50 shadow-2xl' : ' border-slate-200/90 shadow-xl'}
                 >
-                    {TABS.map((t) => {
+                    {activeTabs.map((t) => {
                         const isActive = tab === t.name;
                         return (
                             <div key={t.name} className="relative group">
                                 <DockIcon
                                     onClick={() => setTab(t.name)}
                                     className={`relative ${isActive
-                                        ? (d ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300' : 'bg-indigo-50 border-indigo-200 text-indigo-700')
+                                        ? (d ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700')
                                         : (d ? 'text-white/60 hover:text-white' : 'text-slate-500 hover:text-slate-900')
                                         }`}
                                 >
                                     <t.icon className="w-5 h-5 shrink-0" />
                                     {/* Active dot indicator */}
                                     {isActive && (
-                                        <span className="absolute bottom-1 w-1 h-1 rounded-full bg-indigo-500 dark:bg-indigo-400" />
+                                        <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                                     )}
                                 </DockIcon>
                                 {/* Tooltip */}

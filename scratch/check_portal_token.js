@@ -1,42 +1,33 @@
-import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-/**
- * GET /api/portal/[token]
- * Public endpoint — look up customer by portal_token and return all relevant data.
- * Never exposes internal customer ID.
- */
-export async function GET(req, { params }) {
+async function run() {
+    const pool = mysql.createPool({
+        host: process.env.DB_HOST,
+        port: parseInt(process.env.DB_PORT || '4000', 10),
+        user: process.env.DB_USERNAME,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_DATABASE,
+        ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
+        waitForConnections: true, connectionLimit: 3, queueLimit: 0
+    });
+
+    const token = '2de7aef9464b6d8a2c3db3eb27899bb6c97dcad656d715140092c48118c1ef09';
     try {
-        const { token } = await params;
-        if (!token || token.length < 32) {
-            return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
-        }
-
-        // Resolve customer from token (never select id directly to public)
         const [[customer]] = await pool.execute(
             `SELECT id, name, email, phone, address, category, is_vat, vat_number,
-                    contact_name, contact_role, contact_email, contact_phone, created_at, points
+                    contact_name, contact_role, contact_email, contact_phone, created_at
              FROM customers WHERE portal_token = ?`,
             [token]
         );
         if (!customer) {
-            return NextResponse.json({ error: 'Portal not found' }, { status: 404 });
+            console.log('Customer not found for token:', token);
+            process.exit(0);
         }
+        console.log('Customer found:', customer);
 
         const customerId = customer.id;
-        // Don't expose the internal ID in the response
-        delete customer.id;
 
-        // ── Points Transactions ─────────────────────────────────────────────
-        const [pointsTransactions] = await pool.execute(`
-            SELECT points, type, reference_id, description, created_at
-            FROM customer_points_transactions
-            WHERE customer_id = ?
-            ORDER BY created_at DESC
-        `, [customerId]);
-
-        // ── Quotations ─────────────────────────────────────────────────────
         const [quotations] = await pool.execute(`
             SELECT q.code, q.status, q.total_amount, q.quotation_date,
                 (SELECT qi.estimation_name
@@ -50,7 +41,8 @@ export async function GET(req, { params }) {
             LIMIT 30
         `, [customerId, customer.name]);
 
-        // ── Invoices ───────────────────────────────────────────────────────
+        console.log('Quotations:', quotations.length, quotations.slice(0, 3));
+
         const [invoices] = await pool.execute(`
             SELECT i.code, i.status, i.amount_due, i.amount_paid,
                    (i.amount_due - i.amount_paid) AS balance,
@@ -63,7 +55,8 @@ export async function GET(req, { params }) {
             LIMIT 50
         `, [customerId, customer.name]);
 
-        // ── Sales Orders ───────────────────────────────────────────────────
+        console.log('Invoices:', invoices.length, invoices.slice(0, 3));
+
         const [salesOrders] = await pool.execute(`
             SELECT so.id AS order_id, so.code, so.status, so.delivery_date, so.created_at,
                    q.code AS quotation_code, q.total_amount,
@@ -78,7 +71,8 @@ export async function GET(req, { params }) {
             LIMIT 30
         `, [customerId, customer.name]);
 
-        // ── Stats ──────────────────────────────────────────────────────────
+        console.log('Sales Orders:', salesOrders.length, salesOrders.slice(0, 3));
+
         const [[invStats]] = await pool.execute(`
             SELECT
                 COALESCE(SUM(amount_paid), 0) AS total_paid,
@@ -89,6 +83,8 @@ export async function GET(req, { params }) {
             WHERE customer_id = ? OR (customer_id IS NULL AND customer_name = ?)
         `, [customerId, customer.name]);
 
+        console.log('InvStats:', invStats);
+
         const [[qStats]] = await pool.execute(`
             SELECT COUNT(*) AS total_quotes,
                    COUNT(CASE WHEN status = 'converted' THEN 1 END) AS converted_count
@@ -96,29 +92,13 @@ export async function GET(req, { params }) {
             WHERE customer_id = ? OR (customer_id IS NULL AND customer_name = ?)
         `, [customerId, customer.name]);
 
-        // ── Company Branding & Loyalty Config ──────────────────────────────
-        const [settingRows] = await pool.execute(
-            `SELECT setting_key, setting_value FROM settings
-             WHERE setting_key IN ('company_name','company_logo','company_address','company_tagline','company_phone','company_email','loyalty_enabled','loyalty_rewards')`
-        );
-        const brand = {};
-        settingRows.forEach(r => { brand[r.setting_key] = r.setting_value; });
-
-        return NextResponse.json({
-            customer,
-            quotations,
-            invoices,
-            salesOrders,
-            pointsTransactions,
-            stats: {
-                ...invStats,
-                ...qStats,
-                sales_order_count: salesOrders.length,
-            },
-            brand,
-        });
+        console.log('QStats:', qStats);
+        
+        process.exit(0);
     } catch (err) {
-        console.error('[portal GET]', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        console.error('Failed:', err);
+        process.exit(1);
     }
 }
+
+run();

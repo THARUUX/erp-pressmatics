@@ -725,28 +725,36 @@ export default function EstimationComponentForm({
                                                     {papers.filter(p => {
                                                         const pType = (p.type || '').toUpperCase();
                                                         return pType !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                    }).map(p => (
-                                                        <li key={p.id} onClick={() => {
-                                                            const machine = machines.find(m => m.id == params.machineId);
-                                                            const factor = machine ? parseFloat(machine.sheet_factor) : null;
-                                                            const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
-                                                            onChange(index, 'params', {
-                                                                ...params,
-                                                                paperCostPerSheet: p.unit_cost,
-                                                                paperId: p.id,
-                                                                paperName: p.name,
-                                                                paperWidthCm: p.width_cm || 0,
-                                                                paperHeightCm: p.height_cm || 0,
-                                                                cutWidthCm: cutDims.width,
-                                                                cutHeightCm: cutDims.height,
-                                                            });
-                                                            setPaperSearch(p.name);
-                                                            setShowPaperSuggestions(false);
-                                                        }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
-                                                            <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}×${p.height_cm}cm)` : ''}</span>
-                                                            <span className="text-gray-400">{currency}{parseFloat(p.unit_cost).toFixed(4)}/sheet</span>
-                                                        </li>
-                                                    ))}
+                                                    }).map(p => {
+                                                        const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
+                                                        return (
+                                                            <li key={p.id} onClick={() => {
+                                                                const machine = machines.find(m => m.id == params.machineId);
+                                                                const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                                                                const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
+                                                                onChange(index, 'params', {
+                                                                    ...params,
+                                                                    paperCostPerSheet: p.unit_cost,
+                                                                    paperId: p.id,
+                                                                    paperName: p.name,
+                                                                    paperWidthCm: p.width_cm || 0,
+                                                                    paperHeightCm: p.height_cm || 0,
+                                                                    cutWidthCm: cutDims.width,
+                                                                    cutHeightCm: cutDims.height,
+                                                                });
+                                                                setPaperSearch(p.name);
+                                                                setShowPaperSuggestions(false);
+                                                            }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
+                                                                <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}×${p.height_cm}cm)` : ''}</span>
+                                                                <span className="group-hover:opacity-0 transition-opacity text-gray-400">{currency}{parseFloat(p.unit_cost).toFixed(4)}/sheet</span>
+                                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
+                                                                    <span className="text-gray-400 text-[10px]">Stock:</span>
+                                                                    <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
+                                                                    {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
+                                                                </div>
+                                                            </li>
+                                                        );
+                                                    })}
                                                     {papers.filter(p => (p.type || '').toUpperCase() !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase())).length === 0 && (
                                                         <li className="px-4 py-3 text-gray-500 text-sm italic">No offset papers found</li>
                                                     )}
@@ -945,23 +953,31 @@ export default function EstimationComponentForm({
                                                         {papers.filter(p => {
                                                             const pType = (p.type || '').toUpperCase();
                                                             return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                        }).map(p => (
-                                                            <li key={p.id} onClick={() => {
-                                                                onChange(index, 'params', {
-                                                                    ...params,
-                                                                    paperCostPerSheet: p.unit_cost,
-                                                                    paperId: p.id,
-                                                                    paperName: p.name,
-                                                                    paperWidthCm: p.width_cm || 0,
-                                                                    paperHeightCm: p.height_cm || 0
-                                                                });
-                                                                setPaperSearch(p.name);
-                                                                setShowPaperSuggestions(false);
-                                                            }} className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between">
-                                                                <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span>
-                                                                <span>{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
-                                                            </li>
-                                                        ))}
+                                                        }).map(p => {
+                                                            const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
+                                                            return (
+                                                                <li key={p.id} onClick={() => {
+                                                                    onChange(index, 'params', {
+                                                                        ...params,
+                                                                        paperCostPerSheet: p.unit_cost,
+                                                                        paperId: p.id,
+                                                                        paperName: p.name,
+                                                                        paperWidthCm: p.width_cm || 0,
+                                                                        paperHeightCm: p.height_cm || 0
+                                                                    });
+                                                                    setPaperSearch(p.name);
+                                                                    setShowPaperSuggestions(false);
+                                                                }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
+                                                                    <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span>
+                                                                    <span className="group-hover:opacity-0 transition-opacity">{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
+                                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
+                                                                        <span className="text-gray-400 text-[10px]">Stock:</span>
+                                                                        <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
+                                                                        {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
+                                                                    </div>
+                                                                </li>
+                                                            );
+                                                        })}
                                                     </ul>
                                                 )}
                                             </div>

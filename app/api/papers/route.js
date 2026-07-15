@@ -13,11 +13,11 @@ export async function GET() {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, type, cost_per_sheet, stock_quantity } = body;
+        const { name, type, cost_per_sheet, stock_quantity, min_stock } = body;
 
         const [result] = await pool.execute(
-            'INSERT INTO papers (name, type, cost_per_sheet, stock_quantity) VALUES (?, ?, ?, ?)',
-            [name, type, cost_per_sheet || 0, stock_quantity || 0]
+            'INSERT INTO papers (name, type, cost_per_sheet, stock_quantity, min_stock) VALUES (?, ?, ?, ?, ?)',
+            [name, type, cost_per_sheet || 0, stock_quantity || 0, min_stock || 0]
         );
 
         return NextResponse.json({ success: true, id: result.insertId });

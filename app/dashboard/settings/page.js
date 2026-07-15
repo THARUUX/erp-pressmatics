@@ -6,7 +6,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
     FiSettings, FiBriefcase, FiFileText, FiHash, FiTrash2,
     FiSave, FiAlertTriangle, FiCheckCircle, FiList, FiPlus, FiX,
-    FiArrowUp, FiArrowDown, FiMessageSquare
+    FiArrowUp, FiArrowDown, FiMessageSquare, FiAward, FiGift, FiEdit2
 } from 'react-icons/fi';
 
 /* ── Reusable field primitives ────────────────────────────────────────────── */
@@ -51,6 +51,7 @@ const TABS = [
     { key: 'ids',      label: 'ID Templates',   icon: FiHash      },
     { key: 'tasks',    label: 'Tasks',          icon: FiList      },
     { key: 'whatsapp', label: 'WhatsApp',       icon: FiMessageSquare },
+    { key: 'loyalty',  label: 'Loyalty Program',icon: FiAward },
     { key: 'data',     label: 'Data Management',icon: FiTrash2    },
 ];
 
@@ -277,6 +278,16 @@ export default function SettingsPage() {
     const [testMessage, setTestMessage] = useState('This is a test message from Pressmatics ERP!');
     const [sendingTest, setSendingTest] = useState(false);
 
+    // Loyalty Program Configuration
+    const [loyaltyEnabled, setLoyaltyEnabled] = useState(true);
+    const [loyaltyRewards, setLoyaltyRewards] = useState([]);
+    
+    // Reward Item Editor Inputs
+    const [rewardId, setRewardId] = useState('');
+    const [rewardTitle, setRewardTitle] = useState('');
+    const [rewardCost, setRewardCost] = useState('');
+    const [rewardDesc, setRewardDesc] = useState('');
+
     const fetchWhatsappStatus = async () => {
         try {
             const res = await fetch('/api/whatsapp/status');
@@ -390,6 +401,20 @@ export default function SettingsPage() {
         setWhatsappTemplateDispatch(settings.whatsapp_template_dispatch || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}');
         setWhatsappTemplateWelcome(settings.whatsapp_template_welcome || 'Hello {customer_name}, welcome to Pressmatics ERP. You can access your portal here: {portal_link}');
         setWhatsappTemplateQuote(settings.whatsapp_template_quote || 'Hello {customer_name}, here is your quotation {quote_code} for {quote_amount}. You can view it here: {portal_link}');
+
+        // Initialize Loyalty settings
+        setLoyaltyEnabled(settings.loyalty_enabled !== 'false');
+        try {
+            const parsedRewards = settings.loyalty_rewards ? JSON.parse(settings.loyalty_rewards) : [
+                { id: 'v5', title: '5% Off Voucher', cost: 500, desc: 'Receive a 5% discount code valid for your next print order.' },
+                { id: 'v10', title: '10% Off Voucher', cost: 1000, desc: 'Receive a 10% discount code valid for your next print order.' },
+                { id: 'v20', title: '20% Off Voucher', cost: 1800, desc: 'Receive a 20% discount code valid for your next print order.' },
+                { id: 'vfree', title: 'Free Delivery', cost: 300, desc: 'Waive the shipping/handling fee on your next print delivery.' }
+            ];
+            setLoyaltyRewards(parsedRewards);
+        } catch (e) {
+            setLoyaltyRewards([]);
+        }
     }, [settings]);
 
     const handleImageUpload = (setter) => (e) => {
@@ -421,6 +446,8 @@ export default function SettingsPage() {
             ['whatsapp_template_dispatch', whatsappTemplateDispatch],
             ['whatsapp_template_welcome', whatsappTemplateWelcome],
             ['whatsapp_template_quote', whatsappTemplateQuote],
+            ['loyalty_enabled', loyaltyEnabled ? 'true' : 'false'],
+            ['loyalty_rewards', JSON.stringify(loyaltyRewards)],
         ];
         let ok = true;
         for (const [key, val] of updates) { if (!(await updateSetting(key, val))) ok = false; }
@@ -1193,6 +1220,155 @@ export default function SettingsPage() {
                                 className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 cursor-pointer">
                                 {sendingTest ? 'Sending...' : 'Send Test Message'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LOYALTY TAB */}
+            {tab === 'loyalty' && (
+                <div className="space-y-4">
+                    <SectionCard title="Loyalty & Rewards Program Configuration" icon={FiAward}>
+                        <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+                            <div className="relative">
+                                <input type="checkbox" id="loyalty_enb" checked={loyaltyEnabled} onChange={e => setLoyaltyEnabled(e.target.checked)}
+                                    className="sr-only" />
+                                <div onClick={() => setLoyaltyEnabled(v => !v)}
+                                    className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${loyaltyEnabled ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                                    <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${loyaltyEnabled ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                </div>
+                            </div>
+                            <label htmlFor="loyalty_enb" className="text-sm text-gray-300 cursor-pointer" onClick={() => setLoyaltyEnabled(v => !v)}>
+                                Enable Loyalty Points Program in Customer Portal
+                            </label>
+                        </div>
+                    </SectionCard>
+
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Available Rewards</h3>
+                                <p className="text-xs text-gray-500 mt-1 font-medium">
+                                    Configure the reward vouchers that customers can redeem with their loyalty points.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* List of rewards */}
+                        <div className="space-y-3">
+                            {loyaltyRewards.map((reward) => (
+                                <div key={reward.id} className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 p-4 border border-white/10 rounded-xl bg-black/20">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-sm text-white">{reward.title}</span>
+                                            <span className="text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-lg">
+                                                {reward.cost} points
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-400">{reward.desc}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setRewardId(reward.id);
+                                                setRewardTitle(reward.title);
+                                                setRewardCost(String(reward.cost));
+                                                setRewardDesc(reward.desc);
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                                            title="Edit Reward"
+                                        >
+                                            <FiEdit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setLoyaltyRewards(prev => prev.filter(r => r.id !== reward.id));
+                                                toast.success('Reward removed from list (remember to Save Changes)');
+                                            }}
+                                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer"
+                                            title="Delete Reward"
+                                        >
+                                            <FiX className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {loyaltyRewards.length === 0 && (
+                                <p className="text-sm italic text-gray-500 text-center py-4">No rewards configured. Add a reward below.</p>
+                            )}
+                        </div>
+
+                        {/* Add/Edit Reward Form */}
+                        <div className="pt-4 border-t border-white/5 space-y-4">
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                                {rewardId ? 'Edit Selected Reward' : 'Add New Reward'}
+                            </h4>
+
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                <Field label="Reward Title">
+                                    <TextInput value={rewardTitle} onChange={e => setRewardTitle(e.target.value)} placeholder="e.g. 15% Off Voucher" />
+                                </Field>
+                                <Field label="Points Cost">
+                                    <TextInput type="number" value={rewardCost} onChange={e => setRewardCost(e.target.value)} placeholder="e.g. 1500" />
+                                </Field>
+                                <Field label="Description" className="sm:col-span-2">
+                                    <TextInput value={rewardDesc} onChange={e => setRewardDesc(e.target.value)} placeholder="e.g. Receive a 15% discount code valid for your next print order." />
+                                </Field>
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                                {rewardId && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setRewardId('');
+                                            setRewardTitle('');
+                                            setRewardCost('');
+                                            setRewardDesc('');
+                                        }}
+                                        className="px-4 py-2 border border-white/10 hover:bg-white/5 text-xs font-semibold rounded-xl transition-all cursor-pointer text-gray-400"
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!rewardTitle.trim() || !rewardCost.trim() || !rewardDesc.trim()) {
+                                            toast.error('All reward fields are required!');
+                                            return;
+                                        }
+                                        const costNum = parseInt(rewardCost, 10);
+                                        if (isNaN(costNum) || costNum <= 0) {
+                                            toast.error('Points cost must be a valid positive integer!');
+                                            return;
+                                        }
+
+                                        if (rewardId) {
+                                            // Edit existing
+                                            setLoyaltyRewards(prev => prev.map(r => r.id === rewardId ? { id: r.id, title: rewardTitle.trim(), cost: costNum, desc: rewardDesc.trim() } : r));
+                                            toast.success('Reward updated in list (remember to Save Changes)');
+                                        } else {
+                                            // Add new
+                                            const newId = `vcustom_${Date.now()}`;
+                                            setLoyaltyRewards(prev => [...prev, { id: newId, title: rewardTitle.trim(), cost: costNum, desc: rewardDesc.trim() }]);
+                                            toast.success('Reward added to list (remember to Save Changes)');
+                                        }
+
+                                        // Reset inputs
+                                        setRewardId('');
+                                        setRewardTitle('');
+                                        setRewardCost('');
+                                        setRewardDesc('');
+                                    }}
+                                    className="bg-white text-black px-4 py-2 text-xs font-semibold rounded-xl hover:bg-gray-100 transition-all cursor-pointer"
+                                >
+                                    {rewardId ? 'Apply Updates' : 'Add Reward'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
