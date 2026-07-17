@@ -1,32 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
-
-const DEFAULT_ROLE_PERMISSIONS = {
-    admin: {
-        view_dashboard: true,
-        manage_users: true,
-        manage_settings: true,
-        manage_quotations: true,
-        manage_invoices: true,
-        manage_production: true
-    },
-    manager: {
-        view_dashboard: true,
-        manage_users: false,
-        manage_settings: false,
-        manage_quotations: true,
-        manage_invoices: true,
-        manage_production: true
-    },
-    operator: {
-        view_dashboard: true,
-        manage_users: false,
-        manage_settings: false,
-        manage_quotations: false,
-        manage_invoices: false,
-        manage_production: true
-    }
-};
+import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 
 export async function GET() {
     try {
@@ -41,11 +15,19 @@ export async function GET() {
         try {
             const permissions = JSON.parse(rows[0].setting_value);
             // Merge defaults to handle newly added permission flags seamlessly
-            const merged = {};
-            Object.keys(DEFAULT_ROLE_PERMISSIONS).forEach(role => {
+            const merged = { ...DEFAULT_ROLE_PERMISSIONS };
+            
+            Object.keys(permissions).forEach(role => {
                 merged[role] = {
-                    ...DEFAULT_ROLE_PERMISSIONS[role],
-                    ...(permissions[role] || {})
+                    ...(DEFAULT_ROLE_PERMISSIONS[role] || {
+                        view_dashboard: false,
+                        manage_users: false,
+                        manage_settings: false,
+                        manage_quotations: false,
+                        manage_invoices: false,
+                        manage_production: false
+                    }),
+                    ...permissions[role]
                 };
             });
             return NextResponse.json(merged);

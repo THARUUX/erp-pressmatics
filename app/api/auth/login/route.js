@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { comparePassword, signToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { getRolePermissions } from '@/lib/permissions';
 
 export async function POST(req) {
     try {
@@ -28,7 +29,8 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
         }
 
-        const token = signToken({ id: user.id, email: user.email, role: user.role });
+        const permissions = await getRolePermissions(user.role);
+        const token = signToken({ id: user.id, email: user.email, role: user.role, permissions });
 
         const cookieStore = await cookies();
         cookieStore.set('token', token, {
@@ -41,7 +43,7 @@ export async function POST(req) {
 
         return NextResponse.json({
             success: true,
-            user: { id: user.id, name: user.name, email: user.email, role: user.role }
+            user: { id: user.id, name: user.name, email: user.email, role: user.role, permissions }
         });
 
     } catch (error) {

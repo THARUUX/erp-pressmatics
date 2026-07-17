@@ -77,36 +77,38 @@ export async function PUT(req, { params }) {
 
                 // Fetch current payslip to recalculate net pay correctly
                 const [[current]] = await connection.execute(
-                    'SELECT pay_type, base_salary, hourly_rate, total_hours_worked, overtime_pay FROM payslips WHERE id = ?',
+                    `SELECT base_salary, br1, br2, overtime_pay, late_deduction_pay, no_pay_deduction, 
+                            epf_employee, paye_tax, advance_deduction, loan_deduction 
+                     FROM payslips WHERE id = ?`,
                     [payslipId]
                 );
 
                 if (!current) continue;
 
-                const baseSalary = parseFloat(current.base_salary);
-                const hourlyRate = parseFloat(current.hourly_rate);
-                const totalHours = parseFloat(current.total_hours_worked);
-                const otPay = parseFloat(current.overtime_pay);
+                const baseSalary = parseFloat(current.base_salary || 0);
+                const br1 = parseFloat(current.br1 || 0);
+                const br2 = parseFloat(current.br2 || 0);
+                const otPay = parseFloat(current.overtime_pay || 0);
+                const lateDeductionPay = parseFloat(current.late_deduction_pay || 0);
+                const noPayDeduction = parseFloat(current.no_pay_deduction || 0);
+                
+                const epfEmployee = parseFloat(current.epf_employee || 0);
+                const payeTax = parseFloat(current.paye_tax || 0);
+                const advanceDeduction = parseFloat(current.advance_deduction || 0);
+                const loanDeduction = parseFloat(current.loan_deduction || 0);
 
                 const newAllowances = allowances !== undefined ? parseFloat(allowances) : 0;
                 const newDeductions = deductions !== undefined ? parseFloat(deductions) : 0;
 
-                // Re-calculate pay components
-                let regularPay = 0;
-                if (current.pay_type === 'hourly') {
-                    // Estimate regular pay
-                    regularPay = baseSalary || (totalHours * hourlyRate); // Fallback to hours * rate
-                } else {
-                    regularPay = baseSalary;
-                }
-
-                const netPay = Math.max(0, (regularPay + otPay + newAllowances) - newDeductions);
+                // Re-calculate gross and net pay components
+                const grossPay = baseSalary + br1 + br2 + newAllowances + otPay - lateDeductionPay - noPayDeduction;
+                const netPay = Math.max(0, grossPay - epfEmployee - payeTax - advanceDeduction - loanDeduction - newDeductions);
 
                 await connection.execute(
                     `UPDATE payslips 
-                     SET allowances = ?, deductions = ?, net_pay = ? 
+                     SET allowances = ?, deductions = ?, gross_pay = ?, net_pay = ? 
                      WHERE id = ?`,
-                    [newAllowances, newDeductions, netPay, payslipId]
+                    [newAllowances, newDeductions, grossPay, netPay, payslipId]
                 );
             }
         }

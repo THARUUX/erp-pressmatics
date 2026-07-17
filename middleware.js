@@ -49,36 +49,77 @@ async function verifyJWT(token) {
     }
 }
 
-// Routes that only admins can access
-const ADMIN_ONLY_ROUTES = [
-    '/dashboard/users',
-    '/dashboard/settings',
-    '/api/admin',
-];
-
-// Routes that require at least manager role
-const MANAGER_ROUTES = [
-    '/dashboard/invoices',
-    '/dashboard/quotations',
-    '/dashboard/customers',
-    '/dashboard/items'
-];
-
-function canAccess(role, pathname) {
-    // Admins can access everything
+function canAccess(role, permissions, pathname) {
     if (role === 'admin') return true;
 
-    // Block operators and managers from admin-only routes
-    if (ADMIN_ONLY_ROUTES.some(r => pathname.startsWith(r))) {
-        return role === 'admin';
+    // System Administration
+    if (
+        pathname.startsWith('/dashboard/users') ||
+        pathname.startsWith('/dashboard/settings') ||
+        pathname.startsWith('/dashboard/system-info') ||
+        pathname.startsWith('/dashboard/whatsapp')
+    ) {
+        return !!permissions.access_system;
     }
 
-    // Managers and above can access manager routes
-    if (MANAGER_ROUTES.some(r => pathname.startsWith(r))) {
-        return role === 'admin' || role === 'manager';
+    // HR & Payroll
+    if (
+        pathname.startsWith('/dashboard/employees') ||
+        pathname.startsWith('/dashboard/attendance') ||
+        pathname.startsWith('/dashboard/payroll')
+    ) {
+        return !!permissions.access_hr;
+    }
+
+    // Inventory & Suppliers
+    if (
+        pathname.startsWith('/dashboard/inventory') ||
+        pathname.startsWith('/dashboard/suppliers')
+    ) {
+        return !!permissions.access_inventory;
+    }
+
+    // Sales & Accounts
+    if (
+        pathname.startsWith('/dashboard/customers') ||
+        pathname.startsWith('/dashboard/quotations') ||
+        pathname.startsWith('/dashboard/sales-orders') ||
+        pathname.startsWith('/dashboard/invoices')
+    ) {
+        return !!permissions.access_sales;
+    }
+
+    // Production & Planning
+    if (
+        pathname.startsWith('/dashboard/estimations') ||
+        pathname.startsWith('/dashboard/items') ||
+        pathname.startsWith('/dashboard/services') ||
+        pathname.startsWith('/dashboard/job-planning')
+    ) {
+        return !!permissions.access_production;
+    }
+
+    // Dashboard & Analytics
+    if (
+        pathname === '/dashboard' ||
+        pathname.startsWith('/dashboard/analytics') ||
+        pathname.startsWith('/dashboard/competitor-analysis')
+    ) {
+        return !!permissions.access_dashboard;
     }
 
     return true;
+}
+
+function getDefaultPage(role, permissions) {
+    if (role === 'admin') return '/dashboard';
+    if (permissions.access_dashboard) return '/dashboard';
+    if (permissions.access_production) return '/dashboard/job-planning';
+    if (permissions.access_sales) return '/dashboard/quotations';
+    if (permissions.access_hr) return '/dashboard/employees';
+    if (permissions.access_inventory) return '/dashboard/inventory';
+    if (permissions.access_system) return '/dashboard/users';
+    return '/dashboard/guide';
 }
 
 export async function middleware(request) {
@@ -86,7 +127,7 @@ export async function middleware(request) {
 
     // Protect API routes
     if (pathname.startsWith('/api')) {
-        const isPublicApi = 
+        const isPublicApi =
             pathname === '/api/auth/login' ||
             pathname === '/api/auth/companies' ||
             pathname.startsWith('/api/portal/') ||
@@ -105,8 +146,17 @@ export async function middleware(request) {
 
             // Role-based check for admin API routes
             if (pathname.startsWith('/api/admin')) {
-                if (payload.role !== 'admin') {
-                    return NextResponse.json({ error: 'Forbidden – Admin only' }, { status: 403 });
+                const role = payload.role || 'operator';
+                const permissions = payload.permissions || {};
+
+                if (role !== 'admin') {
+                    if (pathname.startsWith('/api/admin/users') || pathname.startsWith('/api/admin/roles')) {
+                        if (!permissions.access_system) {
+                            return NextResponse.json({ error: 'Forbidden – System Admin access required' }, { status: 403 });
+                        }
+                    } else {
+                        return NextResponse.json({ error: 'Forbidden – Admin only' }, { status: 403 });
+                    }
                 }
             }
 
@@ -137,11 +187,12 @@ export async function middleware(request) {
         }
 
         const role = payload.role || 'operator';
+        const permissions = payload.permissions || {};
 
         // Role-based access control
-        if (!canAccess(role, pathname)) {
-            // Redirect to dashboard root with an 'access denied' flag
-            return NextResponse.redirect(new URL('/dashboard?denied=1', request.url));
+        if (!canAccess(role, permissions, pathname)) {
+            const fallback = getDefaultPage(role, permissions);
+            return NextResponse.redirect(new URL(fallback + '?denied=1', request.url));
         }
 
         // Forward the user role as a request header so layout can read it
@@ -159,7 +210,12 @@ export async function middleware(request) {
         const token = request.cookies.get('token')?.value;
         if (token) {
             const payload = await verifyJWT(token);
-            if (payload) return NextResponse.redirect(new URL('/dashboard', request.url));
+            if (payload) {
+                const role = payload.role || 'operator';
+                const permissions = payload.permissions || {};
+                const dest = getDefaultPage(role, permissions);
+                return NextResponse.redirect(new URL(dest, request.url));
+            }
         }
         return NextResponse.redirect(new URL('/login', request.url));
     }

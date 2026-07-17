@@ -31,17 +31,72 @@ export default function UsersPage() {
 
     // Roles & Permissions state
     const [rolesConfig, setRolesConfig] = useState({});
-    const [selectedRole, setSelectedRole] = useState('operator'); // 'admin' | 'manager' | 'operator'
+    const [selectedRole, setSelectedRole] = useState('operator');
     const [savingPermissions, setSavingPermissions] = useState(false);
     const [loadingRoles, setLoadingRoles] = useState(true);
 
+    // Add custom role state
+    const [showAddRoleModal, setShowAddRoleModal] = useState(false);
+    const [newRoleName, setNewRoleName] = useState('');
+
+    const handleAddCustomRole = (e) => {
+        e.preventDefault();
+        const roleName = newRoleName.trim().toLowerCase().replace(/\s+/g, '_');
+        if (!roleName) {
+            toast.error('Role name cannot be empty');
+            return;
+        }
+        if (rolesConfig[roleName]) {
+            toast.error('Role already exists');
+            return;
+        }
+
+        setRolesConfig(prev => ({
+            ...prev,
+            [roleName]: {
+                access_dashboard: false,
+                access_sales: false,
+                access_production: false,
+                access_hr: false,
+                access_inventory: false,
+                access_system: false
+            }
+        }));
+        setSelectedRole(roleName);
+        setNewRoleName('');
+        setShowAddRoleModal(false);
+        toast.success(`Role "${roleName}" added. Make sure to click save below to persist changes.`);
+    };
+
+    const handleDeleteCustomRole = async (roleName) => {
+        if (['admin', 'manager', 'operator'].includes(roleName)) {
+            toast.error('Default roles cannot be deleted');
+            return;
+        }
+        const confirmed = await confirmDialog(
+            `Are you sure you want to delete the role "${roleName}"? Make sure no active users are currently assigned to this role before deleting it.`,
+            { danger: true, confirmLabel: 'Delete Role' }
+        );
+        if (!confirmed) return;
+
+        setRolesConfig(prev => {
+            const copy = { ...prev };
+            delete copy[roleName];
+            return copy;
+        });
+        if (selectedRole === roleName) {
+            setSelectedRole('operator');
+        }
+        toast.success(`Role "${roleName}" removed. Click save below to persist the changes.`);
+    };
+
     const PERMISSION_METADATA = [
-        { key: 'view_dashboard', label: 'View Dashboard', desc: 'Allows viewing of main dashboard charts, jobs list, and metrics overview.' },
-        { key: 'manage_users', label: 'Manage Users', desc: 'Grants control to add, edit, delete, ban users, and edit role permissions.' },
-        { key: 'manage_settings', label: 'Manage Settings', desc: 'Grants access to edit general configurations, templates, and database cleanups.' },
-        { key: 'manage_quotations', label: 'Manage Quotations', desc: 'Allows creation, editing, deletion, and pricing estimations of quotations.' },
-        { key: 'manage_invoices', label: 'Manage Invoices', desc: 'Allows creating invoices, printing invoices, and tracking invoice payments.' },
-        { key: 'manage_production', label: 'Manage Production', desc: 'Allows planning jobs, assigning operators, and tracking machine queues.' }
+        { key: 'access_dashboard', label: 'Dashboard & Analytics', desc: 'Grants access to main dashboard page, business statistics, and competitor analyses.' },
+        { key: 'access_sales', label: 'Sales & Accounts', desc: 'Grants access to Customers, Quotations, Sales Orders, and Invoices modules.' },
+        { key: 'access_production', label: 'Production & Planning', desc: 'Grants access to Estimations, Items list, Services database, and Job Planning scheduler.' },
+        { key: 'access_hr', label: 'HR & Payroll', desc: 'Grants access to Employees list, Attendance sheets, and Payroll runs.' },
+        { key: 'access_inventory', label: 'Inventory & Suppliers', desc: 'Grants access to Stock items, Finishings, Machines configs, and Suppliers directories.' },
+        { key: 'access_system', label: 'System Administration', desc: 'Grants access to User accounts, Role groups permissions configuration, System settings, and WhatsApp integration.' }
     ];
 
     // Fetch users
@@ -70,6 +125,9 @@ export default function UsersPage() {
             if (res.ok) {
                 const data = await res.json();
                 setRolesConfig(data);
+                if (data && !Object.keys(data).includes(selectedRole)) {
+                    setSelectedRole(Object.keys(data)[0] || 'operator');
+                }
             } else {
                 toast.error('Failed to load role permissions');
             }
@@ -347,7 +405,9 @@ export default function UsersPage() {
                                                             ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' 
                                                             : u.role === 'manager'
                                                             ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                                            : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                                                            : u.role === 'operator'
+                                                            ? 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                                                            : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
                                                     }`}>
                                                         <FiShield className="w-3 h-3" />
                                                         {u.role}
@@ -410,18 +470,39 @@ export default function UsersPage() {
             {tab === 'permissions' && (
                 <div className="space-y-4">
                     {/* Role selector switcher */}
-                    <div className="flex gap-2 p-1 bg-black/20 border border-white/5 rounded-2xl w-fit">
-                        {['admin', 'manager', 'operator'].map(role => (
-                            <button
-                                key={role}
-                                onClick={() => setSelectedRole(role)}
-                                className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                                    selectedRole === role ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                                }`}
-                            >
-                                {role} Role
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex flex-wrap gap-2 p-1 bg-black/20 border border-white/5 rounded-2xl w-fit">
+                            {Object.keys(rolesConfig).map(role => (
+                                <div key={role} className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedRole(role)}
+                                        className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                            selectedRole === role ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                        }`}
+                                    >
+                                        {role}
+                                    </button>
+                                    {!['admin', 'manager', 'operator'].includes(role) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteCustomRole(role)}
+                                            title="Delete Role"
+                                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors cursor-pointer mr-1"
+                                        >
+                                            <FiTrash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowAddRoleModal(true)}
+                            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                            + Add Custom Role
+                        </button>
                     </div>
 
                     {/* Permissions checklist config */}
@@ -523,9 +604,11 @@ export default function UsersPage() {
                                     onChange={e => setAddForm(prev => ({ ...prev, role: e.target.value }))}
                                     className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white focus:border-white/30 outline-none transition-colors [color-scheme:dark]"
                                 >
-                                    <option value="operator">Operator (Standard Workstation Access)</option>
-                                    <option value="manager">Manager (Production & Accounts Supervisor)</option>
-                                    <option value="admin">Administrator (Full Access)</option>
+                                    {Object.keys(rolesConfig).map(role => (
+                                        <option key={role} value={role}>
+                                            {role.charAt(0).toUpperCase() + role.slice(1)} {['admin', 'manager', 'operator'].includes(role) ? `(Default)` : `(Custom)`}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -611,9 +694,11 @@ export default function UsersPage() {
                                     onChange={e => setEditForm(prev => ({ ...prev, role: e.target.value }))}
                                     className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white focus:border-white/30 outline-none transition-colors [color-scheme:dark]"
                                 >
-                                    <option value="operator">Operator (Standard Workstation Access)</option>
-                                    <option value="manager">Manager (Production & Accounts Supervisor)</option>
-                                    <option value="admin">Administrator (Full Access)</option>
+                                    {Object.keys(rolesConfig).map(role => (
+                                        <option key={role} value={role}>
+                                            {role.charAt(0).toUpperCase() + role.slice(1)} {['admin', 'manager', 'operator'].includes(role) ? `(Default)` : `(Custom)`}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -643,6 +728,50 @@ export default function UsersPage() {
                                 >
                                     {submittingEdit && <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
                                     Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ADD ROLE MODAL */}
+            {showAddRoleModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl max-w-md w-full overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.8)] animate-[fadeUp_0.2s_ease]">
+                        <div className="px-6 py-5 border-b border-white/[0.07] bg-white/[0.01]">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <FiSettings className="text-gray-400" />
+                                Create Custom Role
+                            </h3>
+                        </div>
+                        <form onSubmit={handleAddCustomRole} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Role Name</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={newRoleName}
+                                    onChange={e => setNewRoleName(e.target.value)}
+                                    placeholder="e.g. Estimator, Supervisor"
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white focus:border-white/30 outline-none transition-colors"
+                                />
+                                <p className="text-[11px] text-gray-500 mt-1">Special characters and spaces will be converted to underscores.</p>
+                            </div>
+
+                            <div className="flex gap-2 pt-2 justify-end">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowAddRoleModal(false)}
+                                    className="px-5 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-semibold hover:bg-white/5 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    className="flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors shadow-lg cursor-pointer"
+                                >
+                                    Create Role
                                 </button>
                             </div>
                         </form>

@@ -20,59 +20,59 @@ const NAV_GROUPS = [
     {
         label: 'Overview',
         items: [
-            { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true },
+            { icon: FiHome, label: 'Dashboard', href: '/dashboard', exact: true, permission: 'access_dashboard' },
         ],
     },
     {
         label: 'Sales',
         items: [
-            { icon: FiUser, label: 'Customers', href: '/dashboard/customers', roles: ['admin', 'manager'] },
-            { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations', roles: ['admin', 'manager'] },
-            { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders', roles: ['admin', 'manager'] },
-            { icon: FiDollarSign, label: 'Invoices', href: '/dashboard/invoices', roles: ['admin', 'manager'] },
+            { icon: FiUser, label: 'Customers', href: '/dashboard/customers', permission: 'access_sales' },
+            { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations', permission: 'access_sales' },
+            { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders', permission: 'access_sales' },
+            { icon: FiDollarSign, label: 'Invoices', href: '/dashboard/invoices', permission: 'access_sales' },
         ],
     },
     {
         label: 'Production',
         items: [
-            { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations', roles: ['admin', 'manager'] },
-            { icon: FiBox, label: 'Items', href: '/dashboard/items', roles: ['admin', 'manager'] },
-            { icon: FiBriefcase, label: 'Services', href: '/dashboard/services', roles: ['admin', 'manager'] },
-            { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning' },
+            { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations', permission: 'access_production' },
+            { icon: FiBox, label: 'Items', href: '/dashboard/items', permission: 'access_production' },
+            { icon: FiBriefcase, label: 'Services', href: '/dashboard/services', permission: 'access_production' },
+            { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning', permission: 'access_production' },
         ],
     },
     {
         label: 'HR & Payroll',
         items: [
-            { icon: FiUserCheck, label: 'Employees', href: '/dashboard/employees', roles: ['admin', 'manager'] },
-            { icon: FiCalendar, label: 'Attendance', href: '/dashboard/attendance', roles: ['admin', 'manager'] },
-            { icon: FiDollarSign, label: 'Payroll', href: '/dashboard/payroll', roles: ['admin', 'manager'] },
+            { icon: FiUserCheck, label: 'Employees', href: '/dashboard/employees', permission: 'access_hr' },
+            { icon: FiCalendar, label: 'Attendance', href: '/dashboard/attendance', permission: 'access_hr' },
+            { icon: FiDollarSign, label: 'Payroll', href: '/dashboard/payroll', permission: 'access_hr' },
         ],
     },
     {
         label: 'Inventory',
         items: [
-            { icon: FiBox, label: 'Stock Items', href: '/dashboard/inventory' },
-            { icon: FiLayers, label: 'Finishings', href: '/dashboard/inventory/finishings' },
-            { icon: FiSettings, label: 'Machines', href: '/dashboard/inventory/machines' },
-            { icon: FiTruck, label: 'Suppliers', href: '/dashboard/suppliers' },
+            { icon: FiBox, label: 'Stock Items', href: '/dashboard/inventory', permission: 'access_inventory' },
+            { icon: FiLayers, label: 'Finishings', href: '/dashboard/inventory/finishings', permission: 'access_inventory' },
+            { icon: FiSettings, label: 'Machines', href: '/dashboard/inventory/machines', permission: 'access_inventory' },
+            { icon: FiTruck, label: 'Suppliers', href: '/dashboard/suppliers', permission: 'access_inventory' },
         ],
     },
     {
         label: 'Intelligence',
         items: [
-            { icon: FiBarChart2, label: 'Analytics', href: '/dashboard/analytics', roles: ['admin', 'manager'] },
-            { icon: FiTarget, label: 'Competitor Analysis', href: '/dashboard/competitor-analysis', roles: ['admin', 'manager'] },
+            { icon: FiBarChart2, label: 'Analytics', href: '/dashboard/analytics', permission: 'access_dashboard' },
+            { icon: FiTarget, label: 'Competitor Analysis', href: '/dashboard/competitor-analysis', permission: 'access_dashboard' },
         ],
     },
     {
         label: 'System',
         items: [
-            { icon: FiUsers, label: 'Users', href: '/dashboard/users', roles: ['admin'] },
-            { icon: FiSettings, label: 'Settings', href: '/dashboard/settings', roles: ['admin'] },
+            { icon: FiUsers, label: 'Users', href: '/dashboard/users', permission: 'access_system' },
+            { icon: FiSettings, label: 'Settings', href: '/dashboard/settings', permission: 'access_system' },
             { icon: FiBookOpen, label: 'Guide', href: '/dashboard/guide' },
-            { icon: FiInfo, label: 'System Info', href: '/dashboard/system-info', roles: ['admin'] },
-            { icon: FiMessageCircle, label: 'WhatsApp', href: '/dashboard/whatsapp', roles: ['admin', 'manager'] },
+            { icon: FiInfo, label: 'System Info', href: '/dashboard/system-info', permission: 'access_system' },
+            { icon: FiMessageCircle, label: 'WhatsApp', href: '/dashboard/whatsapp', permission: 'access_system' },
         ],
     },
 ];
@@ -177,13 +177,30 @@ function LayoutInner({ children }) {
 
     const role = currentUser?.role || 'operator';
 
-    // Filter groups — remove items by role, hide entire group if empty
+    const userPermissions = currentUser?.permissions || {};
+
+    // Filter groups — remove items by permission, hide entire group if empty
     const visibleGroups = NAV_GROUPS.map(group => ({
         ...group,
-        items: group.items.filter(item => !item.roles || item.roles.includes(role))
+        items: group.items.filter(item => {
+            if (role === 'admin') return true;
+            if (item.permission) {
+                if (Array.isArray(item.permission)) {
+                    return item.permission.some(p => !!userPermissions[p]);
+                }
+                return !!userPermissions[item.permission];
+            }
+            if (item.roles) {
+                return item.roles.includes(role);
+            }
+            return true;
+        })
     })).filter(group => group.items.length > 0);
 
-    const badge = ROLE_BADGE[role] || ROLE_BADGE.operator;
+    const badge = ROLE_BADGE[role] || { 
+        label: role.charAt(0).toUpperCase() + role.slice(1), 
+        color: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25' 
+    };
 
     // Collapsed state: initialize so the active group is open, rest closed
     const getInitialCollapsed = () => {

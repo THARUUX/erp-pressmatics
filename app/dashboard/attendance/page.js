@@ -223,6 +223,16 @@ export default function AttendancePage() {
     const [mappingChanges, setMappingChanges] = useState({});
     const [mappingSearch, setMappingSearch] = useState('');
 
+    // Leaves and Holidays state
+    const [leaves, setLeaves] = useState([]);
+    const [holidays, setHolidays] = useState([]);
+    const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
+    const [showLeaveModal, setShowLeaveModal] = useState(false);
+    const [showHolidayModal, setShowHolidayModal] = useState(false);
+    const [leaveForm, setLeaveForm] = useState({ employee_id: '', start_date: '', end_date: '', leave_type: 'casual', reason: '' });
+    const [holidayForm, setHolidayForm] = useState({ date: '', name: '' });
+    const [fetchingHolidays, setFetchingHolidays] = useState(false);
+
     const deleteSingleMapping = async (empId) => {
         setSavingLog(true);
         try {
@@ -351,6 +361,154 @@ export default function AttendancePage() {
         loadEmployeeReport(reportEmployee.id, y, m);
     };
 
+    const loadLeaves = async () => {
+        try {
+            const res = await fetch('/api/leaves');
+            const data = await res.json();
+            if (res.ok) {
+                setLeaves(Array.isArray(data) ? data : []);
+            }
+        } catch {
+            toast.error('Failed to load leaves');
+        }
+    };
+
+    const loadHolidays = async (yr = holidayYear) => {
+        try {
+            const res = await fetch(`/api/holidays?year=${yr}`);
+            const data = await res.json();
+            if (res.ok) {
+                setHolidays(Array.isArray(data) ? data : []);
+            }
+        } catch {
+            toast.error('Failed to load holidays');
+        }
+    };
+
+    const handleHolidayYearChange = (newYear) => {
+        setHolidayYear(newYear);
+        loadHolidays(newYear);
+    };
+
+    const handleAutoFetchHolidays = async () => {
+        if (!confirm(`Are you sure you want to fetch Sri Lankan public holidays for the year ${holidayYear}? Existing holidays for this year will be updated.`)) return;
+        setFetchingHolidays(true);
+        try {
+            const res = await fetch('/api/holidays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fetchSriLankaHolidaysForYear: holidayYear })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || 'Holidays fetched successfully!');
+                loadHolidays(holidayYear);
+            } else {
+                toast.error(data.error || 'Failed to fetch holidays');
+            }
+        } catch {
+            toast.error('Error fetching Sri Lankan holidays');
+        } finally {
+            setFetchingHolidays(false);
+        }
+    };
+
+    const handleSaveHoliday = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch('/api/holidays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(holidayForm)
+            });
+            if (res.ok) {
+                toast.success('Holiday saved successfully');
+                setShowHolidayModal(false);
+                setHolidayForm({ date: '', name: '' });
+                loadHolidays(holidayYear);
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to save holiday');
+            }
+        } catch {
+            toast.error('Error saving holiday');
+        }
+    };
+
+    const handleDeleteHoliday = async (id) => {
+        if (!confirm('Are you sure you want to delete this holiday?')) return;
+        try {
+            const res = await fetch(`/api/holidays?id=${id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                toast.success('Holiday deleted successfully');
+                loadHolidays(holidayYear);
+            } else {
+                toast.error('Failed to delete holiday');
+            }
+        } catch {
+            toast.error('Error deleting holiday');
+        }
+    };
+
+    const handleSaveLeave = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch('/api/leaves', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(leaveForm)
+            });
+            if (res.ok) {
+                toast.success('Leave form created successfully');
+                setShowLeaveModal(false);
+                setLeaveForm({ employee_id: '', start_date: '', end_date: '', leave_type: 'casual', reason: '' });
+                loadLeaves();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to save leave form');
+            }
+        } catch {
+            toast.error('Error saving leave form');
+        }
+    };
+
+    const handleUpdateLeaveStatus = async (id, status) => {
+        try {
+            const res = await fetch(`/api/leaves/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            if (res.ok) {
+                toast.success(`Leave ${status} successfully`);
+                loadLeaves();
+            } else {
+                toast.error('Failed to update leave status');
+            }
+        } catch {
+            toast.error('Error updating leave status');
+        }
+    };
+
+    const handleDeleteLeave = async (id) => {
+        if (!confirm('Are you sure you want to delete this leave application?')) return;
+        try {
+            const res = await fetch(`/api/leaves/${id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                toast.success('Leave application deleted successfully');
+                loadLeaves();
+            } else {
+                toast.error('Failed to delete leave application');
+            }
+        } catch {
+            toast.error('Error deleting leave application');
+        }
+    };
+
     const loadStatus = async () => {
         try {
             const res = await fetch('/api/attendance/current-status');
@@ -409,6 +567,11 @@ export default function AttendancePage() {
         } else if (tab === 'mapping') {
             await loadMappings();
             setMappingChanges({});
+        } else if (tab === 'leaves') {
+            await loadLeaves();
+            await loadEmployees();
+        } else if (tab === 'holidays') {
+            await loadHolidays();
         }
         setLoading(false);
     };
@@ -609,10 +772,10 @@ export default function AttendancePage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex gap-1 bg-black/30 border border-white/10 p-1 rounded-xl">
+                    <div className="flex gap-1 bg-black/30 border border-white/10 p-1 rounded-xl overflow-x-auto">
                         <button 
                             onClick={() => setTab('status')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
                                 tab === 'status' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
                             }`}
                         >
@@ -620,7 +783,7 @@ export default function AttendancePage() {
                         </button>
                         <button 
                             onClick={() => setTab('logs')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
                                 tab === 'logs' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
                             }`}
                         >
@@ -628,19 +791,66 @@ export default function AttendancePage() {
                         </button>
                         <button 
                             onClick={() => setTab('mapping')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
                                 tab === 'mapping' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
                             }`}
                         >
                             Device Mapping
                         </button>
+                        <button 
+                            onClick={() => setTab('leaves')} 
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
+                                tab === 'leaves' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            Leaves
+                        </button>
+                        <button 
+                            onClick={() => setTab('holidays')} 
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
+                                tab === 'holidays' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            Holidays
+                        </button>
                     </div>
-                    <button 
-                        onClick={openManualLog}
-                        className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer"
-                    >
-                        <FiPlus className="w-4 h-4" /> Add Manual Log
-                    </button>
+                    {tab === 'leaves' ? (
+                        <button 
+                            onClick={() => {
+                                setLeaveForm({ employee_id: '', start_date: '', end_date: '', leave_type: 'casual', reason: '' });
+                                setShowLeaveModal(true);
+                            }}
+                            className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                        >
+                            <FiPlus className="w-4 h-4" /> Fill Leave Form
+                        </button>
+                    ) : tab === 'holidays' ? (
+                        <div className="flex gap-2 shrink-0">
+                            <button 
+                                onClick={handleAutoFetchHolidays}
+                                disabled={fetchingHolidays}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                {fetchingHolidays ? 'Fetching...' : 'Auto-Fetch Holidays'}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setHolidayForm({ date: '', name: '' });
+                                    setShowHolidayModal(true);
+                                }}
+                                className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer"
+                            >
+                                <FiPlus className="w-4 h-4" /> Add Holiday
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={openManualLog}
+                            className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                        >
+                            <FiPlus className="w-4 h-4" /> Add Manual Log
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1184,6 +1394,302 @@ export default function AttendancePage() {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LEAVES TAB */}
+            {tab === 'leaves' && (
+                <div className="space-y-4">
+                    <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-left text-sm">
+                                <thead>
+                                    <tr className="border-b border-white/10 bg-white/[0.02]">
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Employee</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Leave Type</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Duration</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Reason</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Status</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-zinc-500">Loading leave requests...</td>
+                                        </tr>
+                                    ) : leaves.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-zinc-500">No leave applications registered.</td>
+                                        </tr>
+                                    ) : (
+                                        leaves.map(leave => (
+                                            <tr key={leave.id} className="transition-colors hover:bg-white/[0.01]">
+                                                <td className="p-4 font-semibold text-white">
+                                                    <div>
+                                                        <p className="font-semibold text-white text-xs">{leave.employee_name}</p>
+                                                        <p className="text-zinc-500 text-[10px] mt-0.5">{leave.job_title} ({leave.erp_code})</p>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 capitalize">
+                                                    <span className="text-xs text-zinc-300 font-medium">{leave.leave_type}</span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="text-xs text-zinc-300">
+                                                        <span>{new Date(leave.start_date).toLocaleDateString('en-GB')}</span>
+                                                        <span className="text-zinc-500 mx-1">to</span>
+                                                        <span>{new Date(leave.end_date).toLocaleDateString('en-GB')}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-xs text-zinc-400 max-w-xs truncate" title={leave.reason}>
+                                                    {leave.reason || '—'}
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                                                        leave.status === 'approved' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' :
+                                                        leave.status === 'rejected' ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' :
+                                                        'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                                                    }`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${
+                                                            leave.status === 'approved' ? 'bg-emerald-400' :
+                                                            leave.status === 'rejected' ? 'bg-rose-400' :
+                                                            'bg-amber-400'
+                                                        }`} />
+                                                        {leave.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex justify-end gap-1.5">
+                                                        {leave.status === 'pending' && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => handleUpdateLeaveStatus(leave.id, 'approved')}
+                                                                    className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleUpdateLeaveStatus(leave.id, 'rejected')}
+                                                                    className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
+                                                                >
+                                                                    Reject
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => handleDeleteLeave(leave.id)}
+                                                            className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
+                                                            title="Delete Leave Application"
+                                                        >
+                                                            <FiTrash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* HOLIDAYS TAB */}
+            {tab === 'holidays' && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-black/30 border border-white/10 p-4 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Year Filter</label>
+                            <select 
+                                value={holidayYear} 
+                                onChange={e => handleHolidayYearChange(parseInt(e.target.value, 10))}
+                                className="px-3 py-1.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none [color-scheme:dark]"
+                            >
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                            </select>
+                        </div>
+                        <p className="text-xs text-zinc-500">
+                            Holidays are excluded from the employee's absenteeism calculations in payroll runs.
+                        </p>
+                    </div>
+
+                    <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-left text-sm">
+                                <thead>
+                                    <tr className="border-b border-white/10 bg-white/[0.02]">
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Date</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Day</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Holiday Name</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={4} className="p-8 text-center text-zinc-500">Loading holidays...</td>
+                                        </tr>
+                                    ) : holidays.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="p-8 text-center text-zinc-500">No holidays registered for {holidayYear}. Use "Auto-Fetch Holidays" or "Add Holiday" to register.</td>
+                                        </tr>
+                                    ) : (
+                                        holidays.map(holiday => {
+                                            const dayName = new Date(holiday.date).toLocaleDateString('en-US', { weekday: 'long' });
+                                            return (
+                                                <tr key={holiday.id} className="transition-colors hover:bg-white/[0.01]">
+                                                    <td className="p-4 font-mono text-zinc-300">
+                                                        {new Date(holiday.date).toLocaleDateString('en-GB')}
+                                                    </td>
+                                                    <td className="p-4 text-zinc-400">
+                                                        {dayName}
+                                                    </td>
+                                                    <td className="p-4 font-semibold text-white">
+                                                        {holiday.name}
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <button 
+                                                            onClick={() => handleDeleteHoliday(holiday.id)}
+                                                            className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
+                                                            title="Delete Holiday"
+                                                        >
+                                                            <FiTrash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LEAVE APPLICATION MODAL */}
+            {showLeaveModal && (
+                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowLeaveModal(false)}>
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.07]">
+                            <h3 className="text-lg font-bold text-white">New Leave Application</h3>
+                            <button onClick={() => setShowLeaveModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                        </div>
+                        <form onSubmit={handleSaveLeave} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select Employee *</label>
+                                <select 
+                                    required
+                                    value={leaveForm.employee_id}
+                                    onChange={e => setLeaveForm(p => ({ ...p, employee_id: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none [color-scheme:dark]"
+                                >
+                                    <option value="">-- Choose Employee --</option>
+                                    {employeesList.map(emp => (
+                                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.employee_id})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Start Date *</label>
+                                    <input 
+                                        required
+                                        type="date"
+                                        value={leaveForm.start_date}
+                                        onChange={e => setLeaveForm(p => ({ ...p, start_date: e.target.value }))}
+                                        className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">End Date *</label>
+                                    <input 
+                                        required
+                                        type="date"
+                                        value={leaveForm.end_date}
+                                        onChange={e => setLeaveForm(p => ({ ...p, end_date: e.target.value }))}
+                                        className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Leave Type *</label>
+                                <select 
+                                    required
+                                    value={leaveForm.leave_type}
+                                    onChange={e => setLeaveForm(p => ({ ...p, leave_type: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none [color-scheme:dark]"
+                                >
+                                    <option value="casual">Casual</option>
+                                    <option value="medical">Medical</option>
+                                    <option value="annual">Annual</option>
+                                    <option value="nopay">No Pay / Absent with permission</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Reason / Description</label>
+                                <textarea 
+                                    value={leaveForm.reason}
+                                    onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
+                                    rows={3}
+                                    placeholder="Enter reason for leave..."
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30"
+                                />
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-4 border-t border-white/5">
+                                <button type="button" onClick={() => setShowLeaveModal(false)} className="px-5 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-semibold hover:bg-white/5 cursor-pointer">Cancel</button>
+                                <button type="submit" className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 cursor-pointer">
+                                    Save Leave Form
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* HOLIDAY MODAL */}
+            {showHolidayModal && (
+                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowHolidayModal(false)}>
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.07]">
+                            <h3 className="text-lg font-bold text-white">Add Custom Holiday</h3>
+                            <button onClick={() => setShowHolidayModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                        </div>
+                        <form onSubmit={handleSaveHoliday} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Date *</label>
+                                <input 
+                                    required
+                                    type="date"
+                                    value={holidayForm.date}
+                                    onChange={e => setHolidayForm(p => ({ ...p, date: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Holiday Name *</label>
+                                <input 
+                                    required
+                                    type="text"
+                                    placeholder="e.g. Sinhala & Tamil New Year"
+                                    value={holidayForm.name}
+                                    onChange={e => setHolidayForm(p => ({ ...p, name: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30"
+                                />
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-4 border-t border-white/5">
+                                <button type="button" onClick={() => setShowHolidayModal(false)} className="px-5 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-semibold hover:bg-white/5 cursor-pointer">Cancel</button>
+                                <button type="submit" className="bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 cursor-pointer">
+                                    Save Holiday
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

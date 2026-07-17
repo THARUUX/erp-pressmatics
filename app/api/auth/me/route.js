@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { getRolePermissions } from '@/lib/permissions';
 
 export async function GET() {
     try {
@@ -43,11 +44,14 @@ export async function GET() {
             console.error('Failed to fetch active company name in /api/auth/me:', e.message);
         }
 
+        const permissions = await getRolePermissions(user.role);
+
         return NextResponse.json({
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
+            permissions,
             companyName: companyName
         });
 

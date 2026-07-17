@@ -49,6 +49,7 @@ export default function PayrollPage() {
     const [activeRunPayslips, setActiveRunPayslips] = useState([]);
     const [warnings, setWarnings] = useState([]);
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [previewPayslip, setPreviewPayslip] = useState(null);
     
     // Quick Config Local Changes State
     const [configChanges, setConfigChanges] = useState({}); // empId -> changes object
@@ -897,34 +898,43 @@ export default function PayrollPage() {
                                                     
                                                     {/* Actions */}
                                                     <td className="p-3 text-right">
-                                                        {activeRun.status === 'draft' && (
-                                                            isEditingThis ? (
-                                                                <div className="flex gap-1 justify-end">
+                                                        <div className="flex gap-1 justify-end">
+                                                            <button 
+                                                                onClick={() => setPreviewPayslip(ps)}
+                                                                className="p-1 bg-white/5 border border-white/10 text-zinc-400 hover:text-white rounded hover:bg-white/10 cursor-pointer transition-colors"
+                                                                title="Preview Payslip"
+                                                            >
+                                                                <FiEye className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            {activeRun.status === 'draft' && (
+                                                                isEditingThis ? (
+                                                                    <>
+                                                                        <button 
+                                                                            onClick={() => savePayslipOverride(ps.id)}
+                                                                            className="p-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/20 cursor-pointer"
+                                                                            title="Save adjustments"
+                                                                        >
+                                                                            <FiCheck className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => setEditingPayslipId(null)}
+                                                                            className="p-1 bg-white/5 border border-white/10 text-zinc-400 rounded hover:bg-white/10 cursor-pointer"
+                                                                            title="Cancel"
+                                                                        >
+                                                                            <FiX className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </>
+                                                                ) : (
                                                                     <button 
-                                                                        onClick={() => savePayslipOverride(ps.id)}
-                                                                        className="p-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/20 cursor-pointer"
-                                                                        title="Save adjustments"
-                                                                    >
-                                                                        <FiCheck className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                    <button 
-                                                                        onClick={() => setEditingPayslipId(null)}
+                                                                        onClick={() => startOverride(ps)}
                                                                         className="p-1 bg-white/5 border border-white/10 text-zinc-400 rounded hover:bg-white/10 cursor-pointer"
-                                                                        title="Cancel"
+                                                                        title="Override Allowance/Deduction"
                                                                     >
-                                                                        <FiX className="w-3.5 h-3.5" />
+                                                                        <FiEdit className="w-3.5 h-3.5" />
                                                                     </button>
-                                                                </div>
-                                                            ) : (
-                                                                <button 
-                                                                    onClick={() => startOverride(ps)}
-                                                                    className="p-1 bg-white/5 border border-white/10 text-zinc-400 rounded hover:bg-white/10 cursor-pointer"
-                                                                    title="Override Allowance/Deduction"
-                                                                >
-                                                                    <FiEdit className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )
-                                                        )}
+                                                                )
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -957,6 +967,223 @@ export default function PayrollPage() {
                                     </button>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: PAYSLIP PREVIEW & PRINT ── */}
+            {previewPayslip && (
+                <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setPreviewPayslip(null)}>
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @media print {
+                            body * {
+                                visibility: hidden;
+                            }
+                            #payslip-print-area, #payslip-print-area * {
+                                visibility: visible;
+                            }
+                            #payslip-print-area {
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                                background: white !important;
+                                color: black !important;
+                            }
+                            #payslip-print-area button, #payslip-print-area .no-print {
+                                display: none !important;
+                            }
+                        }
+                    `}} />
+                    
+                    <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07] bg-white/[0.01] shrink-0 no-print">
+                            <h3 className="text-sm font-bold text-white">Payslip Preview</h3>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="flex items-center gap-1.5 bg-white text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                                >
+                                    Print / Save PDF
+                                </button>
+                                <button onClick={() => setPreviewPayslip(null)} className="p-1 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+
+                        {/* Printable Area */}
+                        <div id="payslip-print-area" className="flex-1 overflow-y-auto p-8 space-y-6 bg-black text-white print:bg-white print:text-black">
+                            {/* Company Branding */}
+                            <div className="text-center space-y-1 pb-4 border-b border-white/10 print:border-black/10">
+                                <h2 className="text-xl font-bold tracking-wider uppercase text-white print:text-black">Pressmatics (Pvt) Ltd</h2>
+                                <p className="text-[10px] text-zinc-400 print:text-zinc-600">No. 45, Temple Road, Colombo, Sri Lanka</p>
+                                <p className="text-xs font-semibold text-white print:text-black mt-2">
+                                    PAY SLIP — {MONTHS[activeRun.month - 1].toUpperCase()} {activeRun.year}
+                                </p>
+                            </div>
+
+                            {/* Employee Metadata */}
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                                <div className="space-y-1">
+                                    <p className="text-zinc-500 print:text-zinc-600">Employee Name:</p>
+                                    <p className="font-bold text-white print:text-black">{previewPayslip.employee_name}</p>
+                                    
+                                    <p className="text-zinc-500 print:text-zinc-600 pt-2">Designation:</p>
+                                    <p className="text-zinc-300 print:text-zinc-700">{previewPayslip.job_title || 'N/A'}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-zinc-500 print:text-zinc-600">Employee ID / Code:</p>
+                                    <p className="font-mono text-white print:text-black font-semibold">{previewPayslip.erp_code}</p>
+
+                                    <p className="text-zinc-500 print:text-zinc-600 pt-2">Department:</p>
+                                    <p className="text-zinc-300 print:text-zinc-700">{previewPayslip.department || 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            {/* Earnings vs Deductions Table */}
+                            <div className="grid sm:grid-cols-2 gap-6 pt-4 border-t border-white/10 print:border-black/10 text-xs">
+                                
+                                {/* Earnings (Left) */}
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-white print:text-black uppercase tracking-wider text-[10px] border-b border-white/5 print:border-black/5 pb-1">Earnings</h4>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-zinc-400 print:text-zinc-600">Basic / Base Rate:</span>
+                                            <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.base_salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-zinc-400 print:text-zinc-600">BR Allowance 1:</span>
+                                            <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.br1 || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-zinc-400 print:text-zinc-600">BR Allowance 2:</span>
+                                            <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.br2 || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                        {parseFloat(previewPayslip.overtime_pay || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Normal Overtime ({parseFloat(previewPayslip.overtime_hours || 0).toFixed(1)} hrs):</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.overtime_pay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.double_overtime_pay || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Double Overtime ({parseFloat(previewPayslip.double_overtime_hours || 0).toFixed(1)} hrs):</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.double_overtime_pay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.allowances || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Other Allowances:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.allowances || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between pt-2 border-t border-dashed border-white/10 print:border-black/10 font-bold text-white print:text-black">
+                                            <span>Gross Salary:</span>
+                                            <span className="font-mono">LKR {parseFloat(previewPayslip.gross_pay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Deductions (Right) */}
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-white print:text-black uppercase tracking-wider text-[10px] border-b border-white/5 print:border-black/5 pb-1">Deductions</h4>
+                                    <div className="space-y-2">
+                                        {parseFloat(previewPayslip.no_pay_deduction || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">No-Pay Deduction:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.no_pay_deduction || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.late_deduction_pay || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Late Arriving Penalty:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.late_deduction_pay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.advance_deduction || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Salary Advance:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.advance_deduction || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.loan_deduction || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Loan Repayment:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.loan_deduction || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.epf_employee || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">EPF Employee (8%):</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.epf_employee || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.paye_tax || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">PAYE Tax / APIT:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.paye_tax || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        {parseFloat(previewPayslip.deductions || 0) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-400 print:text-zinc-600">Other Deductions:</span>
+                                                <span className="font-mono text-zinc-200 print:text-zinc-800">LKR {parseFloat(previewPayslip.deductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between pt-2 border-t border-dashed border-white/10 print:border-black/10 font-bold text-white print:text-black">
+                                            <span>Total Deductions:</span>
+                                            <span className="font-mono">LKR {(
+                                                parseFloat(previewPayslip.no_pay_deduction || 0) +
+                                                parseFloat(previewPayslip.late_deduction_pay || 0) +
+                                                parseFloat(previewPayslip.advance_deduction || 0) +
+                                                parseFloat(previewPayslip.loan_deduction || 0) +
+                                                parseFloat(previewPayslip.epf_employee || 0) +
+                                                parseFloat(previewPayslip.paye_tax || 0) +
+                                                parseFloat(previewPayslip.deductions || 0)
+                                            ).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Net Salary Summary */}
+                            <div className="flex justify-between items-center bg-white/5 print:bg-black/5 rounded-xl p-4 border border-white/10 print:border-black/10 mt-6">
+                                <span className="text-sm font-bold text-white print:text-black">Net Salary Payable:</span>
+                                <span className="text-xl font-bold font-mono text-white print:text-black">LKR {parseFloat(previewPayslip.net_pay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+
+                            {/* Employer Contributions */}
+                            {(parseFloat(previewPayslip.epf_employer || 0) > 0 || parseFloat(previewPayslip.etf_employer || 0) > 0) && (
+                                <div className="pt-4 border-t border-white/10 print:border-black/10 text-[10px] text-zinc-500 print:text-zinc-600 space-y-1">
+                                    <p className="font-bold uppercase tracking-wider text-[9px] text-zinc-400 print:text-zinc-700 mb-1">Employer Contributions (Not Deducted from Net Pay)</p>
+                                    <div className="flex justify-between">
+                                        <span>EPF Employer Share (12%):</span>
+                                        <span className="font-mono">LKR {parseFloat(previewPayslip.epf_employer || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>ETF Employer Share (3%):</span>
+                                        <span className="font-mono">LKR {parseFloat(previewPayslip.etf_employer || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Signature Sign-offs */}
+                            <div className="grid grid-cols-2 gap-8 pt-12 text-[10px] text-zinc-500 print:text-zinc-700">
+                                <div className="text-center space-y-4">
+                                    <div className="border-t border-white/20 print:border-black/20 pt-1">Prepared By</div>
+                                </div>
+                                <div className="text-center space-y-4">
+                                    <div className="border-t border-white/20 print:border-black/20 pt-1">Employee Signature</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-white/10 flex justify-end shrink-0 no-print">
+                            <button onClick={() => setPreviewPayslip(null)} className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 text-xs font-semibold cursor-pointer">
+                                Close Preview
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -31,7 +31,14 @@ export async function POST(req) {
             status = 'active', notes,
             pay_type = 'monthly', base_salary = 0, hourly_rate = 0,
             allowances = 0, deductions = 0, ot_rate_multiplier = 1.5,
-            standard_working_hours = 8
+            standard_working_hours = 8,
+            employment_type = 'permanent',
+            working_days = 'Monday,Tuesday,Wednesday,Thursday,Friday',
+            no_pay_type = 'percentage',
+            no_pay_value = 0,
+            ot_rate = 0,
+            double_ot_rate = 0,
+            late_deduction_rate = 0
         } = body;
 
         if (!name?.trim()) {
@@ -49,8 +56,10 @@ export async function POST(req) {
              (employee_id, name, job_title, department, phone, email,
               date_of_birth, date_joined, shift, status, notes,
               pay_type, base_salary, hourly_rate, allowances, deductions,
-              ot_rate_multiplier, standard_working_hours)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              ot_rate_multiplier, standard_working_hours,
+              employment_type, working_days, no_pay_type, no_pay_value,
+              ot_rate, double_ot_rate, late_deduction_rate)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 employeeId,
                 name.trim(),
@@ -69,7 +78,14 @@ export async function POST(req) {
                 allowances,
                 deductions,
                 ot_rate_multiplier,
-                standard_working_hours
+                standard_working_hours,
+                employment_type,
+                working_days,
+                no_pay_type,
+                no_pay_value,
+                ot_rate,
+                double_ot_rate,
+                late_deduction_rate
             ]
         );
 

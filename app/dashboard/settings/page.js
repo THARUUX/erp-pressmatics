@@ -6,7 +6,8 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
     FiSettings, FiBriefcase, FiFileText, FiHash, FiTrash2,
     FiSave, FiAlertTriangle, FiCheckCircle, FiList, FiPlus, FiX,
-    FiArrowUp, FiArrowDown, FiMessageSquare, FiAward, FiGift, FiEdit2
+    FiArrowUp, FiArrowDown, FiMessageSquare, FiAward, FiGift, FiEdit2,
+    FiDollarSign
 } from 'react-icons/fi';
 
 /* ── Reusable field primitives ────────────────────────────────────────────── */
@@ -52,6 +53,7 @@ const TABS = [
     { key: 'tasks',    label: 'Tasks',          icon: FiList      },
     { key: 'whatsapp', label: 'WhatsApp',       icon: FiMessageSquare },
     { key: 'loyalty',  label: 'Loyalty Program',icon: FiAward },
+    { key: 'payroll',  label: 'Payroll & Tax',  icon: FiDollarSign },
     { key: 'data',     label: 'Data Management',icon: FiTrash2    },
 ];
 
@@ -287,6 +289,15 @@ export default function SettingsPage() {
     const [rewardTitle, setRewardTitle] = useState('');
     const [rewardCost, setRewardCost] = useState('');
     const [rewardDesc, setRewardDesc] = useState('');
+    
+    // Payroll & Tax Settings
+    const [epfEmployeePct, setEpfEmployeePct] = useState('8');
+    const [epfEmployerPct, setEpfEmployerPct] = useState('12');
+    const [etfEmployerPct, setEtfEmployerPct] = useState('3');
+    const [br1Amount, setBr1Amount]           = useState('0');
+    const [br2Amount, setBr2Amount]           = useState('0');
+    const [payeTaxEnabled, setPayeTaxEnabled] = useState(false);
+    const [payeTaxBrackets, setPayeTaxBrackets] = useState([]);
 
     const fetchWhatsappStatus = async () => {
         try {
@@ -415,6 +426,27 @@ export default function SettingsPage() {
         } catch (e) {
             setLoyaltyRewards([]);
         }
+
+        // Initialize Payroll & Tax settings
+        setEpfEmployeePct(settings.epf_employee_pct || '8');
+        setEpfEmployerPct(settings.epf_employer_pct || '12');
+        setEtfEmployerPct(settings.etf_employer_pct || '3');
+        setBr1Amount(settings.br1_amount || '0');
+        setBr2Amount(settings.br2_amount || '0');
+        setPayeTaxEnabled(settings.paye_tax_enabled === 'true');
+        try {
+            setPayeTaxBrackets(settings.paye_tax_brackets ? JSON.parse(settings.paye_tax_brackets) : [
+                { min: 0, max: 100000, rate: 0 },
+                { min: 100000, max: 140000, rate: 6 },
+                { min: 140000, max: 180000, rate: 12 },
+                { min: 180000, max: 220000, rate: 18 },
+                { min: 220000, max: 260000, rate: 24 },
+                { min: 260000, max: 300000, rate: 30 },
+                { min: 300000, max: 99999999, rate: 36 }
+            ]);
+        } catch {
+            setPayeTaxBrackets([]);
+        }
     }, [settings]);
 
     const handleImageUpload = (setter) => (e) => {
@@ -448,6 +480,13 @@ export default function SettingsPage() {
             ['whatsapp_template_quote', whatsappTemplateQuote],
             ['loyalty_enabled', loyaltyEnabled ? 'true' : 'false'],
             ['loyalty_rewards', JSON.stringify(loyaltyRewards)],
+            ['epf_employee_pct', epfEmployeePct],
+            ['epf_employer_pct', epfEmployerPct],
+            ['etf_employer_pct', etfEmployerPct],
+            ['br1_amount', br1Amount],
+            ['br2_amount', br2Amount],
+            ['paye_tax_enabled', payeTaxEnabled ? 'true' : 'false'],
+            ['paye_tax_brackets', JSON.stringify(payeTaxBrackets)],
         ];
         let ok = true;
         for (const [key, val] of updates) { if (!(await updateSetting(key, val))) ok = false; }
@@ -1370,6 +1409,116 @@ export default function SettingsPage() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PAYROLL TAB */}
+            {tab === 'payroll' && (
+                <div className="space-y-4">
+                    <SectionCard title="EPF & ETF Percentages" icon={FiDollarSign}>
+                        <div className="grid sm:grid-cols-3 gap-5">
+                            <Field label="EPF Employee Deduction (%)" hint="Default percentage deducted from employee salary (typically 8%)">
+                                <TextInput type="number" value={epfEmployeePct} onChange={e => setEpfEmployeePct(e.target.value)} placeholder="8" />
+                            </Field>
+                            <Field label="EPF Employer Contribution (%)" hint="Default percentage added by employer (typically 12%)">
+                                <TextInput type="number" value={epfEmployerPct} onChange={e => setEpfEmployerPct(e.target.value)} placeholder="12" />
+                            </Field>
+                            <Field label="ETF Employer Contribution (%)" hint="Default percentage added by employer (typically 3%)">
+                                <TextInput type="number" value={etfEmployerPct} onChange={e => setEtfEmployerPct(e.target.value)} placeholder="3" />
+                            </Field>
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard title="Budgetary Relief Allowances (BR1 & BR2)" icon={FiDollarSign}>
+                        <div className="grid sm:grid-cols-2 gap-5">
+                            <Field label="BR1 Amount (LKR)" hint="Budgetary Relief 1 added to basic salary for calculations">
+                                <TextInput type="number" value={br1Amount} onChange={e => setBr1Amount(e.target.value)} placeholder="0.00" />
+                            </Field>
+                            <Field label="BR2 Amount (LKR)" hint="Budgetary Relief 2 added to basic salary for calculations">
+                                <TextInput type="number" value={br2Amount} onChange={e => setBr2Amount(e.target.value)} placeholder="0.00" />
+                            </Field>
+                        </div>
+                    </SectionCard>
+
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-white uppercase tracking-wider">PAYE Tax Configuration</h3>
+                                <p className="text-xs text-gray-500 mt-1 font-medium">
+                                    Configure tax brackets dynamically applied on gross monthly salaries.
+                                </p>
+                            </div>
+                            <div className="relative">
+                                <input type="checkbox" id="paye_enb" checked={payeTaxEnabled} onChange={e => setPayeTaxEnabled(e.target.checked)} className="sr-only" />
+                                <div onClick={() => setPayeTaxEnabled(!payeTaxEnabled)}
+                                    className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${payeTaxEnabled ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                                    <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${payeTaxEnabled ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {payeTaxEnabled && (
+                            <div className="space-y-4 pt-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-white uppercase">Tax Brackets</span>
+                                    <button type="button" onClick={() => {
+                                        setPayeTaxBrackets(prev => [...prev, { min: 0, max: 0, rate: 0 }]);
+                                    }} className="flex items-center gap-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-white px-3 py-1.5 rounded-xl transition-all cursor-pointer">
+                                        <FiPlus className="w-3.5 h-3.5" />
+                                        Add Bracket
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {payeTaxBrackets.map((bracket, index) => (
+                                        <div key={index} className="flex flex-col sm:flex-row items-center gap-4 bg-black/20 border border-white/10 p-3 rounded-xl">
+                                            <div className="flex-1 w-full">
+                                                <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Min Salary (LKR)</label>
+                                                <input type="number" value={bracket.min}
+                                                    onChange={(e) => {
+                                                        const copy = [...payeTaxBrackets];
+                                                        copy[index].min = parseFloat(e.target.value) || 0;
+                                                        setPayeTaxBrackets(copy);
+                                                    }}
+                                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 transition-colors" />
+                                            </div>
+                                            <div className="flex-1 w-full">
+                                                <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Max Salary (LKR)</label>
+                                                <input type="number" value={bracket.max}
+                                                    onChange={(e) => {
+                                                        const copy = [...payeTaxBrackets];
+                                                        copy[index].max = parseFloat(e.target.value) || 0;
+                                                        setPayeTaxBrackets(copy);
+                                                    }}
+                                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 transition-colors" />
+                                            </div>
+                                            <div className="w-full sm:w-28">
+                                                <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Rate (%)</label>
+                                                <input type="number" value={bracket.rate}
+                                                    onChange={(e) => {
+                                                        const copy = [...payeTaxBrackets];
+                                                        copy[index].rate = parseFloat(e.target.value) || 0;
+                                                        setPayeTaxBrackets(copy);
+                                                    }}
+                                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30 transition-colors" />
+                                            </div>
+                                            <div className="pt-4">
+                                                <button type="button" onClick={() => {
+                                                    setPayeTaxBrackets(prev => prev.filter((_, idx) => idx !== index));
+                                                }} className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer">
+                                                    <FiX className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {payeTaxBrackets.length === 0 && (
+                                        <p className="text-xs italic text-gray-500 text-center py-2">No tax brackets defined. Add a bracket to start taxing.</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

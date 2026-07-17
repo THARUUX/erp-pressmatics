@@ -14,7 +14,7 @@ const STATUSES = ['active', 'on_leave', 'inactive'];
 const DEPT_OPTIONS = ['Prepress', 'Offset Press', 'Digital Press', 'Finishing', 'Packaging', 'Admin'];
 const TEAM_COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#14b8a6'];
 
-const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', date_of_birth:'', date_joined:'', shift:'Day', status:'active', notes:'', pay_type:'monthly', base_salary:0, hourly_rate:0, allowances:0, deductions:0, ot_rate_multiplier:1.5, standard_working_hours:8 };
+const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', date_of_birth:'', date_joined:'', shift:'Day', status:'active', notes:'', pay_type:'monthly', base_salary:0, hourly_rate:0, allowances:0, deductions:0, ot_rate_multiplier:1.5, standard_working_hours:8, employment_type:'permanent', working_days:'Monday,Tuesday,Wednesday,Thursday,Friday', no_pay_type:'percentage', no_pay_value:0, ot_rate:0, double_ot_rate:0, late_deduction_rate:0 };
 const EMPTY_TEAM = { name:'', description:'', color:'#6366f1', member_ids:[] };
 
 const statusColor = s => s==='active'?'text-emerald-400 bg-emerald-500/10 border-emerald-500/20':s==='on_leave'?'text-amber-400 bg-amber-500/10 border-amber-500/20':'text-gray-400 bg-gray-500/10 border-gray-500/20';
@@ -119,14 +119,43 @@ export default function EmployeesPage() {
   const [teamForm, setTeamForm] = useState(EMPTY_TEAM);
   const [memberSearch, setMemberSearch] = useState('');
 
-  // Employee Stock Actions Detail view states
+  // Employee Profile Detail view states
   const [viewEmployee, setViewEmployee] = useState(null);
+  const [profileTab, setProfileTab] = useState('overview');
   const [empStockActions, setEmpStockActions] = useState([]);
   const [empStockSummary, setEmpStockSummary] = useState({ totalSavedQty: 0, totalSavedValue: 0, totalWastedQty: 0, totalWastedValue: 0 });
   const [loadingStockActions, setLoadingStockActions] = useState(false);
 
+  const [salaryItems, setSalaryItems] = useState([]);
+  const [empLoans, setEmpLoans] = useState([]);
+  const [empAdvances, setEmpAdvances] = useState([]);
+  
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [newItemForm, setNewItemForm] = useState({ name: '', amount: '', type: 'addition' });
+  const [showAddLoanModal, setShowAddLoanModal] = useState(false);
+  const [newLoanForm, setNewLoanForm] = useState({ loan_amount: '', monthly_installment: '' });
+  const [showAddAdvanceModal, setShowAddAdvanceModal] = useState(false);
+  const [newAdvanceForm, setNewAdvanceForm] = useState({ amount: '', request_date: new Date().toISOString().split('T')[0] });
+
+  const loadProfileSubdata = async (empId) => {
+    try {
+      const [itemsRes, loansRes, advRes] = await Promise.all([
+        fetch(`/api/employees/${empId}/salary-items`),
+        fetch(`/api/payroll/loans?employeeId=${empId}`),
+        fetch(`/api/payroll/advances?employeeId=${empId}`)
+      ]);
+      const [items, loans, adv] = await Promise.all([itemsRes.json(), loansRes.json(), advRes.json()]);
+      setSalaryItems(Array.isArray(items) ? items : []);
+      setEmpLoans(Array.isArray(loans) ? loans : []);
+      setEmpAdvances(Array.isArray(adv) ? adv : []);
+    } catch (e) {
+      console.error('Failed to load profile sub-data', e);
+    }
+  };
+
   const handleOpenEmployeeProfile = async (emp) => {
     setViewEmployee(emp);
+    setProfileTab('overview');
     setLoadingStockActions(true);
     try {
       const res = await fetch(`/api/employees/${emp.id}/stock-actions`);
@@ -135,10 +164,143 @@ export default function EmployeesPage() {
         setEmpStockActions(data.actions || []);
         setEmpStockSummary(data.summary || { totalSavedQty: 0, totalSavedValue: 0, totalWastedQty: 0, totalWastedValue: 0 });
       }
+      await loadProfileSubdata(emp.id);
     } catch (e) {
       console.error(e);
     } finally {
       setLoadingStockActions(false);
+    }
+  };
+
+  const handleAddSalaryItem = async (e) => {
+    e.preventDefault();
+    if (!newItemForm.name.trim() || !newItemForm.amount) return;
+    try {
+      const res = await fetch(`/api/employees/${viewEmployee.id}/salary-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newItemForm.name.trim(),
+          amount: parseFloat(newItemForm.amount),
+          type: newItemForm.type
+        })
+      });
+      if (res.ok) {
+        toast.success('Salary item added successfully');
+        setShowAddItemModal(false);
+        setNewItemForm({ name: '', amount: '', type: 'addition' });
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        const d = await res.json();
+        toast.error(d.error || 'Failed to add salary item');
+      }
+    } catch {
+      toast.error('Error adding salary item');
+    }
+  };
+
+  const handleDeleteSalaryItem = async (itemId) => {
+    if (!await confirmDialog('Are you sure you want to delete this item?')) return;
+    try {
+      const res = await fetch(`/api/employees/${viewEmployee.id}/salary-items?id=${itemId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success('Salary item deleted');
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        toast.error('Failed to delete salary item');
+      }
+    } catch {
+      toast.error('Error deleting salary item');
+    }
+  };
+
+  const handleAddLoan = async (e) => {
+    e.preventDefault();
+    if (!newLoanForm.loan_amount || !newLoanForm.monthly_installment) return;
+    try {
+      const res = await fetch(`/api/payroll/loans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: viewEmployee.id,
+          loan_amount: parseFloat(newLoanForm.loan_amount),
+          monthly_installment: parseFloat(newLoanForm.monthly_installment)
+        })
+      });
+      if (res.ok) {
+        toast.success('Loan created successfully');
+        setShowAddLoanModal(false);
+        setNewLoanForm({ loan_amount: '', monthly_installment: '' });
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        const d = await res.json();
+        toast.error(d.error || 'Failed to create loan');
+      }
+    } catch {
+      toast.error('Error creating loan');
+    }
+  };
+
+  const handleDeleteLoan = async (loanId) => {
+    if (!await confirmDialog('Are you sure you want to delete this loan record?')) return;
+    try {
+      const res = await fetch(`/api/payroll/loans?id=${loanId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success('Loan record deleted');
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        toast.error('Failed to delete loan');
+      }
+    } catch {
+      toast.error('Error deleting loan');
+    }
+  };
+
+  const handleAddAdvance = async (e) => {
+    e.preventDefault();
+    if (!newAdvanceForm.amount || !newAdvanceForm.request_date) return;
+    try {
+      const res = await fetch(`/api/payroll/advances`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: viewEmployee.id,
+          amount: parseFloat(newAdvanceForm.amount),
+          request_date: newAdvanceForm.request_date
+        })
+      });
+      if (res.ok) {
+        toast.success('Salary advance recorded');
+        setShowAddAdvanceModal(false);
+        setNewAdvanceForm({ amount: '', request_date: new Date().toISOString().split('T')[0] });
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        const d = await res.json();
+        toast.error(d.error || 'Failed to record advance');
+      }
+    } catch {
+      toast.error('Error recording advance');
+    }
+  };
+
+  const handleDeleteAdvance = async (advId) => {
+    if (!await confirmDialog('Are you sure you want to delete this advance record?')) return;
+    try {
+      const res = await fetch(`/api/payroll/advances?id=${advId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success('Advance record deleted');
+        await loadProfileSubdata(viewEmployee.id);
+      } else {
+        toast.error('Failed to delete advance');
+      }
+    } catch {
+      toast.error('Error deleting advance');
     }
   };
 
@@ -162,7 +324,36 @@ export default function EmployeesPage() {
   }, []);
 
   const openAddEmp = () => { setEditEmp(null); setEmpForm(EMPTY_EMP); setShowModal(true); };
-  const openEditEmp = (e) => { setEditEmp(e); setEmpForm({ name:e.name, job_title:e.job_title||'', department:e.department||'', phone:e.phone||'', email:e.email||'', date_of_birth:e.date_of_birth?e.date_of_birth.slice(0,10):'', date_joined:e.date_joined?e.date_joined.slice(0,10):'', shift:e.shift||'Day', status:e.status||'active', notes:e.notes||'', pay_type:e.pay_type||'monthly', base_salary:e.base_salary||0, hourly_rate:e.hourly_rate||0, allowances:e.allowances||0, deductions:e.deductions||0, ot_rate_multiplier:e.ot_rate_multiplier||1.5, standard_working_hours:e.standard_working_hours||8 }); setShowModal(true); };
+  const openEditEmp = (e) => {
+    setEditEmp(e);
+    setEmpForm({
+      name: e.name,
+      job_title: e.job_title || '',
+      department: e.department || '',
+      phone: e.phone || '',
+      email: e.email || '',
+      date_of_birth: e.date_of_birth ? e.date_of_birth.slice(0, 10) : '',
+      date_joined: e.date_joined ? e.date_joined.slice(0, 10) : '',
+      shift: e.shift || 'Day',
+      status: e.status || 'active',
+      notes: e.notes || '',
+      pay_type: e.pay_type || 'monthly',
+      base_salary: e.base_salary || 0,
+      hourly_rate: e.hourly_rate || 0,
+      allowances: e.allowances || 0,
+      deductions: e.deductions || 0,
+      ot_rate_multiplier: e.ot_rate_multiplier || 1.5,
+      standard_working_hours: e.standard_working_hours || 8,
+      employment_type: e.employment_type || 'permanent',
+      working_days: e.working_days || 'Monday,Tuesday,Wednesday,Thursday,Friday',
+      no_pay_type: e.no_pay_type || 'percentage',
+      no_pay_value: e.no_pay_value || 0,
+      ot_rate: e.ot_rate || 0,
+      double_ot_rate: e.double_ot_rate || 0,
+      late_deduction_rate: e.late_deduction_rate || 0
+    });
+    setShowModal(true);
+  };
 
   const saveEmp = async (ev) => {
     ev.preventDefault(); setSaving(true);
@@ -176,6 +367,10 @@ export default function EmployeesPage() {
         deductions: parseFloat(empForm.deductions) || 0,
         ot_rate_multiplier: parseFloat(empForm.ot_rate_multiplier) || 1.5,
         standard_working_hours: parseFloat(empForm.standard_working_hours) || 8,
+        no_pay_value: parseFloat(empForm.no_pay_value) || 0,
+        ot_rate: parseFloat(empForm.ot_rate) || 0,
+        double_ot_rate: parseFloat(empForm.double_ot_rate) || 0,
+        late_deduction_rate: parseFloat(empForm.late_deduction_rate) || 0,
       };
       const res = await fetch(url, { method: editEmp?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const d = await res.json();
@@ -679,12 +874,47 @@ export default function EmployeesPage() {
               <div className="border-t border-white/[0.07] pt-4">
                 <h4 className="text-sm font-bold text-white mb-4">Payroll & Salary Settings</h4>
                 <div className="grid sm:grid-cols-2 gap-4">
+                  {fld('Employment Type', 'employment_type', 'text', ['permanent', 'non-permanent'])}
                   {fld('Pay Type', 'pay_type', 'text', ['monthly', 'hourly'])}
                   {empForm.pay_type === 'monthly' ? fld('Base Salary (Monthly)', 'base_salary', 'number') : fld('Hourly Rate', 'hourly_rate', 'number')}
-                  {fld('Monthly Allowances', 'allowances', 'number')}
-                  {fld('Monthly Deductions', 'deductions', 'number')}
-                  {fld('OT Rate Multiplier', 'ot_rate_multiplier', 'number')}
+                  {fld('Additional Monthly Allowance', 'allowances', 'number')}
                   {fld('Standard Work Hours / Day', 'standard_working_hours', 'number')}
+                  
+                  {fld('Normal OT Rate (LKR/hr - 0 for default)', 'ot_rate', 'number')}
+                  {fld('Double OT Rate (LKR/hr - 0 for default)', 'double_ot_rate', 'number')}
+                  {fld('Late Deduction Rate (LKR/hr - 0 for default)', 'late_deduction_rate', 'number')}
+                  
+                  {fld('No-Pay Deduction Type', 'no_pay_type', 'text', ['percentage', 'fixed'])}
+                  {fld('No-Pay Value (Percentage / Fixed LKR)', 'no_pay_value', 'number')}
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Working Days</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                      const daysList = (empForm.working_days || '').split(',');
+                      const isSelected = daysList.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const newList = isSelected
+                              ? daysList.filter(d => d !== day)
+                              : [...daysList, day];
+                            setEmpForm(p => ({ ...p, working_days: newList.filter(Boolean).join(',') }));
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-white text-black border-white'
+                              : 'bg-black/35 text-gray-400 border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          {day.slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -797,6 +1027,7 @@ export default function EmployeesPage() {
       )}
 
       {/* ── EMPLOYEE PROFILE / STOCK ACTIONS MODAL ── */}
+      {/* ── EMPLOYEE PROFILE / STOCK ACTIONS MODAL ── */}
       {viewEmployee && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&setViewEmployee(null)}>
           <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
@@ -810,7 +1041,7 @@ export default function EmployeesPage() {
                 <div>
                   <h2 className="text-xl font-bold text-white leading-tight">{viewEmployee.name}</h2>
                   <p className="text-sm text-gray-400 mt-0.5">{viewEmployee.job_title || 'No Job Title'} • {viewEmployee.department || 'No Department'}</p>
-                  <p className="text-xs text-gray-500 font-mono mt-1">{viewEmployee.employee_id}</p>
+                  <p className="text-xs text-gray-500 font-mono mt-1">{viewEmployee.employee_id} • <span className="capitalize">{viewEmployee.employment_type || 'permanent'}</span></p>
                 </div>
               </div>
               <button onClick={() => setViewEmployee(null)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer transition-colors">
@@ -818,118 +1049,324 @@ export default function EmployeesPage() {
               </button>
             </div>
 
+            {/* Tab selector */}
+            <div className="flex border-b border-white/10 px-6 bg-black/25 shrink-0">
+              {[
+                { id: 'overview', name: 'Overview & Performance' },
+                { id: 'salary_items', name: 'Recurring Items (allowances/deductions)' },
+                { id: 'loans_advances', name: 'Loans & Advances' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setProfileTab(t.id)}
+                  className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+                    profileTab === t.id
+                      ? 'border-white text-white'
+                      : 'border-transparent text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+
             {/* Content body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              {/* Grid of basic details */}
-              <div className="grid sm:grid-cols-4 gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Shift</label>
-                  <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.shift || 'Flexible'}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Status</label>
-                  <p className="mt-1">
-                    <span className={`inline-flex text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusColor(viewEmployee.status)}`}>
-                      {viewEmployee.status?.replace('_', ' ')}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Phone</label>
-                  <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.phone || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Email</label>
-                  <p className="text-sm text-white font-medium mt-0.5 truncate">{viewEmployee.email || 'N/A'}</p>
-                </div>
-              </div>
-
-              {/* Inventory Savings & Wastage Summary cards */}
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-3">Inventory Saved vs. Wasted</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {/* Saved Qty */}
-                  <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
-                    <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Items</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{empStockSummary.totalSavedQty.toFixed(2)}</p>
-                  </div>
-                  {/* Saved Value */}
-                  <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
-                    <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Value</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">{fmtCurrency(empStockSummary.totalSavedValue)}</p>
-                  </div>
-                  {/* Wasted Qty */}
-                  <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
-                    <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Items</p>
-                    <p className="text-2xl font-bold text-rose-400 mt-1">{empStockSummary.totalWastedQty.toFixed(2)}</p>
-                  </div>
-                  {/* Wasted Value */}
-                  <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
-                    <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Value</p>
-                    <p className="text-2xl font-bold text-rose-400 mt-1">{fmtCurrency(empStockSummary.totalWastedValue)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Transactions List */}
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-3">Savings & Wastage Transactions</h3>
-                {loadingStockActions ? (
-                  <div className="text-center py-8 text-gray-500">Loading transactions...</div>
-                ) : empStockActions.length === 0 ? (
-                  <div className="text-center py-10 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
-                    No savings or wastage transactions recorded for this employee.
-                  </div>
-                ) : (
-                  <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="border-b border-white/10 bg-white/[0.02]">
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Date & Time</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Item</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Action</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Sales Order</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Team</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Quantity</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Cost</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold text-right">Total Value</th>
-                            <th className="px-4 py-3 text-gray-400 font-semibold">Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/[0.05]">
-                          {empStockActions.map(action => (
-                            <tr key={action.id} className="hover:bg-white/[0.01]">
-                              <td className="px-4 py-3 text-gray-400 font-mono">{new Date(action.created_at).toLocaleString()}</td>
-                              <td className="px-4 py-3">
-                                <span className="font-semibold text-white">{action.item_name}</span>
-                                {action.item_code && <span className="block text-[10px] text-gray-500 font-mono">{action.item_code}</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex font-bold uppercase tracking-wider text-[9px] px-2 py-0.5 rounded-full border ${
-                                  action.action_type === 'saved'
-                                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                                    : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
-                                }`}>
-                                  {action.action_type}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-blue-400">{action.so_code || '—'}</td>
-                              <td className="px-4 py-3 text-gray-300">{action.team_name || '—'}</td>
-                              <td className="px-4 py-3 text-right font-mono text-white">{parseFloat(action.quantity).toFixed(2)} {action.item_uom}</td>
-                              <td className="px-4 py-3 text-right font-mono text-gray-400">{fmtCurrency(action.unit_cost)}</td>
-                              <td className={`px-4 py-3 text-right font-mono font-semibold ${
-                                action.action_type === 'saved' ? 'text-emerald-400' : 'text-rose-400'
-                              }`}>{fmtCurrency(parseFloat(action.quantity) * parseFloat(action.unit_cost))}</td>
-                              <td className="px-4 py-3 text-gray-400 max-w-[150px] truncate" title={action.notes}>{action.notes || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+              {profileTab === 'overview' && (
+                <>
+                  {/* Grid of basic details */}
+                  <div className="grid sm:grid-cols-4 gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Shift</label>
+                      <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.shift || 'Flexible'}</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Status</label>
+                      <p className="mt-1">
+                        <span className={`inline-flex text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusColor(viewEmployee.status)}`}>
+                          {viewEmployee.status?.replace('_', ' ')}
+                        </span>
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Phone</label>
+                      <p className="text-sm text-white font-medium mt-0.5">{viewEmployee.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Email</label>
+                      <p className="text-sm text-white font-medium mt-0.5 truncate">{viewEmployee.email || 'N/A'}</p>
                     </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Inventory Savings & Wastage Summary cards */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-3">Inventory Saved vs. Wasted</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {/* Saved Qty */}
+                      <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
+                        <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Items</p>
+                        <p className="text-2xl font-bold text-emerald-400 mt-1">{empStockSummary.totalSavedQty.toFixed(2)}</p>
+                      </div>
+                      {/* Saved Value */}
+                      <div className="bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl p-4">
+                        <p className="text-[10px] text-emerald-400/70 font-semibold uppercase tracking-wider">Total Saved Value</p>
+                        <p className="text-2xl font-bold text-emerald-400 mt-1">{fmtCurrency(empStockSummary.totalSavedValue)}</p>
+                      </div>
+                      {/* Wasted Qty */}
+                      <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
+                        <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Items</p>
+                        <p className="text-2xl font-bold text-rose-400 mt-1">{empStockSummary.totalWastedQty.toFixed(2)}</p>
+                      </div>
+                      {/* Wasted Value */}
+                      <div className="bg-rose-500/[0.03] border border-rose-500/20 rounded-2xl p-4">
+                        <p className="text-[10px] text-rose-400/70 font-semibold uppercase tracking-wider">Total Wasted Value</p>
+                        <p className="text-2xl font-bold text-rose-400 mt-1">{fmtCurrency(empStockSummary.totalWastedValue)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transactions List */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-3">Savings & Wastage Transactions</h3>
+                    {loadingStockActions ? (
+                      <div className="text-center py-8 text-gray-500">Loading transactions...</div>
+                    ) : empStockActions.length === 0 ? (
+                      <div className="text-center py-10 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
+                        No savings or wastage transactions recorded for this employee.
+                      </div>
+                    ) : (
+                      <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-white/10 bg-white/[0.02]">
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Date & Time</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Item</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Action</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Sales Order</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Team</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold text-right">Quantity</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold text-right">Cost</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold text-right">Total Value</th>
+                                <th className="px-4 py-3 text-gray-400 font-semibold">Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.05]">
+                              {empStockActions.map(action => (
+                                <tr key={action.id} className="hover:bg-white/[0.01]">
+                                  <td className="px-4 py-3 text-gray-400 font-mono">{new Date(action.created_at).toLocaleString()}</td>
+                                  <td className="px-4 py-3">
+                                    <span className="font-semibold text-white">{action.item_name}</span>
+                                    {action.item_code && <span className="block text-[10px] text-gray-500 font-mono">{action.item_code}</span>}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className={`inline-flex font-bold uppercase tracking-wider text-[9px] px-2 py-0.5 rounded-full border ${
+                                      action.action_type === 'saved'
+                                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                                        : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                                    }`}>
+                                      {action.action_type}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 font-semibold text-blue-400">{action.so_code || '—'}</td>
+                                  <td className="px-4 py-3 text-gray-300">{action.team_name || '—'}</td>
+                                  <td className="px-4 py-3 text-right font-mono text-white">{parseFloat(action.quantity).toFixed(2)} {action.item_uom}</td>
+                                  <td className="px-4 py-3 text-right font-mono text-gray-400">{fmtCurrency(action.unit_cost)}</td>
+                                  <td className={`px-4 py-3 text-right font-mono font-semibold ${
+                                    action.action_type === 'saved' ? 'text-emerald-400' : 'text-rose-400'
+                                  }`}>{fmtCurrency(parseFloat(action.quantity) * parseFloat(action.unit_cost))}</td>
+                                  <td className="px-4 py-3 text-gray-400 max-w-[150px] truncate" title={action.notes}>{action.notes || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {profileTab === 'salary_items' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">Recurring Salary Additions & Deductions</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Define employee-specific items that run automatically every month (e.g. Rent allowance, Meal deduction).</p>
+                    </div>
+                    <button
+                      onClick={() => setShowAddItemModal(true)}
+                      className="flex items-center gap-1.5 bg-white text-black text-xs font-semibold px-3 py-2 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer"
+                    >
+                      <FiPlus className="w-3.5 h-3.5" /> Add Item
+                    </button>
+                  </div>
+
+                  {salaryItems.length === 0 ? (
+                    <div className="text-center py-12 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
+                      No custom additions or deductions added to this employee.
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {/* Additions */}
+                      <div className="border border-white/10 rounded-2xl p-4 bg-black/20 space-y-3">
+                        <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Additions / Allowances</h4>
+                        <div className="space-y-2">
+                          {salaryItems.filter(i => i.type === 'addition').map(item => (
+                            <div key={item.id} className="flex justify-between items-center bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs">
+                              <div>
+                                <p className="font-semibold text-white">{item.name}</p>
+                                <p className="text-gray-500 mt-0.5">{fmtCurrency(item.amount)}</p>
+                              </div>
+                              <button onClick={() => handleDeleteSalaryItem(item.id)} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+                                <FiTrash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {salaryItems.filter(i => i.type === 'addition').length === 0 && (
+                            <p className="text-[11px] text-gray-600 italic">No recurring additions</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Deductions */}
+                      <div className="border border-white/10 rounded-2xl p-4 bg-black/20 space-y-3">
+                        <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider">Deductions</h4>
+                        <div className="space-y-2">
+                          {salaryItems.filter(i => i.type === 'deduction').map(item => (
+                            <div key={item.id} className="flex justify-between items-center bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs">
+                              <div>
+                                <p className="font-semibold text-white">{item.name}</p>
+                                <p className="text-gray-500 mt-0.5">{fmtCurrency(item.amount)}</p>
+                              </div>
+                              <button onClick={() => handleDeleteSalaryItem(item.id)} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+                                <FiTrash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {salaryItems.filter(i => i.type === 'deduction').length === 0 && (
+                            <p className="text-[11px] text-gray-600 italic">No recurring deductions</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {profileTab === 'loans_advances' && (
+                <div className="grid sm:grid-cols-2 gap-6">
+                  
+                  {/* Salary Advances */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white">Salary Advances</h3>
+                        <p className="text-[11px] text-gray-500 mt-0.5">Advances are deducted automatically in full on the next payroll run.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowAddAdvanceModal(true)}
+                        className="flex items-center gap-1 bg-white text-black text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                      >
+                        <FiPlus className="w-3 h-3" /> Record Advance
+                      </button>
+                    </div>
+
+                    {empAdvances.length === 0 ? (
+                      <div className="text-center py-10 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
+                        No advances recorded.
+                      </div>
+                    ) : (
+                      <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20 text-xs">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="border-b border-white/10 bg-white/[0.02]">
+                              <th className="px-3 py-2 text-gray-400">Request Date</th>
+                              <th className="px-3 py-2 text-gray-400 text-right">Amount</th>
+                              <th className="px-3 py-2 text-gray-400">Status</th>
+                              <th className="px-3 py-2 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/[0.05]">
+                            {empAdvances.map(adv => (
+                              <tr key={adv.id}>
+                                <td className="px-3 py-2.5 font-mono text-gray-300">{adv.request_date ? adv.request_date.slice(0,10) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right font-mono text-white">{fmtCurrency(adv.amount)}</td>
+                                <td className="px-3 py-2.5">
+                                  <span className={`inline-flex text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    adv.status === 'deducted'
+                                      ? 'text-gray-400 bg-gray-500/10 border-gray-500/20'
+                                      : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                                  }`}>
+                                    {adv.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                  {adv.status !== 'deducted' && (
+                                    <button onClick={() => handleDeleteAdvance(adv.id)} className="p-1 text-gray-400 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer">
+                                      <FiTrash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Active Loans */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white">Active Loans</h3>
+                        <p className="text-[11px] text-gray-500 mt-0.5">Loans are amortized monthly by the specified installment amount.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowAddLoanModal(true)}
+                        className="flex items-center gap-1 bg-white text-black text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                      >
+                        <FiPlus className="w-3 h-3" /> Create Loan
+                      </button>
+                    </div>
+
+                    {empLoans.length === 0 ? (
+                      <div className="text-center py-10 border border-white/5 bg-white/[0.01] rounded-2xl text-gray-500 text-xs">
+                        No active loans.
+                      </div>
+                    ) : (
+                      <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20 text-xs">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="border-b border-white/10 bg-white/[0.02]">
+                              <th className="px-3 py-2 text-gray-400">Principal</th>
+                              <th className="px-3 py-2 text-gray-400 text-right">Installment</th>
+                              <th className="px-3 py-2 text-gray-400 text-right">Remaining</th>
+                              <th className="px-3 py-2 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/[0.05]">
+                            {empLoans.map(loan => (
+                              <tr key={loan.id}>
+                                <td className="px-3 py-2.5 font-mono text-gray-300">{fmtCurrency(loan.loan_amount)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono text-white">{fmtCurrency(loan.monthly_installment)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono text-amber-400 font-semibold">{fmtCurrency(loan.remaining_amount)}</td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <button onClick={() => handleDeleteLoan(loan.id)} className="p-1 text-gray-400 hover:text-red-400 rounded hover:bg-white/5 transition-colors cursor-pointer">
+                                    <FiTrash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -938,6 +1375,127 @@ export default function EmployeesPage() {
                 Close Profile
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD RECURRING SALARY ITEM MODAL ── */}
+      {showAddItemModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/15 rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="text-sm font-bold text-white mb-4">Add Recurring Item</h3>
+            <form onSubmit={handleAddSalaryItem} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Name</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Rent allowance, Fuel"
+                  value={newItemForm.name}
+                  onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-600 outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Amount (LKR)</label>
+                <input
+                  required
+                  type="number"
+                  placeholder="0.00"
+                  value={newItemForm.amount}
+                  onChange={e => setNewItemForm(p => ({ ...p, amount: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-600 outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Type</label>
+                <select
+                  value={newItemForm.type}
+                  onChange={e => setNewItemForm(p => ({ ...p, type: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-white/20 [color-scheme:dark]"
+                >
+                  <option value="addition">Addition / Allowance</option>
+                  <option value="deduction">Deduction</option>
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end pt-2 text-xs font-semibold">
+                <button type="button" onClick={() => setShowAddItemModal(false)} className="px-4 py-2 border border-white/10 text-gray-400 rounded-lg hover:bg-white/5 cursor-pointer">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 cursor-pointer">Add Item</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD LOAN MODAL ── */}
+      {showAddLoanModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/15 rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="text-sm font-bold text-white mb-4">Create New Loan</h3>
+            <form onSubmit={handleAddLoan} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Loan Principal Amount (LKR)</label>
+                <input
+                  required
+                  type="number"
+                  placeholder="0.00"
+                  value={newLoanForm.loan_amount}
+                  onChange={e => setNewLoanForm(p => ({ ...p, loan_amount: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-600 outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Monthly Installment Amount (LKR)</label>
+                <input
+                  required
+                  type="number"
+                  placeholder="0.00"
+                  value={newLoanForm.monthly_installment}
+                  onChange={e => setNewLoanForm(p => ({ ...p, monthly_installment: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-600 outline-none focus:border-white/20"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2 text-xs font-semibold">
+                <button type="button" onClick={() => setShowAddLoanModal(false)} className="px-4 py-2 border border-white/10 text-gray-400 rounded-lg hover:bg-white/5 cursor-pointer">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 cursor-pointer">Create Loan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD ADVANCE MODAL ── */}
+      {showAddAdvanceModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/15 rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h3 className="text-sm font-bold text-white mb-4">Record Salary Advance</h3>
+            <form onSubmit={handleAddAdvance} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Advance Amount (LKR)</label>
+                <input
+                  required
+                  type="number"
+                  placeholder="0.00"
+                  value={newAdvanceForm.amount}
+                  onChange={e => setNewAdvanceForm(p => ({ ...p, amount: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-gray-600 outline-none focus:border-white/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Date</label>
+                <input
+                  required
+                  type="date"
+                  value={newAdvanceForm.request_date}
+                  onChange={e => setNewAdvanceForm(p => ({ ...p, request_date: e.target.value }))}
+                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-white/20 [color-scheme:dark]"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2 text-xs font-semibold">
+                <button type="button" onClick={() => setShowAddAdvanceModal(false)} className="px-4 py-2 border border-white/10 text-gray-400 rounded-lg hover:bg-white/5 cursor-pointer">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 cursor-pointer">Record Advance</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
