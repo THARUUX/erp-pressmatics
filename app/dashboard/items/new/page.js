@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiArrowLeft, FiPlus } from 'react-icons/fi';
+import { FiArrowLeft, FiPlus, FiFileText, FiAlertCircle, FiPackage, FiCpu } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Link from 'next/link';
@@ -12,12 +12,51 @@ import { useSettings } from '@/components/SettingsContext';
 import EstimationComponentForm from '../components/EstimationComponentForm';
 import ImpositionVisualizer from '../components/ImpositionVisualizer';
 
+/* ── Quotation Progress ──────────────────────────────────────────────────────── */
+function QuotationProgress({ visible, progress, label }) {
+    if (!visible) return null;
+    return (
+        <div className="fixed inset-0 z-[9997] bg-black/65 backdrop-blur-lg flex items-center justify-center">
+            <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-10 w-80 shadow-[0_24px_64px_rgba(0,0,0,0.6)] text-center">
+                <div className="flex items-center justify-center mb-5">
+                    <div className="relative flex items-center justify-center w-16 h-16">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="url(#qGradItems)" strokeWidth="3" strokeLinecap="round" strokeDasharray="120 60" />
+                            <defs>
+                                <linearGradient id="qGradItems" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stopColor="#10b981" />
+                                    <stop offset="100%" stopColor="#34d399" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="relative z-10 w-10 h-10 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center">
+                            <FiFileText size={18} className="text-emerald-400" />
+                        </div>
+                    </div>
+                </div>
+                <div className="text-white font-bold text-base mb-1">Creating Quotation</div>
+                <div className="text-gray-500 text-sm mb-6">{label}</div>
+                <div className="bg-white/8 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-400"
+                        style={{ width: `${progress}%` }} />
+                </div>
+                <div className="text-gray-600 text-xs">{progress}%</div>
+            </div>
+        </div>
+    );
+}
+
 export default function NewQuotationPage() {
     const router = useRouter();
     const { settings } = useSettings();
     const currency = settings.currency;
     const [loading, setLoading] = useState(false);
     const [calculating, setCalculating] = useState(false);
+    const [creatingQuotation, setCreatingQuotation] = useState(false);
+    const [qProgress, setQProgress] = useState(0);
+    const [qLabel, setQLabel] = useState('');
+    const [quotationShortages, setQuotationShortages] = useState(null);
+    const [pendingQuoteItemId, setPendingQuoteItemId] = useState(null);
     const [shouldAutoCalc, setShouldAutoCalc] = useState(false); // Flag to enable auto-calc only after initial load/interaction
 
     // Resources
@@ -374,53 +413,139 @@ export default function NewQuotationPage() {
 
 
 
-    const handleSave = async () => {
+    const saveEstimation = async () => {
         if (grandTotal === 0 && !calculationResults.length) {
             await handleCalculate(); // Ensure calc run
         }
+        const payloadComponents = components.map(c => {
+            const norm = normalizeComponent(c);
+            const selectedMachine = machines.find(m => m.id == norm.params.machineId);
+            return {
+                ...norm,
+                params: {
+                    ...norm.params,
+                    machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
+                    machineSpeed: selectedMachine ? selectedMachine.speed : 0,
+                    machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
+                    makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                    custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
+                    impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit
+                }
+            };
+        });
+
+        const res = await fetch('/api/items/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customer_name: customerName,
+                customer_id: customerId,
+                estimation_name: estimationName,
+                job_description: jobDescription,
+                quantity: quantity, // Global
+                components: payloadComponents,
+                markup_percent: markupPercent,
+                global_finishings: globalFinishings
+            })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            return data.itemId;
+        } else {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Save Failed');
+        }
+    };
+
+    const handleSave = async () => {
         setLoading(true);
         try {
-            const payloadComponents = components.map(c => {
-                const norm = normalizeComponent(c);
-                const selectedMachine = machines.find(m => m.id == norm.params.machineId);
-                return {
-                    ...norm,
-                    params: {
-                        ...norm.params,
-                        machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
-                        machineSpeed: selectedMachine ? selectedMachine.speed : 0,
-                        machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
-                        makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
-                        custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
-                        impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit
-                    }
-                };
-            });
-
-            const res = await fetch('/api/items/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    customer_name: customerName,
-                    customer_id: customerId,
-                    estimation_name: estimationName,
-                    job_description: jobDescription,
-                    job_description: jobDescription,
-                    quantity: quantity, // Global
-                    components: payloadComponents,
-                    markup_percent: markupPercent,
-                    global_finishings: globalFinishings
-                })
-            });
-
-            if (res.ok) {
+            const itemId = await saveEstimation();
+            if (itemId) {
                 router.push('/dashboard/items');
             } else {
                 toast.error("Save Failed");
             }
         } catch (error) {
             console.error(error);
-            toast.error("Save Failed");
+            toast.error(error.message || "Save Failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleConvertToQuote = async (ignoreStock = false) => {
+        setLoading(true);
+        let itemId = pendingQuoteItemId;
+
+        try {
+            // 1. Save estimation first if we don't have its ID yet
+            if (!itemId) {
+                setCreatingQuotation(true);
+                setQProgress(10);
+                setQLabel('Saving estimation...');
+                itemId = await saveEstimation();
+                setPendingQuoteItemId(itemId);
+            } else {
+                setCreatingQuotation(true);
+                setQProgress(10);
+                setQLabel('Initializing...');
+            }
+
+            if (!itemId) {
+                throw new Error("Failed to save estimation first");
+            }
+
+            const stages = [
+                { pct: 25, label: 'Connecting to database...' },
+                { pct: 45, label: 'Fetching customer details...' },
+                { pct: 65, label: 'Creating quotation container...' },
+                { pct: 85, label: 'Linking item to quotation...' },
+                { pct: 95, label: 'Finalising...' }
+            ];
+            
+            let si = 0;
+            const tick = setInterval(() => {
+                if (si < stages.length) { 
+                    setQProgress(stages[si].pct); 
+                    setQLabel(stages[si].label); 
+                    si++; 
+                }
+            }, 300);
+
+            const res = await fetch('/api/quotations/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_name: customerName || 'Generic Customer',
+                    customer_id: customerId || null,
+                    selected_item_ids: [itemId],
+                    ignore_stock_warning: ignoreStock
+                })
+            });
+
+            const d = await res.json();
+            clearInterval(tick);
+
+            if (res.ok && d.quotationId) {
+                setQProgress(100);
+                setQLabel('Redirecting to quotation...');
+                await new Promise(r => setTimeout(r, 600));
+                setCreatingQuotation(false);
+                router.push(`/dashboard/quotations/${d.quotationId}`);
+            } else if (res.status === 422 && d.error === 'insufficient_stock') {
+                setCreatingQuotation(false);
+                setQuotationShortages(d.shortages);
+            } else {
+                setCreatingQuotation(false);
+                toast.error(d.error || 'Failed to create quotation');
+            }
+
+        } catch (error) {
+            setCreatingQuotation(false);
+            console.error(error);
+            toast.error(error.message || 'Error creating quotation');
         } finally {
             setLoading(false);
         }
@@ -430,6 +555,82 @@ export default function NewQuotationPage() {
 
     return (
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
+            <QuotationProgress visible={creatingQuotation} progress={qProgress} label={qLabel} />
+
+            {/* ── Stock Shortage Warning Modal ───────────────────────────────── */}
+            {quotationShortages && (
+                <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-amber-500/30 rounded-2xl p-8 w-full max-w-lg shadow-2xl shadow-amber-950/20">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                <FiAlertCircle className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Stock Shortage Warning</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Warning: There is insufficient stock for the following items</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 rounded-xl overflow-hidden border border-white/[0.07] max-h-60 overflow-y-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-white/[0.04] border-b border-white/[0.07]">
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Type</th>
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Item</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Required</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Available</th>
+                                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-amber-500/70">Short</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {quotationShortages.map((s, i) => (
+                                        <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                    s.type === 'sfg'
+                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                        : s.type === 'statics'
+                                                        ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                        : s.type === 'plate'
+                                                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
+                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                                }`}>
+                                                    <FiPackage className="w-2.5 h-2.5" />
+                                                    {s.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-200 font-medium text-xs text-left">{s.name}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.required}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-400">{s.available}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs font-bold text-amber-400">{s.shortfall}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 text-left">Do you want to create the quotation anyway?</p>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setQuotationShortages(null);
+                                    setPendingQuoteItemId(null);
+                                }}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setQuotationShortages(null);
+                                    handleConvertToQuote(true);
+                                }}
+                                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 rounded-xl text-sm font-semibold text-black transition-colors font-bold"
+                            >
+                                Create Anyway
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <header className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-4">
                     <Link href="/dashboard/items">
@@ -831,11 +1032,31 @@ export default function NewQuotationPage() {
                             </div>
 
                             <div className="mt-6 space-y-3">
-                                <Button onClick={handleCalculate} disabled={calculating} className="w-full bg-white text-black hover:bg-gray-200">
-                                    {calculating ? 'Calculating...' : 'Calculate Estimation'}
+                                <Button 
+                                    onClick={handleCalculate} 
+                                    disabled={calculating} 
+                                    isLoading={calculating}
+                                    className="w-full bg-slate-900/60 text-indigo-200 border border-indigo-500/30 hover:bg-indigo-950/40 hover:text-white hover:border-indigo-400/60 shadow-[0_0_15px_rgba(99,102,241,0.15)] hover:shadow-[0_0_25px_rgba(99,102,241,0.3)] transition-all duration-300"
+                                >
+                                    {!calculating && <FiCpu className="w-4 h-4 mr-2 text-indigo-400 animate-pulse" />}
+                                    Calculate Estimation
                                 </Button>
-                                <Button onClick={handleSave} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white">
-                                    {loading ? 'Saving...' : 'Save Estimation'}
+                                <Button 
+                                    onClick={handleSave} 
+                                    disabled={loading || creatingQuotation} 
+                                    isLoading={loading}
+                                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold shadow-[0_4px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.4)] border border-blue-400/20 transition-all duration-300"
+                                >
+                                    {!loading && <FiPlus className="w-4 h-4 mr-2" />}
+                                    Create Estimation
+                                </Button>
+                                <Button
+                                    onClick={() => handleConvertToQuote(false)}
+                                    disabled={loading || calculating || creatingQuotation}
+                                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.25)] hover:shadow-[0_4px_25px_rgba(20,184,166,0.4)] border border-emerald-500/30 transition-all duration-300"
+                                >
+                                    <FiFileText className="w-4 h-4" />
+                                    Convert to Quote
                                 </Button>
                             </div>
                         </section>

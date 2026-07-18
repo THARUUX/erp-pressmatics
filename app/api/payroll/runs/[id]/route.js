@@ -116,7 +116,13 @@ export async function PUT(req, { params }) {
         await connection.commit();
         return NextResponse.json({ success: true, message: 'Payroll run updated successfully' });
     } catch (err) {
-        if (connection) await connection.rollback();
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error("Rollback failed:", rollbackError);
+            }
+        }
         console.error('[payroll/runs/:id PUT]', err);
         return NextResponse.json({ error: 'Failed to update payroll run: ' + err.message }, { status: 500 });
     } finally {

@@ -69,7 +69,11 @@ export async function POST(req) {
             await connection.commit();
             return NextResponse.json({ success: true, id: serviceId });
         } catch (error) {
-            await connection.rollback();
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error("Rollback failed:", rollbackError);
+            }
             throw error;
         } finally {
             connection.release();

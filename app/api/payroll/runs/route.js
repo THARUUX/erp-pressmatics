@@ -404,7 +404,13 @@ export async function POST(req) {
             warnings: warnings.slice(0, 50)
         });
     } catch (err) {
-        if (connection) await connection.rollback();
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error("Rollback failed:", rollbackError);
+            }
+        }
         console.error('[payroll/runs POST]', err);
         return NextResponse.json({ error: 'Failed to generate payroll: ' + err.message }, { status: 500 });
     } finally {

@@ -517,7 +517,11 @@ export async function PUT(req, { params }) {
             await connection.commit();
             return NextResponse.json({ success: true, amount: grandTotal });
         } catch (error) {
-            await connection.rollback();
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error("Rollback failed:", rollbackError);
+            }
             throw error;
         } finally {
             connection.release();

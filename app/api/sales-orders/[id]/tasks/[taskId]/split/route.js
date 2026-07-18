@@ -156,7 +156,11 @@ export async function POST(req, { params }) {
         await connection.commit();
         return NextResponse.json({ success: true });
     } catch (err) {
-        await connection.rollback();
+        try {
+            await connection.rollback();
+        } catch (rollbackError) {
+            console.error("Rollback failed:", rollbackError);
+        }
         console.error('Split task error:', err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     } finally {
