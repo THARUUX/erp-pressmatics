@@ -130,16 +130,21 @@ export default function EditQuotationPage({ params }) {
                 setMarkupPercent(item.markup_percent != null ? parseFloat(item.markup_percent).toFixed(5) : '0.00000');
 
                 // Map Global Finishings
+                let globalFinishingCost = 0;
                 if (fetchedGlobalFinishings && Array.isArray(fetchedGlobalFinishings)) {
-                    setGlobalFinishings(fetchedGlobalFinishings.map((f, i) => ({
-                        ...f,
-                        id: f.id || `gf-${i}`,
-                        unit_cost: parseFloat(f.unit_cost),
-                        total_cost: parseFloat(f.total_cost || 0),
-                        time_per_unit: parseFloat(f.time_per_unit),
-                        total_time: parseFloat(f.total_time),
-                        is_machine: f.is_machine === 1
-                    })));
+                    setGlobalFinishings(fetchedGlobalFinishings.map((f, i) => {
+                        const cost = parseFloat(f.total_cost || 0);
+                        globalFinishingCost += cost;
+                        return {
+                            ...f,
+                            id: f.id || `gf-${i}`,
+                            unit_cost: parseFloat(f.unit_cost),
+                            total_cost: cost,
+                            time_per_unit: parseFloat(f.time_per_unit),
+                            total_time: parseFloat(f.total_time),
+                            is_machine: f.is_machine === 1
+                        };
+                    }));
                 }
 
                 // Map fetched components to state structure
@@ -210,7 +215,11 @@ export default function EditQuotationPage({ params }) {
                 }));
 
                 setComponents(mappedComps);
-                setGrandTotal(parseFloat(item.total_amount || 0));
+                
+                const pct = item.markup_percent != null ? parseFloat(item.markup_percent) : 0;
+                const totalBeforeMarkup = parseFloat(item.total_amount || 0) / (1 + pct / 100);
+                const subTotal = totalBeforeMarkup - globalFinishingCost;
+                setGrandTotal(subTotal);
 
                 setLoading(false);
             } catch (error) {

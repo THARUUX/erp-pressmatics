@@ -18,7 +18,7 @@ const s = StyleSheet.create({
     headerTitle: { fontSize: 16, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.5, color: '#0f172a' },
     headerCustomer: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#1e293b', marginTop: 2 },
     headerSub: { fontSize: 8.5, color: '#64748b', marginTop: 1 },
-    
+
     headerSOLabel: { fontSize: 7, textTransform: 'uppercase', color: '#64748b', fontFamily: 'Helvetica-Bold' },
     headerSOCode: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginVertical: 1 },
     headerDate: { fontSize: 8, color: '#334155' },
@@ -176,8 +176,8 @@ function ImpositionSVG({ detail, svgW = 340, svgH = 160 }) {
 // ─── Modular UI Blocks ───────────────────────────────────────────────────────
 // Finishing est time: quantity / machine.speed → minutes
 const fmtFinishTime = (f, tasks) => {
-    const matchedTask = tasks?.find(t => 
-        t.machine_id === f.machine_id && 
+    const matchedTask = tasks?.find(t =>
+        t.machine_id === f.machine_id &&
         t.name.toLowerCase().includes(f.name.toLowerCase())
     );
     const mins = matchedTask ? matchedTask.estimated_minutes : null;
@@ -189,8 +189,8 @@ const fmtFinishTime = (f, tasks) => {
         return fmtTime(f.total_time);
     }
 
-    const qty   = parseFloat(f.quantity)  || 0;
-    const speed = parseFloat(f.speed)     || 0;
+    const qty = parseFloat(f.quantity) || 0;
+    const speed = parseFloat(f.speed) || 0;
     if (!qty || !speed) return '—';
     if (f.cost_unit === 'Unit') {
         const minsCalc = Math.ceil((qty / speed) * 60);
@@ -202,7 +202,7 @@ const fmtFinishTime = (f, tasks) => {
 function FinishingsTable({ finishings, tasks }) {
     if (!finishings?.length) return null;
     return (
-        <View style={{ marginTop: 4 }}>
+        <View style={{ marginTop: 4 }} wrap={false}>
             <Text style={s.sectionTitle}>Component Finishing Tasks</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1]}>Operation</Text>
@@ -211,7 +211,7 @@ function FinishingsTable({ finishings, tasks }) {
                 <Text style={[s.tableHeaderText, s.tableCol4]}>Est Run</Text>
             </View>
             {finishings.map((f, i) => (
-                <View key={i} style={s.tableRow}>
+                <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
                     <Text style={[s.tableCell, s.tableCol2]}>{fmt(f.machine_name)}</Text>
                     <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
@@ -225,7 +225,7 @@ function FinishingsTable({ finishings, tasks }) {
 function GlobalFinishingsTable({ finishings, tasks }) {
     if (!finishings?.length) return null;
     return (
-        <View style={s.globalSection}>
+        <View style={s.globalSection} wrap={false}>
             <Text style={s.globalTitle}>Final Order Assembly & Post-Press Treatments (Global)</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1, { color: '#4338ca' }]}>Operation</Text>
@@ -234,7 +234,7 @@ function GlobalFinishingsTable({ finishings, tasks }) {
                 <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'center', color: '#4338ca' }]}>Sign</Text>
             </View>
             {finishings.map((f, i) => (
-                <View key={i} style={s.tableRow}>
+                <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
                     <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
                     <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f, tasks)}</Text>
@@ -250,7 +250,7 @@ function GlobalFinishingsTable({ finishings, tasks }) {
 function SFGLinesTable({ sfgLines }) {
     if (!sfgLines?.length) return null;
     return (
-        <View style={{ marginTop: 4 }}>
+        <View style={{ marginTop: 4 }} wrap={false}>
             <Text style={s.sectionTitle}>Required SFG & Stock Assets</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 3 }]}>Item Name / Description</Text>
@@ -260,7 +260,7 @@ function SFGLinesTable({ sfgLines }) {
                 <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'center' }]}>Verified</Text>
             </View>
             {sfgLines.map((line, i) => (
-                <View key={i} style={s.tableRow}>
+                <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, { flex: 3 }]}>{fmt(line.item_name)}</Text>
                     <Text style={[s.tableCell, { flex: 1.5 }]}>{fmt(line.item_code)}</Text>
                     <Text style={[s.tableCell, { flex: 1, textAlign: 'right' }]}>{fmt(line.quantity)}</Text>
@@ -277,7 +277,7 @@ function SFGLinesTable({ sfgLines }) {
 function ServicesTable({ services }) {
     if (!services?.length) return null;
     return (
-        <View style={{ marginTop: 4 }}>
+        <View style={{ marginTop: 4 }} wrap={false}>
             <Text style={s.sectionTitle}>Production Services & Assignments</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 2 }]}>Service / Task Name</Text>
@@ -286,7 +286,7 @@ function ServicesTable({ services }) {
                 <Text style={[s.tableHeaderText, { flex: 2.5 }]}>Operational Notes</Text>
             </View>
             {services.map((svc, i) => (
-                <View key={i} style={s.tableRow}>
+                <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, { flex: 2 }]}>{fmt(svc.service_name)}</Text>
                     <Text style={[s.tableCell, { flex: 1.5 }]}>{fmt(svc.employee_name)}</Text>
                     <Text style={[s.tableCell, { flex: 1, textAlign: 'right' }]}>
@@ -309,8 +309,8 @@ function DetailCard({ detail, tasks }) {
     // Est. press time: check tasks list first, then fallback to speed formula
     let estTimeLabel = null;
     if (isPrinting) {
-        const matchedTask = tasks?.find(t => 
-            t.machine_id === detail.machine_id && 
+        const matchedTask = tasks?.find(t =>
+            t.machine_id === detail.machine_id &&
             t.name.toLowerCase().includes(detail.component_name.toLowerCase())
         );
         const mins = matchedTask ? matchedTask.estimated_minutes : null;
@@ -331,11 +331,11 @@ function DetailCard({ detail, tasks }) {
     }
 
     return (
-        <View style={s.detailCard}>
+        <View style={s.detailCard} wrap={false}>
             <Text style={s.detailBadge}>{detail.component_name} / {detail.type}</Text>
 
             {isPrinting && (
-                <> 
+                <>
                     {detail.machine_name && (
                         <View style={s.infoGrid}>
                             <View style={s.infoCell}>
@@ -414,7 +414,7 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
     const deliveryDate = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : 'TBD';
 
     return (
-        <View style={{ flex: 1, paddingBottom: 20 }}>
+        <View style={{ paddingBottom: 20 }}>
             <View style={s.headerRow}>
                 <View style={s.headerLeft}>
                     <Text style={s.headerTitle}>Production Job Ticket</Text>
@@ -443,13 +443,16 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                         <Text style={s.itemHeaderText}>Target Yield: {item.quantity} Units</Text>
                     </View>
 
-                    {item.details?.filter(d => d.component_name !== 'Finishing').map((detail, dIdx) => (
+                    {item.details?.filter(d => {
+                        const name = d.component_name?.toLowerCase() || '';
+                        return !['finishing', 'finishings', 'services', 'sfg', 'assets'].includes(name) || (name.includes('finishing') && name.includes('asset'));
+                    }).map((detail, dIdx) => (
                         <DetailCard key={detail.id || dIdx} detail={detail} tasks={order.tasks} />
                     ))}
 
                     <GlobalFinishingsTable finishings={item.globalFinishings} tasks={order.tasks} />
 
-                    <View style={s.signoffRow}>
+                    <View style={s.signoffRow} wrap={false}>
                         <View style={s.signoffBox}>
                             <Text style={s.signoffText}>Floor Controller Sign-Off</Text>
                         </View>
@@ -474,7 +477,7 @@ function ImpositionLayoutsPage({ order }) {
     if (!layouts.length) return null;
 
     return (
-        <View style={{ flex: 1, paddingBottom: 20 }}>
+        <View style={{ paddingBottom: 20 }}>
             <View style={s.headerRow}>
                 <View style={s.headerLeft}>
                     <Text style={s.headerTitle}>Imposition & Layout Allocation Plans</Text>
@@ -490,7 +493,7 @@ function ImpositionLayoutsPage({ order }) {
                 {Array.from({ length: Math.ceil(layouts.length / 2) }, (_, rowIdx) => {
                     const pair = layouts.slice(rowIdx * 2, rowIdx * 2 + 2);
                     return (
-                        <View key={rowIdx} style={s.layoutRow}>
+                        <View key={rowIdx} style={s.layoutRow} wrap={false}>
                             {pair.map(({ item, itemIdx, detail, dIdx }) => (
                                 <View key={`${item.id || itemIdx}-${detail.id || dIdx}`} style={s.layoutCell}>
                                     <Text style={s.layoutCellTitle}>
@@ -518,7 +521,7 @@ function ImpositionLayoutsPage({ order }) {
 // ─── Orchestration Document Root ─────────────────────────────────────────────
 export default function JobTicketDocument({ order, qrDataUrl, jobUrl }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
-    
+
     return (
         <Document title={`JobTicket-${order.code}`} author="Pressmatics ERP Architecture">
             {/* Page Type 1: Job Details (Landscape for wide component spec tables) */}

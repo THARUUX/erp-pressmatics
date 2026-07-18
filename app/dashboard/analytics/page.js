@@ -236,7 +236,12 @@ export default function AnalyticsPage() {
 
     const scatterOption = stats?.profitRows?.length ? {
         backgroundColor:'transparent',
-        tooltip:{trigger:'item',...TT,formatter:p=>{ const[cost,margin]=p.data; return `<b>${p.name}</b><br/>Cost: ${fmtCurrency(cost)}<br/>Margin: ${margin}%`; }},
+        tooltip:{trigger:'item',...TT,formatter:p=>{
+            const vals = Array.isArray(p.value) ? p.value : (p.data && Array.isArray(p.data.value) ? p.data.value : []);
+            const [cost, margin] = vals;
+            const name = p.name || (p.data && p.data.name) || '';
+            return `<b>${name}</b><br/>Cost: ${fmtCurrency(cost || 0)}<br/>Margin: ${margin || 0}%`;
+        }},
         grid:{left:8,right:8,top:8,bottom:0,containLabel:true},
         xAxis:{type:'value',name:'Cost (LKR)',nameTextStyle:{color:'rgba(255,255,255,0.2)',fontSize:10},axisLabel:{color:'rgba(255,255,255,0.25)',fontSize:10,formatter:v=>fmt(v)},splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}}},
         yAxis:{type:'value',name:'Margin %',nameTextStyle:{color:'rgba(255,255,255,0.2)',fontSize:10},axisLabel:{color:'rgba(255,255,255,0.25)',fontSize:10,formatter:v=>`${v}%`},splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}}},
