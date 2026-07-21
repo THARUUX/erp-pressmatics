@@ -123,12 +123,12 @@ export async function PUT(req, { params }) {
         }
         updates.push('updated_at = NOW()');
 
-        paramsList.push(taskId, id);
+        paramsList.push(taskId);
 
         await pool.execute(
             `UPDATE job_tasks
              SET ${updates.join(', ')}
-             WHERE id = ? AND sales_order_id = ?`,
+             WHERE id = ?`,
             paramsList
         );
 
@@ -144,18 +144,12 @@ export async function PUT(req, { params }) {
 export async function DELETE(req, { params }) {
     try {
         const resolvedParams = await params;
-        const rawId = resolvedParams?.id;
         const { taskId } = resolvedParams;
-        if (!rawId || rawId === 'undefined' || rawId === 'null') {
-            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
+        if (!taskId) {
+            return NextResponse.json({ error: 'Invalid or missing Task ID' }, { status: 400 });
         }
 
-        const id = await getSalesOrderId(rawId);
-        if (!id) {
-            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
-        }
-
-        await pool.execute('DELETE FROM job_tasks WHERE id = ? AND sales_order_id = ?', [taskId, id]);
+        await pool.execute('DELETE FROM job_tasks WHERE id = ?', [taskId]);
         return NextResponse.json({ success: true });
     } catch (err) {
         return NextResponse.json({ error: err.message }, { status: 500 });

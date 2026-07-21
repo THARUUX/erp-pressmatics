@@ -663,6 +663,9 @@ async function generateJobTasks(id) {
 
 // ─── Helper to resolve code or ID to numeric ID ─────────────────────────────
 async function getSalesOrderId(idOrCode) {
+    if (!idOrCode || idOrCode === 'unassigned' || idOrCode === 'null' || idOrCode === 'undefined' || idOrCode === '0') {
+        return null;
+    }
     if (!isNaN(idOrCode)) {
         return parseInt(idOrCode);
     }
@@ -767,8 +770,9 @@ export async function POST(req, { params }) {
             return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
         }
 
-        const id = await getSalesOrderId(rawId);
-        if (!id) {
+        const isUnassigned = rawId === 'unassigned' || rawId === '0' || rawId === 'none';
+        const id = isUnassigned ? null : await getSalesOrderId(rawId);
+        if (!isUnassigned && !id) {
             return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
         }
 
@@ -776,6 +780,7 @@ export async function POST(req, { params }) {
 
         // Auto-generate from job components (machine-aware)
         if (body.generateDefaults || body.generateFromJob) {
+            if (!id) return NextResponse.json({ error: 'Sales Order required for auto-generating tasks' }, { status: 400 });
             const tasks = await generateJobTasks(id);
             const enrichedTasks = await enrichTasksWithEstimationDetailsForGet(tasks, [id]);
             return NextResponse.json(enrichedTasks);

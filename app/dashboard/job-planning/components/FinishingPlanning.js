@@ -1702,9 +1702,10 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
 
     // Update Task Time
     const handleUpdateTask = async (taskId, orderId, fields) => {
+        const targetSO = orderId || 'unassigned';
         setLocalOrders(prev => {
             return prev.map(order => {
-                if (order.id === orderId) {
+                if (order.id === orderId || (orderId == null && order.id == null)) {
                     return {
                         ...order,
                         tasks: order.tasks.map(t => {
@@ -1720,7 +1721,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
         });
 
         try {
-            await fetch(`/api/sales-orders/${orderId}/tasks/${taskId}`, {
+            await fetch(`/api/sales-orders/${targetSO}/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fields),

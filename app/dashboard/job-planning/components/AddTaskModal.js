@@ -16,10 +16,6 @@ export default function AddTaskModal({ orders = [], machines = [], initialMachin
         e.preventDefault();
         setError('');
 
-        if (!selectedOrderId) {
-            setError('Please select a Sales Order.');
-            return;
-        }
         if (!taskName.trim()) {
             setError('Please enter a task name.');
             return;
@@ -39,7 +35,8 @@ export default function AddTaskModal({ orders = [], machines = [], initialMachin
                 quantity: quantity ? parseFloat(quantity) : null,
             };
 
-            const res = await fetch(`/api/sales-orders/${selectedOrderId}/tasks`, {
+            const targetSO = selectedOrderId || 'unassigned';
+            const res = await fetch(`/api/sales-orders/${targetSO}/tasks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -98,16 +95,15 @@ export default function AddTaskModal({ orders = [], machines = [], initialMachin
                     {/* Sales Order Selection */}
                     <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                            Target Sales Order <span className="text-red-400">*</span>
+                            Target Sales Order (Optional)
                         </label>
                         <select
                             className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 [color-scheme:dark] cursor-pointer"
                             value={selectedOrderId}
                             onChange={e => setSelectedOrderId(e.target.value)}
-                            required
                         >
-                            <option value="" disabled>Select a Sales Order...</option>
-                            {orders.map(o => (
+                            <option value="">None / Standalone Task (No Sales Order)</option>
+                            {orders.filter(o => o.id !== null).map(o => (
                                 <option key={o.id} value={o.id}>
                                     [{o.code}] {o.customer_name} — {o.estimation_names || 'Sales Order #' + o.id}
                                 </option>

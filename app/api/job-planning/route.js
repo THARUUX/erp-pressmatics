@@ -58,19 +58,43 @@ export async function GET() {
                 `SELECT jt.*, m.name AS machine_label, so.delivery_date AS order_delivery_date
                  FROM job_tasks jt
                  LEFT JOIN machines m ON jt.machine_id = m.id
-                 JOIN sales_orders so ON jt.sales_order_id = so.id
-                 WHERE jt.sales_order_id IN (${placeholders})
+                 LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
+                 WHERE jt.sales_order_id IN (${placeholders}) OR jt.sales_order_id IS NULL
                  ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
                 orderIds
             );
             tasks = await enrichTasksWithEstimationDetails(rows, orderIds);
+        } else {
+            const [rows] = await pool.execute(
+                `SELECT jt.*, m.name AS machine_label, NULL AS order_delivery_date
+                 FROM job_tasks jt
+                 LEFT JOIN machines m ON jt.machine_id = m.id
+                 WHERE jt.sales_order_id IS NULL
+                 ORDER BY jt.machine_position ASC, jt.display_order ASC, jt.id ASC`
+            );
+            tasks = await enrichTasksWithEstimationDetails(rows, []);
         }
+
+        const standaloneTasks = tasks.filter(t => t.sales_order_id === null);
 
         // Attach tasks to each order
         const ordersWithTasks = orders.map(o => ({
             ...o,
             tasks: tasks.filter(t => t.sales_order_id === o.id),
         }));
+
+        if (standaloneTasks.length > 0) {
+            ordersWithTasks.push({
+                id: null,
+                code: 'GENERAL',
+                customer_name: 'Standalone Tasks',
+                status: 'In Progress',
+                delivery_date: null,
+                quotation_id: null,
+                estimation_names: 'Manual / Standalone',
+                tasks: standaloneTasks,
+            });
+        }
 
         return NextResponse.json({ machines, orders: ordersWithTasks, finishings });
     } catch (err) {
