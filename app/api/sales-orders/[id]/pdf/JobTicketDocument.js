@@ -294,7 +294,9 @@ function BOMTable({ bom }) {
                     <Text style={[s.tableCellBold, { flex: 2.5 }]}>{fmt(b.component_name)}</Text>
                     <Text style={[s.tableCell, { flex: 1, textTransform: 'uppercase', fontSize: 7 }]}>{fmt(b.component_type)}</Text>
                     <Text style={[s.tableCell, { flex: 1.2 }]}>{fmt(b.item_code)}</Text>
-                    <Text style={[s.tableCellBold, { flex: 1, textAlign: 'right', color: '#047857' }]}>{fmt(b.required_qty.toFixed(0))}</Text>
+                    <Text style={[s.tableCellBold, { flex: 1, textAlign: 'right', color: '#047857' }]}>
+                        {fmt(b.required_qty != null ? parseFloat(b.required_qty).toFixed(0) : '—')}
+                    </Text>
                     <Text style={[s.tableCell, { flex: 0.8, textAlign: 'center' }]}>{fmt(b.uom || 'Unit')}</Text>
                     <View style={{ flex: 0.8, alignItems: 'center' }}>
                         <View style={[s.globalBox, { borderColor: '#a7f3d0', width: 9, height: 9 }]} />
