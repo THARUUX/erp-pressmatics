@@ -93,6 +93,55 @@ export async function GET(req, { params }) {
         const [tasks] = await pool.execute('SELECT * FROM job_tasks WHERE sales_order_id = ?', [id]);
         salesOrder.tasks = tasks;
 
+        // Fetch BOM lines
+        const [bomRows] = await pool.execute(`
+            SELECT sob.*, ii.item_code, ii.uom, ii.stock_quantity AS available_qty
+            FROM sales_order_bom sob
+            JOIN inventory_items ii ON sob.inventory_item_id = ii.id
+            WHERE sob.sales_order_id = ?
+        `, [id]);
+
+        if (bomRows.length > 0) {
+            salesOrder.bom = bomRows;
+        } else if (salesOrder.quotation_id) {
+            const [paperNeeds] = await pool.execute(`
+                SELECT qid.paper_id AS inventory_item_id, ii.name AS item_name, ii.item_code, ii.uom, ii.stock_quantity AS available_qty, SUM(qid.full_sheets_used) AS qty_needed
+                FROM quotation_item_details qid
+                JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+                JOIN inventory_items ii ON ii.id = qid.paper_id
+                WHERE qli.quotation_id = ? AND qid.paper_id IS NOT NULL AND qid.full_sheets_used > 0
+                GROUP BY qid.paper_id, ii.name, ii.item_code, ii.uom, ii.stock_quantity
+            `, [salesOrder.quotation_id]);
+
+            const [plateNeeds] = await pool.execute(`
+                SELECT m.plate_id AS inventory_item_id, ii.name AS item_name, ii.item_code, ii.uom, ii.stock_quantity AS available_qty, SUM(qid.plate_count) AS qty_needed
+                FROM quotation_item_details qid
+                JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+                JOIN machines m ON m.id = qid.machine_id
+                JOIN inventory_items ii ON ii.id = m.plate_id
+                WHERE qli.quotation_id = ? AND qid.plate_count > 0 AND m.plate_id IS NOT NULL
+                GROUP BY m.plate_id, ii.name, ii.item_code, ii.uom, ii.stock_quantity
+            `, [salesOrder.quotation_id]);
+
+            const [sfgNeeds] = await pool.execute(`
+                SELECT sl.inventory_item_id, ii.name AS item_name, ii.item_code, ii.uom, ii.stock_quantity AS available_qty, SUM(sl.quantity) AS qty_needed
+                FROM quotation_item_sfg_lines sl
+                JOIN quotation_item_details qid ON qid.id = sl.quotation_item_detail_id
+                JOIN quotation_line_items qli ON qli.quotation_item_id = qid.quotation_item_id
+                JOIN inventory_items ii ON ii.id = sl.inventory_item_id
+                WHERE qli.quotation_id = ? AND sl.is_statics = 0
+                GROUP BY sl.inventory_item_id, ii.name, ii.item_code, ii.uom, ii.stock_quantity
+            `, [salesOrder.quotation_id]);
+
+            salesOrder.bom = [
+                ...paperNeeds.map(r => ({ component_name: r.item_name, component_type: 'paper', item_code: r.item_code, uom: r.uom, required_qty: Math.ceil(parseFloat(r.qty_needed)), available_qty: r.available_qty })),
+                ...plateNeeds.map(r => ({ component_name: r.item_name, component_type: 'plate', item_code: r.item_code, uom: r.uom, required_qty: Math.ceil(parseFloat(r.qty_needed)), available_qty: r.available_qty })),
+                ...sfgNeeds.map(r => ({ component_name: r.item_name, component_type: 'sfg', item_code: r.item_code, uom: r.uom, required_qty: parseFloat(r.qty_needed), available_qty: r.available_qty }))
+            ];
+        } else {
+            salesOrder.bom = [];
+        }
+
         // Generate QR code data URL
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
         const jobUrl = `${baseUrl}/jobs/${id}`;

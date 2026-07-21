@@ -199,7 +199,36 @@ const fmtFinishTime = (f, tasks) => {
     return '—';
 };
 
-function FinishingsTable({ finishings, tasks }) {
+function formatFinishingVolume(f, matchingDetail, itemQuantity) {
+    const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
+    let qty = parseFloat(f.quantity) || 0;
+
+    if (matchingDetail) {
+        const pagesVal = parseInt(matchingDetail.pages) || 1;
+        const upsVal = parseInt(matchingDetail.ups) || 1;
+        const sidesVal = parseInt(matchingDetail.sides) || 1;
+        const qtyVal = parseFloat(itemQuantity || matchingDetail.quantity) || 0;
+        const divisor = upsVal * sidesVal;
+        let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+        if (divisor > 0 && qtyVal > 0) {
+            netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
+        }
+        const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+
+        const su = speedUnit.toLowerCase().trim();
+        if (su.includes('print')) {
+            qty = totalCutSheets * sidesVal;
+        } else if (su.includes('sheet')) {
+            qty = totalCutSheets;
+        } else if (su.includes('unit')) {
+            qty = qtyVal || qty;
+        }
+    }
+
+    return `${fmt(qty)} ${fmt(speedUnit)}`;
+}
+
+function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
         <View style={{ marginTop: 4 }} wrap={false}>
@@ -214,7 +243,7 @@ function FinishingsTable({ finishings, tasks }) {
                 <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
                     <Text style={[s.tableCell, s.tableCol2]}>{fmt(f.machine_name)}</Text>
-                    <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
+                    <Text style={[s.tableCell, s.tableCol3]}>{formatFinishingVolume(f, matchingDetail, itemQuantity)}</Text>
                     <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f, tasks)}</Text>
                 </View>
             ))}
@@ -222,7 +251,7 @@ function FinishingsTable({ finishings, tasks }) {
     );
 }
 
-function GlobalFinishingsTable({ finishings, tasks }) {
+function GlobalFinishingsTable({ finishings, tasks, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
         <View style={s.globalSection} wrap={false}>
@@ -236,10 +265,39 @@ function GlobalFinishingsTable({ finishings, tasks }) {
             {finishings.map((f, i) => (
                 <View key={i} style={s.tableRow} wrap={false}>
                     <Text style={[s.tableCellBold, s.tableCol1]}>{fmt(f.name)}</Text>
-                    <Text style={[s.tableCell, s.tableCol3]}>{fmt(f.quantity)} {fmt(f.cost_unit)}</Text>
+                    <Text style={[s.tableCell, s.tableCol3]}>{formatFinishingVolume(f, null, itemQuantity)}</Text>
                     <Text style={[s.tableCell, s.tableCol4]}>{fmtFinishTime(f, tasks)}</Text>
                     <View style={{ flex: 1, alignItems: 'center' }}>
                         <View style={s.globalBox} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+function BOMTable({ bom }) {
+    if (!bom?.length) return null;
+    return (
+        <View style={s.globalSection} wrap={false}>
+            <Text style={[s.globalTitle, { color: '#047857' }]}>Bill of Materials (Raw Materials & Stock Requisitions)</Text>
+            <View style={[s.tableHeader, { backgroundColor: '#ecfdf5' }]}>
+                <Text style={[s.tableHeaderText, { flex: 2.5, color: '#065f46' }]}>Material / Component</Text>
+                <Text style={[s.tableHeaderText, { flex: 1, color: '#065f46' }]}>Type</Text>
+                <Text style={[s.tableHeaderText, { flex: 1.2, color: '#065f46' }]}>Item Code</Text>
+                <Text style={[s.tableHeaderText, { flex: 1, textAlign: 'right', color: '#065f46' }]}>Req. Qty</Text>
+                <Text style={[s.tableHeaderText, { flex: 0.8, textAlign: 'center', color: '#065f46' }]}>UOM</Text>
+                <Text style={[s.tableHeaderText, { flex: 0.8, textAlign: 'center', color: '#065f46' }]}>Verified</Text>
+            </View>
+            {bom.map((b, i) => (
+                <View key={i} style={s.tableRow} wrap={false}>
+                    <Text style={[s.tableCellBold, { flex: 2.5 }]}>{fmt(b.component_name)}</Text>
+                    <Text style={[s.tableCell, { flex: 1, textTransform: 'uppercase', fontSize: 7 }]}>{fmt(b.component_type)}</Text>
+                    <Text style={[s.tableCell, { flex: 1.2 }]}>{fmt(b.item_code)}</Text>
+                    <Text style={[s.tableCellBold, { flex: 1, textAlign: 'right', color: '#047857' }]}>{fmt(b.required_qty.toFixed(0))}</Text>
+                    <Text style={[s.tableCell, { flex: 0.8, textAlign: 'center' }]}>{fmt(b.uom || 'Unit')}</Text>
+                    <View style={{ flex: 0.8, alignItems: 'center' }}>
+                        <View style={[s.globalBox, { borderColor: '#a7f3d0', width: 9, height: 9 }]} />
                     </View>
                 </View>
             ))}
@@ -299,26 +357,40 @@ function ServicesTable({ services }) {
     );
 }
 
-function DetailCard({ detail, tasks }) {
-    const isFinishing = detail.component_name === 'Finishing';
+function DetailCard({ detail, tasks, itemQuantity }) {
+    const nameLower = (detail.component_name || '').toLowerCase();
+    const isFinishing = nameLower.includes('finish');
     const isDigital = detail.type === 'digital';
-    const isSFGComp = detail.type === 'sfg' || (detail.component_name || '').toLowerCase().includes('assets') || (detail.component_name || '').toLowerCase().includes('sfg');
-    const isServicesComp = detail.type === 'services' || (detail.component_name || '').toLowerCase().includes('service');
+    const isSFGComp = detail.type === 'sfg' || nameLower.includes('assets') || nameLower.includes('sfg');
+    const isServicesComp = detail.type === 'services' || nameLower.includes('service');
     const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
+
+    // Calculate actual Cut Sheets (net cut sheets + wastage)
+    const pagesVal = parseInt(detail.pages) || 1;
+    const upsVal = parseInt(detail.ups) || 1;
+    const sidesVal = parseInt(detail.sides) || 1;
+    const qtyVal = parseFloat(itemQuantity || detail.quantity) || 0;
+    const divisor = upsVal * sidesVal;
+
+    let netCutSheets = parseFloat(detail.printed_sheets) || 0;
+    if (divisor > 0 && qtyVal > 0) {
+        netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
+    }
+    const wastageSheets = parseFloat(detail.wastage_sheets) || 0;
+    const totalCutSheets = netCutSheets + wastageSheets;
 
     // Est. press time: check tasks list first, then fallback to speed formula
     let estTimeLabel = null;
     if (isPrinting) {
         const matchedTask = tasks?.find(t =>
             t.machine_id === detail.machine_id &&
-            t.name.toLowerCase().includes(detail.component_name.toLowerCase())
+            t.name.toLowerCase().includes((detail.component_name || '').toLowerCase())
         );
         const mins = matchedTask ? matchedTask.estimated_minutes : null;
         if (mins != null) {
             estTimeLabel = mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} hr`;
         } else {
-            const cutSheets = (parseFloat(detail.printed_sheets) || 0) + (parseFloat(detail.wastage_sheets) || 0);
-            const pressPasses = cutSheets * (detail.sides || 1);
+            const pressPasses = totalCutSheets * sidesVal;
             const estMins = detail.machine_speed > 0
                 ? Math.ceil((pressPasses / detail.machine_speed) * 60)
                 : null;
@@ -377,9 +449,9 @@ function DetailCard({ detail, tasks }) {
                         </View>
                         <View style={s.paperBoxCell}>
                             <Text style={s.paperBoxLabel}>Cut Sheets</Text>
-                            <Text style={s.paperBoxValue}>{fmt(detail.printed_sheets + detail.wastage_sheets)}</Text>
+                            <Text style={s.paperBoxValue}>{fmt(totalCutSheets)}</Text>
                             <Text style={[s.paperBoxSub, { fontSize: 6.5, color: '#16a34a', fontFamily: 'Helvetica-Bold' }]}>
-                                ({fmt(detail.printed_sheets)} + {fmt(detail.wastage_sheets)} wst)
+                                ({fmt(netCutSheets)} + {fmt(wastageSheets)} wst)
                             </Text>
                         </View>
                         {!isDigital && (
@@ -402,7 +474,7 @@ function DetailCard({ detail, tasks }) {
 
             <SFGLinesTable sfgLines={detail.sfgLines} />
             <ServicesTable services={detail.services} />
-            <FinishingsTable finishings={detail.finishings} tasks={tasks} />
+            <FinishingsTable finishings={detail.finishings} tasks={tasks} matchingDetail={detail} itemQuantity={itemQuantity} />
         </View>
     );
 }
@@ -453,21 +525,23 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                     </View>
 
                     {item.details?.filter(d => {
-                        const name = d.component_name?.toLowerCase() || '';
-                        return !['finishing', 'finishings', 'services', 'sfg', 'assets'].includes(name) || (name.includes('finishing') && name.includes('asset'));
+                        const name = (d.component_name || '').toLowerCase();
+                        return !name.includes('finish') && !['services', 'sfg', 'assets'].includes(name);
                     }).map((detail, dIdx) => (
-                        <DetailCard key={detail.id || dIdx} detail={detail} tasks={order.tasks} />
+                        <DetailCard key={detail.id || dIdx} detail={detail} tasks={order.tasks} itemQuantity={item.quantity} />
                     ))}
 
-                    <GlobalFinishingsTable finishings={item.globalFinishings} tasks={order.tasks} />
-
-                    <View style={s.signoffRow} wrap={false}>
-                        <View style={s.signoffBox}>
-                            <Text style={s.signoffText}>Floor Controller Sign-Off</Text>
-                        </View>
-                    </View>
+                    <GlobalFinishingsTable finishings={item.globalFinishings} tasks={order.tasks} itemQuantity={item.quantity} />
                 </View>
             ))}
+
+            <BOMTable bom={order.bom} />
+
+            <View style={s.signoffRow} wrap={false}>
+                <View style={s.signoffBox}>
+                    <Text style={s.signoffText}>Floor Controller Sign-Off</Text>
+                </View>
+            </View>
         </View>
     );
 }
@@ -477,7 +551,12 @@ function ImpositionLayoutsPage({ order }) {
     const layouts = [];
     order.items?.forEach((item, itemIdx) => {
         item.details
-            ?.filter(d => d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' && !d.component_name.toLowerCase().includes('services') && !d.component_name.toLowerCase().includes('sfg') && !d.component_name.toLowerCase().includes('assets') && d.comp_width_cm && d.comp_height_cm && d.component_name !== 'Finishing')
+            ?.filter(d => {
+                const name = (d.component_name || '').toLowerCase();
+                return d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' &&
+                    !name.includes('services') && !name.includes('sfg') && !name.includes('assets') &&
+                    !name.includes('finish') && d.comp_width_cm && d.comp_height_cm;
+            })
             .forEach((detail, dIdx) => {
                 layouts.push({ item, itemIdx, detail, dIdx });
             });
@@ -486,15 +565,15 @@ function ImpositionLayoutsPage({ order }) {
     if (!layouts.length) return null;
 
     return (
-        <View style={{ paddingBottom: 20 }}>
-            <View style={s.headerRow}>
+        <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' }} wrap={false}>
+            <View style={[s.headerRow, { marginBottom: 8 }]}>
                 <View style={s.headerLeft}>
-                    <Text style={s.headerTitle}>Imposition & Layout Allocation Plans</Text>
+                    <Text style={[s.headerTitle, { fontSize: 11 }]}>Imposition & Layout Allocation Plans</Text>
                     <Text style={s.headerSub}>{order.customer_name} — Layout Master Specifications</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                     <Text style={s.headerSOLabel}>Job Reference</Text>
-                    <Text style={[s.headerSOCode, { fontSize: 12 }]}>{order.code}</Text>
+                    <Text style={[s.headerSOCode, { fontSize: 10 }]}>{order.code}</Text>
                 </View>
             </View>
 
@@ -533,19 +612,11 @@ export default function JobTicketDocument({ order, qrDataUrl, jobUrl }) {
 
     return (
         <Document title={`JobTicket-${order.code}`} author="Pressmatics ERP Architecture">
-            {/* Page Type 1: Job Details (Landscape for wide component spec tables) */}
             <Page size="A4" orientation="landscape" style={s.pageLandscape}>
                 <JobTicketPage order={order} qrDataUrl={qrDataUrl} jobUrl={jobUrl} />
-                <Text style={s.footer} render={({ pageNumber, totalPages }) => (
-                    `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
-                )} />
-            </Page>
-
-            {/* Page Type 2: Imposition Matrix Plans (Flipped Horizontal for Blueprint Wide Grids) */}
-            <Page size="A4" orientation="landscape" style={s.pageLandscape}>
                 <ImpositionLayoutsPage order={order} />
                 <Text style={s.footer} render={({ pageNumber, totalPages }) => (
-                    `Auto-Generated via Pressmatics Cloud ERP • Imposition Layout Scheme • Page ${pageNumber} of ${totalPages}`
+                    `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
                 )} />
             </Page>
         </Document>

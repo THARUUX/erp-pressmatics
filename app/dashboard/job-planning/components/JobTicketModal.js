@@ -283,7 +283,7 @@ export default function JobTicketModal({ orderId, onClose }) {
                                                             <div className="flex flex-wrap gap-2">
                                                                 {detail.finishings.map((f, fIdx) => (
                                                                     <span key={fIdx} className="text-[10px] bg-slate-800 border border-white/10 px-2 py-0.5 rounded text-slate-200">
-                                                                        {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${f.quantity} ${f.cost_unit || ''}` : ''}
+                                                                        {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${f.quantity} ${f.speed_unit || f.machine_speed_unit || f.cost_unit || ''}` : ''}
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -301,7 +301,7 @@ export default function JobTicketModal({ orderId, onClose }) {
                                                     <div className="flex flex-wrap gap-2">
                                                         {item.globalFinishings.map((gf, gIdx) => (
                                                             <span key={gIdx} className="text-[11px] bg-indigo-900/40 border border-indigo-400/30 px-2 py-0.5 rounded text-indigo-200 font-medium">
-                                                                {gf.name} {gf.machine_name ? `(${gf.machine_name})` : ''} {gf.quantity ? `— ${gf.quantity} ${gf.cost_unit || ''}` : ''}
+                                                                {gf.name} {gf.machine_name ? `(${gf.machine_name})` : ''} {gf.quantity ? `— ${gf.quantity} ${gf.speed_unit || gf.machine_speed_unit || gf.cost_unit || ''}` : ''}
                                                             </span>
                                                         ))}
                                                     </div>
