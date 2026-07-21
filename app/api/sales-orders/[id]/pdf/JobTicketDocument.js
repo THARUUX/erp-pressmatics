@@ -220,12 +220,11 @@ function formatFinishingVolume(f, matchingDetail, itemQuantity) {
             qty = totalCutSheets * sidesVal;
         } else if (su.includes('sheet')) {
             qty = totalCutSheets;
-        } else if (su.includes('unit')) {
-            qty = qtyVal || qty;
         }
     }
 
-    return `${fmt(qty)} ${fmt(speedUnit)}`;
+    const displayUnit = speedUnit.replace(/\/(Hr|Hour|hr|h)$/i, '').trim();
+    return `${fmt(qty)} ${fmt(displayUnit)}`;
 }
 
 function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
