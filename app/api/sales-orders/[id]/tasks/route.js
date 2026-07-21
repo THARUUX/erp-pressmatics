@@ -8,12 +8,21 @@ import pool from '@/lib/db';
  *  Sheets/Hr       → totalCutSheets
  *  (fallback)      → item qty
  */
-function resolveRunQty(speedUnit, { totalCutSheets, sidesVal, totalImpressions, itemQty }) {
+function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
     const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
-    if (u === 'prints/hr') return totalCutSheets * sidesVal;
-    if (u === 'impressions/hr') return totalImpressions;
-    if (u === 'sheets/hr') return totalCutSheets;
-    return itemQty; // Units/Hr, Copies/Hr, Pcs/Hr, etc.
+    const sides = parseInt(sidesVal) || 1;
+    const upsVal = parseInt(ups) || 1;
+    const pagesVal = parseInt(pages) || 1;
+    const sheetsVal = parseFloat(sheets) || 1;
+    const qty = parseFloat(itemQty) || 0;
+
+    if (u === 'prints/hr') return totalCutSheets * sides;
+    if (u === 'sheets/hr') {
+        if (isBB) return totalCutSheets * ((upsVal * sides) / pagesVal);
+        return totalCutSheets / sheetsVal;
+    }
+    if (u === 'impressions/hr') return totalImpressions || (totalCutSheets * sides);
+    return qty;
 }
 
 function getComponentTotalCutSheets(detail, qty) {
@@ -773,12 +782,12 @@ export async function POST(req, { params }) {
         }
 
         // Create single task
-        const { name, description, assigned_to, display_order, estimated_minutes } = body;
+        const { name, description, assigned_to, display_order, estimated_minutes, machine_id, machine_name, quantity } = body;
         if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
 
         const [result] = await pool.execute(
-            'INSERT INTO job_tasks (sales_order_id, name, description, assigned_to, display_order, estimated_minutes) VALUES (?, ?, ?, ?, ?, ?)',
-            [id, name, description || null, assigned_to || null, display_order ?? 99, estimated_minutes || null]
+            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, display_order, estimated_minutes, quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, name, description || null, machine_id || null, machine_name || null, assigned_to || null, display_order ?? 99, estimated_minutes || null, quantity || null]
         );
         const [task] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [result.insertId]);
         return NextResponse.json(task[0]);

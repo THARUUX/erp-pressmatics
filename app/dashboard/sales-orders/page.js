@@ -14,6 +14,7 @@ import {
     FiSearch, FiPrinter, FiTrash2, FiFileText, FiDownload,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiClock, FiCheckCircle, FiDollarSign,
+    FiCpu,
 } from 'react-icons/fi';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
@@ -100,6 +101,30 @@ export default function SalesOrdersPage() {
         if (res.ok) { toast.success('Sales order deleted'); fetchAll(); }
         else toast.error('Failed to delete');
     };
+
+    const handleGenerateTasks = useCallback(async (e, order) => {
+        e.stopPropagation();
+        if (!(await confirmDialog(`Generate default tasks for ${order.code}?`, { confirmLabel: 'Generate' }))) return;
+        
+        const loadingToast = toast.loading('Generating tasks...');
+        try {
+            const res = await fetch(`/api/sales-orders/${order.id}/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ generateDefaults: true }),
+            });
+            if (res.ok) {
+                toast.success('Tasks generated successfully', { id: loadingToast });
+                fetchAll();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to generate tasks', { id: loadingToast });
+            }
+        } catch (error) {
+            console.error('Error generating tasks:', error);
+            toast.error('An error occurred while generating tasks', { id: loadingToast });
+        }
+    }, [fetchAll]);
 
     const fmt = n => `${currency} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
@@ -195,7 +220,7 @@ export default function SalesOrdersPage() {
                 : <span className="text-gray-700 text-xs">—</span>,
         },
         {
-            id: 'actions', header: 'Actions', size: 90,
+            id: 'actions', header: 'Actions', size: 120,
             enableSorting: false, enableColumnFilter: false,
             cell: ({ row }) => {
                 const o = row.original;
@@ -206,6 +231,13 @@ export default function SalesOrdersPage() {
                             className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
                             <FiPrinter size={14} />
                         </button>
+                        {!o.task_count ? (
+                            <button onClick={e => handleGenerateTasks(e, o)}
+                                title="Generate Tasks"
+                                className="p-1.5 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors animate-pulse">
+                                <FiCpu size={14} />
+                            </button>
+                        ) : null}
                         <button onClick={e => handleDelete(e, o.id)}
                             title="Delete"
                             className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
@@ -215,7 +247,7 @@ export default function SalesOrdersPage() {
                 );
             },
         },
-    ], [currency]);
+    ], [currency, handleGenerateTasks]);
 
     /* ── Table instance ─────────────────────────────────────────────────── */
     const table = useReactTable({

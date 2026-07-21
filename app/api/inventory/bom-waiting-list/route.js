@@ -15,6 +15,10 @@ export async function GET(req) {
                    so.customer_name,
                    so.order_date,
                    so.status AS sales_order_status,
+                   (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
+                    FROM quotation_items qi
+                    JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                    WHERE qli.quotation_id = so.quotation_id) AS job_name,
                    ii.item_code,
                    ii.uom,
                    ii.stock_quantity AS available_qty

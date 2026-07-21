@@ -1,9 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import JobTicketModal from './JobTicketModal';
+import AddTaskModal from './AddTaskModal';
 import {
     FiChevronLeft, FiChevronRight, FiChevronDown, FiClock, FiPrinter,
     FiTrendingUp, FiAlertTriangle, FiBookOpen, FiActivity, FiDownload,
-    FiX, FiInfo, FiZap, FiSettings, FiPackage, FiUser, FiCalendar, FiEdit2, FiLayers, FiMove
+    FiX, FiInfo, FiZap, FiSettings, FiPackage, FiUser, FiCalendar, FiEdit2, FiLayers, FiMove,
+    FiFileText, FiSearch, FiPlus, FiExternalLink
 } from 'react-icons/fi';
 
 const G = {
@@ -102,21 +106,21 @@ const formatTimeDisplay = (mins) => {
 const parseTimeInput = (val) => {
     const clean = val.toLowerCase().trim();
     if (!clean) return 0;
-    
+
     // Check for hour patterns (e.g. h, hr, hrs, hour, hours)
     const hourMatch = clean.match(/^([\d.]+)\s*(h|hr|hrs|hour|hours)$/);
     if (hourMatch) {
         const hrs = parseFloat(hourMatch[1]);
         return isNaN(hrs) ? 0 : Math.round(hrs * 60);
     }
-    
+
     // Check for minute patterns (e.g. m, min, mins, minute, minutes)
     const minMatch = clean.match(/^([\d.]+)\s*(m|min|mins|minute|minutes)$/);
     if (minMatch) {
         const mins = parseFloat(minMatch[1]);
         return isNaN(mins) ? 0 : Math.round(mins);
     }
-    
+
     // Fallback: raw number is treated as minutes
     const num = parseFloat(clean);
     return isNaN(num) ? 0 : Math.round(num);
@@ -124,36 +128,29 @@ const parseTimeInput = (val) => {
 
 // ── Sortable Task Card ───────────────────────────────────────────
 function TaskCard({
-    task, order, onUpdateTask, onTaskClick, onQuickCalc, machine, accent,
+    task, order, onUpdateTask, onTaskClick, onViewJobTicket, onQuickCalc, machine, accent,
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
-    onDrop, columnId, machines = []
+    onDrop, columnId, finishings = []
 }) {
     const [calcLoading, setCalcLoading] = useState(false);
     const [isEditingTime, setIsEditingTime] = useState(false);
     const [timeInputValue, setTimeInputValue] = useState('');
     const [showTransferDropdown, setShowTransferDropdown] = useState(false);
 
-    const handleTransfer = async (newMachineId) => {
-        const targetMachine = machines.find(m => m.id === newMachineId) || null;
-        const newMachineName = targetMachine ? targetMachine.name : null;
-
-        const fields = {
-            machine_id: newMachineId,
-            machine_name: newMachineName
-        };
-
-        // Recalculate estimated minutes if using machine defaults (no custom overrides)
-        if (!task.custom_speed && task.custom_make_ready_minutes === null) {
-            const speed = targetMachine?.speed || 0;
-            const setup = targetMachine?.make_ready_minutes || 0;
-            const qty = parseFloat(task.quantity) || 0;
-            if (qty && speed > 0) {
-                fields.estimated_minutes = Math.ceil((qty / speed) * 60) + setup;
-            }
+    const handleTransfer = async (targetFinishing) => {
+        if (!targetFinishing) return;
+        let newName = targetFinishing.name;
+        if (task.name && task.name.includes('—')) {
+            const parts = task.name.split('—');
+            newName = `${targetFinishing.name} — ${parts.slice(1).join('—').trim()}`;
         }
-
+        const fields = {
+            machine_id: null,
+            machine_name: null,
+            name: newName
+        };
         await onUpdateTask(task.id, order?.id, fields);
     };
 
@@ -249,14 +246,39 @@ function TaskCard({
                             boxShadow: task.status === 'done' ? `0 0 6px ${dot}` : 'none'
                         }}
                     />
-                    <span className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0">
-                        {orderCode}
-                    </span>
+                    {order?.id ? (
+                        <Link
+                            href={`/dashboard/sales-orders/${order.id}`}
+                            target="_blank"
+                            onMouseDown={e => e.stopPropagation()}
+                            className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0 flex items-center gap-0.5 hover:underline"
+                            title="Open Sales Order"
+                        >
+                            {orderCode} <FiExternalLink className="w-2.5 h-2.5 opacity-70" />
+                        </Link>
+                    ) : (
+                        <span className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0">
+                            {orderCode}
+                        </span>
+                    )}
                     <span className="text-[12px] font-bold text-white truncate block max-w-[140px]" title={jobName}>
                         {jobName}
                     </span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {order?.id && onViewJobTicket && (
+                        <button
+                            onClick={e => {
+                                e.stopPropagation();
+                                onViewJobTicket(order.id);
+                            }}
+                            onMouseDown={e => e.stopPropagation()}
+                            className="bg-white/10 border border-white/25 text-white hover:bg-amber-500/20 rounded p-1 flex items-center transition-all"
+                            title="View Job Ticket"
+                        >
+                            <FiFileText className="w-2.5 h-2.5" />
+                        </button>
+                    )}
                     {isEditingTime ? (
                         <input
                             type="text"
@@ -297,12 +319,9 @@ function TaskCard({
                             <FiZap className="w-2.5 h-2.5" />
                         </button>
                     )}
-                    
+
                     {/* Transfer Button & Dropdown */}
-                    <div 
-                        className="relative"
-                        onMouseLeave={() => setShowTransferDropdown(false)}
-                    >
+                    <div className="relative">
                         <button
                             onClick={e => {
                                 e.stopPropagation();
@@ -310,48 +329,43 @@ function TaskCard({
                             }}
                             onMouseDown={e => e.stopPropagation()}
                             className="bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded p-1 flex items-center transition-all"
-                            title="Transfer to another machine"
+                            title="Transfer to another operation"
                         >
                             <FiMove className="w-2.5 h-2.5" />
                         </button>
                         {showTransferDropdown && (
-                            <div 
-                                className="absolute right-0 mt-1 z-[999] w-[180px] bg-slate-950 border border-white/15 rounded-lg shadow-2xl py-1 text-left"
-                                onClick={e => e.stopPropagation()}
-                                onMouseDown={e => e.stopPropagation()}
-                            >
-                                <div className="px-2.5 py-1 text-[8.5px] font-extrabold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                                    Transfer to Machine
+                            <>
+                                <div
+                                    className="fixed inset-0 z-[998]"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowTransferDropdown(false);
+                                    }}
+                                />
+                                <div
+                                    className="absolute right-0 mt-1 z-[999] w-[180px] bg-black border border-white/15 rounded-lg shadow-2xl py-1 text-left"
+                                    onClick={e => e.stopPropagation()}
+                                    onMouseDown={e => e.stopPropagation()}
+                                >
+                                    <div className="px-2.5 py-1 text-[8.5px] font-extrabold text-gray-500 uppercase tracking-wider border-b border-white/5">
+                                        Transfer to Operation
+                                    </div>
+                                    <div className="max-h-[180px] overflow-y-auto">
+                                        {finishings.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => {
+                                                    handleTransfer(f);
+                                                    setShowTransferDropdown(false);
+                                                }}
+                                                className="w-full px-2.5 py-1.5 text-left text-xs text-gray-300 hover:bg-white/5 truncate block font-medium"
+                                            >
+                                                {f.name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="max-h-[180px] overflow-y-auto">
-                                    <button
-                                        onClick={() => {
-                                            handleTransfer(null);
-                                            setShowTransferDropdown(false);
-                                        }}
-                                        className="w-full px-2.5 py-1.5 text-left text-xs text-red-400 hover:bg-white/5 truncate block font-medium"
-                                    >
-                                        Manual / Unassigned
-                                    </button>
-                                    {machines.map(m => (
-                                        <button
-                                            key={m.id}
-                                            disabled={m.id === task.machine_id}
-                                            onClick={() => {
-                                                handleTransfer(m.id);
-                                                setShowTransferDropdown(false);
-                                            }}
-                                            className={`w-full px-2.5 py-1.5 text-left text-xs truncate block ${
-                                                m.id === task.machine_id
-                                                    ? 'text-gray-600 bg-white/[0.01]'
-                                                    : 'text-gray-300 hover:bg-white/5'
-                                            }`}
-                                        >
-                                            {m.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            </>
                         )}
                     </div>
 
@@ -390,7 +404,7 @@ function TaskCard({
 
 // ── Task Detail & Override Modal ─────────────────────────────────────────
 
-function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
+function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJobTicket }) {
     const defaultSetup = machine?.make_ready_minutes || 0;
     const defaultSpeed = machine?.speed || 0;
     const defaultUnit = machine?.speed_unit || 'Sheets/Hr';
@@ -417,6 +431,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
     const [speed, setSpeed] = useState(task.custom_speed != null ? String(task.custom_speed) : '');
     const [unit, setUnit] = useState(initialUnit);
     const [calcQty, setCalcQty] = useState(getInitialQty(initialUnit));
+    const [multiplier, setMultiplier] = useState(task.custom_multiplier != null ? String(task.custom_multiplier) : '1');
     const [estimatedMins, setEstimatedMins] = useState(task.estimated_minutes || 0);
     const [saving, setSaving] = useState(false);
 
@@ -441,22 +456,23 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
             return;
         }
         const remainingQty = originalQty - splitQty;
-        
+
         let targetSpeed = parseFloat(speed !== '' ? speed : defaultSpeed);
         let targetSetup = parseFloat(setupMin !== '' ? setupMin : defaultSetup);
-        
+        let targetMult = parseFloat(multiplier) || 1;
+
         let p1Mins = 0;
         let p2Mins = 0;
-        
+
         if (targetSpeed > 0) {
-            p1Mins = Math.ceil((remainingQty / targetSpeed) * 60) + targetSetup;
-            p2Mins = Math.ceil((splitQty / targetSpeed) * 60) + targetSetup;
+            p1Mins = Math.ceil(((remainingQty * targetMult) / targetSpeed) * 60) + targetSetup;
+            p2Mins = Math.ceil(((splitQty * targetMult) / targetSpeed) * 60) + targetSetup;
         } else {
             const originalMins = task.estimated_minutes || 0;
             p2Mins = Math.round((splitQty / originalQty) * originalMins);
             p1Mins = Math.max(0, originalMins - p2Mins);
         }
-        
+
         setSplitPreview({
             part1: { qty: remainingQty, mins: p1Mins },
             part2: { qty: splitQty, mins: p2Mins }
@@ -508,15 +524,16 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
     const statusColor = { pending: G.dim, in_progress: G.warning, done: G.success };
 
     const handleCalculate = () => {
-        const defaultQty = unit.toLowerCase() === 'impressions/hr'
-            ? (task.impression_count != null ? task.impression_count : task.quantity)
+        const defaultQty = unit.toLowerCase() === 'prints/hr'
+            ? ((task.sheet_count || task.quantity || 0) * (task.sides || 1))
             : (task.sheet_count != null ? task.sheet_count : task.quantity);
         const q = parseFloat(calcQty !== '' ? calcQty : defaultQty) || 0;
+        const mult = parseFloat(multiplier) || 1;
         const s = parseFloat(speed !== '' ? speed : defaultSpeed) || 0;
         const t = parseFloat(setupMin !== '' ? setupMin : defaultSetup) || 0;
 
         if (q && s > 0) {
-            const runMins = Math.ceil((q / s) * 60);
+            const runMins = Math.ceil(((q * mult) / s) * 60);
             setEstimatedMins(runMins + t);
         } else if (t) {
             setEstimatedMins(t);
@@ -531,6 +548,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
             custom_make_ready_minutes: setupMin !== '' ? parseInt(setupMin) : null,
             custom_speed: speed !== '' ? parseFloat(speed) : null,
             custom_speed_unit: speed !== '' ? unit : null,
+            custom_multiplier: multiplier !== '' ? parseFloat(multiplier) : 1,
             estimated_minutes: estimatedMins,
         };
         if (calcQty !== '') {
@@ -549,13 +567,14 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
 
     const handleReset = async () => {
         setSaving(true);
-        setSetupMin(''); setSpeed(''); setUnit(defaultUnit);
+        setSetupMin(''); setSpeed(''); setUnit(defaultUnit); setMultiplier('1');
         setCalcQty(getInitialQty(defaultUnit));
         setEstimatedMins(task.estimated_minutes || 0);
         await onSave(task.id, order?.id, {
             custom_make_ready_minutes: null,
             custom_speed: null,
             custom_speed_unit: null,
+            custom_multiplier: 1,
             estimated_minutes: task.estimated_minutes,
             quantity: task.quantity,
             sheet_count: task.sheet_count,
@@ -633,12 +652,37 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
                     {/* Job Info */}
                     {order && (
                         <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
-                            <div className="text-[10px]  font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1">
-                                <FiPackage className="w-3.5 h-3.5" /> Job Information
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                    <FiPackage className="w-3.5 h-3.5" /> Job Information
+                                </span>
+                                {onViewJobTicket && order.id && (
+                                    <button
+                                        onClick={() => onViewJobTicket(order.id)}
+                                        className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-bold transition-all flex items-center gap-1"
+                                    >
+                                        <FiFileText className="w-3 h-3" /> Open Job Ticket
+                                    </button>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 gap-3.5">
+                                <div>
+                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Job Code</span>
+                                    <div className="text-xs text-gray-300 font-semibold mt-0.5 flex items-center gap-1">
+                                        {order.id ? (
+                                            <Link
+                                                href={`/dashboard/sales-orders/${order.id}`}
+                                                target="_blank"
+                                                className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
+                                            >
+                                                {order.code || '—'} <FiExternalLink className="w-3 h-3" />
+                                            </Link>
+                                        ) : (
+                                            order.code || '—'
+                                        )}
+                                    </div>
+                                </div>
                                 {[
-                                    ['Job Code', order.code || '—'],
                                     ['Job Name', order.estimation_names || '—'],
                                     ['Customer', order.customer_name || '—'],
                                     ['Status', order.status || '—'],
@@ -683,26 +727,38 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
 
                     {/* Custom Overrides */}
                     <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 border-purple-500/20">
-                        <div className="text-[10px]  font-bold uppercase tracking-wider mb-3 flex items-center gap-1">
-                            <FiZap className="w-3.5 h-3.5" /> Custom Overrides
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-1">
+                            <FiZap className="w-3.5 h-3.5" /> Custom Overrides &amp; Calculation
                             <span className="text-[9px] text-gray-500 font-normal lowercase tracking-normal ml-2">(leave blank to use defaults)</span>
                         </div>
-                        <div className="grid grid-cols-4 gap-3.5">
+                        <div className="grid grid-cols-5 gap-3">
                             <div>
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Run Qty</label>
                                 <input
-                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
                                     type="number"
                                     min="0"
-                                    placeholder={String(unit.toLowerCase() === 'impressions/hr' ? (task.impression_count != null ? task.impression_count : (task.quantity || 0)) : (task.sheet_count != null ? task.sheet_count : (task.quantity || 0)))}
+                                    placeholder={String(unit.toLowerCase() === 'prints/hr' ? ((task.sheet_count || task.quantity || 0) * (task.sides || 1)) : (task.sheet_count != null ? task.sheet_count : (task.quantity || 0)))}
                                     value={calcQty}
                                     onChange={e => setCalcQty(e.target.value)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Setup Time (min)</label>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Multiplier</label>
                                 <input
-                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    placeholder="1"
+                                    value={multiplier}
+                                    onChange={e => setMultiplier(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Setup (min)</label>
+                                <input
+                                    className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
                                     type="number"
                                     min="0"
                                     placeholder={`Default: ${defaultSetup || 0}`}
@@ -711,9 +767,9 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Machine Speed</label>
+                                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Speed</label>
                                 <input
-                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
+                                    className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
                                     type="number"
                                     min="1"
                                     placeholder={`Default: ${defaultSpeed || '—'}`}
@@ -724,7 +780,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
                             <div>
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Speed Unit</label>
                                 <select
-                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark] cursor-pointer"
+                                    className="w-full bg-black border border-white/10 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark] cursor-pointer"
                                     value={unit}
                                     onChange={e => {
                                         const newUnit = e.target.value;
@@ -732,7 +788,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
                                         setCalcQty(getInitialQty(newUnit));
                                     }}
                                 >
-                                    {['Sheets/Hr', 'Impressions/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
+                                    {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
                                         <option key={u} value={u}>{u}</option>
                                     ))}
                                 </select>
@@ -876,12 +932,12 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh }) {
 
 // ── Days Columns ─────────────────────────────────────────────────────────
 function DayColumn({
-    id, title, label, tasks, orderLookup, onUpdateTask, onTaskClick, accent, capacityMins = 480,
+    id, title, label, tasks, orderLookup, onUpdateTask, onTaskClick, onViewJobTicket, accent, capacityMins = 480,
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, finishings
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -948,6 +1004,7 @@ function DayColumn({
                             order={orderLookup(t)}
                             onUpdateTask={onUpdateTask}
                             onTaskClick={onTaskClick}
+                            onViewJobTicket={onViewJobTicket}
                             accent={accent}
                             draggedTaskId={draggedTaskId}
                             setDraggedTaskId={setDraggedTaskId}
@@ -957,7 +1014,7 @@ function DayColumn({
                             setDragOverPosition={setDragOverPosition}
                             onDrop={onDrop}
                             columnId={id}
-                            machines={machines}
+                            finishings={finishings}
                         />
                     ))
                 )}
@@ -968,12 +1025,12 @@ function DayColumn({
 
 // ── Unplanned Queue Column ────────────────────────────────────────────────
 function UnplannedColumn({
-    id, tasks, orderLookup, onUpdateTask, onTaskClick, accent,
+    id, tasks, orderLookup, onUpdateTask, onTaskClick, onViewJobTicket, accent,
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, finishings
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1030,6 +1087,7 @@ function UnplannedColumn({
                             order={orderLookup(t)}
                             onUpdateTask={onUpdateTask}
                             onTaskClick={onTaskClick}
+                            onViewJobTicket={onViewJobTicket}
                             accent="#64748b"
                             draggedTaskId={draggedTaskId}
                             setDraggedTaskId={setDraggedTaskId}
@@ -1039,7 +1097,7 @@ function UnplannedColumn({
                             setDragOverPosition={setDragOverPosition}
                             onDrop={onDrop}
                             columnId={id}
-                            machines={machines}
+                            finishings={finishings}
                         />
                     ))
                 )}
@@ -1050,12 +1108,12 @@ function UnplannedColumn({
 
 // ── Machine Column ────────────────────────────────────────────────────────
 function MachineColumn({
-    id, title, label, tasks, orderLookup, onUpdateTask, onTaskClick, accent, capacityMins = 480, widthClass = "w-[230px] flex-shrink-0",
+    id, title, label, tasks, orderLookup, onUpdateTask, onTaskClick, onViewJobTicket, accent, capacityMins = 480, widthClass = "w-[230px] flex-shrink-0",
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, finishings
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1121,6 +1179,7 @@ function MachineColumn({
                             order={orderLookup(t)}
                             onUpdateTask={onUpdateTask}
                             onTaskClick={onTaskClick}
+                            onViewJobTicket={onViewJobTicket}
                             accent={accent}
                             draggedTaskId={draggedTaskId}
                             setDraggedTaskId={setDraggedTaskId}
@@ -1130,7 +1189,7 @@ function MachineColumn({
                             setDragOverPosition={setDragOverPosition}
                             onDrop={onDrop}
                             columnId={id}
-                            machines={machines}
+                            finishings={finishings}
                         />
                     ))
                 )}
@@ -1141,12 +1200,12 @@ function MachineColumn({
 
 // ── Backlog Column ────────────────────────────────────────────────────────
 function BacklogColumn({
-    id, tasks, orderLookup, onUpdateTask, onTaskClick, widthClass = "w-[230px] flex-shrink-0",
+    id, tasks, orderLookup, onUpdateTask, onTaskClick, onViewJobTicket, widthClass = "w-[230px] flex-shrink-0",
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, finishings
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1203,6 +1262,7 @@ function BacklogColumn({
                             order={orderLookup(t)}
                             onUpdateTask={onUpdateTask}
                             onTaskClick={onTaskClick}
+                            onViewJobTicket={onViewJobTicket}
                             accent="#64748b"
                             draggedTaskId={draggedTaskId}
                             setDraggedTaskId={setDraggedTaskId}
@@ -1212,7 +1272,7 @@ function BacklogColumn({
                             setDragOverPosition={setDragOverPosition}
                             onDrop={onDrop}
                             columnId={id}
-                            machines={machines}
+                            finishings={finishings}
                         />
                     ))
                 )}
@@ -1241,6 +1301,31 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     const [activeTask, setActiveTask] = useState(null);
     const [selectedTaskModal, setSelectedTaskModal] = useState(null); // { task, order }
     const [showReport, setShowReport] = useState(true);
+    const [filterText, setFilterText] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+    const [jobTicketOrderId, setJobTicketOrderId] = useState(null);
+
+    const filterTask = (task) => {
+        if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+        if (!filterText.trim()) return true;
+
+        const q = filterText.toLowerCase().trim();
+        const order = getOrder(task);
+        const orderCode = (order?.code || '').toLowerCase();
+        const estNames = (order?.estimation_names || '').toLowerCase();
+        const custName = (order?.customer_name || '').toLowerCase();
+        const taskName = (task?.name || '').toLowerCase();
+        const taskDesc = (task?.description || '').toLowerCase();
+
+        return (
+            orderCode.includes(q) ||
+            estNames.includes(q) ||
+            custName.includes(q) ||
+            taskName.includes(q) ||
+            taskDesc.includes(q)
+        );
+    };
 
     const matchesFinishing = (taskName, finishingName) => {
         if (!taskName || !finishingName) return false;
@@ -1792,6 +1877,47 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                             </div>
 
                             <div className="flex items-center gap-2.5 flex-wrap">
+                                {/* Search & Filter Toolbar Controls */}
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Filter tasks..."
+                                            value={filterText}
+                                            onChange={e => setFilterText(e.target.value)}
+                                            className="bg-black/20 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 w-[140px] sm:w-[180px] transition-all"
+                                        />
+                                        {filterText && (
+                                            <button
+                                                onClick={() => setFilterText('')}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <select
+                                        value={filterStatus}
+                                        onChange={e => setFilterStatus(e.target.value)}
+                                        className="bg-black/20 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-purple-500/50 cursor-pointer"
+                                    >
+                                        <option value="all" className="bg-slate-900 text-white">All Statuses</option>
+                                        <option value="pending" className="bg-slate-900 text-white">Pending</option>
+                                        <option value="in_progress" className="bg-slate-900 text-white">In Progress</option>
+                                        <option value="done" className="bg-slate-900 text-white">Done</option>
+                                    </select>
+
+                                    <button
+                                        onClick={() => setShowAddTaskModal(true)}
+                                        className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                                    >
+                                        <FiPlus className="w-3.5 h-3.5" />
+                                        Add Task
+                                    </button>
+                                </div>
+
                                 {/* Daily / Weekly switch */}
                                 <div className="bg-black/20 p-1 rounded-lg border border-white/10 flex">
                                     <button
@@ -1892,10 +2018,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                 {/* 1. Unplanned Queue lane */}
                                 <UnplannedColumn
                                     id="unplanned"
-                                    tasks={unplannedTasks}
+                                    tasks={unplannedTasks.filter(filterTask)}
                                     orderLookup={getOrder}
                                     onUpdateTask={handleUpdateTask}
                                     onTaskClick={handleTaskClick}
+                                    onViewJobTicket={setJobTicketOrderId}
                                     accent={machineAccent}
                                     draggedTaskId={draggedTaskId}
                                     setDraggedTaskId={setDraggedTaskId}
@@ -1906,7 +2033,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     dragOverColumnId={dragOverColumnId}
                                     setDragOverColumnId={setDragOverColumnId}
                                     onDrop={handleDrop}
-                                    machines={machines}
+                                    finishings={finishings}
                                 />
 
                                 {/* 2. Days lanes */}
@@ -1916,10 +2043,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                         id={`day-${day.dateStr}`}
                                         title={day.name}
                                         label={day.label}
-                                        tasks={dailyTasksMap[day.dateStr] || []}
+                                        tasks={(dailyTasksMap[day.dateStr] || []).filter(filterTask)}
                                         orderLookup={getOrder}
                                         onUpdateTask={handleUpdateTask}
                                         onTaskClick={handleTaskClick}
+                                        onViewJobTicket={setJobTicketOrderId}
                                         accent={machineAccent}
                                         capacityMins={shiftCapacityMins}
                                         draggedTaskId={draggedTaskId}
@@ -1931,7 +2059,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                         dragOverColumnId={dragOverColumnId}
                                         setDragOverColumnId={setDragOverColumnId}
                                         onDrop={handleDrop}
-                                        machines={machines}
+                                        finishings={finishings}
                                     />
                                 ))}
                             </div>
@@ -1946,10 +2074,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                             {/* 1. Backlog Queue lane */}
                             <BacklogColumn
                                 id="backlog"
-                                tasks={backlogTasks}
+                                tasks={backlogTasks.filter(filterTask)}
                                 orderLookup={getOrder}
                                 onUpdateTask={handleUpdateTask}
                                 onTaskClick={handleTaskClick}
+                                onViewJobTicket={setJobTicketOrderId}
                                 widthClass="flex-1 max-w-[650px] min-w-[320px]"
                                 draggedTaskId={draggedTaskId}
                                 setDraggedTaskId={setDraggedTaskId}
@@ -1960,7 +2089,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                 dragOverColumnId={dragOverColumnId}
                                 setDragOverColumnId={setDragOverColumnId}
                                 onDrop={handleDrop}
-                                machines={machines}
+                                finishings={finishings}
                             />
 
                             {/* 2. Selected Finishing lane */}
@@ -1969,10 +2098,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     id={`finishing-${selectedFinishing.id}`}
                                     title={selectedFinishing.name}
                                     label="FINISHING"
-                                    tasks={finishingTasksMap[selectedFinishing.id] || []}
+                                    tasks={(finishingTasksMap[selectedFinishing.id] || []).filter(filterTask)}
                                     orderLookup={getOrder}
                                     onUpdateTask={handleUpdateTask}
                                     onTaskClick={handleTaskClick}
+                                    onViewJobTicket={setJobTicketOrderId}
                                     accent={machineAccent}
                                     capacityMins={shiftCapacityMins}
                                     widthClass="flex-1 max-w-[650px] min-w-[320px]"
@@ -1985,7 +2115,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     dragOverColumnId={dragOverColumnId}
                                     setDragOverColumnId={setDragOverColumnId}
                                     onDrop={handleDrop}
-                                    machines={machines}
+                                    finishings={finishings}
                                 />
                             ) : (
                                 <div className="flex-1 text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
@@ -2003,10 +2133,29 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                 <TaskModal
                     task={selectedTaskModal.task}
                     order={selectedTaskModal.order}
-                    machine={machines.find(m => m.id === selectedTaskModal.task.machine_id) || selectedMachine}
+                    machine={machines.find(m => m.id === selectedTaskModal.task.machine_id)}
                     onClose={handleCloseModal}
                     onSave={handleTaskModalSave}
                     onRefresh={onRefresh}
+                    onViewJobTicket={setJobTicketOrderId}
+                />
+            )}
+
+            {/* Add Manual Task Modal */}
+            {showAddTaskModal && (
+                <AddTaskModal
+                    orders={localOrders}
+                    machines={machines}
+                    onClose={() => setShowAddTaskModal(false)}
+                    onRefresh={onRefresh}
+                />
+            )}
+
+            {/* Job Ticket Modal */}
+            {jobTicketOrderId && (
+                <JobTicketModal
+                    orderId={jobTicketOrderId}
+                    onClose={() => setJobTicketOrderId(null)}
                 />
             )}
         </>

@@ -98,7 +98,7 @@ export async function PUT(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { status, delivery_date } = body;
+        const { status, delivery_date, job_notes } = body;
 
         // Fetch existing Sales Order first
         const [existing] = await pool.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
@@ -109,22 +109,33 @@ export async function PUT(req, { params }) {
 
         let query = 'UPDATE sales_orders SET ';
         const queryParams = [];
+        let hasFields = false;
 
         if (status) {
             query += 'status = ?';
             queryParams.push(status);
+            hasFields = true;
         }
 
         if (delivery_date !== undefined) {
-            if (status) query += ', ';
+            if (hasFields) query += ', ';
             query += 'delivery_date = ?';
             queryParams.push(delivery_date || null);
+            hasFields = true;
         }
 
-        query += ' WHERE id = ?';
-        queryParams.push(id);
+        if (job_notes !== undefined) {
+            if (hasFields) query += ', ';
+            query += 'job_notes = ?';
+            queryParams.push(job_notes || null);
+            hasFields = true;
+        }
 
-        await pool.execute(query, queryParams);
+        if (hasFields) {
+            query += ' WHERE id = ?';
+            queryParams.push(id);
+            await pool.execute(query, queryParams);
+        }
 
         // If status changed to Delivered, check if we should notify via WhatsApp
         if (status === 'Delivered' && oldOrder.status !== 'Delivered') {

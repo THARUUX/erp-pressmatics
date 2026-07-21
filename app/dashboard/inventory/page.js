@@ -208,6 +208,40 @@ export default function InventoryPage() {
 
     const [waitingList, setWaitingList] = useState([]);
     const [waitingListLoading, setWaitingListLoading] = useState(true);
+    const [bomSearch, setBomSearch] = useState('');
+    const [bomTypeFilter, setBomTypeFilter] = useState('All');
+    const [bomStatusFilter, setBomStatusFilter] = useState('All');
+
+    const filteredWaitingList = useMemo(() => {
+        return waitingList.filter(item => {
+            if (bomSearch) {
+                const searchLower = bomSearch.toLowerCase();
+                const matchesSearch = 
+                    (item.sales_order_code || '').toLowerCase().includes(searchLower) ||
+                    (item.customer_name || '').toLowerCase().includes(searchLower) ||
+                    (item.job_name || '').toLowerCase().includes(searchLower) ||
+                    (item.component_name || '').toLowerCase().includes(searchLower) ||
+                    (item.item_code || '').toLowerCase().includes(searchLower);
+                if (!matchesSearch) return false;
+            }
+            if (bomTypeFilter !== 'All') {
+                if (item.component_type !== bomTypeFilter) return false;
+            }
+            if (bomStatusFilter !== 'All') {
+                const req = parseFloat(item.required_qty);
+                const issued = parseFloat(item.issued_qty);
+                const remaining = Math.max(0, req - issued);
+                const available = parseFloat(item.available_qty || 0);
+
+                if (bomStatusFilter === 'Fully Issued' && remaining > 0) return false;
+                if (bomStatusFilter === 'Partial' && (issued === 0 || remaining === 0)) return false;
+                if (bomStatusFilter === 'Pending' && issued > 0) return false;
+                if (bomStatusFilter === 'Shortage' && available >= remaining) return false;
+            }
+            return true;
+        });
+    }, [waitingList, bomSearch, bomTypeFilter, bomStatusFilter]);
+
     const [issuingWaitingId, setIssuingWaitingId] = useState(null);
     const [selectedWaitingItem, setSelectedWaitingItem] = useState(null);
     const [waitingIssueModalQty, setWaitingIssueModalQty] = useState('');
@@ -1064,11 +1098,59 @@ export default function InventoryPage() {
                         </button>
                     </div>
 
+                    {/* BOM Waiting List Filters */}
+                    <div className="px-5 py-3 border-b border-white/[0.05] flex items-center justify-between flex-wrap gap-3 bg-white/[0.005]">
+                        <div className="flex items-center gap-3 flex-1 min-w-[280px] max-w-md">
+                            <div className="relative w-full">
+                                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                                <input
+                                    value={bomSearch}
+                                    onChange={e => setBomSearch(e.target.value)}
+                                    placeholder="Search orders, customers, jobs, materials..."
+                                    className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-white/20"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-white/40 font-medium">Type:</span>
+                                <select
+                                    value={bomTypeFilter}
+                                    onChange={e => setBomTypeFilter(e.target.value)}
+                                    className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                >
+                                    <option value="All" className="bg-[#111] text-white">All Types</option>
+                                    <option value="paper" className="bg-[#111] text-white">Paper</option>
+                                    <option value="plate" className="bg-[#111] text-white">Plate</option>
+                                    <option value="sfg" className="bg-[#111] text-white">SFG</option>
+                                    <option value="statics" className="bg-[#111] text-white">Statics</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-white/40 font-medium">Status:</span>
+                                <select
+                                    value={bomStatusFilter}
+                                    onChange={e => setBomStatusFilter(e.target.value)}
+                                    className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                >
+                                    <option value="All" className="bg-[#111] text-white">All Statuses</option>
+                                    <option value="Pending" className="bg-[#111] text-white">Pending</option>
+                                    <option value="Partial" className="bg-[#111] text-white">Partial</option>
+                                    <option value="Shortage" className="bg-[#111] text-white">Stock Shortage</option>
+                                </select>
+                            </div>
+                            <span className="text-xs text-white/30 shrink-0 ml-2 font-mono">
+                                {filteredWaitingList.length} item(s)
+                            </span>
+                        </div>
+                    </div>
+ 
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
                             <thead>
                                 <tr className="bg-white/[0.02] border-b border-white/[0.05]">
                                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Order</th>
+                                    <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Job Name</th>
                                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Component</th>
                                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Type</th>
                                     <th className="text-right px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Required</th>
@@ -1081,20 +1163,20 @@ export default function InventoryPage() {
                             </thead>
                             <tbody className="divide-y divide-white/[0.04]">
                                 {waitingListLoading ? (
-                                    <tr><td colSpan="9" className="py-16 text-center text-white/25 text-sm animate-pulse">Loading waiting list...</td></tr>
-                                ) : waitingList.length === 0 ? (
-                                    <tr><td colSpan="9" className="py-16 text-center text-white/25 text-sm italic">No pending material issuances found!</td></tr>
+                                    <tr><td colSpan="10" className="py-16 text-center text-white/25 text-sm animate-pulse">Loading waiting list...</td></tr>
+                                ) : filteredWaitingList.length === 0 ? (
+                                    <tr><td colSpan="10" className="py-16 text-center text-white/25 text-sm italic">No pending material issuances found matching the filters!</td></tr>
                                 ) : (
-                                    waitingList.map((item) => {
+                                    filteredWaitingList.map((item) => {
                                         const req = parseFloat(item.required_qty);
                                         const issued = parseFloat(item.issued_qty);
                                         const remaining = Math.max(0, req - issued);
                                         const available = parseFloat(item.available_qty || 0);
-
+ 
                                         const isFullyIssued = remaining === 0;
                                         const isPartiallyIssued = issued > 0 && remaining > 0;
                                         const isPending = issued === 0;
-
+ 
                                         return (
                                             <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
                                                 <td className="px-5 py-3.5">
@@ -1105,6 +1187,11 @@ export default function InventoryPage() {
                                                         {item.sales_order_code}
                                                     </a>
                                                     <span className="text-[10px] text-white/30 block mt-0.5 truncate max-w-[150px]" title={item.customer_name}>{item.customer_name}</span>
+                                                </td>
+                                                <td className="px-4 py-3.5">
+                                                    <p className="text-white text-xs font-medium max-w-[180px] truncate" title={item.job_name || '—'}>
+                                                        {item.job_name || '—'}
+                                                    </p>
                                                 </td>
                                                 <td className="px-4 py-3.5">
                                                     <p className="font-semibold text-white text-sm">{item.component_name}</p>

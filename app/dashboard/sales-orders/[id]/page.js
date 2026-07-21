@@ -60,6 +60,7 @@ export default function SalesOrderDetailPage({ params }) {
     const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState('');
     const [deliveryDate, setDeliveryDate] = useState('');
+    const [jobNotes, setJobNotes] = useState('');
     const [saving, setSaving] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [tasks, setTasks] = useState([]);
@@ -143,6 +144,7 @@ export default function SalesOrderDetailPage({ params }) {
             setOrder(data.salesOrder);
             setStatus(data.salesOrder.status);
             setDeliveryDate(data.salesOrder.delivery_date ? new Date(data.salesOrder.delivery_date).toISOString().split('T')[0] : '');
+            setJobNotes(data.salesOrder.job_notes || '');
             setLoading(false);
         } catch (error) {
             console.error(error);
@@ -389,7 +391,7 @@ export default function SalesOrderDetailPage({ params }) {
             const res = await fetch(`/api/sales-orders/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status, delivery_date: deliveryDate || null })
+                body: JSON.stringify({ status, delivery_date: deliveryDate || null, job_notes: jobNotes || null })
             });
             if (res.ok) {
                 toast.success('Sales Order updated successfully');
@@ -443,36 +445,51 @@ export default function SalesOrderDetailPage({ params }) {
                     </div>
                 </header>
 
-                <div className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10 mb-8 flex flex-wrap gap-8 items-end">
-                    <div>
-                        <label className="block text-xs text-gray-400 uppercase mb-2">Job Status</label>
-                        <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                            className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white focus:border-blue-500 outline-none w-48"
-                        >
-                            <option value="Pending" className="bg-gray-900">Pending</option>
-                            <option value="In Production" className="bg-gray-900">In Production</option>
-                            <option value="Ready" className="bg-gray-900">Ready</option>
-                            <option value="Delivered" className="bg-gray-900">Delivered</option>
-                            <option value="Cancelled" className="bg-gray-900">Cancelled</option>
-                        </select>
+                <div className="bg-black/40 backdrop-blur-md p-6 rounded-xl border border-white/10 mb-8 flex flex-col gap-6">
+                    <div className="flex flex-wrap gap-8 items-end">
+                        <div>
+                            <label className="block text-xs text-gray-400 uppercase mb-2">Job Status</label>
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                                className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white focus:border-blue-500 outline-none w-48"
+                            >
+                                <option value="Pending" className="bg-gray-900">Pending</option>
+                                <option value="In Production" className="bg-gray-900">In Production</option>
+                                <option value="Ready" className="bg-gray-900">Ready</option>
+                                <option value="Delivered" className="bg-gray-900">Delivered</option>
+                                <option value="Cancelled" className="bg-gray-900">Cancelled</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 uppercase mb-2">Estimated Delivery Date</label>
+                            <input
+                                type="date"
+                                value={deliveryDate}
+                                onChange={(e) => setDeliveryDate(e.target.value)}
+                                className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white outline-none focus:border-blue-500 w-48 style-calendar"
+                            />
+                        </div>
+                        <Button onClick={handleSave} disabled={saving} className="bg-white hover:bg-white/70 text-black">
+                            {saving ? '...' : <><FiSave className="mr-2" /> Update Order</>}
+                        </Button>
+                        <Button onClick={handleOpenWhatsappModal} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            <FiMessageSquare className="mr-2" /> Send WhatsApp
+                        </Button>
                     </div>
-                    <div>
-                        <label className="block text-xs text-gray-400 uppercase mb-2">Estimated Delivery Date</label>
-                        <input
-                            type="date"
-                            value={deliveryDate}
-                            onChange={(e) => setDeliveryDate(e.target.value)}
-                            className="bg-black/20 border border-white/10 rounded px-4 py-2 text-white outline-none focus:border-blue-500 w-48 style-calendar"
+
+                    <div className="border-t border-white/10 pt-4">
+                        <label className="text-xs text-amber-400 font-bold uppercase tracking-wider block mb-2">
+                            Job Note / Special Production Instructions
+                        </label>
+                        <textarea
+                            value={jobNotes}
+                            onChange={(e) => setJobNotes(e.target.value)}
+                            placeholder="Enter special instructions or job notes (will appear on Job Ticket PDF and planning dashboard)..."
+                            rows={3}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 resize-y"
                         />
                     </div>
-                    <Button onClick={handleSave} disabled={saving} className="bg-white hover:bg-white/70 text-black">
-                        {saving ? '...' : <><FiSave className="mr-2" /> Update Order</>}
-                    </Button>
-                    <Button onClick={handleOpenWhatsappModal} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                        <FiMessageSquare className="mr-2" /> Send WhatsApp
-                    </Button>
                 </div>
             </div>
 

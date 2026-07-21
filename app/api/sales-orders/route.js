@@ -13,7 +13,8 @@ export async function GET(req) {
             (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
              FROM quotation_items qi
              JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-             WHERE qli.quotation_id = so.quotation_id) AS estimation_names
+             WHERE qli.quotation_id = so.quotation_id) AS estimation_names,
+            (SELECT COUNT(*) FROM job_tasks jt WHERE jt.sales_order_id = so.id) AS task_count
         FROM sales_orders so WHERE 1=1`;
         const params = [];
 

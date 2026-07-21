@@ -2,12 +2,21 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
 // Resolve run quantity based on speed unit (mirrors tasks/route.js logic)
-function resolveRunQty(speedUnit, { totalCutSheets, sidesVal, totalImpressions, itemQty }) {
+function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
     const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
-    if (u === 'prints/hr') return totalCutSheets * sidesVal;
-    if (u === 'impressions/hr') return totalImpressions;
-    if (u === 'sheets/hr') return totalCutSheets;
-    return itemQty;
+    const sides = parseInt(sidesVal) || 1;
+    const upsVal = parseInt(ups) || 1;
+    const pagesVal = parseInt(pages) || 1;
+    const sheetsVal = parseFloat(sheets) || 1;
+    const qty = parseFloat(itemQty) || 0;
+
+    if (u === 'prints/hr') return totalCutSheets * sides;
+    if (u === 'sheets/hr') {
+        if (isBB) return totalCutSheets * ((upsVal * sides) / pagesVal);
+        return totalCutSheets / sheetsVal;
+    }
+    if (u === 'impressions/hr') return totalImpressions || (totalCutSheets * sides);
+    return qty;
 }
 
 // GET /api/job-planning

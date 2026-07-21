@@ -65,11 +65,14 @@ export default function JobPlanningPage() {
         }));
     };
 
-    const { machines, finishings = [], orders } = data;
-    const totalTasks = orders.reduce((a, o) => a + o.tasks.length, 0);
-    const doneTasks = orders.reduce((a, o) => a + o.tasks.filter(t => t.status === 'done').length, 0);
+    const machines = Array.isArray(data?.machines) ? data.machines : [];
+    const finishings = Array.isArray(data?.finishings) ? data.finishings : [];
+    const orders = Array.isArray(data?.orders) ? data.orders : [];
+
+    const totalTasks = orders.reduce((a, o) => a + (Array.isArray(o?.tasks) ? o.tasks.length : 0), 0);
+    const doneTasks = orders.reduce((a, o) => a + (Array.isArray(o?.tasks) ? o.tasks.filter(t => t?.status === 'done').length : 0), 0);
     const pct = totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0;
-    const inProd = orders.filter(o => o.status === 'In Production').length;
+    const inProd = orders.filter(o => o?.status === 'In Production').length;
 
     const tabs = [
         { key: 'kanban', label: 'Job Planning', icon: FiGrid },
