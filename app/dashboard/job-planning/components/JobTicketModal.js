@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiX, FiDownload, FiExternalLink, FiPrinter, FiPackage, FiLayers, FiSettings, FiCheckCircle, FiClock, FiUser, FiCalendar, FiCpu } from 'react-icons/fi';
+import { FiX, FiDownload, FiExternalLink, FiPrinter, FiPackage, FiLayers, FiSettings, FiCheckCircle, FiClock, FiUser, FiCalendar, FiCpu, FiChevronDown, FiCheck } from 'react-icons/fi';
 
 export default function JobTicketModal({ orderId, onClose }) {
     const [order, setOrder] = useState(null);
@@ -9,6 +9,8 @@ export default function JobTicketModal({ orderId, onClose }) {
     const [error, setError] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [bom, setBom] = useState([]);
+    const [pdfLayout, setPdfLayout] = useState('clean');
+    const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
     useEffect(() => {
         if (!orderId) return;
@@ -49,23 +51,24 @@ export default function JobTicketModal({ orderId, onClose }) {
         return () => { isMounted = false; };
     }, [orderId]);
 
-    const handleDownloadPdf = async () => {
+    const handleDownloadPdf = async (layout = pdfLayout) => {
         if (!orderId) return;
         setPdfLoading(true);
         try {
-            const res = await fetch(`/api/sales-orders/${orderId}/pdf`);
+            const res = await fetch(`/api/sales-orders/${orderId}/pdf?layout=${layout}`);
             if (!res.ok) throw new Error('PDF generation failed');
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `job-ticket-${order?.code || orderId}.pdf`;
+            a.download = `job-ticket-${order?.code || orderId}-${layout}.pdf`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
             alert('Failed to download PDF: ' + err.message);
         } finally {
             setPdfLoading(false);
+            setShowLayoutMenu(false);
         }
     };
 
@@ -107,14 +110,49 @@ export default function JobTicketModal({ orderId, onClose }) {
                     <div className="flex items-center gap-2">
                         {order && (
                             <>
-                                <button
-                                    onClick={handleDownloadPdf}
-                                    disabled={pdfLoading}
-                                    className="px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-blue-300 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
-                                >
-                                    <FiDownload className="w-3.5 h-3.5" />
-                                    {pdfLoading ? 'Downloading...' : 'PDF Ticket'}
-                                </button>
+                                <div className="relative inline-flex rounded-lg shadow-sm">
+                                    <button
+                                        onClick={() => handleDownloadPdf(pdfLayout)}
+                                        disabled={pdfLoading}
+                                        className="px-3 py-1.5 bg-blue-600/30 border border-blue-500/40 hover:bg-blue-600/50 text-blue-200 text-xs font-semibold rounded-l-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        <FiDownload className="w-3.5 h-3.5" />
+                                        {pdfLoading ? 'Generating...' : pdfLayout === 'clean' ? 'PDF (Clean)' : 'PDF (Boxed)'}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                                        disabled={pdfLoading}
+                                        className="px-1.5 py-1.5 bg-blue-600/30 border border-l-0 border-blue-500/40 hover:bg-blue-600/50 text-blue-200 text-xs font-semibold rounded-r-lg transition-all disabled:opacity-50"
+                                        title="Select PDF Layout Style"
+                                    >
+                                        <FiChevronDown className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    {showLayoutMenu && (
+                                        <div className="absolute right-0 top-full mt-1.5 w-52 bg-slate-900 border border-white/20 rounded-xl shadow-2xl z-50 p-1.5 text-xs">
+                                            <button
+                                                onClick={() => { setPdfLayout('clean'); handleDownloadPdf('clean'); }}
+                                                className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between ${pdfLayout === 'clean' ? 'bg-blue-600/30 text-blue-300 font-bold border border-blue-500/40' : 'hover:bg-white/10 text-slate-200'}`}
+                                            >
+                                                <div>
+                                                    <div className="font-semibold">Clean Document</div>
+                                                    <div className="text-[10px] text-slate-400 font-normal">Minimalist editorial style</div>
+                                                </div>
+                                                {pdfLayout === 'clean' && <FiCheck className="w-3.5 h-3.5 text-blue-400" />}
+                                            </button>
+                                            <button
+                                                onClick={() => { setPdfLayout('boxed'); handleDownloadPdf('boxed'); }}
+                                                className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between mt-1 ${pdfLayout === 'boxed' ? 'bg-blue-600/30 text-blue-300 font-bold border border-blue-500/40' : 'hover:bg-white/10 text-slate-200'}`}
+                                            >
+                                                <div>
+                                                    <div className="font-semibold">Boxed Cards</div>
+                                                    <div className="text-[10px] text-slate-400 font-normal">Structured card containers</div>
+                                                </div>
+                                                {pdfLayout === 'boxed' && <FiCheck className="w-3.5 h-3.5 text-blue-400" />}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 <Link
                                     href={`/dashboard/sales-orders/${order.id}`}
                                     target="_blank"

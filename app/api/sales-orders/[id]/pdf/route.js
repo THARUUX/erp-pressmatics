@@ -4,9 +4,12 @@ import React from 'react';
 import pool from '@/lib/db';
 import QRCode from 'qrcode';
 import JobTicketDocument from './JobTicketDocument';
+import JobTicketCleanDocument from './JobTicketCleanDocument';
 
 export async function GET(req, { params }) {
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const layout = searchParams.get('layout') || 'clean';
 
     try {
         const [salesOrders] = await pool.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
@@ -150,8 +153,10 @@ export async function GET(req, { params }) {
             color: { dark: '#1e293b', light: '#ffffff' }
         });
 
+        const DocumentComponent = layout === 'boxed' ? JobTicketDocument : JobTicketCleanDocument;
+
         const pdfBuffer = await renderToBuffer(
-            React.createElement(JobTicketDocument, { order: salesOrder, qrDataUrl, jobUrl })
+            React.createElement(DocumentComponent, { order: salesOrder, qrDataUrl, jobUrl })
         );
 
         return new NextResponse(pdfBuffer, {

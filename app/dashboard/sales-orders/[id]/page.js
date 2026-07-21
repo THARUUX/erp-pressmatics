@@ -63,6 +63,8 @@ export default function SalesOrderDetailPage({ params }) {
     const [jobNotes, setJobNotes] = useState('');
     const [saving, setSaving] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfLayout, setPdfLayout] = useState('clean');
+    const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     const [tasks, setTasks] = useState([]);
     const [newTaskName, setNewTaskName] = useState('');
     const [addingTask, setAddingTask] = useState(false);
@@ -117,22 +119,23 @@ export default function SalesOrderDetailPage({ params }) {
         });
     };
 
-    const handleDownloadPdf = async () => {
+    const handleDownloadPdf = async (layout = pdfLayout) => {
         setPdfLoading(true);
         try {
-            const res = await fetch(`/api/sales-orders/${id}/pdf`);
+            const res = await fetch(`/api/sales-orders/${id}/pdf?layout=${layout}`);
             if (!res.ok) throw new Error('PDF generation failed');
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `job-ticket-${order?.code || id}.pdf`;
+            a.download = `job-ticket-${order?.code || id}-${layout}.pdf`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err) {
             toast.error('Failed to generate PDF: ' + err.message);
         } finally {
             setPdfLoading(false);
+            setShowLayoutMenu(false);
         }
     };
 
@@ -431,17 +434,50 @@ export default function SalesOrderDetailPage({ params }) {
                         {/* <Button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20">
                             <FiPrinter className="mr-2" /> Print Job Ticket
                         </Button> */}
-                        <Button
-                            onClick={handleDownloadPdf}
-                            disabled={pdfLoading}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                            {pdfLoading ? (
-                                <><span className="mr-2 animate-spin inline-block">⟳</span> Generating PDF...</>
-                            ) : (
-                                <><FiDownload className="mr-2" /> Download PDF</>
+                        <div className="relative inline-flex rounded-lg shadow-sm">
+                            <Button
+                                onClick={() => handleDownloadPdf(pdfLayout)}
+                                disabled={pdfLoading}
+                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none"
+                            >
+                                {pdfLoading ? (
+                                    <><span className="mr-2 animate-spin inline-block">⟳</span> Generating...</>
+                                ) : (
+                                    <><FiDownload className="mr-2" /> Download PDF ({pdfLayout === 'clean' ? 'Clean' : 'Boxed'})</>
+                                )}
+                            </Button>
+                            <button
+                                onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                                disabled={pdfLoading}
+                                className="px-2 bg-blue-700 hover:bg-blue-800 text-white rounded-r-lg border-l border-blue-500/40 transition-all disabled:opacity-50 flex items-center justify-center"
+                                title="Select PDF Layout Style"
+                            >
+                                <FiChevronDown className="w-4 h-4" />
+                            </button>
+
+                            {showLayoutMenu && (
+                                <div className="absolute right-0 top-full mt-2 w-52 bg-slate-900 border border-white/20 rounded-xl shadow-2xl z-50 p-1.5 text-xs text-slate-100">
+                                    <button
+                                        onClick={() => { setPdfLayout('clean'); handleDownloadPdf('clean'); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between ${pdfLayout === 'clean' ? 'bg-blue-600/40 text-blue-200 font-bold border border-blue-500/40' : 'hover:bg-white/10 text-slate-200'}`}
+                                    >
+                                        <div>
+                                            <div className="font-semibold">Clean Document</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Minimalist editorial style</div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => { setPdfLayout('boxed'); handleDownloadPdf('boxed'); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between mt-1 ${pdfLayout === 'boxed' ? 'bg-blue-600/40 text-blue-200 font-bold border border-blue-500/40' : 'hover:bg-white/10 text-slate-200'}`}
+                                    >
+                                        <div>
+                                            <div className="font-semibold">Boxed Cards</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Structured card containers</div>
+                                        </div>
+                                    </button>
+                                </div>
                             )}
-                        </Button>
+                        </div>
                     </div>
                 </header>
 
