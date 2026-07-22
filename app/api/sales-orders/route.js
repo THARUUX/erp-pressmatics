@@ -84,6 +84,16 @@ export async function POST(req) {
 
         const q = quotations[0];
 
+        // Fetch quotation item descriptions to use as job notes/floor instructions
+        const [qItems] = await conn.execute(
+            `SELECT qi.job_description 
+             FROM quotation_items qi
+             JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+             WHERE qli.quotation_id = ?`,
+            [quotation_id]
+        );
+        const resolvedJobNotes = qItems.map(item => item.job_description).filter(Boolean).join(' / ');
+
         // Ensure not already converted
         const [existing] = await conn.execute('SELECT id FROM sales_orders WHERE quotation_id = ?', [quotation_id]);
         if (existing.length > 0) {
@@ -196,6 +206,9 @@ export async function POST(req) {
         // ── VALIDATION (RUNS FOR ALL CASES) ───────────────────
         const shortages = [];
         for (const item of bomItems) {
+            // Ignore statics for stock shortage validation as they only have active/inactive status
+            if (item.component_type === 'statics') continue;
+
             if (item.required_qty > item.available) {
                 shortages.push({
                     type: item.component_type,
@@ -226,11 +239,11 @@ export async function POST(req) {
         let template = settingsMap['so_id_template'] || 'SO-{0000}';
         const code = template.replace('{0000}', String(seq).padStart(4, '0')).replace('{SEQ}', String(seq));
 
-        // Insert into Sales Orders
+        // Insert into Sales Orders (auto-including job_description as job_notes)
         const [result] = await conn.execute(
-            `INSERT INTO sales_orders (code, quotation_id, customer_id, customer_name, order_date, status, total_amount, auto_deduct_stock) 
-             VALUES (?, ?, ?, ?, NOW(), 'Pending', ?, ?)`,
-            [code, q.id, q.customer_id, q.customer_name, q.total_amount, auto_deduct_stock ? 1 : 0]
+            `INSERT INTO sales_orders (code, quotation_id, customer_id, customer_name, order_date, status, total_amount, auto_deduct_stock, job_notes) 
+             VALUES (?, ?, ?, ?, NOW(), 'Pending', ?, ?, ?)`,
+            [code, q.id, q.customer_id, q.customer_name, q.total_amount, auto_deduct_stock ? 1 : 0, resolvedJobNotes || null]
         );
 
         const soId = result.insertId;
@@ -258,7 +271,7 @@ export async function POST(req) {
                 [soId, item.inventory_item_id, item.component_type, item.component_name, item.required_qty, issuedQty]
             );
 
-            if (auto_deduct_stock && item.required_qty > 0) {
+            if (auto_deduct_stock && item.required_qty > 0 && item.component_type !== 'statics') {
                 // Deduct stock in inventory
                 await conn.execute(
                     `UPDATE inventory_items

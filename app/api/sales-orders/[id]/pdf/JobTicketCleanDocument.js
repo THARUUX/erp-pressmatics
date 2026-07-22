@@ -24,9 +24,9 @@ const s = StyleSheet.create({
     headerDelivery: { fontSize: 7.5, color: '#b91c1c', fontFamily: 'Helvetica-Bold', marginTop: 1 },
 
     // Special Job Notes
-    jobNotesRow: { borderLeftWidth: 3, borderLeftColor: '#d97706', paddingLeft: 8, marginVertical: 8 },
-    jobNotesTitle: { fontSize: 7, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', color: '#b45309', letterSpacing: 0.5, marginBottom: 2 },
-    jobNotesText: { fontSize: 8.5, color: '#451a03', fontStyle: 'italic' },
+    jobNotesRow: { marginVertical: 8, marginBottom: 20 },
+    jobNotesTitle: { fontSize: 7, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', color: '#b45309', letterSpacing: 0.5, marginBottom: 2, marginTop: 3 },
+    jobNotesText: { fontSize: 9.5, color: '#451a03', fontStyle: 'italic' },
 
     // Production Line Items
     itemBlock: { marginBottom: 12 },
@@ -212,7 +212,7 @@ function formatFinishingVolume(f, matchingDetail, itemQuantity) {
 function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Component Finishing Tasks</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1]}>Operation</Text>
@@ -235,7 +235,7 @@ function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
 function GlobalFinishingsTable({ finishings, tasks, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
-        <View style={s.globalSection} wrap={false}>
+        <View style={s.globalSection}>
             <Text style={s.globalTitle}>Final Order Assembly & Post-Press Treatments (Global)</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1, { color: '#4338ca' }]}>Operation</Text>
@@ -260,7 +260,7 @@ function GlobalFinishingsTable({ finishings, tasks, itemQuantity }) {
 function BOMTable({ bom }) {
     if (!bom?.length) return null;
     return (
-        <View style={s.globalSection} wrap={false}>
+        <View style={s.globalSection}>
             <Text style={[s.globalTitle, { color: '#047857' }]}>Bill of Materials (Raw Materials & Stock Requisitions)</Text>
             <View style={[s.tableHeader, { borderTopColor: '#059669', borderBottomColor: '#059669' }]}>
                 <Text style={[s.tableHeaderText, { flex: 2.5, color: '#065f46' }]}>Material / Component</Text>
@@ -291,7 +291,7 @@ function BOMTable({ bom }) {
 function SFGLinesTable({ sfgLines }) {
     if (!sfgLines?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Required SFG & Stock Assets</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 3 }]}>Item Name / Description</Text>
@@ -318,7 +318,7 @@ function SFGLinesTable({ sfgLines }) {
 function ServicesTable({ services }) {
     if (!services?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Production Services & Assignments</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 2 }]}>Service / Task Name</Text>
@@ -383,8 +383,15 @@ function CleanDetailRow({ detail, tasks, itemQuantity }) {
         }
     }
 
+    const sfgCount = detail.sfgLines?.length || 0;
+    const svcCount = detail.services?.length || 0;
+    const finCount = detail.finishings?.length || 0;
+    const baseEstHeight = isPrinting ? 130 : 30;
+    const estHeight = baseEstHeight + (sfgCount + svcCount + finCount) * 16;
+    const shouldWrap = estHeight > 420;
+
     return (
-        <View style={s.detailRow} wrap={false}>
+        <View style={s.detailRow} wrap={!shouldWrap ? false : true}>
             <View style={s.detailHeaderLine}>
                 <Text style={s.detailTitle}>{detail.component_name}</Text>
                 <Text style={s.detailTypeTag}>{detail.type}</Text>
@@ -521,7 +528,7 @@ function ImpositionLayoutsSection({ order }) {
     if (!layouts.length) return null;
 
     return (
-        <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#0f172a' }} wrap={false}>
+        <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#0f172a' }}>
             <View style={[s.headerRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 6 }]}>
                 <View style={s.headerLeft}>
                     <Text style={[s.headerTitle, { fontSize: 11 }]}>Imposition & Layout Allocation Plans</Text>
@@ -566,15 +573,35 @@ function ImpositionLayoutsSection({ order }) {
 export default function JobTicketCleanDocument({ order, qrDataUrl, jobUrl }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
 
+    // Determine if we actually have imposition layout plans to print
+    const hasImpositions = order.items?.some(item =>
+        item.details?.some(d => {
+            const name = (d.component_name || '').toLowerCase();
+            return d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' &&
+                !name.includes('services') && !name.includes('sfg') && !name.includes('assets') &&
+                !name.includes('finish') && d.comp_width_cm && d.comp_height_cm;
+        })
+    );
+
     return (
         <Document title={`JobTicket-${order.code}`} author="Pressmatics ERP Architecture">
+            {/* Page 1: Main Job Ticket Specifications and Tables */}
             <Page size="A4" orientation="landscape" style={s.pageLandscape}>
                 <JobTicketPage order={order} qrDataUrl={qrDataUrl} jobUrl={jobUrl} />
-                <ImpositionLayoutsSection order={order} />
                 <Text style={s.footer} render={({ pageNumber, totalPages }) => (
                     `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
                 )} />
             </Page>
+
+            {/* Page 2: Imposition Layout allocation diagrams */}
+            {hasImpositions && (
+                <Page size="A4" orientation="landscape" style={s.pageLandscape}>
+                    <ImpositionLayoutsSection order={order} />
+                    <Text style={s.footer} render={({ pageNumber, totalPages }) => (
+                        `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
+                    )} />
+                </Page>
+            )}
         </Document>
     );
 }

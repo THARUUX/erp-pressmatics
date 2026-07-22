@@ -27,13 +27,11 @@ export async function PUT(req, { params }) {
         const resolvedParams = await params;
         const rawId = resolvedParams?.id;
         const { taskId } = resolvedParams;
-        if (!rawId || rawId === 'undefined' || rawId === 'null') {
-            return NextResponse.json({ error: 'Invalid or missing Sales Order ID' }, { status: 400 });
-        }
-
-        const id = await getSalesOrderId(rawId);
-        if (!id) {
-            return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+        if (rawId && rawId !== 'unassigned' && rawId !== 'null' && rawId !== 'undefined') {
+            const id = await getSalesOrderId(rawId);
+            if (!id) {
+                return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
+            }
         }
 
         const body = await req.json();

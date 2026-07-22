@@ -95,7 +95,8 @@ export async function POST(req) {
             paperNeeds.forEach(row => checkItem(row, 'paper'));
             plateNeeds.forEach(row => checkItem(row, 'plate'));
             sfgNeeds.forEach(row => checkItem(row, 'sfg'));
-            staticsNeeds.forEach(row => checkItem(row, 'statics'));
+            // Ignore statics stock shortages since they only have active/inactive status
+            // staticsNeeds.forEach(row => checkItem(row, 'statics'));
 
             if (shortages.length > 0) {
                 return NextResponse.json({

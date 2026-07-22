@@ -230,7 +230,7 @@ function formatFinishingVolume(f, matchingDetail, itemQuantity) {
 function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Component Finishing Tasks</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1]}>Operation</Text>
@@ -253,7 +253,7 @@ function FinishingsTable({ finishings, tasks, matchingDetail, itemQuantity }) {
 function GlobalFinishingsTable({ finishings, tasks, itemQuantity }) {
     if (!finishings?.length) return null;
     return (
-        <View style={s.globalSection} wrap={false}>
+        <View style={s.globalSection}>
             <Text style={s.globalTitle}>Final Order Assembly & Post-Press Treatments (Global)</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, s.tableCol1, { color: '#4338ca' }]}>Operation</Text>
@@ -278,7 +278,7 @@ function GlobalFinishingsTable({ finishings, tasks, itemQuantity }) {
 function BOMTable({ bom }) {
     if (!bom?.length) return null;
     return (
-        <View style={s.globalSection} wrap={false}>
+        <View style={s.globalSection}>
             <Text style={[s.globalTitle, { color: '#047857' }]}>Bill of Materials (Raw Materials & Stock Requisitions)</Text>
             <View style={[s.tableHeader, { backgroundColor: '#ecfdf5' }]}>
                 <Text style={[s.tableHeaderText, { flex: 2.5, color: '#065f46' }]}>Material / Component</Text>
@@ -309,7 +309,7 @@ function BOMTable({ bom }) {
 function SFGLinesTable({ sfgLines }) {
     if (!sfgLines?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Required SFG & Stock Assets</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 3 }]}>Item Name / Description</Text>
@@ -336,7 +336,7 @@ function SFGLinesTable({ sfgLines }) {
 function ServicesTable({ services }) {
     if (!services?.length) return null;
     return (
-        <View style={{ marginTop: 4 }} wrap={false}>
+        <View style={{ marginTop: 4 }}>
             <Text style={s.sectionTitle}>Production Services & Assignments</Text>
             <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { flex: 2 }]}>Service / Task Name</Text>
@@ -403,8 +403,15 @@ function DetailCard({ detail, tasks, itemQuantity }) {
         }
     }
 
+    const sfgCount = detail.sfgLines?.length || 0;
+    const svcCount = detail.services?.length || 0;
+    const finCount = detail.finishings?.length || 0;
+    const baseEstHeight = isPrinting ? 130 : 30;
+    const estHeight = baseEstHeight + (sfgCount + svcCount + finCount) * 16;
+    const shouldWrap = estHeight > 420;
+
     return (
-        <View style={s.detailCard} wrap={false}>
+        <View style={s.detailCard} wrap={!shouldWrap ? false : true}>
             <Text style={s.detailBadge}>{detail.component_name} / {detail.type}</Text>
 
             {isPrinting && (
@@ -566,7 +573,7 @@ function ImpositionLayoutsPage({ order }) {
     if (!layouts.length) return null;
 
     return (
-        <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' }} wrap={false}>
+        <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
             <View style={[s.headerRow, { marginBottom: 8 }]}>
                 <View style={s.headerLeft}>
                     <Text style={[s.headerTitle, { fontSize: 11 }]}>Imposition & Layout Allocation Plans</Text>
@@ -611,15 +618,35 @@ function ImpositionLayoutsPage({ order }) {
 export default function JobTicketDocument({ order, qrDataUrl, jobUrl }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
 
+    // Determine if we actually have imposition layout plans to print
+    const hasImpositions = order.items?.some(item => 
+        item.details?.some(d => {
+            const name = (d.component_name || '').toLowerCase();
+            return d.type !== 'digital' && d.type !== 'sfg' && d.type !== 'services' &&
+                !name.includes('services') && !name.includes('sfg') && !name.includes('assets') &&
+                !name.includes('finish') && d.comp_width_cm && d.comp_height_cm;
+        })
+    );
+
     return (
         <Document title={`JobTicket-${order.code}`} author="Pressmatics ERP Architecture">
+            {/* Page 1: Main Job Ticket Specifications and Tables */}
             <Page size="A4" orientation="landscape" style={s.pageLandscape}>
                 <JobTicketPage order={order} qrDataUrl={qrDataUrl} jobUrl={jobUrl} />
-                <ImpositionLayoutsPage order={order} />
                 <Text style={s.footer} render={({ pageNumber, totalPages }) => (
                     `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
                 )} />
             </Page>
+
+            {/* Page 2: Imposition Layout allocation diagrams */}
+            {hasImpositions && (
+                <Page size="A4" orientation="landscape" style={s.pageLandscape}>
+                    <ImpositionLayoutsPage order={order} />
+                    <Text style={s.footer} render={({ pageNumber, totalPages }) => (
+                        `Auto-Generated via Pressmatics Cloud ERP • Printed: ${timestamp} • Page ${pageNumber} of ${totalPages}`
+                    )} />
+                </Page>
+            )}
         </Document>
     );
 }

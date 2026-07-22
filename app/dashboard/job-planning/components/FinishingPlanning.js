@@ -941,6 +941,7 @@ function DayColumn({
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
+    const totalQty = tasks.reduce((sum, t) => sum + (parseFloat(t.quantity) || 0), 0);
 
     const isOverloaded = totalMins > capacityMins;
     const isOver = dragOverColumnId === id;
@@ -975,6 +976,11 @@ function DayColumn({
                 <div>
                     <div className="font-extrabold text-[12px] text-white leading-tight">{title}</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">{label}</div>
+                    {totalQty > 0 && (
+                        <div className="text-[9.5px] font-bold text-amber-400 mt-0.5">
+                            Qty: {totalQty.toLocaleString()}
+                        </div>
+                    )}
                 </div>
                 <div
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isOverloaded
@@ -1034,6 +1040,7 @@ function UnplannedColumn({
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
+    const totalQty = tasks.reduce((sum, t) => sum + (parseFloat(t.quantity) || 0), 0);
     const isOver = dragOverColumnId === id;
 
     const handleDragOver = (e) => {
@@ -1065,6 +1072,11 @@ function UnplannedColumn({
                 <div>
                     <div className="font-extrabold text-[12px] text-white leading-tight">Unplanned Queue</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">Machine backlog</div>
+                    {totalQty > 0 && (
+                        <div className="text-[9.5px] font-bold text-amber-400 mt-0.5">
+                            Qty: {totalQty.toLocaleString()}
+                        </div>
+                    )}
                 </div>
                 <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
                     {totalHrs}h
@@ -1117,6 +1129,7 @@ function MachineColumn({
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
+    const totalQty = tasks.reduce((sum, t) => sum + (parseFloat(t.quantity) || 0), 0);
     const isOverloaded = totalMins > capacityMins;
     const isOver = dragOverColumnId === id;
 
@@ -1150,6 +1163,11 @@ function MachineColumn({
                 <div className="min-w-0 flex-1">
                     <div className="font-extrabold text-[12px] text-white leading-tight truncate" title={title}>{title}</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">{label}</div>
+                    {totalQty > 0 && (
+                        <div className="text-[9.5px] font-bold text-amber-400 mt-0.5">
+                            Qty: {totalQty.toLocaleString()}
+                        </div>
+                    )}
                 </div>
                 <div
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${isOverloaded
@@ -1209,6 +1227,7 @@ function BacklogColumn({
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
+    const totalQty = tasks.reduce((sum, t) => sum + (parseFloat(t.quantity) || 0), 0);
     const isOver = dragOverColumnId === id;
 
     const handleDragOver = (e) => {
@@ -1240,6 +1259,11 @@ function BacklogColumn({
                 <div>
                     <div className="font-extrabold text-[12px] text-white leading-tight">Backlog / Unplanned</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">All pending tasks</div>
+                    {totalQty > 0 && (
+                        <div className="text-[9.5px] font-bold text-amber-400 mt-0.5">
+                            Qty: {totalQty.toLocaleString()}
+                        </div>
+                    )}
                 </div>
                 <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
                     {totalHrs}h
@@ -1284,6 +1308,7 @@ function BacklogColumn({
 // ── Main FinishingPlanning Component ───────────────────────────────────────
 export default function FinishingPlanning({ finishings = [], machines = [], orders, onRefresh }) {
     const [viewMode, setViewMode] = useState('daily');
+    const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
     const [activeDate, setActiveDate] = useState(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1683,8 +1708,9 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
         });
 
         // Persist to DB
+        setSaveStatus('saving');
         try {
-            await fetch(`/api/sales-orders/${parentOrder.id}/tasks/${taskId}`, {
+            const res = await fetch(`/api/sales-orders/${parentOrder.id || 'unassigned'}/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1694,8 +1720,13 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                     machine_position: positionMap[taskId] || null,
                 }),
             });
+            if (!res.ok) throw new Error('Failed to update task');
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 3000);
         } catch (e) {
             console.error('Drag update error:', e);
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus(null), 5000);
             setLocalOrders(orders); // Revert
         }
     };
@@ -1720,14 +1751,20 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             });
         });
 
+        setSaveStatus('saving');
         try {
-            await fetch(`/api/sales-orders/${targetSO}/tasks/${taskId}`, {
+            const res = await fetch(`/api/sales-orders/${targetSO}/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fields),
             });
+            if (!res.ok) throw new Error('Failed to update task');
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 3000);
         } catch (e) {
             console.error('Task update error:', e);
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus(null), 5000);
             setLocalOrders(orders);
         }
     };
@@ -1878,6 +1915,24 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                             </div>
 
                             <div className="flex items-center gap-2.5 flex-wrap">
+                                {saveStatus === 'saving' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                        Saving...
+                                    </div>
+                                )}
+                                {saveStatus === 'saved' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                        Saved
+                                    </div>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-bold animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                        Error Saving
+                                    </div>
+                                )}
                                 {/* Search & Filter Toolbar Controls */}
                                 <div className="flex items-center gap-2">
                                     <div className="relative">
