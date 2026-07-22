@@ -1036,7 +1036,7 @@ function UnplannedColumn({
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, finishings
+    onDrop, finishings, onPrintReport
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1078,8 +1078,19 @@ function UnplannedColumn({
                         </div>
                     )}
                 </div>
-                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
-                    {totalHrs}h
+                <div className="flex items-center gap-1.5">
+                    {onPrintReport && (
+                        <button
+                            onClick={onPrintReport}
+                            className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all cursor-pointer"
+                            title="Print Unplanned Queue Report"
+                        >
+                            <FiPrinter className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
+                        {totalHrs}h
+                    </div>
                 </div>
             </div>
 
@@ -1223,7 +1234,7 @@ function BacklogColumn({
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, finishings
+    onDrop, finishings, onPrintReport
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1265,8 +1276,19 @@ function BacklogColumn({
                         </div>
                     )}
                 </div>
-                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
-                    {totalHrs}h
+                <div className="flex items-center gap-1.5">
+                    {onPrintReport && (
+                        <button
+                            onClick={onPrintReport}
+                            className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all cursor-pointer animate-pulse-subtle"
+                            title="Print Unplanned Queue Report"
+                        >
+                            <FiPrinter className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
+                        {totalHrs}h
+                    </div>
                 </div>
             </div>
 
@@ -1326,6 +1348,15 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     const [activeTask, setActiveTask] = useState(null);
     const [selectedTaskModal, setSelectedTaskModal] = useState(null); // { task, order }
     const [showReport, setShowReport] = useState(true);
+    const [printType, setPrintType] = useState('weekly'); // 'weekly' or 'unplanned'
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [printOptions, setPrintOptions] = useState({
+        includeSpecs: true,
+        includeNotes: true,
+        includeFinishings: true,
+        includeDates: true,
+        groupByOrder: false
+    });
     const [filterText, setFilterText] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -1412,6 +1443,38 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
         today.setHours(0, 0, 0, 0);
         setActiveDate(today);
     };
+
+    const handlePrintUnplanned = () => {
+        setShowPrintModal(true);
+    };
+
+    const executeDownloadPdf = () => {
+        if (!selectedFinishing) return;
+        setShowPrintModal(false);
+        const params = new URLSearchParams({
+            specs: printOptions.includeSpecs ? 'true' : 'false',
+            notes: printOptions.includeNotes ? 'true' : 'false',
+            finishings: printOptions.includeFinishings ? 'true' : 'false',
+            dates: printOptions.includeDates ? 'true' : 'false',
+            groupByOrder: printOptions.groupByOrder ? 'true' : 'false'
+        }).toString();
+        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/unplanned-pdf?${params}`, '_blank');
+    };
+
+    const handlePrintWeekly = () => {
+        setPrintType('weekly');
+        setTimeout(() => {
+            window.print();
+        }, 100);
+    };
+
+    useEffect(() => {
+        const handleAfterPrint = () => {
+            setPrintType('weekly');
+        };
+        window.addEventListener('afterprint', handleAfterPrint);
+        return () => window.removeEventListener('afterprint', handleAfterPrint);
+    }, []);
 
     // Calculate Week Days
     const weekDays = [];
@@ -1809,6 +1872,22 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                     .print-only {
                         display: block !important;
                     }
+                    .print-report-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 18px;
+                    }
+                    .print-report-table th, .print-report-table td {
+                        border: 1px solid #c0c0c0;
+                        padding: 6px 8px;
+                        text-align: left;
+                        font-size: 10.5px;
+                        color: black !important;
+                    }
+                    .print-report-table th {
+                        background-color: #e5e5e5;
+                        font-weight: bold;
+                    }
                 }
                 @media screen {
                     .print-only {
@@ -1818,7 +1897,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             `}</style>
 
             {/* ─── PRINT ONLY LAYOUT ─── */}
-            {selectedFinishing && (
+            {selectedFinishing && printType === 'weekly' && (
                 <div className="print-only" style={{ padding: 24, background: '#fff', color: '#000' }}>
                     <div style={{ borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
                         <h1 style={{ fontSize: 20, fontWeight: 'bold', color: '#000', margin: 0 }}>Weekly Finishing Schedule Report</h1>
@@ -1828,6 +1907,165 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                         <p style={{ margin: '2px 0 0', fontSize: 11, color: '#333' }}>
                             Week: <strong>{dateRangeStr}</strong>
                         </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 24, marginBottom: 16, fontSize: 11 }}>
+                        <div><strong>Total Tasks Planned:</strong> {totalTasksPlanned} ({Math.round(totalEstimatedMins / 60 * 10) / 10} hrs)</div>
+                        <div><strong>Completed Tasks:</strong> {completedTasks}</div>
+                        <div><strong>Completion Rate:</strong> {completionRate}%</div>
+                    </div>
+
+                    <table className="print-report-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '15%' }}>Day / Date</th>
+                                <th style={{ width: '10%' }}>Job Code</th>
+                                <th style={{ width: '30%' }}>Job Name</th>
+                                <th style={{ width: '30%' }}>Task Detail</th>
+                                <th style={{ width: '8%' }}>Est. Time</th>
+                                <th style={{ width: '7%' }}>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {weekDays.filter(day => (dailyTasksMap[day.dateStr] || []).length > 0).length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>
+                                        No tasks scheduled for this week
+                                    </td>
+                                </tr>
+                            ) : (
+                                weekDays.filter(day => (dailyTasksMap[day.dateStr] || []).length > 0).map(day => {
+                                    const dayTasks = dailyTasksMap[day.dateStr] || [];
+                                    return dayTasks.map((t, idx) => {
+                                        const ord = getOrder(t);
+                                        return (
+                                            <tr key={t.id}>
+                                                {idx === 0 && (
+                                                    <td rowSpan={dayTasks.length} style={{ verticalAlign: 'top' }}>
+                                                        <strong>{day.name}</strong><br />
+                                                        <span style={{ fontSize: 8.5, color: '#444' }}>{day.dateStr}</span>
+                                                    </td>
+                                                )}
+                                                <td>{ord?.code || '—'}</td>
+                                                <td>{ord?.estimation_names || ord?.customer_name || '—'}</td>
+                                                <td>{t.name.split('—')[t.name.split('—').length - 1].trim()}</td>
+                                                <td>{t.estimated_minutes ? `${t.estimated_minutes}m` : '0m'}</td>
+                                                <td style={{ textTransform: 'capitalize' }}>{t.status}</td>
+                                            </tr>
+                                        );
+                                    });
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Unplanned Queue PDF Options Modal */}
+            {showPrintModal && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowPrintModal(false)}>
+                    <div className="bg-slate-950 border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
+                                    <FiPrinter className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">PDF Report Options</h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your unplanned queue PDF report</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowPrintModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4">
+                            <div className="flex flex-col gap-3">
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeSpecs}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeSpecs: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Technical Specifications</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Paper stock, colors, sides, plates, run/wastage sheets</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeNotes}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeNotes: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Production Notes &amp; Instructions</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Job notes and special production comments</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeFinishings}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeFinishings: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Post-Press &amp; Finishing Details</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Folding, binding, cutting, laminating, assembly specs</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeDates}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeDates: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Expected Delivery Dates</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Display shipment target dates for prioritization</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.groupByOrder}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, groupByOrder: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Group by Sales Order</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Group tasks under order header card sections</div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+                                <button
+                                    onClick={() => setShowPrintModal(false)}
+                                    className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={executeDownloadPdf}
+                                    className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-purple-900/30 cursor-pointer"
+                                >
+                                    <FiDownload className="w-4 h-4" />
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -2020,52 +2258,193 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                             Report
                                         </button>
 
-                                        <button
-                                            onClick={() => window.print()}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 6,
-                                                padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
-                                                background: 'rgba(255,255,255,0.03)', color: G.text, cursor: 'pointer',
-                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.15s'
-                                            }}
-                                        >
-                                            <FiPrinter style={{ fontSize: 12 }} />
-                                            Print / PDF
-                                        </button>
+                                        {selectedFinishing && (
+                                            <button
+                                                onClick={() => {
+                                                    const y = currentWeekStart.getFullYear();
+                                                    const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
+                                                    const d = String(currentWeekStart.getDate()).padStart(2, '0');
+                                                    const weekStartStr = `${y}-${m}-${d}`;
+                                                    window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?weekStart=${weekStartStr}`, '_blank');
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                    background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                            >
+                                                <FiDownload style={{ fontSize: 12 }} />
+                                                PDF
+                                            </button>
+                                        )}
                                     </>
                                 ) : (
-                                    <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10">
-                                        <FiClock className="w-3.5 h-3.5 text-gray-400" />
-                                        <span className="text-xs font-bold text-gray-300">
-                                            Shift limit: {shiftLimitHrs}h
-                                        </span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10">
+                                            <FiClock className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs font-bold text-gray-300">
+                                                Shift limit: {shiftLimitHrs}h
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowReport(!showReport)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                padding: '7px 12px', border: 'none', borderRadius: 8,
+                                                background: showReport ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.05)',
+                                                color: showReport ? G.purple : G.muted, cursor: 'pointer',
+                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                            }}
+                                        >
+                                            <FiActivity style={{ fontSize: 12 }} />
+                                            Report
+                                        </button>
+                                        {selectedFinishing && (
+                                            <button
+                                                onClick={() => {
+                                                    const y = activeDate.getFullYear();
+                                                    const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                                    const d = String(activeDate.getDate()).padStart(2, '0');
+                                                    const dateStr = `${y}-${m}-${d}`;
+                                                    window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}`, '_blank');
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                    background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                            >
+                                                <FiDownload style={{ fontSize: 12 }} />
+                                                PDF
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* Report Analytics Widget */}
-                    {viewMode === 'weekly' && showReport && selectedFinishing && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/[0.02] border border-white/8 rounded-2xl p-4">
-                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Tasks</div>
-                                <div className="text-xl font-black text-white">{totalTasksPlanned}</div>
+                    {/* Report Panel — shown in both weekly and daily views */}
+                    {showReport && selectedFinishing && (() => {
+                        // For daily view, compute stats from the selected day's tasks for selected finishing
+                        const dailyDateKey = (() => {
+                            const y = activeDate.getFullYear();
+                            const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                            const d = String(activeDate.getDate()).padStart(2, '0');
+                            return `${y}-${m}-${d}`;
+                        })();
+                        const dailyTasks = viewMode === 'daily'
+                            ? (finishingTasksMap[selectedFinishing.id] || [])
+                            : scheduledWeekTasks;
+                        const dailyTotal = dailyTasks.length;
+                        const dailyMins = dailyTasks.reduce((s, t) => s + (t.estimated_minutes || 0), 0);
+                        const dailyDone = dailyTasks.filter(t => t.status === 'done').length;
+                        const dailyRate = dailyTotal > 0 ? Math.round((dailyDone / dailyTotal) * 100) : 0;
+                        return (
+                            <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+                                <div className="flex items-center gap-1.5">
+                                    <FiTrendingUp className="text-emerald-400 w-4 h-4" />
+                                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-white m-0">
+                                        {viewMode === 'weekly' ? 'Finishing Weekly Report & Capacity' : 'Finishing Daily Report & Capacity'}
+                                    </h3>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    {/* Stat block */}
+                                    <div className="flex gap-2 flex-1 min-w-[280px]">
+                                        <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">
+                                                {viewMode === 'weekly' ? 'Weekly Load' : 'Daily Load'}
+                                            </span>
+                                            <span className="text-lg font-black text-white mt-1">
+                                                {dailyTotal} <span className="text-xs font-normal text-gray-400">tasks</span>
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
+                                                <FiClock className="w-3 h-3" />
+                                                {Math.round((dailyMins / 60) * 10) / 10} hours scheduled
+                                            </span>
+                                        </div>
+
+                                        <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Completed</span>
+                                            <span className="text-lg font-black text-emerald-400 mt-1">
+                                                {dailyRate}%
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 mt-1.5">
+                                                {dailyDone} of {dailyTotal} tasks done
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {viewMode === 'weekly' ? (
+                                        /* Weekly bar chart — all 7 days */
+                                        <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-2.5">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">Daily Capacity Load ({shiftLimitHrs}h shift)</span>
+                                            <div className="flex flex-col gap-2">
+                                                {weekDays.map(day => {
+                                                    const mins = (dailyTasksMap[day.dateStr] || []).reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
+                                                    const hrs = Math.round((mins / 60) * 10) / 10;
+                                                    const pct = Math.min(100, Math.round((mins / shiftCapacityMins) * 100));
+                                                    const barColor = mins > shiftCapacityMins
+                                                        ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                                                        : mins > 0
+                                                            ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+                                                            : 'rgba(255,255,255,0.06)';
+                                                    return (
+                                                        <div key={day.dateStr} className="flex items-center text-[10px] leading-none">
+                                                            <span className="w-16 text-gray-400 font-medium">{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
+                                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full mx-2.5 overflow-hidden">
+                                                                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />
+                                                            </div>
+                                                            <span className={`w-20 text-right font-medium ${mins > shiftCapacityMins ? 'text-red-400 font-bold' : mins > 0 ? 'text-white' : 'text-gray-500'}`}>
+                                                                {hrs}h / {shiftLimitHrs}h {pct > 0 && `(${pct}%)`}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* Daily view — capacity bar for the selected day */
+                                        <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-3">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">
+                                                Capacity Load — {activeDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} ({shiftLimitHrs}h shift)
+                                            </span>
+                                            {(() => {
+                                                const pct = Math.min(100, Math.round((dailyMins / shiftCapacityMins) * 100));
+                                                const hrs = Math.round((dailyMins / 60) * 10) / 10;
+                                                const over = dailyMins > shiftCapacityMins;
+                                                const barColor = over
+                                                    ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                                                    : dailyMins > 0
+                                                        ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+                                                        : 'rgba(255,255,255,0.06)';
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center gap-2 text-sm">
+                                                            <span className={`text-2xl font-black ${over ? 'text-red-400' : 'text-white'}`}>{hrs}h</span>
+                                                            <span className="text-gray-500">/ {shiftLimitHrs}h shift</span>
+                                                            {over && <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">OVER CAPACITY</span>}
+                                                        </div>
+                                                        <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-500">{pct}% of daily capacity used</span>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Total Duration</div>
-                                <div className="text-xl font-black text-white">{(totalEstimatedMins / 60).toFixed(1)}h</div>
-                            </div>
-                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Completed</div>
-                                <div className="text-xl font-black text-emerald-400">{completedTasks}</div>
-                            </div>
-                            <div className="bg-white/2 rounded-xl p-3 border border-white/5 flex flex-col justify-center">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Completion Rate</div>
-                                <div className="text-xl font-black text-purple-400">{completionRate}%</div>
-                            </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Columns grid */}
                     {viewMode === 'weekly' ? (
@@ -2090,6 +2469,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     setDragOverColumnId={setDragOverColumnId}
                                     onDrop={handleDrop}
                                     finishings={finishings}
+                                    onPrintReport={handlePrintUnplanned}
                                 />
 
                                 {/* 2. Days lanes */}
@@ -2146,6 +2526,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                 setDragOverColumnId={setDragOverColumnId}
                                 onDrop={handleDrop}
                                 finishings={finishings}
+                                onPrintReport={handlePrintUnplanned}
                             />
 
                             {/* 2. Selected Finishing lane */}

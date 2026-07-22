@@ -9,7 +9,7 @@ const s = StyleSheet.create({
     headerLeft: { flex: 1 },
     headerRight: { alignItems: 'flex-end', width: 180 },
     headerTitle: { fontSize: 16, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', color: '#0f172a', letterSpacing: 0.5 },
-    headerMachine: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#374151', marginTop: 3 },
+    headerFinishing: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#374151', marginTop: 3 },
     headerSub: { fontSize: 8, color: '#6b7280', marginTop: 2 },
     headerRange: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#4b5563' },
     
@@ -41,7 +41,7 @@ const formatTime = (mins) => {
     return `${mins}m`;
 };
 
-export default function MachineTasksDocument({ machine, weekRangeStr, stats, tasksByDay, reportType = 'weekly' }) {
+export default function FinishingTasksDocument({ finishing, weekRangeStr, stats, tasksByDay, reportType = 'weekly' }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
     const isDailyReport = reportType === 'daily';
     
@@ -49,15 +49,15 @@ export default function MachineTasksDocument({ machine, weekRangeStr, stats, tas
     const activeTasksByDay = tasksByDay.filter(item => item.tasks && item.tasks.length > 0);
 
     return (
-        <Document title={`MachineSchedule-${machine.name}`} author="Pressmatics Cloud ERP">
+        <Document title={`FinishingSchedule-${finishing.name}`} author="Pressmatics Cloud ERP">
             <Page size="A4" orientation="landscape" style={s.page}>
                 {/* Header */}
                 <View style={s.headerRow}>
                     <View style={s.headerLeft}>
                         <Text style={s.headerTitle}>
-                            {isDailyReport ? 'Daily Machine Schedule Report' : 'Weekly Machine Schedule Report'}
+                            {isDailyReport ? 'Daily Finishing Schedule Report' : 'Weekly Finishing Schedule Report'}
                         </Text>
-                        <Text style={s.headerMachine}>{machine.name} • {machine.type.toUpperCase()}</Text>
+                        <Text style={s.headerFinishing}>{finishing.name}</Text>
                         <Text style={s.headerSub}>Production Task List Wise Report</Text>
                     </View>
                     <View style={s.headerRight}>

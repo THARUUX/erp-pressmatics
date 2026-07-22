@@ -125,11 +125,11 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
             const parts = task.name.split(' — ');
             const compName = parts[parts.length - 1]?.trim();
 
-            const detail = details.find(d => 
-                d.sales_order_id === task.sales_order_id && 
-                (d.component_name === compName || 
-                 (isOffset && d.type === 'offset') || 
-                 (isDigital && d.type === 'digital'))
+            const detail = details.find(d =>
+                d.sales_order_id === task.sales_order_id &&
+                (d.component_name === compName ||
+                    (isOffset && d.type === 'offset') ||
+                    (isDigital && d.type === 'digital'))
             );
 
             if (detail) {

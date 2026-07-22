@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity } from 'react-icons/fi';
+import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity, FiTrendingUp, FiList, FiCalendar } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DnD components (client-only)
 const KanbanBoard = dynamic(() => import('./components/KanbanBoard'), { ssr: false });
+const RoutingPlanner = dynamic(() => import('./components/RoutingPlanner'), { ssr: false });
+const JobWeeklyPlanner = dynamic(() => import('./components/JobWeeklyPlanner'), { ssr: false });
 const MachinePlanning = dynamic(() => import('./components/MachinePlanning'), { ssr: false });
 const FinishingPlanning = dynamic(() => import('./components/FinishingPlanning'), { ssr: false });
 const ServicesPlanning = dynamic(() => import('./components/ServicesPlanning'), { ssr: false });
+const AnalyticsDashboard = dynamic(() => import('./components/AnalyticsDashboard'), { ssr: false });
 
 const G = {
     bg: '#070710',
@@ -75,10 +78,13 @@ export default function JobPlanningPage() {
     const inProd = orders.filter(o => o?.status === 'In Production').length;
 
     const tabs = [
-        { key: 'kanban', label: 'Job Planning', icon: FiGrid },
-        { key: 'machine', label: 'Machine Planning', icon: FiCpu },
-        { key: 'finishing', label: 'Finishing Planning', icon: FiActivity },
-        { key: 'services', label: 'Services Planning', icon: FiLayers },
+        { key: 'kanban',     label: 'Job Planning',        icon: FiGrid },
+        { key: 'routing',    label: 'Routing Planner',     icon: FiList },
+        { key: 'job_weekly', label: 'Job Weekly Planner',  icon: FiCalendar },
+        { key: 'machine',    label: 'Machine Planning',     icon: FiCpu },
+        { key: 'finishing',  label: 'Finishing Planning',   icon: FiActivity },
+        { key: 'services',   label: 'Services Planning',    icon: FiLayers },
+        { key: 'analytics',  label: 'Analytics',            icon: FiTrendingUp },
     ];
 
     return (
@@ -182,6 +188,26 @@ export default function JobPlanningPage() {
                         <KanbanBoard orders={orders} onOrderMoved={handleOrderMoved} />
                     )}
 
+                    {/* Routing Planner */}
+                    {tab === 'routing' && (
+                        <RoutingPlanner
+                            machines={machines}
+                            finishings={finishings}
+                            orders={orders}
+                            onRefresh={load}
+                        />
+                    )}
+
+                    {/* Job Weekly Planner */}
+                    {tab === 'job_weekly' && (
+                        <JobWeeklyPlanner
+                            machines={machines}
+                            finishings={finishings}
+                            orders={orders}
+                            onRefresh={load}
+                        />
+                    )}
+
                     {/* Machine Planning */}
                     {tab === 'machine' && (
                         <div>
@@ -233,6 +259,15 @@ export default function JobPlanningPage() {
                     {/* Services Planning */}
                     {tab === 'services' && (
                         <ServicesPlanning />
+                    )}
+
+                    {/* Analytics Dashboard */}
+                    {tab === 'analytics' && (
+                        <AnalyticsDashboard
+                            machines={machines}
+                            finishings={finishings}
+                            orders={orders}
+                        />
                     )}
                 </>
             )}

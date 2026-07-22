@@ -22,7 +22,7 @@ const G = {
     success: '#10b981',
     warning: '#f59e0b',
     danger: '#ef4444',
-    purple: '#a78bfa'
+    emerald: '#a78bfa'
 };
 
 const STATUS_DOT = { pending: '#64748b', in_progress: '#f59e0b', done: '#10b981' };
@@ -292,7 +292,7 @@ function TaskCard({
                                 if (e.key === 'Escape') setIsEditingTime(false);
                             }}
                             autoFocus
-                            className="text-[9.5px] font-bold text-white bg-purple-950/80 border border-purple-500 rounded px-1.5 py-0.5 w-[55px] text-center focus:outline-none"
+                            className="text-[9.5px] font-bold text-white bg-emerald-950/80 border border-emerald-500 rounded px-1.5 py-0.5 w-[55px] text-center focus:outline-none"
                             onMouseDown={e => e.stopPropagation()}
                             onClick={e => e.stopPropagation()}
                         />
@@ -315,7 +315,7 @@ function TaskCard({
                             onClick={handleQuickCalc}
                             onMouseDown={e => e.stopPropagation()}
                             disabled={calcLoading}
-                            className="bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
+                            className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
                             title={`Recalculate: ${parseFloat(task.quantity) || 0} qty ÷ ${parseFloat(task.custom_speed || machine?.speed) || 0} speed + ${parseFloat(task.custom_make_ready_minutes ?? machine?.make_ready_minutes ?? 0)}m setup`}
                         >
                             <FiZap className="w-2.5 h-2.5" />
@@ -541,7 +541,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJob
     };
 
     const modeColor = {
-        offset: G.warning, digital: G.purple, finishing: G.success,
+        offset: G.warning, digital: G.emerald, finishing: G.success,
         prepress: '#38bdf8', default: G.muted
     };
     const accentColor = modeColor[(machine?.type || '').toLowerCase()] || modeColor.default;
@@ -657,7 +657,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJob
                                 {statusLabel[task.status] || task.status}
                             </span>
                             {(task.custom_speed || task.custom_make_ready_minutes) && (
-                                <span className="text-[9px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 inline-flex items-center gap-0.5">
+                                <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 inline-flex items-center gap-0.5">
                                     <FiZap className="w-2.5 h-2.5" /> Custom Override Active
                                 </span>
                             )}
@@ -755,7 +755,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJob
                     )}
 
                     {/* Custom Overrides */}
-                    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 border-purple-500/20">
+                    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 border-emerald-500/20">
                         <div className="text-[10px] font-bold uppercase tracking-wider mb-3 flex items-center gap-1">
                             <FiZap className="w-3.5 h-3.5" /> Custom Overrides &amp; Calculation
                             <span className="text-[9px] text-gray-500 font-normal lowercase tracking-normal ml-2">(leave blank to use defaults)</span>
@@ -1065,7 +1065,7 @@ function UnplannedColumn({
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, machines, onPrintReport
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1107,8 +1107,19 @@ function UnplannedColumn({
                         </div>
                     )}
                 </div>
-                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
-                    {totalHrs}h
+                <div className="flex items-center gap-1.5">
+                    {onPrintReport && (
+                        <button
+                            onClick={onPrintReport}
+                            className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all cursor-pointer"
+                            title="Print Unplanned Queue Report"
+                        >
+                            <FiPrinter className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
+                        {totalHrs}h
+                    </div>
                 </div>
             </div>
 
@@ -1252,7 +1263,7 @@ function BacklogColumn({
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
     dragOverColumnId, setDragOverColumnId,
-    onDrop, machines
+    onDrop, machines, onPrintReport
 }) {
     const totalMins = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
     const totalHrs = Math.round((totalMins / 60) * 10) / 10;
@@ -1294,8 +1305,19 @@ function BacklogColumn({
                         </div>
                     )}
                 </div>
-                <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
-                    {totalHrs}h
+                <div className="flex items-center gap-1.5">
+                    {onPrintReport && (
+                        <button
+                            onClick={onPrintReport}
+                            className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-all cursor-pointer animate-pulse-subtle"
+                            title="Print Unplanned Queue Report"
+                        >
+                            <FiPrinter className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-400">
+                        {totalHrs}h
+                    </div>
                 </div>
             </div>
 
@@ -1374,7 +1396,16 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const [activeTask, setActiveTask] = useState(null);
     const [selectedTaskModal, setSelectedTaskModal] = useState(null); // { task, order }
     const [showReport, setShowReport] = useState(true);
+    const [printType, setPrintType] = useState('weekly'); // 'weekly' or 'unplanned'
     const [showUnassigned, setShowUnassigned] = useState(false);
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [printOptions, setPrintOptions] = useState({
+        includeSpecs: true,
+        includeNotes: true,
+        includeFinishings: true,
+        includeDates: true,
+        groupByOrder: false
+    });
     const [collapsedCategories, setCollapsedCategories] = useState({
         prepress: true,
         offset: true,
@@ -1448,6 +1479,23 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         setActiveDate(today);
+    };
+
+    const handlePrintUnplanned = () => {
+        setShowPrintModal(true);
+    };
+
+    const executeDownloadPdf = () => {
+        if (!selectedMachine) return;
+        setShowPrintModal(false);
+        const params = new URLSearchParams({
+            specs: printOptions.includeSpecs ? 'true' : 'false',
+            notes: printOptions.includeNotes ? 'true' : 'false',
+            finishings: printOptions.includeFinishings ? 'true' : 'false',
+            dates: printOptions.includeDates ? 'true' : 'false',
+            groupByOrder: printOptions.groupByOrder ? 'true' : 'false'
+        }).toString();
+        window.open(`/api/job-planning/machine/${selectedMachine.id}/unplanned-pdf?${params}`, '_blank');
     };
 
     // Calculate Week Days
@@ -1856,7 +1904,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
     const shiftLimitHrs = selectedMachine?.shift_limit || 8;
     const shiftCapacityMins = shiftLimitHrs * 60;
 
-    const machineAccent = selectedMachine?.type?.toLowerCase() === 'digital' ? G.purple : selectedMachine?.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
+    const machineAccent = selectedMachine?.type?.toLowerCase() === 'digital' ? G.emerald : selectedMachine?.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
 
     return (
         <>
@@ -1897,7 +1945,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
             `}</style>
 
             {/* ─── PRINT ONLY LAYOUT ─── */}
-            {selectedMachine && (
+            {selectedMachine && printType === 'weekly' && (
                 <div className="print-only" style={{ padding: 24, background: '#fff', color: '#000' }}>
                     <div style={{ borderBottom: '2px solid #000', paddingBottom: 10, marginBottom: 16 }}>
                         <h1 style={{ fontSize: 20, fontWeight: 'bold', color: '#000', margin: 0 }}>Weekly Machine Schedule Report</h1>
@@ -1958,6 +2006,115 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                             )}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Unplanned Queue PDF Options Modal */}
+            {showPrintModal && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowPrintModal(false)}>
+                    <div className="bg-black/10 backdrop-blur-lg border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+                                    <FiPrinter className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">PDF Report Options</h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your unplanned queue PDF report</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowPrintModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4">
+                            <div className="flex flex-col gap-3">
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeSpecs}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeSpecs: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Technical Specifications</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Paper stock, colors, sides, plates, run/wastage sheets</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeNotes}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeNotes: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Production Notes &amp; Instructions</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Job notes and special production comments</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeFinishings}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeFinishings: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Post-Press &amp; Finishing Details</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Folding, binding, cutting, laminating, assembly specs</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.includeDates}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeDates: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Expected Delivery Dates</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Display shipment target dates for prioritization</div>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={printOptions.groupByOrder}
+                                        onChange={e => setPrintOptions(prev => ({ ...prev, groupByOrder: e.target.checked }))}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Group by Sales Order</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Group tasks under order header card sections</div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+                                <button
+                                    onClick={() => setShowPrintModal(false)}
+                                    className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={executeDownloadPdf}
+                                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-900/30 cursor-pointer"
+                                >
+                                    <FiDownload className="w-4 h-4" />
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -2109,150 +2266,110 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                                 Live Tracker ↗
                                             </a>
                                         </div>
-                                        <p className="text-xs text-gray-400 m-0 mt-0.5">
-                                            Schedule &amp; track weekly tasks and machine reports
-                                        </p>
                                     </>
                                 ) : (
-                                    <>
-                                        <div className="flex items-center gap-2.5 flex-wrap">
-                                            <h2 className="text-base font-extrabold text-white m-0">
-                                                All Machines Planner
-                                            </h2>
-                                            <span className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full border border-purple-500/20 bg-purple-500/10 text-purple-400 uppercase">
-                                                Daily View
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-400 m-0 mt-0.5">
-                                            Manage tasks across all machines side-by-side for today or selected date
-                                        </p>
-                                    </>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={handlePrevDay} className="p-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-all">
+                                            <FiChevronLeft className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={handleTodayDay} className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-white transition-all">Today</button>
+                                        <button onClick={handleNextDay} className="p-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-all">
+                                            <FiChevronRight className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-sm font-bold text-white ml-2">
+                                            {activeDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                {/* Filter & Add Task controls */}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {saveStatus === 'saving' && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold animate-pulse">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                            Saving...
-                                        </div>
-                                    )}
-                                    {saveStatus === 'saved' && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                            Saved
-                                        </div>
-                                    )}
-                                    {saveStatus === 'error' && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-bold animate-pulse">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                            Error Saving
-                                        </div>
-                                    )}
-                                    <div className="relative w-48">
-                                        <FiSearch className="absolute left-2.5 top-2 text-gray-500 w-3.5 h-3.5" />
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                {saveStatus === 'saving' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                        Saving...
+                                    </div>
+                                )}
+                                {saveStatus === 'saved' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                        Saved
+                                    </div>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-bold animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                        Error Saving
+                                    </div>
+                                )}
+
+                                {/* Search & Filter */}
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                                         <input
                                             type="text"
-                                            placeholder="Search tasks, SO#, customer..."
+                                            placeholder="Filter tasks..."
                                             value={filterText}
                                             onChange={e => setFilterText(e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-6 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                                            className="bg-black/20 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 w-[140px] sm:w-[180px] transition-all"
                                         />
                                         {filterText && (
-                                            <button
-                                                onClick={() => setFilterText('')}
-                                                className="absolute right-2 top-1.5 text-gray-500 hover:text-white text-xs font-bold"
-                                            >
-                                                ×
-                                            </button>
+                                            <button onClick={() => setFilterText('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs">×</button>
                                         )}
                                     </div>
-
                                     <select
                                         value={filterStatus}
                                         onChange={e => setFilterStatus(e.target.value)}
-                                        className="bg-black/40 border border-white/10 text-gray-300 text-xs rounded-xl px-2.5 py-1 focus:outline-none focus:border-purple-500 [color-scheme:dark] cursor-pointer"
+                                        className="bg-black/20 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-emerald-500/50 [color-scheme:dark] cursor-pointer"
                                     >
-                                        <option value="all">All Statuses</option>
-                                        <option value="pending">Pending</option>
-                                        <option value="in_progress">In Progress</option>
-                                        <option value="done">Completed</option>
+                                        <option value="all" className="bg-slate-900 text-white">All Statuses</option>
+                                        <option value="pending" className="bg-slate-900 text-white">Pending</option>
+                                        <option value="in_progress" className="bg-slate-900 text-white">In Progress</option>
+                                        <option value="done" className="bg-slate-900 text-white">Done</option>
                                     </select>
-
                                     <button
                                         onClick={() => setShowAddTaskModal(true)}
-                                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-md shadow-emerald-900/20"
+                                        className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
                                     >
-                                        <FiPlus className="w-3.5 h-3.5" /> Add Task
+                                        <FiPlus className="w-3.5 h-3.5" />
+                                        Add Task
                                     </button>
                                 </div>
 
-                                {/* Segmented control for view mode selection */}
-                                <div className="flex items-center bg-white/5 p-1 rounded-xl border border-white/10 gap-1 ml-1">
+                                {/* Daily / Weekly switch */}
+                                <div className="bg-black/20 p-1 rounded-lg border border-white/10 flex">
                                     <button
                                         onClick={() => setViewMode('daily')}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'daily'
-                                            ? 'bg-white/[0.08] text-white shadow-sm'
-                                            : 'text-gray-400 hover:text-white'
-                                            }`}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'daily' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
                                     >
                                         <FiCalendar className="w-3.5 h-3.5" />
-                                        Daily View
+                                        Daily
                                     </button>
                                     <button
                                         onClick={() => setViewMode('weekly')}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'weekly'
-                                            ? 'bg-white/[0.08] text-white shadow-sm'
-                                            : 'text-gray-400 hover:text-white'
-                                            }`}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === 'weekly' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
                                     >
                                         <FiLayers className="w-3.5 h-3.5" />
-                                        Weekly View
+                                        Weekly
                                     </button>
                                 </div>
 
                                 {viewMode === 'weekly' ? (
                                     <>
-                                        {/* Week navigation */}
                                         <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 3, border: `1px solid ${G.border}` }}>
-                                            <button
-                                                onClick={handlePrevWeek}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Previous Week"
-                                            >
-                                                <FiChevronLeft style={{ fontSize: 14 }} />
-                                            </button>
-                                            <button
-                                                onClick={handleToday}
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px'
-                                                }}
-                                            >
-                                                Today
-                                            </button>
-                                            <button
-                                                onClick={handleNextWeek}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Next Week"
-                                            >
-                                                <FiChevronRight style={{ fontSize: 14 }} />
-                                            </button>
+                                            <button onClick={handlePrevWeek} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}><FiChevronLeft style={{ fontSize: 14 }} /></button>
+                                            <button onClick={handleToday} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px' }}>Today</button>
+                                            <button onClick={handleNextWeek} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}><FiChevronRight style={{ fontSize: 14 }} /></button>
                                         </div>
-
-                                        <span style={{ fontSize: 11.5, fontWeight: 600, color: G.text, fontFamily: 'monospace' }}>
-                                            {dateRangeStr}
-                                        </span>
 
                                         <button
                                             onClick={() => setShowReport(!showReport)}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 6,
                                                 padding: '7px 12px', border: 'none', borderRadius: 8,
-                                                background: showReport ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.05)',
-                                                color: showReport ? G.purple : G.muted, cursor: 'pointer',
+                                                background: showReport ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+                                                color: showReport ? G.emerald : G.muted, cursor: 'pointer',
                                                 fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
                                             }}
                                         >
@@ -2260,78 +2377,21 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                             Report
                                         </button>
 
-                                        <button
-                                            onClick={() => {
-                                                if (!selectedMachine) return;
-                                                const y = currentWeekStart.getFullYear();
-                                                const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
-                                                const d = String(currentWeekStart.getDate()).padStart(2, '0');
-                                                const weekStartStr = `${y}-${m}-${d}`;
-                                                window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?weekStart=${weekStartStr}`, '_blank');
-                                            }}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 6,
-                                                padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
-                                                background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
-                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
-                                            onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
-                                        >
-                                            <FiDownload style={{ fontSize: 12 }} />
-                                            PDF
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* Day navigation */}
-                                        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 3, border: `1px solid ${G.border}` }}>
-                                            <button
-                                                onClick={handlePrevDay}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Previous Day"
-                                            >
-                                                <FiChevronLeft style={{ fontSize: 14 }} />
-                                            </button>
-                                            <button
-                                                onClick={handleTodayDay}
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.06)', border: 'none', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 10.5, fontWeight: 600, padding: '4px 8px', borderRadius: 4, margin: '0 4px'
-                                                }}
-                                            >
-                                                Today
-                                            </button>
-                                            <button
-                                                onClick={handleNextDay}
-                                                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 5, borderRadius: 5 }}
-                                                title="Next Day"
-                                            >
-                                                <FiChevronRight style={{ fontSize: 14 }} />
-                                            </button>
-                                        </div>
-
-                                        <span style={{ fontSize: 11.5, fontWeight: 600, color: G.text, fontFamily: 'monospace' }}>
-                                            {activeDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                                        </span>
-
                                         {selectedMachine && (
                                             <button
                                                 onClick={() => {
-                                                    const y = activeDate.getFullYear();
-                                                    const m = String(activeDate.getMonth() + 1).padStart(2, '0');
-                                                    const d = String(activeDate.getDate()).padStart(2, '0');
-                                                    const dateStr = `${y}-${m}-${d}`;
-                                                    window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?date=${dateStr}`, '_blank');
+                                                    const y = currentWeekStart.getFullYear();
+                                                    const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
+                                                    const d = String(currentWeekStart.getDate()).padStart(2, '0');
+                                                    window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?weekStart=${y}-${m}-${d}`, '_blank');
                                                 }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: 6,
                                                     padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
                                                     background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s',
-                                                    marginLeft: 8
+                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
                                                 }}
-                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.emerald}
                                                 onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
                                             >
                                                 <FiDownload style={{ fontSize: 12 }} />
@@ -2339,72 +2399,158 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                             </button>
                                         )}
                                     </>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10">
+                                            <FiClock className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs font-bold text-gray-300">Shift: {shiftLimitHrs}h</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowReport(!showReport)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                padding: '7px 12px', border: 'none', borderRadius: 8,
+                                                background: showReport ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+                                                color: showReport ? G.emerald : G.muted, cursor: 'pointer',
+                                                fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                            }}
+                                        >
+                                            <FiActivity style={{ fontSize: 12 }} />
+                                            Report
+                                        </button>
+                                        {selectedMachine && (
+                                            <button
+                                                onClick={() => {
+                                                    const y = activeDate.getFullYear();
+                                                    const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                                    const d = String(activeDate.getDate()).padStart(2, '0');
+                                                    window.open(`/api/job-planning/machine/${selectedMachine.id}/pdf?date=${y}-${m}-${d}`, '_blank');
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                    background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.emerald}
+                                                onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                            >
+                                                <FiDownload style={{ fontSize: 12 }} />
+                                                PDF
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* Report Panel */}
-                    {showReport && selectedMachine && (
-                        <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
-                            <div className="flex items-center gap-1.5">
-                                <FiTrendingUp className="text-purple-400 w-4 h-4" />
-                                <h3 className="text-xs font-extrabold uppercase tracking-wider text-white m-0">
-                                    Machine Weekly Report &amp; Capacity
-                                </h3>
-                            </div>
-
-                            <div className="flex flex-col md:flex-row gap-4">
-                                {/* Stat block */}
-                                <div className="flex gap-2 flex-1 min-w-[280px]">
-                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
-                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Weekly Load</span>
-                                        <span className="text-lg font-black text-white mt-1">
-                                            {totalTasksPlanned} <span className="text-xs font-normal text-gray-400">tasks</span>
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                            <FiClock className="w-3 h-3" />
-                                            {Math.round((totalEstimatedMins / 60) * 10) / 10} hours scheduled
-                                        </span>
-                                    </div>
-
-                                    <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
-                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Completed</span>
-                                        <span className="text-lg font-black text-emerald-400 mt-1">
-                                            {completionRate}%
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 mt-1.5">
-                                            {completedTasks} of {totalTasksPlanned} tasks done
-                                        </span>
-                                    </div>
+                    {/* Report Panel — shows in both daily and weekly views */}
+                    {showReport && selectedMachine && (() => {
+                        const dailyTasks = viewMode === 'daily'
+                            ? (dailyTasksMap[formatDateKey(activeDate)] || [])
+                            : scheduledWeekTasks;
+                        const panelTotal = dailyTasks.length;
+                        const panelMins = dailyTasks.reduce((s, t) => s + (t.estimated_minutes || 0), 0);
+                        const panelDone = dailyTasks.filter(t => t.status === 'done').length;
+                        const panelRate = panelTotal > 0 ? Math.round((panelDone / panelTotal) * 100) : 0;
+                        return (
+                            <div className="bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+                                <div className="flex items-center gap-1.5">
+                                    <FiTrendingUp className="text-emerald-400 w-4 h-4" />
+                                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-white m-0">
+                                        {viewMode === 'weekly' ? 'Machine Weekly Report & Capacity' : 'Machine Daily Report & Capacity'}
+                                    </h3>
                                 </div>
 
-                                {/* Daily bar chart */}
-                                <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-2.5">
-                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">Daily Capacity Load ({shiftLimitHrs}h shift)</span>
-                                    <div className="flex flex-col gap-2">
-                                        {weekDays.map(day => {
-                                            const mins = (dailyTasksMap[day.dateStr] || []).reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-                                            const hrs = Math.round((mins / 60) * 10) / 10;
-                                            const pct = Math.min(100, Math.round((mins / shiftCapacityMins) * 100));
-                                            const barColor = mins > shiftCapacityMins ? '#ef4444' : mins > 0 ? '#10b981' : 'rgba(255,255,255,0.1)';
-                                            return (
-                                                <div key={day.dateStr} className="flex items-center text-[10px] leading-none">
-                                                    <span className="w-16 text-gray-400 font-medium">{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
-                                                    <div className="flex-1 h-1.5 bg-white/5 rounded-full mx-2.5 overflow-hidden">
-                                                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, backgroundColor: barColor }} />
-                                                    </div>
-                                                    <span className={`w-20 text-right font-medium ${mins > shiftCapacityMins ? 'text-red-400 font-bold' : mins > 0 ? 'text-white' : 'text-gray-500'}`}>
-                                                        {hrs}h / {shiftLimitHrs}h {pct > 0 && `(${pct}%)`}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    {/* Stat block */}
+                                    <div className="flex gap-2 flex-1 min-w-[280px]">
+                                        <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">
+                                                {viewMode === 'weekly' ? 'Weekly Load' : 'Daily Load'}
+                                            </span>
+                                            <span className="text-lg font-black text-white mt-1">
+                                                {panelTotal} <span className="text-xs font-normal text-gray-400">tasks</span>
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
+                                                <FiClock className="w-3 h-3" />
+                                                {Math.round((panelMins / 60) * 10) / 10} hours scheduled
+                                            </span>
+                                        </div>
+
+                                        <div className="flex-1 bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Completed</span>
+                                            <span className="text-lg font-black text-emerald-400 mt-1">{panelRate}%</span>
+                                            <span className="text-[10px] text-gray-400 mt-1.5">
+                                                {panelDone} of {panelTotal} tasks done
+                                            </span>
+                                        </div>
                                     </div>
+
+                                    {viewMode === 'weekly' ? (
+                                        /* Weekly bar chart — 7 days */
+                                        <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-2.5">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-1">Daily Capacity Load ({shiftLimitHrs}h shift)</span>
+                                            <div className="flex flex-col gap-2">
+                                                {weekDays.map(day => {
+                                                    const mins = (dailyTasksMap[day.dateStr] || []).reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
+                                                    const hrs = Math.round((mins / 60) * 10) / 10;
+                                                    const pct = Math.min(100, Math.round((mins / shiftCapacityMins) * 100));
+                                                    const barColor = mins > shiftCapacityMins
+                                                        ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                                                        : mins > 0
+                                                            ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+                                                            : 'rgba(255,255,255,0.06)';
+                                                    return (
+                                                        <div key={day.dateStr} className="flex items-center text-[10px] leading-none">
+                                                            <span className="w-16 text-gray-400 font-medium">{day.name.slice(0, 3)} ({day.dateStr.slice(8)})</span>
+                                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full mx-2.5 overflow-hidden">
+                                                                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: barColor }} />
+                                                            </div>
+                                                            <span className={`w-20 text-right font-medium ${mins > shiftCapacityMins ? 'text-red-400 font-bold' : mins > 0 ? 'text-white' : 'text-gray-500'}`}>
+                                                                {hrs}h / {shiftLimitHrs}h {pct > 0 && `(${pct}%)`}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* Daily view — capacity bar for the selected day */
+                                        <div className="flex-[2] min-w-[320px] bg-white/[0.01] border border-white/5 p-3.5 rounded-xl flex flex-col gap-3">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">
+                                                Capacity Load — {activeDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} ({shiftLimitHrs}h shift)
+                                            </span>
+                                            {(() => {
+                                                const pct = Math.min(100, Math.round((panelMins / shiftCapacityMins) * 100));
+                                                const hrs = Math.round((panelMins / 60) * 10) / 10;
+                                                const over = panelMins > shiftCapacityMins;
+                                                const barColor = over
+                                                    ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                                                    : panelMins > 0
+                                                        ? 'linear-gradient(90deg, #10b981, #06b6d4)'
+                                                        : 'rgba(255,255,255,0.06)';
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center gap-2 text-sm">
+                                                            <span className={`text-2xl font-black ${over ? 'text-red-400' : 'text-white'}`}>{hrs}h</span>
+                                                            <span className="text-gray-500">/ {shiftLimitHrs}h shift</span>
+                                                            {over && <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">OVER CAPACITY</span>}
+                                                        </div>
+                                                        <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-500">{pct}% of daily capacity used</span>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Columns grid */}
                     {viewMode === 'weekly' ? (
@@ -2429,6 +2575,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                     setDragOverColumnId={setDragOverColumnId}
                                     onDrop={handleDrop}
                                     machines={machines}
+                                    onPrintReport={handlePrintUnplanned}
                                 />
 
                                 {/* 2. Days lanes */}
@@ -2485,12 +2632,13 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                 setDragOverColumnId={setDragOverColumnId}
                                 onDrop={handleDrop}
                                 machines={machines}
+                                onPrintReport={handlePrintUnplanned}
                             />
 
                             {/* 2. Selected Machine lane */}
                             {selectedMachine ? (
                                 (() => {
-                                    const mAccent = selectedMachine.type?.toLowerCase() === 'digital' ? G.purple : selectedMachine.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
+                                    const mAccent = selectedMachine.type?.toLowerCase() === 'digital' ? G.emerald : selectedMachine.type?.toLowerCase() === 'finishing' ? G.success : G.warning;
                                     const mCapacity = (selectedMachine.shift_limit || 8) * 60;
                                     return (
                                         <MachineColumn
