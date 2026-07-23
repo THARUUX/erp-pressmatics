@@ -16,6 +16,8 @@ export async function GET(req, { params }) {
         let tasks;
         
         const weekDays = [];
+        let startDateStr = '';
+        let endDateStr = '';
 
         if (isDaily) {
             const day = new Date(dateParam);
@@ -31,6 +33,8 @@ export async function GET(req, { params }) {
                 label: day.toLocaleDateString('en-US', { weekday: 'long' }),
                 shortLabel: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
             });
+            startDateStr = dateStr;
+            endDateStr = dateStr;
         } else {
             // Parse week dates
             let currentWeekStart;
@@ -45,7 +49,21 @@ export async function GET(req, { params }) {
             }
             currentWeekStart.setHours(0, 0, 0, 0);
 
+            const mondayDate = new Date(currentWeekStart);
+            const sundayDate = new Date(currentWeekStart);
+            sundayDate.setDate(currentWeekStart.getDate() + 6);
+            
+            startDateStr = `${mondayDate.getFullYear()}-${String(mondayDate.getMonth() + 1).padStart(2, '0')}-${String(mondayDate.getDate()).padStart(2, '0')}`;
+            endDateStr = `${sundayDate.getFullYear()}-${String(sundayDate.getMonth() + 1).padStart(2, '0')}-${String(sundayDate.getDate()).padStart(2, '0')}`;
+
+            const includeDaysStr = searchParams.get('includeDays');
+            const allowedIndexes = includeDaysStr 
+                ? includeDaysStr.split(',').map(Number) 
+                : [0, 1, 2, 3, 4, 5, 6];
+
             for (let i = 0; i < 7; i++) {
+                if (!allowedIndexes.includes(i)) continue;
+
                 const day = new Date(currentWeekStart);
                 day.setDate(currentWeekStart.getDate() + i);
                 
@@ -61,9 +79,6 @@ export async function GET(req, { params }) {
                 });
             }
         }
-
-        const startDateStr = weekDays[0].dateStr;
-        const endDateStr = weekDays[weekDays.length - 1].dateStr;
         
         let weekRangeStr = '';
         if (isDaily) {

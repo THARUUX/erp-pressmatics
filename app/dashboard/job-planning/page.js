@@ -43,8 +43,8 @@ export default function JobPlanningPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const res = await fetch('/api/job-planning');
@@ -54,7 +54,7 @@ export default function JobPlanningPage() {
         } catch (e) {
             setError(e.message);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 

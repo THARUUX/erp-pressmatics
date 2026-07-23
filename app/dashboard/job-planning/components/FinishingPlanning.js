@@ -1350,6 +1350,8 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     const [showReport, setShowReport] = useState(true);
     const [printType, setPrintType] = useState('weekly'); // 'weekly' or 'unplanned'
     const [showPrintModal, setShowPrintModal] = useState(false);
+    const [showWeeklyPrintModal, setShowWeeklyPrintModal] = useState(false);
+    const [weeklyPrintDays, setWeeklyPrintDays] = useState([0, 1, 2, 3, 4, 5, 6]);
     const [printOptions, setPrintOptions] = useState({
         includeSpecs: true,
         includeNotes: true,
@@ -1961,6 +1963,88 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                 </div>
             )}
 
+            {/* Weekly Planner PDF Options Modal */}
+            {showWeeklyPrintModal && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowWeeklyPrintModal(false)}>
+                    <div className="bg-black/10 backdrop-blur-lg border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
+                                    <FiPrinter className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">Weekly PDF Options</h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Select which days to include in the PDF report</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowWeeklyPrintModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, idx) => {
+                                    const checked = weeklyPrintDays.includes(idx);
+                                    return (
+                                        <label key={day} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all border border-white/5">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                checked={checked}
+                                                onChange={() => {
+                                                    setWeeklyPrintDays(prev => 
+                                                        prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+                                                    );
+                                                }}
+                                            />
+                                            <span className="text-xs font-bold text-white">{day}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-2">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6])}
+                                        className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="text-[10px] text-slate-600">|</span>
+                                    <button
+                                        onClick={() => setWeeklyPrintDays([])}
+                                        className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                    >
+                                        Deselect All
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        if (weeklyPrintDays.length === 0) {
+                                            alert('Please select at least one day.');
+                                            return;
+                                        }
+                                        setShowWeeklyPrintModal(false);
+                                        const y = currentWeekStart.getFullYear();
+                                        const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
+                                        const d = String(currentWeekStart.getDate()).padStart(2, '0');
+                                        const weekStartStr = `${y}-${m}-${d}`;
+                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?weekStart=${weekStartStr}&includeDays=${weeklyPrintDays.join(',')}`, '_blank');
+                                    }}
+                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-purple-950/20 cursor-pointer"
+                                >
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Unplanned Queue PDF Options Modal */}
             {showPrintModal && (
                 <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowPrintModal(false)}>
@@ -2261,11 +2345,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                         {selectedFinishing && (
                                             <button
                                                 onClick={() => {
-                                                    const y = currentWeekStart.getFullYear();
-                                                    const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
-                                                    const d = String(currentWeekStart.getDate()).padStart(2, '0');
-                                                    const weekStartStr = `${y}-${m}-${d}`;
-                                                    window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?weekStart=${weekStartStr}`, '_blank');
+                                                    // Setup weekly print options
+
+
+
+                                                    { setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6]); setShowWeeklyPrintModal(true); }
                                                 }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: 6,

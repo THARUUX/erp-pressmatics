@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
 import { ConfirmDialogContainer } from '@/components/ui/ConfirmDialog';
+import ScreenPet from '@/components/ui/ScreenPet';
 
 
 // Grouped nav — each group has a label and its items
@@ -385,6 +386,7 @@ function LayoutInner({ children }) {
                     }}
                 />
                 <ConfirmDialogContainer />
+                <ScreenPet />
                 {children}
             </main>
         </div>

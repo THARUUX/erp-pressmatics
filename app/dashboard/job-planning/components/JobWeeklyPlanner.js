@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
     FiCalendar, FiChevronLeft, FiChevronRight, FiSearch,
-    FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiUser, FiInfo
+    FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiLayers, FiX
 } from 'react-icons/fi';
 
 // Date utility to convert UTC/date objects to YYYY-MM-DD local format
@@ -31,13 +31,22 @@ function getMonday(d) {
     return monday;
 }
 
+// Utility to match a task name to a finishing operation name
+function matchesFinishing(taskName, finishingName) {
+    if (!taskName || !finishingName) return false;
+    return taskName.toLowerCase().startsWith(finishingName.toLowerCase());
+}
+
 export default function JobWeeklyPlanner({ machines = [], finishings = [], orders = [], onRefresh }) {
     const [localOrders, setLocalOrders] = useState([]);
     const [selectedOrderId, setSelectedOrderId] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentWeekStart, setCurrentWeekStart] = useState(null);
-    const [dragOverCell, setDragOverCell] = useState(null); // format: "machineId-dateStr"
+    const [dragOverCell, setDragOverCell] = useState(null); // format: "rowKey-dateStr"
     const [savingTaskId, setSavingTaskId] = useState(null);
+
+    // Modal state for viewing a cell's daily planner
+    const [activeCellModal, setActiveCellModal] = useState(null); // { row, dateStr }
 
     // Initialize week and sync orders
     useEffect(() => {
@@ -107,19 +116,26 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
     const selectedOrder = localOrders.find(o => String(o.id) === String(selectedOrderId));
     const selectedOrderTasks = selectedOrder ? (selectedOrder.tasks || []) : [];
 
-    // Find all unique machines associated with the selected order's tasks
-    const relatedMachines = [];
-    let hasManualTasks = false;
-
+    // Find and sort rows sequentially based on the selected order's tasks sequence
+    const rows = [];
     if (selectedOrder) {
         selectedOrderTasks.forEach(task => {
             if (task.machine_id) {
                 const mac = machines.find(m => m.id === task.machine_id);
-                if (mac && !relatedMachines.some(m => m.id === mac.id)) {
-                    relatedMachines.push(mac);
+                if (mac) {
+                    const rowKey = `mac_${mac.id}`;
+                    if (!rows.some(r => r.rowKey === rowKey)) {
+                        rows.push({ ...mac, rowType: 'machine', rowKey });
+                    }
                 }
             } else {
-                hasManualTasks = true;
+                const fin = finishings.find(f => matchesFinishing(task.name, f.name));
+                if (fin) {
+                    const rowKey = `fin_${fin.id}`;
+                    if (!rows.some(r => r.rowKey === rowKey)) {
+                        rows.push({ ...fin, rowType: 'finishing', rowKey });
+                    }
+                }
             }
         });
     }
@@ -131,16 +147,16 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         e.dataTransfer.effectAllowed = 'move';
     };
 
-    const handleDragOver = (e, machineId, dateStr) => {
+    const handleDragOver = (e, rowKey, dateStr) => {
         e.preventDefault();
-        setDragOverCell(`${machineId}-${dateStr}`);
+        setDragOverCell(`${rowKey}-${dateStr}`);
     };
 
     const handleDragLeave = () => {
         setDragOverCell(null);
     };
 
-    const handleDrop = async (e, machineId, dateStr) => {
+    const handleDrop = async (e, row, dateStr) => {
         e.preventDefault();
         setDragOverCell(null);
 
@@ -156,6 +172,14 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
 
         // Build updating fields
         const fields = { scheduled_date: dateStr };
+        if (row.rowType === 'machine') {
+            fields.machine_id = row.id;
+            fields.machine_name = row.name;
+        } else {
+            // Drop on finishing resets machine assignments
+            fields.machine_id = null;
+            fields.machine_name = null;
+        }
 
         // Optimistically update local UI state
         setLocalOrders(prev => prev.map(order => {
@@ -180,8 +204,8 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fields)
             });
-            if (!res.ok) throw new Error('Failed to update task schedule date');
-            if (onRefresh) await onRefresh();
+            if (!res.ok) throw new Error('Failed to update task schedule');
+            if (onRefresh) await onRefresh(true); // pass true for background silent reload!
         } catch (err) {
             console.error(err);
             // Revert on failure
@@ -191,19 +215,20 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         }
     };
 
-    // Get all tasks scheduled on a machine/manual on a date
-    const getScheduledTasks = (machineId, dateStr) => {
+    // Get all tasks scheduled on a row and day
+    const getScheduledTasks = (row, dateStr) => {
+        if (!row) return [];
         const list = [];
         localOrders.forEach(order => {
             (order.tasks || []).forEach(task => {
                 const taskDate = formatDateToYYYYMMDD(task.scheduled_date);
                 if (taskDate === dateStr) {
-                    if (machineId === 'manual') {
-                        if (!task.machine_id) {
+                    if (row.rowType === 'machine') {
+                        if (task.machine_id === row.id) {
                             list.push({ task, order });
                         }
-                    } else {
-                        if (task.machine_id === machineId) {
+                    } else if (row.rowType === 'finishing') {
+                        if (task.machine_id === null && matchesFinishing(task.name, row.name)) {
                             list.push({ task, order });
                         }
                     }
@@ -213,6 +238,14 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         return list;
     };
 
+    const getStatusColor = (status) => {
+        const s = String(status || '').toLowerCase();
+        if (['done', 'completed', 'ready', 'delivered'].includes(s)) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        if (['in progress', 'in_progress', 'started'].includes(s)) return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        if (s === 'paused') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'bg-neutral-800 text-neutral-400 border-white/5';
+    };
+
     const getStatusColorDot = (status) => {
         const s = String(status || '').toLowerCase();
         if (['done', 'completed', 'ready', 'delivered'].includes(s)) return 'bg-emerald-400';
@@ -220,6 +253,9 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         if (s === 'paused') return 'bg-amber-400';
         return 'bg-neutral-500';
     };
+
+    // Modal tasks list for active cell
+    const modalTasks = activeCellModal ? getScheduledTasks(activeCellModal.row, activeCellModal.dateStr) : [];
 
     return (
         <div className="flex h-[calc(100vh-280px)] min-h-[500px] gap-6 text-neutral-200">
@@ -321,7 +357,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                             <h4 className="text-sm font-bold text-neutral-300 m-0">No Job Selected</h4>
                             <p className="text-xs text-neutral-500 m-0 mt-0.5">Please select a job from the active sidebar list to view its weekly machine workload.</p>
                         </div>
-                    ) : relatedMachines.length === 0 && !hasManualTasks ? (
+                    ) : rows.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-2 p-6 text-center">
                             <FiAlertCircle className="w-12 h-12 text-neutral-600" />
                             <h4 className="text-sm font-bold text-neutral-300 m-0">No Tasks in Routing</h4>
@@ -360,39 +396,60 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Related Machine Rows */}
-                                    {relatedMachines.map(machine => (
-                                        <tr key={machine.id} className="border-b border-white/5 last:border-0">
-                                            {/* Machine Header */}
+                                    {rows.map(row => (
+                                        <tr key={row.rowKey} className="border-b border-white/5 last:border-0">
+                                            {/* Header Column */}
                                             <td className="py-4 pr-3 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
-                                                        <FiCpu className="w-3.5 h-3.5" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <div className="text-xs font-bold text-white truncate" title={machine.name}>
-                                                            {machine.name}
+                                                {row.rowType === 'machine' ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
+                                                            <FiCpu className="w-3.5 h-3.5" />
                                                         </div>
-                                                        <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
-                                                            {machine.type || 'machine'}
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs font-bold text-white truncate" title={row.name}>
+                                                                {row.name}
+                                                            </div>
+                                                            <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
+                                                                {row.type || 'machine'}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
+                                                            <FiLayers className="w-3.5 h-3.5" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs font-bold text-white truncate" title={row.name}>
+                                                                {row.name}
+                                                            </div>
+                                                            <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
+                                                                Finishing
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </td>
 
-                                            {/* Cells */}
+                                            {/* Days Cells */}
                                             {weekDates.map(date => {
                                                 const dateStr = formatDateToYYYYMMDD(date);
-                                                const cellTasks = getScheduledTasks(machine.id, dateStr);
-                                                const isOver = dragOverCell === `${machine.id}-${dateStr}`;
+                                                const cellTasks = getScheduledTasks(row, dateStr);
+                                                const isOver = dragOverCell === `${row.rowKey}-${dateStr}`;
 
                                                 return (
                                                     <td
                                                         key={dateStr}
-                                                        onDragOver={e => handleDragOver(e, machine.id, dateStr)}
+                                                        onClick={() => setActiveCellModal({ row, dateStr })}
+                                                        onDragEnter={(e) => {
+                                                            e.preventDefault();
+                                                            // Hover drag-in triggers opening cell modal
+                                                            setActiveCellModal({ row, dateStr });
+                                                        }}
+                                                        onDragOver={e => handleDragOver(e, row.rowKey, dateStr)}
                                                         onDragLeave={handleDragLeave}
-                                                        onDrop={e => handleDrop(e, machine.id, dateStr)}
-                                                        className={`p-2.5 align-top border-l border-white/5 transition-all min-h-[100px] ${
+                                                        onDrop={e => handleDrop(e, row, dateStr)}
+                                                        className={`p-2.5 align-top border-l border-white/5 transition-all min-h-[100px] cursor-pointer hover:bg-white/[0.01] ${
                                                             isOver ? 'bg-purple-500/10 border-dashed border-purple-500/30' : 'bg-transparent'
                                                         }`}
                                                         style={{ height: 110 }}
@@ -406,7 +463,11 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                                                     <div
                                                                         key={task.id}
                                                                         draggable={isSelectedOrder}
-                                                                        onDragStart={e => handleDragStart(e, task.id, order.id)}
+                                                                        onDragStart={e => {
+                                                                            e.stopPropagation();
+                                                                            handleDragStart(e, task.id, order.id);
+                                                                        }}
+                                                                        onClick={e => e.stopPropagation()} // Stop click propagating to cell click
                                                                         className={`p-2 rounded-lg border text-[10px] transition-all flex flex-col gap-1 ${
                                                                             isSelectedOrder
                                                                                 ? 'bg-purple-950/40 border-purple-500 text-white shadow-[0_0_12px_rgba(167,139,250,0.15)] opacity-100 cursor-grab active:cursor-grabbing font-semibold'
@@ -439,90 +500,125 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                             })}
                                         </tr>
                                     ))}
-
-                                    {/* Special Manual/Finishing Operations Row (if hasManualTasks is true) */}
-                                    {hasManualTasks && (
-                                        <tr className="border-b border-white/5 last:border-0">
-                                            {/* Manual Header */}
-                                            <td className="py-4 pr-3 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
-                                                        <FiInfo className="w-3.5 h-3.5" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-xs font-bold text-white">Manual / Finishing</div>
-                                                        <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
-                                                            Operations
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Cells */}
-                                            {weekDates.map(date => {
-                                                const dateStr = formatDateToYYYYMMDD(date);
-                                                const cellTasks = getScheduledTasks('manual', dateStr);
-                                                const isOver = dragOverCell === `manual-${dateStr}`;
-
-                                                return (
-                                                    <td
-                                                        key={dateStr}
-                                                        onDragOver={e => handleDragOver(e, 'manual', dateStr)}
-                                                        onDragLeave={handleDragLeave}
-                                                        onDrop={e => handleDrop(e, 'manual', dateStr)}
-                                                        className={`p-2.5 align-top border-l border-white/5 transition-all min-h-[100px] ${
-                                                            isOver ? 'bg-purple-500/10 border-dashed border-purple-500/30' : 'bg-transparent'
-                                                        }`}
-                                                        style={{ height: 110 }}
-                                                    >
-                                                        <div className="flex flex-col gap-1.5 h-full overflow-y-auto pr-0.5">
-                                                            {cellTasks.map(({ task, order }) => {
-                                                                const isSelectedOrder = String(order.id) === String(selectedOrderId);
-                                                                const isSaving = savingTaskId === task.id;
-
-                                                                return (
-                                                                    <div
-                                                                        key={task.id}
-                                                                        draggable={isSelectedOrder}
-                                                                        onDragStart={e => handleDragStart(e, task.id, order.id)}
-                                                                        className={`p-2 rounded-lg border text-[10px] transition-all flex flex-col gap-1 ${
-                                                                            isSelectedOrder
-                                                                                ? 'bg-purple-950/40 border-purple-500 text-white shadow-[0_0_12px_rgba(167,139,250,0.15)] opacity-100 cursor-grab active:cursor-grabbing font-semibold'
-                                                                                : 'bg-neutral-950/20 border-white/5 text-neutral-400 opacity-35'
-                                                                        }`}
-                                                                        title={`${order.code} - ${task.name}`}
-                                                                    >
-                                                                        <div className="flex items-center justify-between gap-1">
-                                                                            <span className="font-extrabold truncate">{order.code}</span>
-                                                                            <div className="flex items-center gap-1">
-                                                                                {isSaving && (
-                                                                                    <FiRefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
-                                                                                )}
-                                                                                <span className={`w-1.5 h-1.5 rounded-full ${getStatusColorDot(task.status)}`} />
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="truncate font-medium">{task.name}</div>
-                                                                        {task.estimated_minutes && (
-                                                                            <div className="text-[9px] text-neutral-500 font-bold flex items-center gap-0.5 mt-0.5">
-                                                                                <FiClock className="w-2.5 h-2.5" />
-                                                                                {task.estimated_minutes}m
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    )}
                                 </tbody>
                             </table>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Daily Planner Modal */}
+            {activeCellModal && (
+                <div 
+                    className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+                    onDragEnter={() => {
+                        // Drag out onto backdrop closes modal
+                        setActiveCellModal(null);
+                    }}
+                    onDragOver={e => e.preventDefault()}
+                    onClick={() => setActiveCellModal(null)}
+                >
+                    <div 
+                        className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-lg shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-neutral-100 overflow-hidden" 
+                        onClick={e => e.stopPropagation()}
+                        onDragEnter={e => {
+                            // Prevent event bubbling to backdrop closing trigger
+                            e.stopPropagation();
+                        }}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => handleDrop(e, activeCellModal.row, activeCellModal.dateStr)}
+                    >
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.01]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
+                                    {activeCellModal.row.rowType === 'machine' ? <FiCpu className="w-5 h-5" /> : <FiLayers className="w-5 h-5" />}
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">
+                                        {activeCellModal.row.name}
+                                    </h2>
+                                    <p className="text-xs text-neutral-400 m-0 mt-0.5 font-medium">
+                                        Daily Planner — {new Date(activeCellModal.dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setActiveCellModal(null)} 
+                                className="p-1.5 text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 max-h-[400px] overflow-y-auto flex flex-col gap-3">
+                            {modalTasks.length === 0 ? (
+                                <div className="text-center py-10 flex flex-col items-center justify-center text-neutral-500 gap-2">
+                                    <FiAlertCircle className="w-8 h-8 text-neutral-600" />
+                                    <span className="text-xs font-bold">No tasks scheduled for this day</span>
+                                </div>
+                            ) : (
+                                modalTasks.map(({ task, order }) => {
+                                    const isSelectedOrder = String(order.id) === String(selectedOrderId);
+                                    
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            draggable={isSelectedOrder}
+                                            onDragStart={e => {
+                                                handleDragStart(e, task.id, order.id);
+                                                // Close modal instantly on dragstart so user can see and drop onto the grid
+                                                setActiveCellModal(null);
+                                            }}
+                                            className={`p-4 rounded-xl border flex flex-col gap-2 transition-all ${
+                                                isSelectedOrder
+                                                    ? 'bg-purple-950/30 border-purple-500/40 text-white shadow-lg cursor-grab active:cursor-grabbing'
+                                                    : 'bg-neutral-900/30 border-white/5 text-neutral-400 opacity-40'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Link 
+                                                        href={`/dashboard/sales-orders/${order.id}`}
+                                                        className={`text-xs font-extrabold tracking-wider ${isSelectedOrder ? 'text-white hover:text-purple-400 hover:underline' : 'text-neutral-400'}`}
+                                                    >
+                                                        {order.code}
+                                                    </Link>
+                                                    <span className="text-neutral-600 text-[10px]">•</span>
+                                                    <span className="text-[10px] font-bold truncate max-w-[150px]">{order.customer_name}</span>
+                                                </div>
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${getStatusColor(task.status)}`}>
+                                                    {task.status || 'Pending'}
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-xs font-bold text-white">{task.name}</div>
+                                                {task.description && (
+                                                    <p className="text-[10px] text-neutral-500 m-0 mt-0.5 font-medium">{task.description}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-1">
+                                                <span className="text-[9px] text-neutral-500 font-semibold truncate max-w-[200px]">
+                                                    {order.estimation_names || 'General Job'}
+                                                </span>
+                                                {task.estimated_minutes && (
+                                                    <span className="text-[9px] text-neutral-400 font-bold font-mono flex items-center gap-1">
+                                                        <FiClock className="w-3 h-3 text-neutral-500" />
+                                                        {task.estimated_minutes} min
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
