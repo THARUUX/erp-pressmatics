@@ -179,6 +179,20 @@ export default function QuotationsPage() {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                router.push('/dashboard/quotations/new');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [router]);
+
     const handleStatusChange = useCallback(async (id, status) => {
         try {
             const res = await fetch(`/api/quotations/${id}`, {

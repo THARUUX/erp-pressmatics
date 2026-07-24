@@ -171,6 +171,42 @@ function LayoutInner({ children }) {
         }
     }, [searchParams]);
 
+    // Global keyboard navigation shortcuts (Alt + Ctrl + [Key])
+    useEffect(() => {
+        const handleNavigationKeys = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+
+            if (e.altKey && e.ctrlKey) {
+                const key = e.key.toLowerCase();
+                let targetPath = null;
+
+                if (key === 's') {
+                    targetPath = '/dashboard/sales-orders';
+                } else if (key === 'i') {
+                    targetPath = '/dashboard/items';
+                } else if (key === 'q') {
+                    targetPath = '/dashboard/quotations';
+                } else if (key === 'c') {
+                    targetPath = '/dashboard/customers';
+                } else if (key === 'p') {
+                    targetPath = '/dashboard/job-planning';
+                } else if (key === 'n') {
+                    targetPath = '/dashboard/invoices';
+                }
+
+                if (targetPath) {
+                    e.preventDefault();
+                    router.push(targetPath);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleNavigationKeys);
+        return () => window.removeEventListener('keydown', handleNavigationKeys);
+    }, [router]);
+
     async function handleLogout() {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.push('/login');

@@ -63,6 +63,22 @@ export default function MachinesPage() {
         fetch('/api/teams').then(r => r.json()).then(d => setTeams(Array.isArray(d) ? d : []));
     }, []);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                resetForm();
+                setIsEditing(false);
+                setShowFormModal(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     const fetchPlates = async () => {
         try {
             const res = await fetch('/api/inventory?category=Plate');

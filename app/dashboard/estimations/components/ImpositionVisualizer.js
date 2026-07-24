@@ -25,6 +25,18 @@ export default function ImpositionVisualizer({
         // inside the overflow-y-auto layout container
         const mainEl = document.querySelector('main') || document.body;
         setPortalTarget(mainEl);
+
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'v') {
+                e.preventDefault();
+                setExpanded(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     // Calculate layout parameters and grid arrangement
@@ -465,6 +477,7 @@ export default function ImpositionVisualizer({
                             type="button"
                             onClick={() => setExpanded(true)}
                             className="bg-white/5 border border-white/10 p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                            title="Maximize Layout (Alt+Shift+V)"
                         >
                             <FiMaximize2 className="text-sm" />
                         </button>

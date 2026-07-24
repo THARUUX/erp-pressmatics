@@ -6,7 +6,7 @@ import {
     FiUsers, FiSettings, FiLayers, FiTool, FiMap,
     FiAlertTriangle, FiInfo, FiZap, FiBookOpen, FiPackage,
     FiTrendingUp, FiClipboard, FiClock, FiRefreshCw,
-    FiAward, FiCheck, FiCopy, FiPercent, FiMonitor,
+    FiAward, FiCheck, FiCopy, FiPercent, FiMonitor, FiPlus,
     FiLayout, FiGlobe, FiList, FiUser, FiMaximize2,
     FiGrid, FiCpu, FiUpload, FiFlag, FiCheckSquare,
     FiPlay, FiSmartphone, FiActivity, FiSearch,
@@ -21,6 +21,7 @@ const TABS = [
   { id: 'estimations', label: 'Estimations', Icon: FiPrinter },
   { id: 'inventory',   label: 'Inventory',   Icon: FiPackage },
   { id: 'production',  label: 'Production',  Icon: FiCpu },
+  { id: 'shortcuts',   label: 'Shortcuts',   Icon: FiMonitor },
   { id: 'tips',        label: 'Pro Tips',    Icon: FiZap },
 ];
 
@@ -103,6 +104,14 @@ function Tip({ children }) {
       <FiZap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
       <p className="text-sm text-amber-200 leading-relaxed">{children}</p>
     </div>
+  );
+}
+
+function KeyBadge({ children }) {
+  return (
+    <kbd className="px-1.5 py-0.5 text-xs font-mono font-bold text-white bg-white/10 border border-white/20 rounded shadow">
+      {children}
+    </kbd>
   );
 }
 
@@ -553,6 +562,118 @@ const CONTENT = {
           <p>Generate a detailed PDF report showing your unit price vs competitors, full estimation cost snapshot including components and finishings.</p>
         </Card>
       </div>
+    </div>
+  ),
+
+  shortcuts: (
+    <div className="space-y-8">
+      <SectionTitle icon={FiMonitor}>Keyboard Shortcuts &amp; Productivity</SectionTitle>
+      
+      <Info>
+        Accelerate your workflow with global navigational hotkeys and page-specific action shortcuts. 
+        Note that shortcuts are disabled when you are actively typing inside input fields, textareas, or select dropdowns to prevent accidental triggers.
+      </Info>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Global Navigation Section */}
+        <div className="rounded-2xl p-6 bg-white/[0.03] border border-white/[0.08] space-y-4">
+          <div className="flex items-center gap-3">
+            <IconBox icon={FiGlobe} accent="#6366f1" />
+            <h3 className="font-semibold text-white text-sm">Global Navigation</h3>
+          </div>
+          <p className="text-xs text-white/45">Access major modules instantly from anywhere in the app.</p>
+          <div className="space-y-3 pt-2">
+            {[
+              { keys: ['Alt', 'Ctrl', 'S'], desc: 'Go to Sales Orders' },
+              { keys: ['Alt', 'Ctrl', 'I'], desc: 'Go to Items' },
+              { keys: ['Alt', 'Ctrl', 'Q'], desc: 'Go to Quotations' },
+              { keys: ['Alt', 'Ctrl', 'C'], desc: 'Go to Customers' },
+              { keys: ['Alt', 'Ctrl', 'P'], desc: 'Go to Job Planning' },
+              { keys: ['Alt', 'Ctrl', 'N'], desc: 'Go to Invoices' },
+            ].map((s, idx) => (
+              <div key={idx} className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                <span className="text-sm text-white/70">{s.desc}</span>
+                <div className="flex gap-1">
+                  {s.keys.map((k, ki) => <KeyBadge key={ki}>{k}</KeyBadge>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Page & Form Actions Section */}
+        <div className="rounded-2xl p-6 bg-white/[0.03] border border-white/[0.08] space-y-4">
+          <div className="flex items-center gap-3">
+            <IconBox icon={FiZap} accent="#10b981" />
+            <h3 className="font-semibold text-white text-sm">Form Actions &amp; Component Add</h3>
+          </div>
+          <p className="text-xs text-white/45">Quickly trigger calculations, save changes, or modify form tabs.</p>
+          <div className="space-y-3 pt-2">
+            {[
+              { keys: ['Alt', 'Shift', 'X'], desc: 'Calculate Estimation' },
+              { keys: ['Alt', 'Shift', 'S'], desc: 'Save / Create / Update' },
+              { keys: ['Alt', 'Shift', 'Q'], desc: 'Convert to Quote (Items)' },
+              { keys: ['Alt', 'Shift', 'V'], desc: 'Toggle Imposition Visualizer' },
+              { keys: ['Alt', 'Shift', 'M'], desc: 'Add "Main" Component Tab' },
+              { keys: ['Alt', 'Shift', 'C'], desc: 'Add "Cover" Component Tab' },
+              { keys: ['Alt', 'Shift', 'I'], desc: 'Add "Inner" Component Tab' },
+              { keys: ['Alt', 'Shift', 'F'], desc: 'Add "Finishings" Component Tab' },
+            ].map((s, idx) => (
+              <div key={idx} className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                <span className="text-sm text-white/70">{s.desc}</span>
+                <div className="flex gap-1">
+                  {s.keys.map((k, ki) => <KeyBadge key={ki}>{k}</KeyBadge>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* List Page Actions Section */}
+        <div className="rounded-2xl p-6 bg-white/[0.03] border border-white/[0.08] space-y-4 md:col-span-2">
+          <div className="flex items-center gap-3">
+            <IconBox icon={FiPlus} accent="#f59e0b" />
+            <h3 className="font-semibold text-white text-sm">List Page Actions</h3>
+          </div>
+          <p className="text-xs text-white/45">Quickly trigger creation actions from list views.</p>
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-3 pt-2">
+            {[
+              { keys: ['Alt', 'N'], desc: 'New Customer (on Customers list)' },
+              { keys: ['Alt', 'N'], desc: 'New Item (on Items list)' },
+              { keys: ['Alt', 'N'], desc: 'New Quotation (on Quotations list)' },
+              { keys: ['Alt', 'N'], desc: 'Add Item form (on Stock Items / Inventory)' },
+              { keys: ['Alt', 'N'], desc: 'Add Service modal (on Finishings list)' },
+              { keys: ['Alt', 'N'], desc: 'Add Machine modal (on Machines list)' },
+            ].map((s, idx) => (
+              <div key={idx} className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                <span className="text-sm text-white/70">{s.desc}</span>
+                <div className="flex gap-1">
+                  {s.keys.map((k, ki) => <KeyBadge key={ki}>{k}</KeyBadge>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Customizable Finishing Shortcuts section */}
+      <SectionTitle icon={FiSettings}>Customisable Finishing Shortcuts</SectionTitle>
+      <Card icon={FiSettings} title="Custom Keybindings for Finishings" accent="#f59e0b">
+        <p className="leading-relaxed">
+          Inside the **Estimation Component Form** (under both Estimations and Items), you can customize the keys used to quickly check or toggle finishing operations.
+        </p>
+        <div className="space-y-2 mt-3 pl-1 text-sm text-white/60">
+          <p>
+            1. Click the <strong className="text-white">Settings Gear icon ⚙️</strong> next to the **Finishings** header.
+          </p>
+          <p>
+            2. Define custom single-key hotkeys (e.g. <KeyBadge>c</KeyBadge> for Cutting, <KeyBadge>f</KeyBadge> for Folding).
+          </p>
+          <p>
+            3. Once saved, pressing that key on your keyboard will instantly toggle that finishing operation in the active component tab.
+          </p>
+        </div>
+      </Card>
     </div>
   ),
 

@@ -151,6 +151,20 @@ export default function ItemsPage() {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                router.push('/dashboard/items/new');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [router]);
+
     /* ── Actions ──────────────────────────────────────────────────────────────── */
     const handleToggleFav = async (id, cur) => {
         if (cur && !(await confirmDialog('Remove from templates?', { confirmLabel: 'Remove' }))) return;

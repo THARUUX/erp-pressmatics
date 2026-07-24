@@ -166,6 +166,20 @@ export default function CustomersPage() {
 
     useEffect(() => { fetchAll(); }, []);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                router.push('/dashboard/customers/new');
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [router]);
+
     const handleDelete = async (id) => {
         if (!(await confirmDialog('Delete this customer?', { danger: true, confirmLabel: 'Delete' }))) return;
         const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });

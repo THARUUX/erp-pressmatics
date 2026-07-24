@@ -559,6 +559,22 @@ export default function InventoryPage() {
         }
     }, [activeCategory]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                if (activeCategory === 'BOM Waiting List') return;
+                e.preventDefault();
+                resetForm();
+                setShowAdd(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeCategory]);
+
     const openQrModal = async (item) => {
         setQrItem(item);
         setQrDataUrl('');

@@ -26,6 +26,18 @@ export default function ImpositionVisualizer({
         // inside the overflow-y-auto layout container
         const mainEl = document.querySelector('main') || document.body;
         setPortalTarget(mainEl);
+
+        const handleKeyDown = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+            if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'v') {
+                e.preventDefault();
+                setExpanded(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     // Calculate layout parameters and grid arrangement
@@ -441,200 +453,197 @@ export default function ImpositionVisualizer({
                     </div>
                 </div>
             ) : (
-            <>
-            <div className="w-full bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-5 shadow-2xl relative">
-                {/* Visualizer Header */}
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <h4 className="text-sm font-bold text-gray-200 tracking-wide uppercase">Imposition Planner</h4>
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">{layout.cols}x{layout.rows} Grid ({layout.rotated ? 'Rotated' : 'Standard'})</p>
-                    </div>
+                <>
+                    <div className="w-full bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-5 shadow-2xl relative">
+                        {/* Visualizer Header */}
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-200 tracking-wide uppercase">Imposition Planner</h4>
+                                <p className="text-xs text-gray-500 font-mono mt-0.5">{layout.cols}x{layout.rows} Grid ({layout.rotated ? 'Rotated' : 'Standard'})</p>
+                            </div>
 
-                    <div className="flex gap-2">
-                        {/* Orientation toggles */}
-                        <div className="bg-black/50 border border-white/10 rounded-lg p-0.5 flex">
-                            <button
-                                type="button"
-                                onClick={() => setOrientationOverride(orientationOverride === 'standard' ? null : 'standard')}
-                                className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
-                                    orientationOverride === 'standard'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'text-gray-400 hover:text-white'
-                                }`}
-                                title="Force standard portrait layout"
-                            >
-                                Std
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setOrientationOverride(orientationOverride === 'rotated' ? null : 'rotated')}
-                                className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
-                                    orientationOverride === 'rotated'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'text-gray-400 hover:text-white'
-                                }`}
-                                title="Force rotated landscape layout"
-                            >
-                                Rot
-                            </button>
-                        </div>
-
-                        {/* Maximize Button */}
-                        <button
-                            type="button"
-                            onClick={() => setExpanded(true)}
-                            className="print:hidden bg-white/5 border border-white/10 p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                        >
-                            <FiMaximize2 className="text-sm" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* SVG Visualizer Container */}
-                <div className="w-full aspect-[1.5/1] relative mb-4">
-                    <GridSVGDisplay />
-                </div>
-
-                {/* Performance / Plan Details */}
-                <div className="grid grid-cols-3 gap-2 bg-black/40 border border-white/10 rounded-lg p-3 text-center mb-1">
-                    <div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Utilization</div>
-                        <div className={`text-sm font-bold mt-0.5 ${layout.fits ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                            {layout.utilizationPercent.toFixed(1)}%
-                        </div>
-                    </div>
-                    <div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Waste</div>
-                        <div className="text-sm font-bold text-gray-300 mt-0.5">
-                            {layout.wastePercent.toFixed(1)}%
-                        </div>
-                    </div>
-                    <div>
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Bleed</div>
-                        <div className="text-sm font-bold text-amber-500 mt-0.5">
-                            {parseFloat(bleedMm || 3).toFixed(1)} mm
-                        </div>
-                    </div>
-                </div>
-
-                {/* Error/Warning Notifications */}
-                {!layout.fits && (
-                    <div className="mt-3 flex items-start gap-2 bg-red-950/40 border border-red-500/20 text-red-300 text-xs rounded-lg p-2.5">
-                        <FiAlertTriangle className="text-red-400 shrink-0 mt-0.5 text-sm" />
-                        <div>
-                            <span className="font-semibold text-red-200">Layout Overflows Paper Sheet</span>
-                            <p className="text-[11px] text-red-400 mt-0.5">The required imposition grid dimensions ({(layout.gridW || 0).toFixed(1)} x {(layout.gridH || 0).toFixed(1)} cm) exceed sheet boundaries. Adjust size or layout.</p>
-                        </div>
-                    </div>
-                )}
-                {layout.fits && (
-                    <div className="mt-3 flex items-center gap-2 bg-emerald-950/30 border border-emerald-500/10 text-emerald-300 text-xs rounded-lg p-2.5">
-                        <FiCheckCircle className="text-emerald-400 shrink-0 text-sm" />
-                        <span>Imposition sheet plan fits correctly.</span>
-                    </div>
-                )}
-            </div>
-
-            {mounted && portalTarget && createPortal(
-                <AnimatePresence>
-                    {expanded && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex items-center justify-center p-6"
-                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-                            onClick={() => setExpanded(false)}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => setExpanded(false)}
-                                className="absolute top-6 right-6 bg-white/5 border border-white/10 hover:bg-white/10 text-white p-3 rounded-full text-xl z-50 transition-colors"
-                            >
-                                <FiX />
-                            </button>
-
-                            <motion.div
-                                initial={{ scale: 0.95, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.95, opacity: 0 }}
-                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                className="w-full max-w-5xl bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-6"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-white tracking-tight">
-                                            Interactive Imposition Specification Plan
-                                        </h2>
-                                        <p className="text-sm text-gray-400 mt-1">
-                                            {layout.cols} columns x {layout.rows} rows arrangement with standard crop marks and bleeds.
-                                        </p>
-                                    </div>
-                                    
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setOrientationOverride(orientationOverride === 'standard' ? null : 'standard')}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                                                orientationOverride === 'standard'
-                                                    ? 'bg-blue-600 border-blue-500 text-white'
-                                                    : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+                            <div className="flex gap-2">
+                                {/* Orientation toggles */}
+                                <div className="bg-black/50 border border-white/10 rounded-lg p-0.5 flex">
+                                    <button
+                                        type="button"
+                                        onClick={() => setOrientationOverride(orientationOverride === 'standard' ? null : 'standard')}
+                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${orientationOverride === 'standard'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-400 hover:text-white'
                                             }`}
-                                        >
-                                            <FiRefreshCw className={orientationOverride === 'standard' ? "animate-spin" : ""} /> Standard
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setOrientationOverride(orientationOverride === 'rotated' ? null : 'rotated')}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                                                orientationOverride === 'rotated'
-                                                    ? 'bg-blue-600 border-blue-500 text-white'
-                                                    : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+                                        title="Force standard portrait layout"
+                                    >
+                                        Std
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOrientationOverride(orientationOverride === 'rotated' ? null : 'rotated')}
+                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${orientationOverride === 'rotated'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-400 hover:text-white'
                                             }`}
-                                        >
-                                            <FiRefreshCw className={orientationOverride === 'rotated' ? "animate-spin" : ""} /> Rotated (90°)
-                                        </button>
-                                    </div>
+                                        title="Force rotated landscape layout"
+                                    >
+                                        Rot
+                                    </button>
                                 </div>
 
-                                <div className="w-full aspect-[1.6/1] bg-black/45 rounded-xl border border-white/5 p-4 relative">
-                                    <GridSVGDisplay isLarge={true} />
-                                </div>
+                                {/* Maximize Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setExpanded(true)}
+                                    className="print:hidden bg-white/5 border border-white/10 p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                    title="Maximize Layout (Alt+Shift+V)"
+                                >
+                                    <FiMaximize2 className="text-sm" />
+                                </button>
+                            </div>
+                        </div>
 
-                                <div className="grid sm:grid-cols-4 gap-4 bg-black/40 border border-white/10 rounded-xl p-4 text-center">
-                                    <div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-widest">Paper Area</div>
-                                        <div className="text-lg font-bold text-white mt-1">
-                                            {layout.W.toFixed(1)} x {layout.H.toFixed(1)} cm
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-widest">Component Size</div>
-                                        <div className="text-lg font-bold text-blue-400 mt-1">
-                                            {layout.cW.toFixed(1)} x {layout.cH.toFixed(1)} cm
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-widest">Bleed Area</div>
-                                        <div className="text-lg font-bold text-amber-500 mt-1">
-                                            +{parseFloat(bleedMm || 3).toFixed(1)} mm
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-widest">Sheet Efficiency</div>
-                                        <div className={`text-lg font-bold mt-1 ${layout.fits ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {layout.utilizationPercent.toFixed(1)}%
-                                        </div>
-                                    </div>
+                        {/* SVG Visualizer Container */}
+                        <div className="w-full aspect-[1.5/1] relative mb-4">
+                            <GridSVGDisplay />
+                        </div>
+
+                        {/* Performance / Plan Details */}
+                        <div className="grid grid-cols-3 gap-2 bg-black/40 border border-white/10 rounded-lg p-3 text-center mb-1">
+                            <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-widest">Utilization</div>
+                                <div className={`text-sm font-bold mt-0.5 ${layout.fits ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                    {layout.utilizationPercent.toFixed(1)}%
                                 </div>
-                            </motion.div>
-                        </motion.div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-widest">Waste</div>
+                                <div className="text-sm font-bold text-gray-300 mt-0.5">
+                                    {layout.wastePercent.toFixed(1)}%
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-gray-500 uppercase tracking-widest">Bleed</div>
+                                <div className="text-sm font-bold text-amber-500 mt-0.5">
+                                    {parseFloat(bleedMm || 3).toFixed(1)} mm
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Error/Warning Notifications */}
+                        {!layout.fits && (
+                            <div className="mt-3 flex items-start gap-2 bg-red-950/40 border border-red-500/20 text-red-300 text-xs rounded-lg p-2.5">
+                                <FiAlertTriangle className="text-red-400 shrink-0 mt-0.5 text-sm" />
+                                <div>
+                                    <span className="font-semibold text-red-200">Layout Overflows Paper Sheet</span>
+                                    <p className="text-[11px] text-red-400 mt-0.5">The required imposition grid dimensions ({(layout.gridW || 0).toFixed(1)} x {(layout.gridH || 0).toFixed(1)} cm) exceed sheet boundaries. Adjust size or layout.</p>
+                                </div>
+                            </div>
+                        )}
+                        {layout.fits && (
+                            <div className="mt-3 flex items-center gap-2 bg-emerald-950/30 border border-emerald-500/10 text-emerald-300 text-xs rounded-lg p-2.5">
+                                <FiCheckCircle className="text-emerald-400 shrink-0 text-sm" />
+                                <span>Imposition sheet plan fits correctly.</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {mounted && portalTarget && createPortal(
+                        <AnimatePresence>
+                            {expanded && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex items-center justify-center p-6"
+                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+                                    onClick={() => setExpanded(false)}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded(false)}
+                                        className="absolute top-6 right-6 bg-white/5 border border-white/10 hover:bg-white/10 text-white p-3 rounded-full text-xl z-50 transition-colors"
+                                    >
+                                        <FiX />
+                                    </button>
+
+                                    <motion.div
+                                        initial={{ scale: 0.95, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.95, opacity: 0 }}
+                                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                        className="w-full max-w-5xl bg-black/20 backdrop-blur-lg border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-6"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                                            <div>
+                                                <h2 className="text-xl font-bold text-white tracking-tight">
+                                                    Interactive Imposition Specification Plan
+                                                </h2>
+                                                <p className="text-sm text-gray-400 mt-1">
+                                                    {layout.cols} columns x {layout.rows} rows arrangement with standard crop marks and bleeds.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOrientationOverride(orientationOverride === 'standard' ? null : 'standard')}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${orientationOverride === 'standard'
+                                                        ? 'bg-blue-600 border-blue-500 text-white'
+                                                        : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <FiRefreshCw className={orientationOverride === 'standard' ? "animate-spin" : ""} /> Standard
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOrientationOverride(orientationOverride === 'rotated' ? null : 'rotated')}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${orientationOverride === 'rotated'
+                                                        ? 'bg-blue-600 border-blue-500 text-white'
+                                                        : 'bg-white/5 border-white/10 text-gray-300 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <FiRefreshCw className={orientationOverride === 'rotated' ? "animate-spin" : ""} /> Rotated (90°)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full aspect-[1.6/1] bg-black/45 rounded-xl border border-white/5 p-4 relative">
+                                            <GridSVGDisplay isLarge={true} />
+                                        </div>
+
+                                        <div className="grid sm:grid-cols-4 gap-4 bg-black/40 border border-white/10 rounded-xl p-4 text-center">
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase tracking-widest">Paper Area</div>
+                                                <div className="text-lg font-bold text-white mt-1">
+                                                    {layout.W.toFixed(1)} x {layout.H.toFixed(1)} cm
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase tracking-widest">Component Size</div>
+                                                <div className="text-lg font-bold text-blue-400 mt-1">
+                                                    {layout.cW.toFixed(1)} x {layout.cH.toFixed(1)} cm
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase tracking-widest">Bleed Area</div>
+                                                <div className="text-lg font-bold text-amber-500 mt-1">
+                                                    +{parseFloat(bleedMm || 3).toFixed(1)} mm
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-500 uppercase tracking-widest">Sheet Efficiency</div>
+                                                <div className={`text-lg font-bold mt-1 ${layout.fits ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {layout.utilizationPercent.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>,
+                        portalTarget
                     )}
-                </AnimatePresence>,
-                portalTarget
-            )}
-            </>
+                </>
             )}
         </>
     );

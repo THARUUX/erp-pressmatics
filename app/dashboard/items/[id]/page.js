@@ -283,11 +283,12 @@ export default function EditQuotationPage({ params }) {
         setComponents(prev => prev.map(c => ({ ...c, quantity: val })));
     };
 
-    const addComponent = () => {
+    const addComponent = (customName = null) => {
         setComponents(prev => {
+            const name = customName || `Component ${prev.length + 1}`;
             const newComps = [...prev, {
-                id: Date.now(),
-                name: `Component ${prev.length + 1}`,
+                id: Date.now() + Math.random(),
+                name: name,
                 type: 'offset',
                 quantity: quantity,
                 params: {
@@ -313,6 +314,39 @@ export default function EditQuotationPage({ params }) {
             return newComps;
         });
     };
+
+    // Keyboard Shortcuts for adding components with specific names
+    useEffect(() => {
+        const handleGlobalKeys = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+
+            if (e.altKey && e.shiftKey) {
+                const key = e.key.toLowerCase();
+                if (key === 'm') {
+                    e.preventDefault();
+                    addComponent('Main');
+                    toast.success('Added "Main" Component');
+                } else if (key === 'c') {
+                    e.preventDefault();
+                    addComponent('Cover');
+                    toast.success('Added "Cover" Component');
+                } else if (key === 'i') {
+                    e.preventDefault();
+                    addComponent('Inner');
+                    toast.success('Added "Inner" Component');
+                } else if (key === 'f') {
+                    e.preventDefault();
+                    addComponent('Finishings');
+                    toast.success('Added "Finishings" Component');
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeys);
+        return () => window.removeEventListener('keydown', handleGlobalKeys);
+    }, [machines, quantity]);
 
     const removeComponent = (index) => {
         if (components.length <= 1) return;
@@ -576,6 +610,32 @@ export default function EditQuotationPage({ params }) {
         }
     };
 
+    // Keyboard Shortcuts for actions (calculate, update, convert to quote)
+    useEffect(() => {
+        const handleActionKeys = (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+                return;
+            }
+
+            if (e.altKey && e.shiftKey) {
+                const key = e.key.toLowerCase();
+                if (key === 'x') {
+                    e.preventDefault();
+                    handleCalculate();
+                } else if (key === 's') {
+                    e.preventDefault();
+                    handleUpdate();
+                } else if (key === 'q') {
+                    e.preventDefault();
+                    handleConvertToQuote(false);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleActionKeys);
+        return () => window.removeEventListener('keydown', handleActionKeys);
+    }, [handleCalculate, handleUpdate, handleConvertToQuote]);
+
     if (loading) return <div className="p-8 text-white">Loading...</div>;
 
     const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
@@ -797,11 +857,32 @@ export default function EditQuotationPage({ params }) {
                             </button>
                         ))}
                         <button
-                            onClick={addComponent}
+                            onClick={() => addComponent()}
                             className="px-4 py-2 rounded-lg text-sm font-medium bg-transparent border border-dashed border-white/20 text-gray-400 hover:border-white/40 hover:text-white transition-all flex items-center gap-1.5"
                         >
                             <FiPlus className="text-xs" /> Add Tab
                         </button>
+
+                        <div className="flex flex-wrap gap-1.5 border-l border-white/10 pl-2.5">
+                            {[
+                                { name: 'Main', key: 'M' },
+                                { name: 'Cover', key: 'C' },
+                                { name: 'Inner', key: 'I' },
+                                { name: 'Finishings', key: 'F' }
+                            ].map(item => (
+                                <button
+                                    key={item.name}
+                                    type="button"
+                                    onClick={() => addComponent(item.name)}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-gray-300 transition-all flex items-center gap-1.5"
+                                    title={`Add ${item.name} Component (Alt+Shift+${item.key})`}
+                                >
+                                    <FiPlus className="text-[10px]" />
+                                    <span>{item.name}</span>
+                                    <kbd className="text-[9px] text-gray-500 font-mono bg-black/40 px-1.5 py-0.5 rounded">⌥⇧{item.key}</kbd>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Active Component Form */}
