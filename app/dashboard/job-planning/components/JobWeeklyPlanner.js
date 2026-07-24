@@ -3,8 +3,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     FiCalendar, FiChevronLeft, FiChevronRight, FiSearch,
     FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiLayers, FiX, FiGrid,
-    FiRotateCcw, FiRotateCw
+    FiRotateCcw, FiRotateCw, FiFileText
 } from 'react-icons/fi';
+import Link from 'next/link';
+import JobTicketModal from './JobTicketModal';
 
 // Date utility to convert UTC/date objects to YYYY-MM-DD local format
 function formatDateToYYYYMMDD(dateVal) {
@@ -57,6 +59,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
     const [savingTaskId, setSavingTaskId] = useState(null);
     const [undoStack, setUndoStack] = useState([]);
     const [redoStack, setRedoStack] = useState([]);
+    const [showJobTicket, setShowJobTicket] = useState(false);
 
     // Initialize week and sync orders
     useEffect(() => {
@@ -531,10 +534,29 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                             </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 bg-neutral-900/50 border border-white/10 px-3 py-1.5 rounded-xl font-mono">
-                            <span>Total Tasks: {selectedOrderTasks.length}</span>
-                            <span className="text-neutral-600">•</span>
-                            <span className="text-emerald-400">Scheduled: {selectedOrderTasks.filter(t => t.scheduled_date !== null).length}</span>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowJobTicket(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl transition-all cursor-pointer"
+                            >
+                                <FiFileText className="w-3.5 h-3.5" />
+                                Job Ticket
+                            </button>
+
+                            <Link
+                                href={`/dashboard/sales-orders/${selectedOrder.id}`}
+                                target="_blank"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-neutral-350 hover:text-white bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 rounded-xl transition-all"
+                            >
+                                View Sales Order
+                            </Link>
+
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 bg-neutral-900/50 border border-white/10 px-3 py-1.5 rounded-xl font-mono">
+                                <span>Total Tasks: {selectedOrderTasks.length}</span>
+                                <span className="text-neutral-600">•</span>
+                                <span className="text-emerald-400">Scheduled: {selectedOrderTasks.filter(t => t.scheduled_date !== null).length}</span>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -723,6 +745,12 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                     )}
                 </div>
             </div>
+            {showJobTicket && (
+                <JobTicketModal
+                    orderId={selectedOrderId}
+                    onClose={() => setShowJobTicket(false)}
+                />
+            )}
         </div>
     );
 }
