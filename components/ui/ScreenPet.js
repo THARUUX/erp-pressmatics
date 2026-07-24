@@ -207,9 +207,9 @@ export default function ScreenPet() {
                 const currentThemeName = themeColorRef.current?.name || 'green';
                 const options = AVAILABLE_THEMES.filter(t => t.name !== currentThemeName);
                 const nextTheme = options[Math.floor(Math.random() * options.length)];
-                
+
                 setThemeColor(nextTheme);
-                
+
                 const colorPhrases = {
                     green: [
                         "Back to standard green calibration!",
@@ -237,10 +237,10 @@ export default function ScreenPet() {
                         "Orange you glad I'm here to help?"
                     ]
                 };
-                
+
                 const phrases = colorPhrases[nextTheme.name] || ["Changed my color theme!"];
                 triggerSpeech(phrases[Math.floor(Math.random() * phrases.length)], 4000);
-                
+
                 // If it is not default green, set a timer to return back to green after 12-15 seconds
                 if (nextTheme.name !== 'green') {
                     setTimeout(() => {
@@ -775,14 +775,14 @@ export default function ScreenPet() {
                                 <FiDownload className="w-2.5 h-2.5" style={{ color: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }} />
                             </div>
                             {/* Struggle Left Eye (>) */}
-                            <div 
+                            <div
                                 className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'loading' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[11px] font-extrabold font-mono select-none translate-y-[-0.5px]`}
                                 style={{ color: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }}
                             >
                                 &gt;
                             </div>
                             {/* Dragged Cross */}
-                            <div 
+                            <div
                                 className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[8px] font-extrabold font-mono`}
                                 style={{ color: getActiveColor() }}
                             >
@@ -836,14 +836,14 @@ export default function ScreenPet() {
                                 <FiDownload className="w-2.5 h-2.5" style={{ color: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }} />
                             </div>
                             {/* Struggle Right Eye (<) */}
-                            <div 
+                            <div
                                 className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'loading' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[11px] font-extrabold font-mono select-none translate-y-[-0.5px]`}
                                 style={{ color: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }}
                             >
                                 &lt;
                             </div>
                             {/* Dragged Cross */}
-                            <div 
+                            <div
                                 className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[8px] font-extrabold font-mono`}
                                 style={{ color: getActiveColor() }}
                             >
@@ -854,7 +854,7 @@ export default function ScreenPet() {
                                 ^
                             </div>
                             {/* Question Right Eye - Question Mark */}
-                            <div 
+                            <div
                                 className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'question' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[10px] font-extrabold font-sans`}
                                 style={{ color: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }}
                             >
@@ -1032,14 +1032,14 @@ export default function ScreenPet() {
                 style={{
                     width: '96px',
                     height: '76px',
-                    animation: state === 'sleep' 
-                        ? 'pet-breathe 3.5s ease-in-out infinite' 
+                    animation: state === 'sleep'
+                        ? 'pet-breathe 3.5s ease-in-out infinite'
                         : state === 'walking'
                             ? 'pet-walk-sway 0.8s ease-in-out infinite'
                             : state === 'dragged'
                                 ? 'pet-drag-wobble 0.4s ease-in-out infinite'
-                                : state === 'loading' 
-                                    ? 'pet-tremble 0.15s infinite' 
+                                : state === 'loading'
+                                    ? 'pet-tremble 0.15s infinite'
                                     : 'none',
                 }}
             >
@@ -1058,13 +1058,13 @@ export default function ScreenPet() {
                 ))}
 
                 {/* Main Body Chassis */}
-                <div 
-                    className="w-full h-full bg-[#080808] border-[2px] rounded-[22px] flex flex-col items-center justify-center gap-2 p-1.5 relative overflow-hidden transition-all duration-300"
+                <div
+                    className="w-full h-full bg-[#080808] border-[2px] rounded-[22px] flex flex-col items-center justify-center gap-1 p-1.5 relative overflow-hidden transition-all duration-300"
                     style={{
                         animation: ['sleep', 'walking', 'dragged', 'loading'].includes(state) ? 'none' : 'pet-float 2.5s ease-in-out infinite',
                         borderColor: state === 'loading' ? getActiveColor() : '#222',
-                        boxShadow: state === 'loading' 
-                            ? `0 0 30px 10px ${getActiveShadow()}, inset 0 0 15px rgba(0,0,0,1)` 
+                        boxShadow: state === 'loading'
+                            ? `0 0 30px 10px ${getActiveShadow()}, inset 0 0 15px rgba(0,0,0,1)`
                             : '0 0 30px 10px rgba(0,0,0,0.6), inset 0 0 15px rgba(0,0,0,1)'
                     }}
                 >

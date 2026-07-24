@@ -10,6 +10,7 @@ export async function GET(req, { params }) {
     const weekStartStr = searchParams.get('weekStart');
     const dateParam = searchParams.get('date');
     const isDaily = !!dateParam;
+    const isChecksheet = searchParams.get('checksheet') === 'true';
 
     try {
         let machine;
@@ -187,7 +188,7 @@ export async function GET(req, { params }) {
                 weekRangeStr, 
                 stats, 
                 tasksByDay, 
-                reportType: isDaily ? 'daily' : 'weekly' 
+                reportType: isChecksheet ? 'checksheet' : (isDaily ? 'daily' : 'weekly') 
             })
         );
 

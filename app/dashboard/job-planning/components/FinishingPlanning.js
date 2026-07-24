@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import JobTicketModal from './JobTicketModal';
 import AddTaskModal from './AddTaskModal';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
     FiChevronLeft, FiChevronRight, FiChevronDown, FiClock, FiPrinter,
     FiTrendingUp, FiAlertTriangle, FiBookOpen, FiActivity, FiDownload,
@@ -382,8 +383,13 @@ function TaskCard({
 
             <div className="mt-1.5 flex items-center justify-between text-[11px] text-gray-400 pl-3.5">
                 <span className="font-semibold text-gray-200 truncate pr-2 max-w-[160px]">
-                    {console.log(task.name)}
-                    {task.name.split('—')[task.name.split('—').length - 2]?.trim()}
+                    {(() => {
+                        const parts = task.name ? task.name.split('—') : [];
+                        if (parts.length >= 2) {
+                            return parts[parts.length - 2]?.trim();
+                        }
+                        return task.name || '';
+                    })()}
                 </span>
                 {customerName && (
                     <span className="text-[9.5px] text-gray-500 truncate max-w-[100px]">
@@ -404,7 +410,7 @@ function TaskCard({
 
 // ── Task Detail & Override Modal ─────────────────────────────────────────
 
-function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJobTicket }) {
+function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh, onViewJobTicket }) {
     const defaultSetup = machine?.make_ready_minutes || 0;
     const defaultSpeed = machine?.speed || 0;
     const defaultUnit = machine?.speed_unit || 'Sheets/Hr';
@@ -897,6 +903,14 @@ function TaskModal({ task, order, machine, onClose, onSave, onRefresh, onViewJob
 
                     {/* Actions */}
                     <div className="flex gap-2 justify-end pt-2 border-t border-white/5">
+                        {(task.is_manual || task.is_manual === 1) && onDelete && (
+                            <button
+                                onClick={() => onDelete(task.id, order?.id)}
+                                className="px-4 py-2 border border-red-500/25 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded-lg text-xs font-bold transition-all mr-auto"
+                            >
+                                Delete Task
+                            </button>
+                        )}
                         {(task.custom_speed || task.custom_make_ready_minutes) && (
                             <button
                                 onClick={handleReset}
@@ -1852,6 +1866,28 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     const handleTaskModalSave = async (taskId, orderId, fields) => {
         await handleUpdateTask(taskId, orderId, fields);
     };
+    const handleTaskModalDelete = async (taskId, orderId) => {
+        if (!(await confirmDialog('Are you sure you want to delete this manual task?', { danger: true, confirmLabel: 'Delete' }))) return;
+        const targetSO = orderId || 'unassigned';
+        setSaveStatus('saving');
+        try {
+            const res = await fetch(`/api/sales-orders/${targetSO}/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error('Failed to delete task');
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 3000);
+            if (onRefresh) {
+                await onRefresh();
+            }
+            setSelectedTaskModal(null);
+        } catch (e) {
+            console.error('Task delete error:', e);
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus(null), 5000);
+            alert(e.message);
+        }
+    };
     const handleCloseModal = () => setSelectedTaskModal(null);
 
     // Capacity: default to 8h for manual finishing operations
@@ -2387,26 +2423,48 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                             Report
                                         </button>
                                         {selectedFinishing && (
-                                            <button
-                                                onClick={() => {
-                                                    const y = activeDate.getFullYear();
-                                                    const m = String(activeDate.getMonth() + 1).padStart(2, '0');
-                                                    const d = String(activeDate.getDate()).padStart(2, '0');
-                                                    const dateStr = `${y}-${m}-${d}`;
-                                                    window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}`, '_blank');
-                                                }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: 6,
-                                                    padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
-                                                    background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
-                                                    fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
-                                                }}
-                                                onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
-                                                onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
-                                            >
-                                                <FiDownload style={{ fontSize: 12 }} />
-                                                PDF
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        const y = activeDate.getFullYear();
+                                                        const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                                        const d = String(activeDate.getDate()).padStart(2, '0');
+                                                        const dateStr = `${y}-${m}-${d}`;
+                                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}`, '_blank');
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                        padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                        background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                        fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                    onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                                >
+                                                    <FiDownload style={{ fontSize: 12 }} />
+                                                    PDF Report
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const y = activeDate.getFullYear();
+                                                        const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                                        const d = String(activeDate.getDate()).padStart(2, '0');
+                                                        const dateStr = `${y}-${m}-${d}`;
+                                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}&checksheet=true`, '_blank');
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                        padding: '7px 12px', border: `1px solid ${G.border}`, borderRadius: 8,
+                                                        background: 'rgba(255,255,255,0.04)', color: '#fff', cursor: 'pointer',
+                                                        fontSize: 11.5, fontWeight: 600, transition: 'all 0.18s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.borderColor = G.purple}
+                                                    onMouseLeave={e => e.currentTarget.style.borderColor = G.border}
+                                                >
+                                                    <FiDownload style={{ fontSize: 12 }} />
+                                                    Task Sheet
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 )}
@@ -2654,9 +2712,13 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                 <TaskModal
                     task={selectedTaskModal.task}
                     order={selectedTaskModal.order}
-                    machine={machines.find(m => m.id === selectedTaskModal.task.machine_id)}
+                    machine={
+                        machines.find(m => m.id === selectedTaskModal.task.machine_id) ||
+                        finishings.find(f => f.id === selectedTaskModal.task.machine_id)
+                    }
                     onClose={handleCloseModal}
                     onSave={handleTaskModalSave}
+                    onDelete={handleTaskModalDelete}
                     onRefresh={onRefresh}
                     onViewJobTicket={setJobTicketOrderId}
                 />
@@ -2666,9 +2728,13 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             {showAddTaskModal && (
                 <AddTaskModal
                     orders={localOrders}
-                    machines={machines}
+                    machines={finishings}
+                    isFinishing={true}
                     onClose={() => setShowAddTaskModal(false)}
-                    onRefresh={onRefresh}
+                    onSuccess={() => {
+                        setShowAddTaskModal(false);
+                        if (onRefresh) onRefresh();
+                    }}
                 />
             )}
 

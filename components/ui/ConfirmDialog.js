@@ -13,7 +13,12 @@ let _setState = null;
 export function confirmDialog(message, options = {}) {
     return new Promise((resolve) => {
         _resolve = resolve;
-        if (_setState) _setState({ message, ...options });
+        if (_setState) {
+            _setState({ message, ...options });
+        } else {
+            console.warn("confirmDialog: _setState is null! Falling back to window.confirm.");
+            resolve(window.confirm(message));
+        }
     });
 }
 
@@ -35,7 +40,8 @@ export function ConfirmDialogContainer() {
 
     return (
         <div
-            className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-md flex items-center justify-center"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center"
+            style={{ zIndex: 999999 }}
             onClick={(e) => { if (e.target === e.currentTarget) handleClose(false); }}
         >
             <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-7 max-w-[420px] w-[90%] shadow-[0_24px_64px_rgba(0,0,0,0.6)] animate-[fadeUp_0.18s_ease]">
@@ -52,11 +58,10 @@ export function ConfirmDialogContainer() {
                     </button>
                     <button
                         onClick={() => handleClose(true)}
-                        className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                            state.danger
-                                ? 'bg-red-500/80 text-white hover:bg-red-500'
-                                : 'bg-white/90 text-black hover:bg-white'
-                        }`}
+                        className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${state.danger
+                            ? 'bg-red-500/80 text-white hover:bg-red-500'
+                            : 'bg-white/90 text-black hover:bg-white'
+                            }`}
                     >
                         {state.confirmLabel || 'Confirm'}
                     </button>

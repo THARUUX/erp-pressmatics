@@ -12,7 +12,7 @@ const s = StyleSheet.create({
     headerFinishing: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#374151', marginTop: 3 },
     headerSub: { fontSize: 8, color: '#6b7280', marginTop: 2 },
     headerRange: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#4b5563' },
-    
+
     statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     statCell: { flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', padding: '8 12', borderRadius: 4 },
     statLabel: { fontSize: 7, textTransform: 'uppercase', color: '#6b7280', fontFamily: 'Helvetica-Bold', marginBottom: 2 },
@@ -25,10 +25,10 @@ const s = StyleSheet.create({
     tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb', padding: '6 8', alignItems: 'center' },
     tableRowDayHeader: { flexDirection: 'row', backgroundColor: '#f9fafb', borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb', padding: '5 8' },
     tableRowDayHeaderText: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#374151' },
-    
+
     tableCell: { fontSize: 8, color: '#374151' },
     tableCellBold: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#111827' },
-    
+
     footer: { position: 'absolute', bottom: 14, left: 24, right: 24, borderTopWidth: 0.5, borderTopColor: '#e5e7eb', paddingTop: 4, textAlign: 'center', fontSize: 6.5, color: '#9ca3af' },
 });
 
@@ -41,12 +41,34 @@ const formatTime = (mins) => {
     return `${mins}m`;
 };
 
+const formatActualTime = (dateTimeStr) => {
+    if (!dateTimeStr) return '';
+    try {
+        const d = new Date(dateTimeStr);
+        if (isNaN(d.getTime())) return '';
+        let hrs = d.getHours();
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        const ampm = hrs >= 12 ? 'PM' : 'AM';
+        hrs = hrs % 12;
+        hrs = hrs ? hrs : 12;
+        return `${String(hrs).padStart(2, '0')}:${mins} ${ampm}`;
+    } catch (e) {
+        return '';
+    }
+};
+
 export default function FinishingTasksDocument({ finishing, weekRangeStr, stats, tasksByDay, reportType = 'weekly' }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
     const isDailyReport = reportType === 'daily';
-    
+    const isChecksheet = reportType === 'checksheet';
+
     // Filter out rows/days where there are no tasks
     const activeTasksByDay = tasksByDay.filter(item => item.tasks && item.tasks.length > 0);
+
+    const colJobCode = isChecksheet ? '10%' : '12%';
+    const colName = isChecksheet ? '27%' : '38%';
+    const colDetails = isChecksheet ? '27%' : '35%';
+    const colEst = isChecksheet ? '8%' : '8%';
 
     return (
         <Document title={`FinishingSchedule-${finishing.name}`} author="Pressmatics Cloud ERP">
@@ -55,10 +77,14 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                 <View style={s.headerRow}>
                     <View style={s.headerLeft}>
                         <Text style={s.headerTitle}>
-                            {isDailyReport ? 'Daily Finishing Schedule Report' : 'Weekly Finishing Schedule Report'}
+                            {isChecksheet
+                                ? 'Daily Finishing Task Sheet'
+                                : (isDailyReport ? 'Daily Finishing Schedule Report' : 'Weekly Finishing Schedule Report')}
                         </Text>
                         <Text style={s.headerFinishing}>{finishing.name}</Text>
-                        <Text style={s.headerSub}>Production Task List Wise Report</Text>
+                        <Text style={s.headerSub}>
+                            {isChecksheet ? 'Manual Shopfloor Logging Checksheet' : 'Production Task List Wise Report'}
+                        </Text>
                     </View>
                     <View style={s.headerRight}>
                         <Text style={s.headerRange}>{weekRangeStr}</Text>
@@ -67,32 +93,41 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                 </View>
 
                 {/* Stats */}
-                <View style={s.statsGrid}>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>{isDailyReport ? 'Daily Load' : 'Weekly Load'}</Text>
-                        <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
-                        <Text style={s.statSub}>{(stats.totalMinutes / 60).toFixed(1)} Hours Scheduled</Text>
+                {isChecksheet ? null : (
+                    <View style={s.statsGrid}>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>{isDailyReport || isChecksheet ? 'Daily Load' : 'Weekly Load'}</Text>
+                            <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
+                            <Text style={s.statSub}>{(stats.totalMinutes / 60).toFixed(1)} Hours Scheduled</Text>
+                        </View>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>Completed Tasks</Text>
+                            <Text style={s.statValue}>{stats.completedTasks} Done</Text>
+                            <Text style={s.statSub}>{stats.completionRate}% Completion Rate</Text>
+                        </View>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>Production State</Text>
+                            <Text style={s.statValue}>{stats.pendingTasks} Pending</Text>
+                            <Text style={s.statSub}>Requires Shopfloor Execution</Text>
+                        </View>
                     </View>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>Completed Tasks</Text>
-                        <Text style={s.statValue}>{stats.completedTasks} Done</Text>
-                        <Text style={s.statSub}>{stats.completionRate}% Completion Rate</Text>
-                    </View>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>Production State</Text>
-                        <Text style={s.statValue}>{stats.pendingTasks} Pending</Text>
-                        <Text style={s.statSub}>Requires Shopfloor Execution</Text>
-                    </View>
-                </View>
+                )}
 
                 {/* Table */}
                 <View style={s.table}>
                     <View style={s.tableHeader}>
-                        <Text style={[s.tableHeaderText, { width: '12%' }]}>Job Code</Text>
-                        <Text style={[s.tableHeaderText, { width: '38%' }]}>Job / Customer Name</Text>
-                        <Text style={[s.tableHeaderText, { width: '35%' }]}>Task Details</Text>
-                        <Text style={[s.tableHeaderText, { width: '8%', textAlign: 'right' }]}>Est. Time</Text>
-                        <Text style={[s.tableHeaderText, { width: '7%', textAlign: 'right' }]}>Status</Text>
+                        <Text style={[s.tableHeaderText, { width: colJobCode }]}>Job Code</Text>
+                        <Text style={[s.tableHeaderText, { width: colName }]}>Job / Customer Name</Text>
+                        <Text style={[s.tableHeaderText, { width: colDetails }]}>Task Details</Text>
+                        <Text style={[s.tableHeaderText, { width: colEst, textAlign: 'right' }]}>Est. Time</Text>
+                        {isChecksheet ? (
+                            <>
+                                <Text style={[s.tableHeaderText, { width: '14%', textAlign: 'center', color: '#1e3a8a', fontFamily: 'Helvetica-Bold' }]}>Start / In-Progress</Text>
+                                <Text style={[s.tableHeaderText, { width: '14%', textAlign: 'center', color: '#16a34a', fontFamily: 'Helvetica-Bold' }]}>Finish / Done</Text>
+                            </>
+                        ) : (
+                            <Text style={[s.tableHeaderText, { width: '7%', textAlign: 'right' }]}>Status</Text>
+                        )}
                     </View>
 
                     {activeTasksByDay.length === 0 ? (
@@ -119,19 +154,34 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
 
                                         return (
                                             <View key={t.id} style={s.tableRow}>
-                                                <Text style={[s.tableCellBold, { width: '12%' }]}>{t.order_code || '—'}</Text>
-                                                <Text style={[s.tableCell, { width: '38%' }]}>
+                                                <Text style={[s.tableCellBold, { width: colJobCode }]}>{t.order_code || '—'}</Text>
+                                                <Text style={[s.tableCell, { width: colName }]}>
                                                     {t.estimation_names || t.customer_name || '—'}
                                                 </Text>
-                                                <Text style={[s.tableCell, { width: '35%' }]}>
+                                                <Text style={[s.tableCell, { width: colDetails }]}>
                                                     {cleanName} {t.description ? `(${t.description})` : ''}
                                                 </Text>
-                                                <Text style={[s.tableCell, { width: '8%', textAlign: 'right' }]}>
+                                                <Text style={[s.tableCell, { width: colEst, textAlign: 'right', paddingRight: 4 }]}>
                                                     {formatTime(t.estimated_minutes)}
                                                 </Text>
-                                                <Text style={[s.tableCell, { width: '7%', textAlign: 'right', textTransform: 'capitalize' }]}>
-                                                    {t.status}
-                                                </Text>
+                                                {isChecksheet ? (
+                                                    <>
+                                                        <View style={{ width: '14%', borderLeftWidth: 0.5, borderLeftColor: '#e5e7eb', paddingLeft: 6, justifyContent: 'center', height: 16 }}>
+                                                            {/* <Text style={{ fontSize: 7, color: '#9ca3af', fontFamily: 'Helvetica' }}>
+                                                                [  :  ] AM/PM
+                                                            </Text> */}
+                                                        </View>
+                                                        <View style={{ width: '14%', borderLeftWidth: 0.5, borderLeftColor: '#e5e7eb', paddingLeft: 6, justifyContent: 'center', height: 16 }}>
+                                                            {/* <Text style={{ fontSize: 7, color: '#9ca3af', fontFamily: 'Helvetica' }}>
+                                                                [  :  ] AM/PM
+                                                            </Text> */}
+                                                        </View>
+                                                    </>
+                                                ) : (
+                                                    <Text style={[s.tableCell, { width: '7%', textAlign: 'right', textTransform: 'capitalize' }]}>
+                                                        {t.status}
+                                                    </Text>
+                                                )}
                                             </View>
                                         );
                                     })}
