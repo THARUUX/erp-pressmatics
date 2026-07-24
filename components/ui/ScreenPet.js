@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FiPrinter, FiX, FiSearch, FiLock, FiHeart, FiDownload, FiLoader, FiTerminal } from 'react-icons/fi';
+import { FiPrinter, FiX, FiSearch, FiLock, FiHeart, FiDownload, FiLoader, FiTerminal, FiSettings } from 'react-icons/fi';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -83,20 +83,20 @@ const COMMANDS = [
     { id: 'nav_planning_finishing', name: 'Go to Finishing Planning', action: (router) => router.push('/dashboard/job-planning?tab=finishing'), category: 'Navigation' },
     { id: 'nav_planning_services', name: 'Go to Services Planning', action: (router) => router.push('/dashboard/job-planning?tab=services'), category: 'Navigation' },
     { id: 'nav_planning_analytics', name: 'Go to Planning Analytics', action: (router) => router.push('/dashboard/job-planning?tab=analytics'), category: 'Navigation' },
-    
+
     { id: 'nav_inventory', name: 'Go to Stock Inventory', action: (router) => router.push('/dashboard/inventory'), category: 'Navigation' },
     { id: 'nav_finishings', name: 'Go to Stock Finishings', action: (router) => router.push('/dashboard/inventory/finishings'), category: 'Navigation' },
     { id: 'nav_machines', name: 'Go to Stock Machines', action: (router) => router.push('/dashboard/inventory/machines'), category: 'Navigation' },
     { id: 'nav_suppliers', name: 'Go to Suppliers', action: (router) => router.push('/dashboard/suppliers'), category: 'Navigation' },
-    
+
     { id: 'nav_customers', name: 'Go to Customers list', action: (router) => router.push('/dashboard/customers'), category: 'Navigation' },
     { id: 'nav_quotations', name: 'Go to Quotations list', action: (router) => router.push('/dashboard/quotations'), category: 'Navigation' },
     { id: 'nav_orders', name: 'Go to Sales Orders list', action: (router) => router.push('/dashboard/sales-orders'), category: 'Navigation' },
     { id: 'nav_invoices', name: 'Go to Invoices list', action: (router) => router.push('/dashboard/invoices'), category: 'Navigation' },
-    
+
     { id: 'nav_payroll', name: 'Go to Payroll dashboard', action: (router) => router.push('/dashboard/payroll'), category: 'Navigation' },
     { id: 'nav_settings', name: 'Go to Settings', action: (router) => router.push('/dashboard/settings'), category: 'Navigation' },
-    
+
     // Actions
     { id: 'action_tour', name: 'Start Tour on current page', action: (router, startTour) => startTour(), category: 'Actions' },
     { id: 'action_wake', name: 'Wake up / Reset Pet position', action: (router, startTour, wakePet) => wakePet(), category: 'Actions' }
@@ -124,6 +124,22 @@ export default function ScreenPet() {
     const loadTimeInterval = useRef(null);
     const themeColorRef = useRef(themeColor);
 
+    // Customization states
+    const [petName, setPetName] = useState('Pressy');
+    const [petSize, setPetSize] = useState('medium'); // small, medium, large
+    const [petThemeLocked, setPetThemeLocked] = useState(false);
+    const [walkingEnabled, setWalkingEnabled] = useState(true);
+    const [idleEmotionsEnabled, setIdleEmotionsEnabled] = useState(true);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+    // Form temporary states for the settings modal
+    const [tempPetName, setTempPetName] = useState('Pressy');
+    const [tempPetSize, setTempPetSize] = useState('medium');
+    const [tempPetTheme, setTempPetTheme] = useState('green');
+    const [tempThemeLocked, setTempThemeLocked] = useState(false);
+    const [tempWalkingEnabled, setTempWalkingEnabled] = useState(true);
+    const [tempIdleEmotionsEnabled, setTempIdleEmotionsEnabled] = useState(true);
+
     useEffect(() => {
         themeColorRef.current = themeColor;
     }, [themeColor]);
@@ -143,6 +159,7 @@ export default function ScreenPet() {
 
     // Fetch current logged in user to customize interactive dialogue
     useEffect(() => {
+        const customPetName = localStorage.getItem('erp_pet_name') || 'Pressy';
         fetch('/api/auth/me')
             .then(r => r.ok ? r.json() : null)
             .then(data => {
@@ -151,18 +168,18 @@ export default function ScreenPet() {
                     const first = data.name.split(' ')[0];
                     setUserName(first);
                     if (!isPetHidden) {
-                        triggerSpeech(`Hello ${first}! I'm your ERP assistant. Drag me anywhere!`, 5000);
+                        triggerSpeech(`Hello ${first}! I'm ${customPetName}, your ERP assistant. Drag me anywhere!`, 5000);
                     }
                 } else {
                     if (!isPetHidden) {
-                        triggerSpeech("Hello! I'm your ERP assistant. Drag me anywhere!", 5000);
+                        triggerSpeech(`Hello! I'm ${customPetName}, your ERP assistant. Drag me anywhere!`, 5000);
                     }
                 }
             })
             .catch(() => {
                 const isPetHidden = localStorage.getItem('erp_pet_hidden') === 'true';
                 if (!isPetHidden) {
-                    triggerSpeech("Hello! I'm your ERP assistant. Drag me anywhere!", 5000);
+                    triggerSpeech(`Hello! I'm ${customPetName}, your ERP assistant. Drag me anywhere!`, 5000);
                 }
             });
     }, []);
@@ -253,9 +270,10 @@ export default function ScreenPet() {
 
     // Random color theme switcher
     useEffect(() => {
-        if (hidden) return;
+        if (hidden || petThemeLocked) return;
 
         const interval = setInterval(() => {
+            if (petThemeLocked) return;
             // 35% chance to change theme color
             if (Math.random() < 0.35) {
                 const currentThemeName = themeColorRef.current?.name || 'green';
@@ -308,7 +326,7 @@ export default function ScreenPet() {
         }, 30000); // Check every 30 seconds
 
         return () => clearInterval(interval);
-    }, [hidden, userName]);
+    }, [hidden, userName, petThemeLocked]);
 
     // Observer to detect when modals or dialogs open
     useEffect(() => {
@@ -378,7 +396,7 @@ export default function ScreenPet() {
         };
     }, [hidden, userName]);
 
-    // Initialize pet position and visibility
+    // Initialize pet position, visibility, and settings
     useEffect(() => {
         const isPetHidden = localStorage.getItem('erp_pet_hidden') === 'true';
         setHidden(isPetHidden);
@@ -392,6 +410,37 @@ export default function ScreenPet() {
             position.current = { x: 85, y: 80 };
         }
         updateElementPosition();
+
+        // Load custom settings
+        const savedName = localStorage.getItem('erp_pet_name');
+        if (savedName) {
+            setPetName(savedName);
+            setTempPetName(savedName);
+        }
+        const savedSize = localStorage.getItem('erp_pet_size');
+        if (savedSize) {
+            setPetSize(savedSize);
+            setTempPetSize(savedSize);
+        }
+        const savedThemeName = localStorage.getItem('erp_pet_theme');
+        if (savedThemeName) {
+            const foundTheme = AVAILABLE_THEMES.find(t => t.name === savedThemeName);
+            if (foundTheme) {
+                setThemeColor(foundTheme);
+                setTempPetTheme(savedThemeName);
+            }
+        }
+        const savedThemeLocked = localStorage.getItem('erp_pet_theme_locked') === 'true';
+        setPetThemeLocked(savedThemeLocked);
+        setTempThemeLocked(savedThemeLocked);
+
+        const savedWalkingEnabled = localStorage.getItem('erp_pet_walking_enabled') !== 'false';
+        setWalkingEnabled(savedWalkingEnabled);
+        setTempWalkingEnabled(savedWalkingEnabled);
+
+        const savedIdleEmotionsEnabled = localStorage.getItem('erp_pet_idle_emotions_enabled') !== 'false';
+        setIdleEmotionsEnabled(savedIdleEmotionsEnabled);
+        setTempIdleEmotionsEnabled(savedIdleEmotionsEnabled);
     }, []);
 
     // Poll for alerts every 90 seconds
@@ -425,7 +474,7 @@ export default function ScreenPet() {
 
             // Pick a random alert
             const alert = alerts[Math.floor(Math.random() * alerts.length)];
-            
+
             // Set surprise emotion briefly
             setEmotion('gasp');
             setTimeout(() => {
@@ -568,7 +617,7 @@ export default function ScreenPet() {
 
     // Set up random emotion cycles when idle
     useEffect(() => {
-        if (hidden || state !== 'idle') {
+        if (hidden || !idleEmotionsEnabled || state !== 'idle') {
             setEmotion('normal');
             clearInterval(emotionTimer.current);
             return;
@@ -587,17 +636,17 @@ export default function ScreenPet() {
 
         emotionTimer.current = setInterval(cycleEmotion, 8000 + Math.random() * 5000);
         return () => clearInterval(emotionTimer.current);
-    }, [hidden, state]);
+    }, [hidden, state, idleEmotionsEnabled]);
 
     // Set up autonomous walking behavior
     useEffect(() => {
-        if (hidden || state === 'sleep' || state === 'password' || state === 'searching' || state === 'copied' || state === 'downloading' || state === 'dragged') {
+        if (hidden || !walkingEnabled || state === 'sleep' || state === 'password' || state === 'searching' || state === 'copied' || state === 'downloading' || state === 'dragged') {
             clearInterval(walkTimer.current);
             return;
         }
 
         const triggerRandomWalk = () => {
-            if (isDragging.current || state === 'sleep') return;
+            if (isDragging.current || state === 'sleep' || !walkingEnabled) return;
 
             // Generate new random viewport percentages (avoiding extreme edges)
             const targetX = 5 + Math.random() * 80; // 5% to 85%
@@ -643,7 +692,7 @@ export default function ScreenPet() {
         walkTimer.current = setInterval(triggerRandomWalk, interval);
 
         return () => clearInterval(walkTimer.current);
-    }, [hidden, state]);
+    }, [hidden, state, walkingEnabled]);
 
     // Floating Zzzs particle generator during sleep state
     useEffect(() => {
@@ -719,8 +768,7 @@ export default function ScreenPet() {
         let newTopPx = dragOffset.current.y + deltaY;
 
         // Keep inside screen boundaries
-        const petWidth = 96;
-        const petHeight = 76;
+        const { petWidth, petHeight } = getPetDimensions();
         newLeftPx = Math.max(10, Math.min(window.innerWidth - petWidth - 10, newLeftPx));
         newTopPx = Math.max(10, Math.min(window.innerHeight - petHeight - 10, newTopPx));
 
@@ -825,10 +873,10 @@ export default function ScreenPet() {
         setShowCommandBar(false);
         setCommandSearch('');
         setSelectedCommandIndex(0);
-        
+
         // Execute command action
         cmd.action(router, startTour, handleRestore);
-        
+
         // Make pet wink/react happily
         setEmotion('wink');
         triggerSpeech(`Opening ${cmd.name}...`, 3000);
@@ -848,7 +896,7 @@ export default function ScreenPet() {
         const steps = getTourSteps();
         setIsTourActive(true);
         setTourStep(0);
-        
+
         // Move to first step
         const first = steps[0];
         if (petRef.current) {
@@ -856,7 +904,7 @@ export default function ScreenPet() {
         }
         position.current = { x: first.x, y: first.y };
         updateElementPosition();
-        
+
         // Trigger speech bubble
         triggerSpeech(first.msg, 0, false, true);
     };
@@ -864,20 +912,20 @@ export default function ScreenPet() {
     const handleNextTourStep = () => {
         const steps = getTourSteps();
         const nextIdx = tourStep + 1;
-        
+
         if (nextIdx >= steps.length) {
             // End tour
             setIsTourActive(false);
             setTourStep(0);
             setShowSpeechBubble(false);
-            
+
             // Move back to default position
             if (petRef.current) {
                 petRef.current.style.transition = 'left 2s cubic-bezier(0.25, 1, 0.5, 1), top 2s cubic-bezier(0.25, 1, 0.5, 1)';
             }
             position.current = { x: 85, y: 80 };
             updateElementPosition();
-            
+
             setEmotion('happy');
             triggerSpeech("Tour complete! I'm here if you need anything else.", 4000);
             setTimeout(() => {
@@ -886,21 +934,21 @@ export default function ScreenPet() {
         } else {
             setTourStep(nextIdx);
             const nextStep = steps[nextIdx];
-            
+
             // Move to next step coordinates
             if (petRef.current) {
                 petRef.current.style.transition = 'left 2.5s cubic-bezier(0.25, 1, 0.5, 1), top 2.5s cubic-bezier(0.25, 1, 0.5, 1)';
             }
             position.current = { x: nextStep.x, y: nextStep.y };
             updateElementPosition();
-            
+
             // Show message
             triggerSpeech(nextStep.msg, 0, false, true);
         }
     };
 
     // Filter commands dynamically
-    const filteredCommands = COMMANDS.filter(cmd => 
+    const filteredCommands = COMMANDS.filter(cmd =>
         cmd.name.toLowerCase().includes(commandSearch.toLowerCase()) ||
         cmd.category.toLowerCase().includes(commandSearch.toLowerCase())
     );
@@ -920,7 +968,7 @@ export default function ScreenPet() {
     // Command Bar key navigation listener
     useEffect(() => {
         if (!showCommandBar) return;
-        
+
         const handleKeys = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -963,6 +1011,19 @@ export default function ScreenPet() {
             return `rgba(${r}, ${g}, ${b}, 0.667)`;
         }
         return themeColor.shadow;
+    };
+
+    // Get pet dimensions based on size state
+    const getPetDimensions = () => {
+        switch (petSize) {
+            case 'small':
+                return { width: '80px', height: '64px', petWidth: 80, petHeight: 64 };
+            case 'large':
+                return { width: '120px', height: '95px', petWidth: 120, petHeight: 95 };
+            case 'medium':
+            default:
+                return { width: '96px', height: '76px', petWidth: 96, petHeight: 76 };
+        }
     };
 
     // Render eye visual states
@@ -1161,11 +1222,10 @@ export default function ScreenPet() {
                     <div className="mt-2 pt-2 border-t border-white/10 flex justify-center">
                         <Link
                             href={activeAlert.link}
-                            className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-white/5 cursor-pointer transition-all hover:bg-white/10 hover:text-white ${
-                                activeAlert.severity === 'critical'
-                                    ? 'border-rose-500/30 text-rose-400 hover:border-rose-400'
-                                    : 'border-amber-500/30 text-amber-400 hover:border-amber-400'
-                            }`}
+                            className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-white/5 cursor-pointer transition-all hover:bg-white/10 hover:text-white ${activeAlert.severity === 'critical'
+                                ? 'border-rose-500/30 text-rose-400 hover:border-rose-400'
+                                : 'border-amber-500/30 text-amber-400 hover:border-amber-400'
+                                }`}
                             onClick={() => {
                                 setShowSpeechBubble(false);
                                 setActiveAlert(null);
@@ -1247,6 +1307,8 @@ export default function ScreenPet() {
         );
     }
 
+    const dimensions = getPetDimensions();
+
     return (
         <>
             <style dangerouslySetInnerHTML={{
@@ -1296,8 +1358,8 @@ export default function ScreenPet() {
                 onClick={handlePetClick}
                 className="fixed z-[99999] select-none cursor-grab active:cursor-grabbing group/pet"
                 style={{
-                    width: '96px',
-                    height: '76px',
+                    width: dimensions.width,
+                    height: dimensions.height,
                     animation: state === 'sleep'
                         ? 'pet-breathe 3.5s ease-in-out infinite'
                         : state === 'walking'
@@ -1336,36 +1398,15 @@ export default function ScreenPet() {
                 >
                     {/* Gloss top overlay */}
                     <div className="absolute top-0 left-0 w-full h-[45%] bg-gradient-to-b from-white/15 via-white/5 to-transparent pointer-events-none rounded-t-[20px] z-10"></div>
-                    {/* Hover controls */}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleClose();
-                        }}
-                        className="close-btn absolute -top-1.5 -right-1.5 bg-neutral-950 hover:bg-neutral-900 border border-white/10 hover:border-white/20 p-0.5 rounded-full text-white/50 hover:text-white opacity-0 group-hover/pet:opacity-100 transition-opacity duration-200 cursor-pointer shadow-lg z-10"
-                        title="Hide Assistant"
-                    >
-                        <FiX className="w-3 h-3" />
-                    </button>
 
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowCommandBar(true);
-                        }}
-                        className="absolute -top-1.5 -left-1.5 bg-neutral-950 hover:bg-neutral-900 border border-white/10 hover:border-white/20 p-0.5 rounded-full text-white/50 hover:text-white opacity-0 group-hover/pet:opacity-100 transition-opacity duration-200 cursor-pointer shadow-lg z-10"
-                        title="Search / Commands (Ctrl+K)"
-                    >
-                        <FiSearch className="w-3 h-3" />
-                    </button>
 
                     {/* Robot Eyes Row */}
-                    <div className="flex items-center justify-center h-6 pointer-events-none">
+                    <div className="flex items-center justify-center h-6 pointer-events-none transition-transform duration-300" style={{ transform: petSize === 'small' ? 'scale(0.85)' : petSize === 'large' ? 'scale(1.2)' : 'none' }}>
                         {renderEyes()}
                     </div>
 
                     {/* Robot Mouth */}
-                    <div className="flex items-center justify-center h-5 pointer-events-none">
+                    <div className="flex items-center justify-center h-5 pointer-events-none transition-transform duration-300" style={{ transform: petSize === 'small' ? 'scale(0.85)' : petSize === 'large' ? 'scale(1.2)' : 'none' }}>
                         {renderMouth()}
                     </div>
 
@@ -1376,29 +1417,72 @@ export default function ScreenPet() {
                         <span className="w-1 h-0.5 bg-neutral-800 rounded-full"></span>
                     </div> */}
                 </div>
+
+                {/* Floating controls outside the pet body, centered below */}
+                <div
+                    className="absolute -bottom-9 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#0a0a0a]/95 border border-white/15 px-2.5 py-1 rounded-full shadow-2xl z-[100000] opacity-0 pointer-events-none group-hover/pet:opacity-100 group-hover/pet:pointer-events-auto transition-opacity duration-300"
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCommandBar(true);
+                        }}
+                        className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                        title="Search / Commands (Ctrl+K)"
+                    >
+                        <FiSearch className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setTempPetName(petName);
+                            setTempPetSize(petSize);
+                            setTempPetTheme(themeColor.name);
+                            setTempThemeLocked(petThemeLocked);
+                            setTempWalkingEnabled(walkingEnabled);
+                            setTempIdleEmotionsEnabled(idleEmotionsEnabled);
+                            setShowSettingsModal(true);
+                        }}
+                        className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                        title="Customize Pet"
+                    >
+                        <FiSettings className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleClose();
+                        }}
+                        className="p-1 text-white/50 hover:text-red-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                        title="Hide Assistant"
+                    >
+                        <FiX className="w-3.5 h-3.5" />
+                    </button>
+                </div>
             </div>
 
             {/* Command Bar Modal */}
             {showCommandBar && (
-                <div 
+                <div
                     className="fixed inset-0 z-[999999] flex items-start justify-center pt-28 px-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setShowCommandBar(false)}
                 >
-                    <div 
+                    <div
                         className="w-full max-w-lg bg-neutral-950/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[420px] animate-in zoom-in-95 duration-200"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Search input header */}
                         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 bg-white/5">
                             <FiTerminal className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <input 
+                            <input
                                 type="text"
                                 autoFocus
                                 placeholder="Type a command or page name..."
                                 value={commandSearch}
                                 onChange={(e) => {
-                                     setCommandSearch(e.target.value);
-                                     setSelectedCommandIndex(0);
+                                    setCommandSearch(e.target.value);
+                                    setSelectedCommandIndex(0);
                                 }}
                                 className="flex-1 bg-transparent text-white placeholder-white/30 text-sm font-medium border-0 outline-none p-0 focus:ring-0"
                             />
@@ -1421,21 +1505,19 @@ export default function ScreenPet() {
                                             key={cmd.id}
                                             onClick={() => handleRunCommand(cmd)}
                                             onMouseEnter={() => setSelectedCommandIndex(idx)}
-                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left ${
-                                                isSelected 
-                                                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-white pl-4' 
-                                                    : 'bg-transparent border border-transparent text-white/60 hover:text-white hover:bg-white/5'
-                                            }`}
+                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left ${isSelected
+                                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-white pl-4'
+                                                : 'bg-transparent border border-transparent text-white/60 hover:text-white hover:bg-white/5'
+                                                }`}
                                         >
                                             <div className="flex items-center gap-3">
                                                 <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-transparent'}`} />
                                                 <span className="text-xs font-bold tracking-tight">{cmd.name}</span>
                                             </div>
-                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                                isSelected 
-                                                    ? 'bg-emerald-500/20 text-emerald-400' 
-                                                     : 'bg-white/5 text-white/40'
-                                            }`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${isSelected
+                                                ? 'bg-emerald-500/20 text-emerald-400'
+                                                : 'bg-white/5 text-white/40'
+                                                }`}>
                                                 {cmd.category}
                                             </span>
                                         </button>
@@ -1451,6 +1533,190 @@ export default function ScreenPet() {
                                 <span>↵ Select</span>
                             </div>
                             <span>Command Mode</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Customize Pet Modal */}
+            {showSettingsModal && (
+                <div
+                    className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setShowSettingsModal(false)}
+                >
+                    <div
+                        className="w-full max-w-sm bg-neutral-950/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/5">
+                            <div className="flex items-center gap-2">
+                                <FiSettings className="w-4 h-4 text-emerald-400" />
+                                <h3 className="text-sm font-bold text-white tracking-wide">Customize Assistant Pet</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowSettingsModal(false)}
+                                className="text-white/40 hover:text-white transition-colors"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-5 space-y-4 text-xs font-semibold text-white/70 overflow-y-auto max-h-[400px]">
+                            {/* Pet Name */}
+                            <div className="space-y-1.5">
+                                <label className="text-neutral-400">Pet Name</label>
+                                <input
+                                    type="text"
+                                    value={tempPetName}
+                                    onChange={(e) => setTempPetName(e.target.value)}
+                                    placeholder="Enter pet name..."
+                                    className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-emerald-500/50 transition-colors"
+                                />
+                            </div>
+
+                            {/* Pet Size */}
+                            <div className="space-y-1.5">
+                                <label className="text-neutral-400">Pet Size</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['small', 'medium', 'large'].map((size) => (
+                                        <button
+                                            key={size}
+                                            type="button"
+                                            onClick={() => setTempPetSize(size)}
+                                            className={`py-2 px-3 rounded-xl border capitalize transition-all ${tempPetSize === size
+                                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-bold'
+                                                : 'bg-neutral-900 border-white/10 text-white/60 hover:border-white/20'
+                                                }`}
+                                        >
+                                            {size}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Theme Color */}
+                            <div className="space-y-1.5">
+                                <label className="text-neutral-400">Theme Color</label>
+                                <div className="flex items-center gap-3 py-1">
+                                    {AVAILABLE_THEMES.map((theme) => (
+                                        <button
+                                            key={theme.name}
+                                            type="button"
+                                            onClick={() => {
+                                                setTempPetTheme(theme.name);
+                                            }}
+                                            style={{ backgroundColor: theme.primary }}
+                                            className={`w-7 h-7 rounded-full transition-transform hover:scale-110 relative ${tempPetTheme === theme.name
+                                                ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-950 scale-110'
+                                                : ''
+                                                }`}
+                                            title={theme.name}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Behavior switches */}
+                            <div className="space-y-3 pt-2">
+                                {/* Lock Theme Color */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTempThemeLocked(!tempThemeLocked)}
+                                    className="w-full flex items-center justify-between cursor-pointer group py-1 text-left"
+                                >
+                                    <span className="text-neutral-400 group-hover:text-white transition-colors">Lock Theme Color</span>
+                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${tempThemeLocked ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-neutral-800 border border-transparent'}`}>
+                                        <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all ${tempThemeLocked ? 'left-[18px] bg-emerald-400' : 'left-[2px] bg-neutral-400'}`} />
+                                    </div>
+                                </button>
+
+                                {/* Enable Autonomous Walking */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTempWalkingEnabled(!tempWalkingEnabled)}
+                                    className="w-full flex items-center justify-between cursor-pointer group py-1 text-left"
+                                >
+                                    <span className="text-neutral-400 group-hover:text-white transition-colors">Autonomous Walking</span>
+                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${tempWalkingEnabled ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-neutral-800 border border-transparent'}`}>
+                                        <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all ${tempWalkingEnabled ? 'left-[18px] bg-emerald-400' : 'left-[2px] bg-neutral-400'}`} />
+                                    </div>
+                                </button>
+
+                                {/* Enable Idle Emotions */}
+                                <button
+                                    type="button"
+                                    onClick={() => setTempIdleEmotionsEnabled(!tempIdleEmotionsEnabled)}
+                                    className="w-full flex items-center justify-between cursor-pointer group py-1 text-left"
+                                >
+                                    <span className="text-neutral-400 group-hover:text-white transition-colors">Idle Emotions</span>
+                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${tempIdleEmotionsEnabled ? 'bg-emerald-500/20 border border-emerald-500/30' : 'bg-neutral-800 border border-transparent'}`}>
+                                        <div className={`absolute top-[2px] w-2.5 h-2.5 rounded-full transition-all ${tempIdleEmotionsEnabled ? 'left-[18px] bg-emerald-400' : 'left-[2px] bg-neutral-400'}`} />
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center gap-2 px-5 py-4 border-t border-white/10 bg-white/5 justify-between">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Reset to defaults
+                                    setTempPetName('Pressy');
+                                    setTempPetSize('medium');
+                                    setTempPetTheme('green');
+                                    setTempThemeLocked(false);
+                                    setTempWalkingEnabled(true);
+                                    setTempIdleEmotionsEnabled(true);
+                                }}
+                                className="px-3 py-2 text-white/50 hover:text-white text-sm hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 transition-all font-bold"
+                            >
+                                Reset Defaults
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSettingsModal(false)}
+                                    className="px-3 py-2 text-white/70 hover:text-white text-sm transition-colors font-bold"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        // Save to state
+                                        setPetName(tempPetName);
+                                        setPetSize(tempPetSize);
+                                        setPetThemeLocked(tempThemeLocked);
+                                        setWalkingEnabled(tempWalkingEnabled);
+                                        setIdleEmotionsEnabled(tempIdleEmotionsEnabled);
+
+                                        const chosenTheme = AVAILABLE_THEMES.find(t => t.name === tempPetTheme) || AVAILABLE_THEMES[0];
+                                        setThemeColor(chosenTheme);
+
+                                        // Save to localStorage
+                                        localStorage.setItem('erp_pet_name', tempPetName);
+                                        localStorage.setItem('erp_pet_size', tempPetSize);
+                                        localStorage.setItem('erp_pet_theme', tempPetTheme);
+                                        localStorage.setItem('erp_pet_theme_locked', tempThemeLocked.toString());
+                                        localStorage.setItem('erp_pet_walking_enabled', tempWalkingEnabled.toString());
+                                        localStorage.setItem('erp_pet_idle_emotions_enabled', tempIdleEmotionsEnabled.toString());
+
+                                        // Close and show happy emotion & toast greeting
+                                        setShowSettingsModal(false);
+                                        setEmotion('happy');
+                                        triggerSpeech(`Settings saved! Call me ${tempPetName}!`, 3000);
+                                        setTimeout(() => {
+                                            setEmotion('normal');
+                                        }, 3000);
+                                    }}
+                                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-extrabold rounded-xl transition-colors shadow-lg shadow-emerald-500/20"
+                                >
+                                    Save Changes
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

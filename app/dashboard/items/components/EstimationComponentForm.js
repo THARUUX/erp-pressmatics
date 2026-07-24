@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FiTrash2, FiCopy } from 'react-icons/fi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { FiTrash2, FiCopy, FiSettings, FiPlus, FiX } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { RiPrinterFill, RiSideBarLine, RiLayoutGridLine, RiPagesLine, RiSpeedUpLine } from 'react-icons/ri'; // Feel free to map your preferred icon library
@@ -188,6 +188,140 @@ export default function EstimationComponentForm({
     const [selectedVariantId, setSelectedVariantId] = useState('');
     const [showDimensions, setShowDimensions] = useState(false);
     const [showAdvancedOffset, setShowAdvancedOffset] = useState(false);
+    const [shortcutToast, setShortcutToast] = useState(null); // { msg, key } for brief feedback
+    const sectionRef = useRef(null);
+
+    const [shortcuts, setShortcuts] = useState([
+        { key: 'c', target: 'cutting' },
+        { key: 'f', target: 'folding' }
+    ]);
+    const [showShortcutModal, setShowShortcutModal] = useState(false);
+    const [tempShortcuts, setTempShortcuts] = useState([]);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('estimation_shortcuts');
+        if (saved) {
+            try {
+                setShortcuts(JSON.parse(saved));
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleUpdate = (e) => {
+            if (e.detail) {
+                setShortcuts(e.detail);
+            }
+        };
+        window.addEventListener('estimation_shortcuts_updated', handleUpdate);
+        return () => window.removeEventListener('estimation_shortcuts_updated', handleUpdate);
+    }, []);
+
+    useEffect(() => {
+        if (showShortcutModal) {
+            setTempShortcuts([...shortcuts]);
+        }
+    }, [showShortcutModal, shortcuts]);
+
+    const handleTempShortcutKeyChange = (idx, value) => {
+        const updated = [...tempShortcuts];
+        updated[idx].key = value.slice(-1).toLowerCase();
+        setTempShortcuts(updated);
+    };
+
+    const handleTempShortcutTargetChange = (idx, value) => {
+        const updated = [...tempShortcuts];
+        updated[idx].target = value;
+        setTempShortcuts(updated);
+    };
+
+    const handleRemoveTempShortcut = (idx) => {
+        setTempShortcuts(tempShortcuts.filter((_, i) => i !== idx));
+    };
+
+    const handleAddTempShortcut = () => {
+        setTempShortcuts([...tempShortcuts, { key: '', target: '' }]);
+    };
+
+    const handleResetDefaults = () => {
+        setTempShortcuts([
+            { key: 'c', target: 'cutting' },
+            { key: 'f', target: 'folding' }
+        ]);
+    };
+
+    const handleSaveShortcuts = () => {
+        const valid = tempShortcuts.filter(s => s.key.trim() !== '' && s.target.trim() !== '');
+        const keys = valid.map(s => s.key.toLowerCase());
+        const uniqueKeys = new Set(keys);
+        if (keys.length !== uniqueKeys.size) {
+            alert("Duplicate shortcut keys detected. Please assign unique keys.");
+            return;
+        }
+        setShortcuts(valid);
+        localStorage.setItem('estimation_shortcuts', JSON.stringify(valid));
+        window.dispatchEvent(new CustomEvent('estimation_shortcuts_updated', { detail: valid }));
+        setShowShortcutModal(false);
+    };
+
+    // Quick-add a finishing by keyword match (used by keyboard shortcuts and quick buttons)
+    const quickAddFinishing = useCallback((keyword) => {
+        if (!availableFinishings || availableFinishings.length === 0) return;
+        let match = availableFinishings.find(f =>
+            f.name.toLowerCase() === keyword.toLowerCase()
+        );
+        if (!match) {
+            match = availableFinishings.find(f =>
+                f.name.toLowerCase().includes(keyword.toLowerCase())
+            );
+        }
+        if (!match) return;
+        // Prevent duplicate
+        const alreadyAdded = (selectedFinishings || []).some(f =>
+            f.name.toLowerCase() === match.name.toLowerCase()
+        );
+        if (alreadyAdded) {
+            setShortcutToast({ msg: `${match.name} already added`, key: keyword });
+            setTimeout(() => setShortcutToast(null), 2000);
+            return;
+        }
+        onAddFinishing(index, {
+            id: Date.now(),
+            name: match.name,
+            unit_cost: parseFloat(match.unit_cost) || 0,
+            time_per_unit: 0,
+            is_machine: match.is_machine === 1,
+            machine_id: match.machine_id,
+            cost_unit: match.cost_unit || 'Unit',
+            variants: match.variants || [],
+            speed: match.speed,
+            speed_unit: match.speed_unit,
+            forms: 1
+        });
+        setShortcutToast({ msg: `+ ${match.name}`, key: keyword });
+        setTimeout(() => setShortcutToast(null), 2000);
+    }, [availableFinishings, selectedFinishings, index, onAddFinishing]);
+
+    // Keyboard shortcuts — only fire when this component section is not blocked by an input
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Skip if user is typing in any input / textarea / select
+            const tag = document.activeElement?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+            if (e.altKey && !e.ctrlKey && !e.metaKey) {
+                const match = shortcuts.find(s => s.key.toLowerCase() === e.key.toLowerCase());
+                if (match) {
+                    e.preventDefault();
+                    quickAddFinishing(match.target);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [quickAddFinishing, shortcuts]);
 
     // Local isBB state — gives immediate visual feedback independent of parent re-render cycle
     const [isBB, setIsBB] = useState(!!params.isBB);
@@ -1022,8 +1156,49 @@ export default function EstimationComponentForm({
                                 </>
                             )}
 
-                            <div>
-                                <h3 className={`text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4 ${data.name?.toLowerCase().includes('finishing') ? 'hidden' : ''}`}>Finishings</h3>
+                            <div ref={sectionRef}>
+                                {/* Finishings heading + quick-add shortcut buttons */}
+                                <div className={`flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 mb-3 ${data.name?.toLowerCase().includes('finishing') ? 'hidden' : ''}`}>
+                                    <h3 className="text-md font-semibold text-gray-300 mr-auto flex items-center gap-2">
+                                        Finishings
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowShortcutModal(true)}
+                                            className="p-1 text-gray-500 hover:text-white transition-colors"
+                                            title="Customize Keyboard Shortcuts"
+                                        >
+                                            <FiSettings className="text-sm" />
+                                        </button>
+                                    </h3>
+
+                                    {/* Shortcut toast feedback */}
+                                    {shortcutToast && (
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md animate-in fade-in duration-150">
+                                            {shortcutToast.msg}
+                                        </span>
+                                    )}
+
+                                    {/* Quick-add buttons with keyboard shortcut badges */}
+                                    {shortcuts.map((s, sIdx) => {
+                                        const match = availableFinishings.find(f =>
+                                            f.name.toLowerCase() === s.target.toLowerCase() ||
+                                            f.name.toLowerCase().includes(s.target.toLowerCase())
+                                        );
+                                        const displayName = match ? match.name : s.target;
+                                        return (
+                                            <button
+                                                key={sIdx}
+                                                type="button"
+                                                onClick={() => quickAddFinishing(s.target)}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-neutral-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 transition-all group"
+                                                title={`Quick-add ${displayName} (Alt+${s.key.toUpperCase()})`}
+                                            >
+                                                <span className="capitalize">{displayName}</span>
+                                                <kbd className="text-[9px] px-1 py-0.5 bg-black/40 border border-white/15 rounded font-mono text-neutral-500 group-hover:text-neutral-300 transition-colors">Alt+{s.key.toUpperCase()}</kbd>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                                 <div className="bg-white/5 p-4 rounded-lg mb-4 border border-white/10">
                                     <div className="grid md:grid-cols-12  gap-3 mb-3">
                                         <div className="md:col-span-8 relative">
@@ -1402,6 +1577,116 @@ export default function EstimationComponentForm({
                     )}
                 </div>
             </div>
+
+            {showShortcutModal && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center"
+                    style={{ zIndex: 999999 }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowShortcutModal(false); }}
+                >
+                    <div className="bg-[#0f0f0f]/95 border border-white/10 rounded-2xl p-7 max-w-[500px] w-[95%] shadow-[0_24px_64px_rgba(0,0,0,0.6)] animate-[fadeUp_0.18s_ease]">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Customize Shortcuts</h3>
+                                <p className="text-xs text-gray-400 mt-1">Configure Alt + [Key] combinations to quick-add finishings</p>
+                            </div>
+                            <button
+                                onClick={() => setShowShortcutModal(false)}
+                                className="text-gray-400 hover:text-white transition-colors"
+                            >
+                                <FiX className="text-xl" />
+                            </button>
+                        </div>
+
+                        {/* List of shortcuts */}
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 mb-6">
+                            {tempShortcuts.map((s, idx) => (
+                                <div key={idx} className="flex items-center gap-3 bg-white/5 border border-white/10 p-3 rounded-lg">
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <span className="text-xs text-gray-400 font-mono">Alt +</span>
+                                        <input
+                                            type="text"
+                                            maxLength={1}
+                                            value={s.key}
+                                            onChange={(e) => handleTempShortcutKeyChange(idx, e.target.value)}
+                                            className="w-10 bg-secondary border border-white/10 rounded px-2 py-1 text-center font-mono font-bold text-white text-sm focus:outline-none focus:border-white/30"
+                                            placeholder="Key"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <select
+                                            value={s.target}
+                                            onChange={(e) => handleTempShortcutTargetChange(idx, e.target.value)}
+                                            className="w-full bg-secondary border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-white/30"
+                                        >
+                                            <option value="">Select finishing...</option>
+                                            {availableFinishings.map(f => (
+                                                <option key={f.id} value={f.name}>{f.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveTempShortcut(idx)}
+                                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2 rounded transition-all shrink-0"
+                                        title="Remove Shortcut"
+                                    >
+                                        <FiTrash2 className="text-base" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            {tempShortcuts.length === 0 && (
+                                <div className="text-center py-6 text-gray-500 italic text-sm border border-dashed border-white/10 rounded-lg">
+                                    No shortcuts configured. Click below to add one.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex justify-between items-center">
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleAddTempShortcut}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-white transition-all"
+                                >
+                                    <FiPlus className="text-sm" /> Add New
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleResetDefaults}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-colors"
+                                >
+                                    Reset Defaults
+                                </button>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowShortcutModal(false)}
+                                    className="px-4 py-1.5 rounded-lg bg-white/[0.06] border border-white/10 text-[#aaa] text-xs transition-colors hover:bg-white/10"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSaveShortcuts}
+                                    className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-white text-black hover:bg-neutral-200 transition-colors"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <style>{`
+                        @keyframes fadeUp {
+                            from { opacity: 0; transform: translateY(12px) scale(0.97); }
+                            to   { opacity: 1; transform: translateY(0) scale(1); }
+                        }
+                    `}</style>
+                </div>
+            )}
         </section>
     );
 }
