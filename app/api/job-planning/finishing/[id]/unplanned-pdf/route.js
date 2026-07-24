@@ -24,9 +24,9 @@ function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpre
 
 const matchesFinishing = (taskName, finName) => {
     if (!taskName || !finName) return false;
-    const nameLower = taskName.toLowerCase();
-    const finLower = finName.toLowerCase();
-    return nameLower.includes(finLower) || finLower.includes(nameLower);
+    const tNorm = taskName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    const fNorm = finName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
 };
 
 export async function GET(req, { params }) {

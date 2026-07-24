@@ -1401,7 +1401,9 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
 
     const matchesFinishing = (taskName, finishingName) => {
         if (!taskName || !finishingName) return false;
-        return taskName.toLowerCase().startsWith(finishingName.toLowerCase());
+        const tNorm = taskName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+        const fNorm = finishingName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+        return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
     };
 
     // Sync prop changes

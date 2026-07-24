@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import {
     FiCalendar, FiChevronLeft, FiChevronRight, FiSearch,
-    FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiLayers, FiX
+    FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiLayers, FiX, FiGrid,
+    FiRotateCcw, FiRotateCw
 } from 'react-icons/fi';
 
 // Date utility to convert UTC/date objects to YYYY-MM-DD local format
@@ -34,25 +34,44 @@ function getMonday(d) {
 // Utility to match a task name to a finishing operation name
 function matchesFinishing(taskName, finishingName) {
     if (!taskName || !finishingName) return false;
-    return taskName.toLowerCase().startsWith(finishingName.toLowerCase());
+    const tNorm = taskName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    const fNorm = finishingName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
 }
+
+const formatTime = (mins) => {
+    if (!mins) return '0m';
+    if (mins >= 60) {
+        const hrs = mins / 60;
+        return `${Number(hrs.toFixed(1))}h`;
+    }
+    return `${mins}m`;
+};
 
 export default function JobWeeklyPlanner({ machines = [], finishings = [], orders = [], onRefresh }) {
     const [localOrders, setLocalOrders] = useState([]);
     const [selectedOrderId, setSelectedOrderId] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [currentWeekStart, setCurrentWeekStart] = useState(null);
-    const [dragOverCell, setDragOverCell] = useState(null); // format: "rowKey-dateStr"
+    const [dragOverCell, setDragOverCell] = useState(null); // format: "taskId-dateStr"
     const [savingTaskId, setSavingTaskId] = useState(null);
-
-    // Modal state for viewing a cell's daily planner
-    const [activeCellModal, setActiveCellModal] = useState(null); // { row, dateStr }
+    const [undoStack, setUndoStack] = useState([]);
+    const [redoStack, setRedoStack] = useState([]);
 
     // Initialize week and sync orders
     useEffect(() => {
         setLocalOrders(orders);
         if (!currentWeekStart) {
             setCurrentWeekStart(getMonday(new Date()));
+        }
+        if (orders.length > 0 && !selectedOrderId) {
+            // Auto-select first active order
+            const firstActive = orders.find(o => !['cancelled', 'delivered'].includes(String(o.status || '').toLowerCase()));
+            if (firstActive) {
+                setSelectedOrderId(firstActive.id);
+            } else {
+                setSelectedOrderId(orders[0].id);
+            }
         }
     }, [orders]);
 
@@ -114,31 +133,19 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
 
     // Currently selected order
     const selectedOrder = localOrders.find(o => String(o.id) === String(selectedOrderId));
-    const selectedOrderTasks = selectedOrder ? (selectedOrder.tasks || []) : [];
+    const selectedOrderTasks = selectedOrder ? [...(selectedOrder.tasks || [])].sort((a, b) => a.id - b.id) : [];
 
-    // Find and sort rows sequentially based on the selected order's tasks sequence
-    const rows = [];
-    if (selectedOrder) {
-        selectedOrderTasks.forEach(task => {
-            if (task.machine_id) {
-                const mac = machines.find(m => m.id === task.machine_id);
-                if (mac) {
-                    const rowKey = `mac_${mac.id}`;
-                    if (!rows.some(r => r.rowKey === rowKey)) {
-                        rows.push({ ...mac, rowType: 'machine', rowKey });
-                    }
-                }
-            } else {
-                const fin = finishings.find(f => matchesFinishing(task.name, f.name));
-                if (fin) {
-                    const rowKey = `fin_${fin.id}`;
-                    if (!rows.some(r => r.rowKey === rowKey)) {
-                        rows.push({ ...fin, rowType: 'finishing', rowKey });
-                    }
-                }
-            }
-        });
-    }
+    // Resolve machine or operation details for a task
+    const getTaskAssignmentInfo = (task) => {
+        if (task.machine_name) {
+            return { name: task.machine_name, type: 'Machine' };
+        }
+        const fin = finishings.find(f => matchesFinishing(task.name, f.name));
+        if (fin) {
+            return { name: fin.name, type: 'Finishing' };
+        }
+        return { name: 'Unassigned', type: 'Operation' };
+    };
 
     // Drag and drop event handlers
     const handleDragStart = (e, taskId, orderId) => {
@@ -147,16 +154,118 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         e.dataTransfer.effectAllowed = 'move';
     };
 
-    const handleDragOver = (e, rowKey, dateStr) => {
+    const handleDragOver = (e, taskId, dateStr) => {
         e.preventDefault();
-        setDragOverCell(`${rowKey}-${dateStr}`);
+        setDragOverCell(`${taskId}-${dateStr}`);
     };
 
     const handleDragLeave = () => {
         setDragOverCell(null);
     };
 
-    const handleDrop = async (e, row, dateStr) => {
+    const updateTaskScheduleAPI = async (orderId, taskId, dateStr) => {
+        const fields = { scheduled_date: dateStr };
+        const res = await fetch(`/api/sales-orders/${orderId}/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fields)
+        });
+        if (!res.ok) throw new Error('Failed to update task schedule');
+    };
+
+    const updateLocalTaskScheduleState = (orderId, taskId, dateStr) => {
+        setLocalOrders(prev => prev.map(order => {
+            if (order.id === orderId) {
+                return {
+                    ...order,
+                    tasks: (order.tasks || []).map(t => {
+                        if (t.id === taskId) {
+                            return { ...t, scheduled_date: dateStr };
+                        }
+                        return t;
+                    })
+                };
+            }
+            return order;
+        }));
+    };
+
+    const handleUndo = useCallback(async () => {
+        if (undoStack.length === 0) return;
+        
+        const action = undoStack[undoStack.length - 1];
+        setUndoStack(prev => prev.slice(0, -1));
+        
+        setRedoStack(prev => [...prev, {
+            orderId: action.orderId,
+            taskId: action.taskId,
+            from: action.to,
+            to: action.from
+        }]);
+
+        setSavingTaskId(action.taskId);
+        try {
+            updateLocalTaskScheduleState(action.orderId, action.taskId, action.from);
+            await updateTaskScheduleAPI(action.orderId, action.taskId, action.from);
+            if (onRefresh) await onRefresh(true);
+        } catch (err) {
+            console.error(err);
+            setLocalOrders(orders);
+        } finally {
+            setSavingTaskId(null);
+        }
+    }, [undoStack, orders, onRefresh]);
+
+    const handleRedo = useCallback(async () => {
+        if (redoStack.length === 0) return;
+
+        const action = redoStack[redoStack.length - 1];
+        setRedoStack(prev => prev.slice(0, -1));
+
+        setUndoStack(prev => [...prev, {
+            orderId: action.orderId,
+            taskId: action.taskId,
+            from: action.to,
+            to: action.from
+        }]);
+
+        setSavingTaskId(action.taskId);
+        try {
+            updateLocalTaskScheduleState(action.orderId, action.taskId, action.from);
+            await updateTaskScheduleAPI(action.orderId, action.taskId, action.from);
+            if (onRefresh) await onRefresh(true);
+        } catch (err) {
+            console.error(err);
+            setLocalOrders(orders);
+        } finally {
+            setSavingTaskId(null);
+        }
+    }, [redoStack, orders, onRefresh]);
+
+    // Keyboard shortcut listeners for Undo / Redo
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                handleUndo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                handleRedo();
+            } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') {
+                e.preventDefault();
+                handleRedo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo, handleRedo]);
+
+    const handleDrop = async (e, task, dateStr) => {
         e.preventDefault();
         setDragOverCell(null);
 
@@ -164,22 +273,21 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         const orderId = parseInt(e.dataTransfer.getData('orderId'), 10);
         if (isNaN(taskId) || isNaN(orderId)) return;
 
-        // Find the task we are dragging
-        const targetOrder = localOrders.find(o => o.id === orderId);
-        if (!targetOrder) return;
-        const task = (targetOrder.tasks || []).find(t => t.id === taskId);
-        if (!task) return;
+        // We only schedule the dragged task
+        if (taskId !== task.id) return;
 
-        // Build updating fields
+        const prevDate = task.scheduled_date ? formatDateToYYYYMMDD(task.scheduled_date) : null;
+        if (prevDate === dateStr) return;
+
+        setUndoStack(prev => [...prev, {
+            orderId,
+            taskId,
+            from: prevDate,
+            to: dateStr
+        }]);
+        setRedoStack([]);
+
         const fields = { scheduled_date: dateStr };
-        if (row.rowType === 'machine') {
-            fields.machine_id = row.id;
-            fields.machine_name = row.name;
-        } else {
-            // Drop on finishing resets machine assignments
-            fields.machine_id = null;
-            fields.machine_name = null;
-        }
 
         // Optimistically update local UI state
         setLocalOrders(prev => prev.map(order => {
@@ -199,63 +307,101 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
 
         setSavingTaskId(taskId);
         try {
-            const res = await fetch(`/api/sales-orders/${orderId}/tasks/${taskId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(fields)
-            });
-            if (!res.ok) throw new Error('Failed to update task schedule');
-            if (onRefresh) await onRefresh(true); // pass true for background silent reload!
+            await updateTaskScheduleAPI(orderId, taskId, dateStr);
+            if (onRefresh) await onRefresh(true);
         } catch (err) {
             console.error(err);
-            // Revert on failure
             setLocalOrders(orders);
         } finally {
             setSavingTaskId(null);
         }
     };
 
-    // Get all tasks scheduled on a row and day
-    const getScheduledTasks = (row, dateStr) => {
-        if (!row) return [];
-        const list = [];
-        localOrders.forEach(order => {
-            (order.tasks || []).forEach(task => {
-                const taskDate = formatDateToYYYYMMDD(task.scheduled_date);
-                if (taskDate === dateStr) {
-                    if (row.rowType === 'machine') {
-                        if (task.machine_id === row.id) {
-                            list.push({ task, order });
+    const handleCellClick = async (task, dateStr) => {
+        const currentScheduledDate = formatDateToYYYYMMDD(task.scheduled_date);
+        if (currentScheduledDate === dateStr) return;
+
+        const prevDate = task.scheduled_date ? formatDateToYYYYMMDD(task.scheduled_date) : null;
+        setUndoStack(prev => [...prev, {
+            orderId: selectedOrderId,
+            taskId: task.id,
+            from: prevDate,
+            to: dateStr
+        }]);
+        setRedoStack([]);
+
+        const fields = { scheduled_date: dateStr };
+
+        // Optimistically update local UI state
+        setLocalOrders(prev => prev.map(order => {
+            if (order.id === selectedOrderId) {
+                return {
+                    ...order,
+                    tasks: (order.tasks || []).map(t => {
+                        if (t.id === task.id) {
+                            return { ...t, ...fields };
                         }
-                    } else if (row.rowType === 'finishing') {
-                        if (task.machine_id === null && matchesFinishing(task.name, row.name)) {
-                            list.push({ task, order });
+                        return t;
+                    })
+                };
+            }
+            return order;
+        }));
+
+        setSavingTaskId(task.id);
+        try {
+            await updateTaskScheduleAPI(selectedOrderId, task.id, dateStr);
+            if (onRefresh) await onRefresh(true);
+        } catch (err) {
+            console.error(err);
+            setLocalOrders(orders);
+        } finally {
+            setSavingTaskId(null);
+        }
+    };
+
+    const handleUnscheduleTask = async (e, task) => {
+        e.stopPropagation();
+        const prevDate = task.scheduled_date ? formatDateToYYYYMMDD(task.scheduled_date) : null;
+        if (prevDate === null) return;
+
+        setUndoStack(prev => [...prev, {
+            orderId: selectedOrderId,
+            taskId: task.id,
+            from: prevDate,
+            to: null
+        }]);
+        setRedoStack([]);
+
+        const fields = { scheduled_date: null };
+
+        // Optimistically update local UI state
+        setLocalOrders(prev => prev.map(order => {
+            if (order.id === selectedOrderId) {
+                return {
+                    ...order,
+                    tasks: (order.tasks || []).map(t => {
+                        if (t.id === task.id) {
+                            return { ...t, ...fields };
                         }
-                    }
-                }
-            });
-        });
-        return list;
-    };
+                        return t;
+                    })
+                };
+            }
+            return order;
+        }));
 
-    const getStatusColor = (status) => {
-        const s = String(status || '').toLowerCase();
-        if (['done', 'completed', 'ready', 'delivered'].includes(s)) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-        if (['in progress', 'in_progress', 'started'].includes(s)) return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-        if (s === 'paused') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-        return 'bg-neutral-800 text-neutral-400 border-white/5';
+        setSavingTaskId(task.id);
+        try {
+            await updateTaskScheduleAPI(selectedOrderId, task.id, null);
+            if (onRefresh) await onRefresh(true);
+        } catch (err) {
+            console.error(err);
+            setLocalOrders(orders);
+        } finally {
+            setSavingTaskId(null);
+        }
     };
-
-    const getStatusColorDot = (status) => {
-        const s = String(status || '').toLowerCase();
-        if (['done', 'completed', 'ready', 'delivered'].includes(s)) return 'bg-emerald-400';
-        if (['in progress', 'in_progress', 'started'].includes(s)) return 'bg-purple-400';
-        if (s === 'paused') return 'bg-amber-400';
-        return 'bg-neutral-500';
-    };
-
-    // Modal tasks list for active cell
-    const modalTasks = activeCellModal ? getScheduledTasks(activeCellModal.row, activeCellModal.dateStr) : [];
 
     return (
         <div className="flex h-[calc(100vh-280px)] min-h-[500px] gap-6 text-neutral-200">
@@ -268,7 +414,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                         <input
                             type="text"
                             placeholder="Filter jobs by code/cust..."
-                            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-500 focus:ring-0"
+                            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-0"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                         />
@@ -283,16 +429,15 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                             const isSelected = String(order.id) === String(selectedOrderId);
                             const tasks = order.tasks || [];
                             const scheduled = tasks.filter(t => t.scheduled_date !== null).length;
-                            
+
                             return (
                                 <button
                                     key={order.id}
                                     onClick={() => setSelectedOrderId(order.id)}
-                                    className={`w-full text-left p-3 rounded-xl transition-all border flex flex-col gap-1 cursor-pointer select-none ${
-                                        isSelected 
-                                            ? 'bg-purple-950/20 border-purple-500/35 text-white shadow-md shadow-purple-950/30' 
-                                            : 'bg-transparent border-transparent hover:bg-white/[0.02] hover:border-white/5'
-                                    }`}
+                                    className={`w-full text-left p-3 rounded-xl transition-all border flex flex-col gap-1 cursor-pointer select-none ${isSelected
+                                        ? 'bg-emerald-950/20 border-emerald-500/35 text-white shadow-md shadow-emerald-950/30'
+                                        : 'bg-transparent border-transparent hover:bg-white/[0.02] hover:border-white/5'
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <span className="text-xs font-black tracking-wider text-white">{order.code}</span>
@@ -338,6 +483,26 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                         >
                             <FiChevronRight className="w-4 h-4" />
                         </button>
+
+                        {/* Undo / Redo controls */}
+                        <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
+                            <button
+                                onClick={handleUndo}
+                                disabled={undoStack.length === 0}
+                                className="p-1.5 hover:bg-white/5 disabled:opacity-20 border border-white/10 rounded-lg text-neutral-300 hover:text-white transition-all cursor-pointer disabled:cursor-not-allowed"
+                                title="Undo last change (Ctrl+Z)"
+                            >
+                                <FiRotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                onClick={handleRedo}
+                                disabled={redoStack.length === 0}
+                                className="p-1.5 hover:bg-white/5 disabled:opacity-20 border border-white/10 rounded-lg text-neutral-300 hover:text-white transition-all cursor-pointer disabled:cursor-not-allowed"
+                                title="Redo change (Ctrl+Y)"
+                            >
+                                <FiRotateCw className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                     </div>
 
                     <span className="text-xs font-black tracking-wider text-white">
@@ -345,9 +510,34 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                     </span>
 
                     <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-widest flex items-center gap-1.5">
-                        <FiCalendar className="w-3.5 h-3.5" /> Weekly Machine Planner
+                        <FiCalendar className="w-3.5 h-3.5" /> Weekly Job Planner
                     </span>
                 </div>
+
+                {/* Selected Job Info Bar */}
+                {selectedOrder && (
+                    <div className="px-5 py-3 border-b border-white/10 bg-white/[0.005] flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-black tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                                {selectedOrder.code}
+                            </span>
+                            <div>
+                                <h2 className="text-sm font-extrabold text-white m-0">
+                                    {selectedOrder.estimation_names || 'General Job'}
+                                </h2>
+                                <p className="text-[10px] text-neutral-400 font-medium m-0 mt-0.5">
+                                    Customer: {selectedOrder.customer_name}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 bg-neutral-900/50 border border-white/5 px-3 py-1.5 rounded-xl font-mono">
+                            <span>Total Tasks: {selectedOrderTasks.length}</span>
+                            <span className="text-neutral-600">•</span>
+                            <span className="text-emerald-400">Scheduled: {selectedOrderTasks.filter(t => t.scheduled_date !== null).length}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-auto">
@@ -355,9 +545,9 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                         <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-2">
                             <FiCalendar className="w-12 h-12 text-neutral-600 animate-pulse" />
                             <h4 className="text-sm font-bold text-neutral-300 m-0">No Job Selected</h4>
-                            <p className="text-xs text-neutral-500 m-0 mt-0.5">Please select a job from the active sidebar list to view its weekly machine workload.</p>
+                            <p className="text-xs text-neutral-500 m-0 mt-0.5">Please select a job from the active sidebar list to view its weekly workload.</p>
                         </div>
-                    ) : rows.length === 0 ? (
+                    ) : selectedOrderTasks.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-neutral-500 gap-2 p-6 text-center">
                             <FiAlertCircle className="w-12 h-12 text-neutral-600" />
                             <h4 className="text-sm font-bold text-neutral-300 m-0">No Tasks in Routing</h4>
@@ -368,26 +558,24 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                             {/* Grid Table */}
                             <table className="w-full table-fixed border-collapse">
                                 <thead>
-                                    <tr>
-                                        {/* Row Label header */}
-                                        <th className="w-48 text-left pb-3 text-[10px] font-black uppercase tracking-wider text-neutral-500">
-                                            Machine / Operation
+                                    <tr className="border-b border-white/10">
+                                        {/* Task / Assigned Operation header */}
+                                        <th className="sticky top-0 bg-black z-20 w-[32%] text-left pb-3 text-[10px] font-black uppercase tracking-wider text-neutral-500">
+                                            Task / Assigned Operation
                                         </th>
-                                        
+
                                         {/* Daily headers */}
                                         {weekDates.map(date => {
                                             const isToday = formatDateToYYYYMMDD(date) === formatDateToYYYYMMDD(new Date());
                                             return (
                                                 <th
                                                     key={date.toString()}
-                                                    className={`pb-3 text-center text-xs font-bold ${
-                                                        isToday ? 'text-purple-400 font-extrabold' : 'text-neutral-400'
-                                                    }`}
+                                                    className={`sticky top-0 bg-black z-20 pb-3 text-center text-xs font-bold ${isToday ? 'text-emerald-400 font-extrabold' : 'text-neutral-400'
+                                                        }`}
                                                 >
                                                     <div>{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                                    <div className={`text-[10px] mt-0.5 font-semibold font-mono ${
-                                                        isToday ? 'bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20' : 'text-neutral-500'
-                                                    }`}>
+                                                    <div className={`text-[10px] mt-0.5 font-semibold font-mono inline-block ${isToday ? 'bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20' : 'text-neutral-500'
+                                                        }`}>
                                                         {date.getDate()}
                                                     </div>
                                                 </th>
@@ -396,229 +584,145 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {rows.map(row => (
-                                        <tr key={row.rowKey} className="border-b border-white/5 last:border-0">
-                                            {/* Header Column */}
-                                            <td className="py-4 pr-3 align-top">
-                                                {row.rowType === 'machine' ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
-                                                            <FiCpu className="w-3.5 h-3.5" />
+                                    {selectedOrderTasks.map((task, index) => {
+                                        const assignment = getTaskAssignmentInfo(task);
+                                        return (
+                                            <tr key={task.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.005]">
+                                                {/* Header Column: Task Details */}
+                                                <td className="py-4 pr-3 align-middle">
+                                                    <div className="flex items-start gap-2.5">
+                                                        {/* Drag Handle */}
+                                                        <div
+                                                            draggable
+                                                            onDragStart={e => handleDragStart(e, task.id, selectedOrder.id)}
+                                                            className="mt-1 cursor-grab active:cursor-grabbing text-neutral-500 hover:text-white p-1 hover:bg-white/5 rounded transition-all flex-shrink-0"
+                                                            title="Drag to schedule this task"
+                                                        >
+                                                            <FiGrid className="w-3.5 h-3.5 text-neutral-400" />
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <div className="text-xs font-bold text-white truncate" title={row.name}>
-                                                                {row.name}
+
+                                                        {/* Task Info */}
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[9px] bg-white/10 text-neutral-300 px-1.5 py-0.5 rounded font-mono font-extrabold">
+                                                                    #{index + 1}
+                                                                </span>
+                                                                <span className="truncate max-w-[170px]" title={task.name}>
+                                                                    {task.name.includes('—') ? task.name.split('—')[0]?.trim() || task.name : task.name}
+                                                                </span>
                                                             </div>
-                                                            <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
-                                                                {row.type || 'machine'}
+
+                                                            {/* Assignment Badges */}
+                                                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                                {assignment.type === 'Machine' ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                                        <FiCpu className="w-2.5 h-2.5" />
+                                                                        {assignment.name}
+                                                                    </span>
+                                                                ) : assignment.type === 'Finishing' ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                        <FiLayers className="w-2.5 h-2.5" />
+                                                                        {assignment.name}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
+                                                                        <FiAlertCircle className="w-2.5 h-2.5" />
+                                                                        Unassigned
+                                                                    </span>
+                                                                )}
+
+                                                                {task.estimated_minutes && (
+                                                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-neutral-500 font-mono">
+                                                                        <FiClock className="w-2.5 h-2.5" />
+                                                                        {formatTime(task.estimated_minutes)}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-1.5 bg-neutral-900 border border-white/5 rounded-lg text-neutral-400">
-                                                            <FiLayers className="w-3.5 h-3.5" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="text-xs font-bold text-white truncate" title={row.name}>
-                                                                {row.name}
-                                                            </div>
-                                                            <div className="text-[9px] text-neutral-500 font-semibold uppercase tracking-wider">
-                                                                Finishing
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </td>
+                                                </td>
 
-                                            {/* Days Cells */}
-                                            {weekDates.map(date => {
-                                                const dateStr = formatDateToYYYYMMDD(date);
-                                                const cellTasks = getScheduledTasks(row, dateStr);
-                                                const isOver = dragOverCell === `${row.rowKey}-${dateStr}`;
+                                                {/* Days Cells */}
+                                                {weekDates.map(date => {
+                                                    const dateStr = formatDateToYYYYMMDD(date);
+                                                    const isScheduledOnDay = formatDateToYYYYMMDD(task.scheduled_date) === dateStr;
+                                                    const isOver = dragOverCell === `${task.id}-${dateStr}`;
 
-                                                return (
-                                                    <td
-                                                        key={dateStr}
-                                                        onClick={() => setActiveCellModal({ row, dateStr })}
-                                                        onDragEnter={(e) => {
-                                                            e.preventDefault();
-                                                            // Hover drag-in triggers opening cell modal
-                                                            setActiveCellModal({ row, dateStr });
-                                                        }}
-                                                        onDragOver={e => handleDragOver(e, row.rowKey, dateStr)}
-                                                        onDragLeave={handleDragLeave}
-                                                        onDrop={e => handleDrop(e, row, dateStr)}
-                                                        className={`p-2.5 align-top border-l border-white/5 transition-all min-h-[100px] cursor-pointer hover:bg-white/[0.01] ${
-                                                            isOver ? 'bg-purple-500/10 border-dashed border-purple-500/30' : 'bg-transparent'
-                                                        }`}
-                                                        style={{ height: 110 }}
-                                                    >
-                                                        <div className="flex flex-col gap-1.5 h-full overflow-y-auto pr-0.5">
-                                                            {cellTasks.map(({ task, order }) => {
-                                                                const isSelectedOrder = String(order.id) === String(selectedOrderId);
-                                                                const isSaving = savingTaskId === task.id;
-
-                                                                return (
-                                                                    <div
-                                                                        key={task.id}
-                                                                        draggable={isSelectedOrder}
-                                                                        onDragStart={e => {
-                                                                            e.stopPropagation();
-                                                                            handleDragStart(e, task.id, order.id);
-                                                                        }}
-                                                                        onClick={e => e.stopPropagation()} // Stop click propagating to cell click
-                                                                        className={`p-2 rounded-lg border text-[10px] transition-all flex flex-col gap-1 ${
-                                                                            isSelectedOrder
-                                                                                ? 'bg-purple-950/40 border-purple-500 text-white shadow-[0_0_12px_rgba(167,139,250,0.15)] opacity-100 cursor-grab active:cursor-grabbing font-semibold'
-                                                                                : 'bg-neutral-950/20 border-white/5 text-neutral-400 opacity-35'
+                                                    return (
+                                                        <td
+                                                            key={dateStr}
+                                                            onClick={() => handleCellClick(task, dateStr)}
+                                                            onDragOver={e => handleDragOver(e, task.id, dateStr)}
+                                                            onDragLeave={handleDragLeave}
+                                                            onDrop={e => handleDrop(e, task, dateStr)}
+                                                            className={`p-2 align-middle border-l border-white/5 transition-all cursor-pointer group relative ${isOver ? 'bg-emerald-500/10 border-dashed border-emerald-500/30' : 'bg-transparent hover:bg-white/[0.01]'
+                                                                }`}
+                                                            style={{ height: 64 }}
+                                                        >
+                                                            {isScheduledOnDay ? (
+                                                                <div
+                                                                    draggable
+                                                                    onDragStart={e => {
+                                                                        e.stopPropagation();
+                                                                        handleDragStart(e, task.id, selectedOrder.id);
+                                                                    }}
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    className={`group/card relative p-2 rounded-xl border text-[10px] transition-all flex flex-col gap-1 cursor-grab active:cursor-grabbing hover:border-emerald-500/40 hover:shadow-[0_0_12px_rgba(167,139,250,0.1)] h-full justify-center ${['done', 'completed', 'ready', 'delivered'].includes(String(task.status).toLowerCase())
+                                                                        ? 'bg-emerald-950/20 border-emerald-500/20 text-white font-semibold'
+                                                                        : ['in progress', 'in_progress', 'started'].includes(String(task.status).toLowerCase())
+                                                                            ? 'bg-emerald-950/20 border-emerald-500/20 text-white font-semibold'
+                                                                            : 'bg-neutral-900/40 border-white/5 text-neutral-300 font-medium'
                                                                         }`}
-                                                                        title={`${order.code} - ${task.name}`}
-                                                                    >
-                                                                        <div className="flex items-center justify-between gap-1">
-                                                                            <span className="font-extrabold truncate">{order.code}</span>
-                                                                            <div className="flex items-center gap-1">
-                                                                                {isSaving && (
-                                                                                    <FiRefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
-                                                                                )}
-                                                                                <span className={`w-1.5 h-1.5 rounded-full ${getStatusColorDot(task.status)}`} />
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="truncate font-medium">{task.name}</div>
-                                                                        {task.estimated_minutes && (
-                                                                            <div className="text-[9px] text-neutral-500 font-bold flex items-center gap-0.5 mt-0.5">
-                                                                                <FiClock className="w-2.5 h-2.5" />
-                                                                                {task.estimated_minutes}m
-                                                                            </div>
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-1">
+                                                                        {savingTaskId === task.id ? (
+                                                                            <span className="flex items-center gap-1 text-[9px] text-neutral-400">
+                                                                                <FiRefreshCw className="w-2.5 h-2.5 animate-spin text-emerald-400" />
+                                                                                Updating
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-wider ${['done', 'completed', 'ready', 'delivered'].includes(String(task.status).toLowerCase())
+                                                                                ? 'bg-emerald-500/10 text-emerald-400'
+                                                                                : ['in progress', 'in_progress', 'started'].includes(String(task.status).toLowerCase())
+                                                                                    ? 'bg-emerald-500/10 text-emerald-400'
+                                                                                    : 'bg-neutral-800 text-neutral-400'
+                                                                                }`}>
+                                                                                <span className={`w-1 h-1 rounded-full ${['done', 'completed', 'ready', 'delivered'].includes(String(task.status).toLowerCase())
+                                                                                    ? 'bg-emerald-400'
+                                                                                    : ['in progress', 'in_progress', 'started'].includes(String(task.status).toLowerCase())
+                                                                                        ? 'bg-emerald-400'
+                                                                                        : 'bg-neutral-500'
+                                                                                    }`} />
+                                                                                {task.status || 'Pending'}
+                                                                            </span>
                                                                         )}
+
+                                                                        <button
+                                                                            onClick={e => handleUnscheduleTask(e, task)}
+                                                                            className="opacity-0 group-hover/card:opacity-100 p-0.5 hover:bg-white/10 rounded text-neutral-400 hover:text-white transition-all cursor-pointer flex-shrink-0"
+                                                                            title="Unschedule task"
+                                                                        >
+                                                                            <FiX className="w-2.5 h-2.5" />
+                                                                        </button>
                                                                     </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="h-full flex items-center justify-center text-neutral-700 group-hover:text-emerald-500/30 transition-all">
+                                                                    <span className="text-sm font-light opacity-0 group-hover:opacity-100 transition-all">+</span>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Daily Planner Modal */}
-            {activeCellModal && (
-                <div 
-                    className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-                    onDragEnter={() => {
-                        // Drag out onto backdrop closes modal
-                        setActiveCellModal(null);
-                    }}
-                    onDragOver={e => e.preventDefault()}
-                    onClick={() => setActiveCellModal(null)}
-                >
-                    <div 
-                        className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-lg shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-neutral-100 overflow-hidden" 
-                        onClick={e => e.stopPropagation()}
-                        onDragEnter={e => {
-                            // Prevent event bubbling to backdrop closing trigger
-                            e.stopPropagation();
-                        }}
-                        onDragOver={e => e.preventDefault()}
-                        onDrop={e => handleDrop(e, activeCellModal.row, activeCellModal.dateStr)}
-                    >
-                        {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.01]">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
-                                    {activeCellModal.row.rowType === 'machine' ? <FiCpu className="w-5 h-5" /> : <FiLayers className="w-5 h-5" />}
-                                </div>
-                                <div>
-                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">
-                                        {activeCellModal.row.name}
-                                    </h2>
-                                    <p className="text-xs text-neutral-400 m-0 mt-0.5 font-medium">
-                                        Daily Planner — {new Date(activeCellModal.dateStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setActiveCellModal(null)} 
-                                className="p-1.5 text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
-                            >
-                                <FiX className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Modal Content */}
-                        <div className="p-6 max-h-[400px] overflow-y-auto flex flex-col gap-3">
-                            {modalTasks.length === 0 ? (
-                                <div className="text-center py-10 flex flex-col items-center justify-center text-neutral-500 gap-2">
-                                    <FiAlertCircle className="w-8 h-8 text-neutral-600" />
-                                    <span className="text-xs font-bold">No tasks scheduled for this day</span>
-                                </div>
-                            ) : (
-                                modalTasks.map(({ task, order }) => {
-                                    const isSelectedOrder = String(order.id) === String(selectedOrderId);
-                                    
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            draggable={isSelectedOrder}
-                                            onDragStart={e => {
-                                                handleDragStart(e, task.id, order.id);
-                                                // Close modal instantly on dragstart so user can see and drop onto the grid
-                                                setActiveCellModal(null);
-                                            }}
-                                            className={`p-4 rounded-xl border flex flex-col gap-2 transition-all ${
-                                                isSelectedOrder
-                                                    ? 'bg-purple-950/30 border-purple-500/40 text-white shadow-lg cursor-grab active:cursor-grabbing'
-                                                    : 'bg-neutral-900/30 border-white/5 text-neutral-400 opacity-40'
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Link 
-                                                        href={`/dashboard/sales-orders/${order.id}`}
-                                                        className={`text-xs font-extrabold tracking-wider ${isSelectedOrder ? 'text-white hover:text-purple-400 hover:underline' : 'text-neutral-400'}`}
-                                                    >
-                                                        {order.code}
-                                                    </Link>
-                                                    <span className="text-neutral-600 text-[10px]">•</span>
-                                                    <span className="text-[10px] font-bold truncate max-w-[150px]">{order.customer_name}</span>
-                                                </div>
-                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${getStatusColor(task.status)}`}>
-                                                    {task.status || 'Pending'}
-                                                </span>
-                                            </div>
-
-                                            <div>
-                                                <div className="text-xs font-bold text-white">{task.name}</div>
-                                                {task.description && (
-                                                    <p className="text-[10px] text-neutral-500 m-0 mt-0.5 font-medium">{task.description}</p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-1">
-                                                <span className="text-[9px] text-neutral-500 font-semibold truncate max-w-[200px]">
-                                                    {order.estimation_names || 'General Job'}
-                                                </span>
-                                                {task.estimated_minutes && (
-                                                    <span className="text-[9px] text-neutral-400 font-bold font-mono flex items-center gap-1">
-                                                        <FiClock className="w-3 h-3 text-neutral-500" />
-                                                        {task.estimated_minutes} min
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

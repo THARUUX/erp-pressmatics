@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FiPrinter, FiX, FiSearch, FiLock, FiHeart, FiDownload, FiLoader } from 'react-icons/fi';
+import { FiPrinter, FiX, FiSearch, FiLock, FiHeart, FiDownload, FiLoader, FiTerminal } from 'react-icons/fi';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const AVAILABLE_THEMES = [
     {
@@ -56,7 +58,52 @@ const AVAILABLE_THEMES = [
     }
 ];
 
+const TOUR_STEPS = {
+    '/dashboard/job-planning': [
+        { x: 25, y: 18, msg: "This is Job Planning. Here you can switch between Kanban Board, Routing Planner, Job Weekly Planner, Machine, Finishing, and Services views!" },
+        { x: 50, y: 12, msg: "These stats pills show you real-time summaries of scheduled and finished tasks." },
+        { x: 80, y: 75, msg: "Need help? Click the Search icon to ask me to navigate or perform quick actions!" }
+    ],
+    '/dashboard/inventory': [
+        { x: 25, y: 25, msg: "This is your Stock Inventory. You can search papers, finishings, plates, and see current stock." },
+        { x: 50, y: 30, msg: "Stock levels shown here are automatically updated when Sales Orders are created or processed." },
+        { x: 80, y: 75, msg: "Let's keep our stock updated to prevent production delays!" }
+    ],
+    'default': [
+        { x: 80, y: 75, msg: "Hi! I'm your assistant pet. I can guide you, notify you of alerts, or quickly take you to pages." }
+    ]
+};
+
+const COMMANDS = [
+    // Navigation
+    { id: 'nav_planning_kanban', name: 'Go to Kanban Planning', action: (router) => router.push('/dashboard/job-planning?tab=kanban'), category: 'Navigation' },
+    { id: 'nav_planning_routing', name: 'Go to Routing Planner', action: (router) => router.push('/dashboard/job-planning?tab=routing'), category: 'Navigation' },
+    { id: 'nav_planning_weekly', name: 'Go to Job Weekly Planner', action: (router) => router.push('/dashboard/job-planning?tab=job_weekly'), category: 'Navigation' },
+    { id: 'nav_planning_machine', name: 'Go to Machine Planning', action: (router) => router.push('/dashboard/job-planning?tab=machine'), category: 'Navigation' },
+    { id: 'nav_planning_finishing', name: 'Go to Finishing Planning', action: (router) => router.push('/dashboard/job-planning?tab=finishing'), category: 'Navigation' },
+    { id: 'nav_planning_services', name: 'Go to Services Planning', action: (router) => router.push('/dashboard/job-planning?tab=services'), category: 'Navigation' },
+    { id: 'nav_planning_analytics', name: 'Go to Planning Analytics', action: (router) => router.push('/dashboard/job-planning?tab=analytics'), category: 'Navigation' },
+    
+    { id: 'nav_inventory', name: 'Go to Stock Inventory', action: (router) => router.push('/dashboard/inventory'), category: 'Navigation' },
+    { id: 'nav_finishings', name: 'Go to Stock Finishings', action: (router) => router.push('/dashboard/inventory/finishings'), category: 'Navigation' },
+    { id: 'nav_machines', name: 'Go to Stock Machines', action: (router) => router.push('/dashboard/inventory/machines'), category: 'Navigation' },
+    { id: 'nav_suppliers', name: 'Go to Suppliers', action: (router) => router.push('/dashboard/suppliers'), category: 'Navigation' },
+    
+    { id: 'nav_customers', name: 'Go to Customers list', action: (router) => router.push('/dashboard/customers'), category: 'Navigation' },
+    { id: 'nav_quotations', name: 'Go to Quotations list', action: (router) => router.push('/dashboard/quotations'), category: 'Navigation' },
+    { id: 'nav_orders', name: 'Go to Sales Orders list', action: (router) => router.push('/dashboard/sales-orders'), category: 'Navigation' },
+    { id: 'nav_invoices', name: 'Go to Invoices list', action: (router) => router.push('/dashboard/invoices'), category: 'Navigation' },
+    
+    { id: 'nav_payroll', name: 'Go to Payroll dashboard', action: (router) => router.push('/dashboard/payroll'), category: 'Navigation' },
+    { id: 'nav_settings', name: 'Go to Settings', action: (router) => router.push('/dashboard/settings'), category: 'Navigation' },
+    
+    // Actions
+    { id: 'action_tour', name: 'Start Tour on current page', action: (router, startTour) => startTour(), category: 'Actions' },
+    { id: 'action_wake', name: 'Wake up / Reset Pet position', action: (router, startTour, wakePet) => wakePet(), category: 'Actions' }
+];
+
 export default function ScreenPet() {
+    const router = useRouter();
     const [state, setState] = useState('idle'); // idle, sleep, walking, copied, downloading, password, searching, dragged
     const [emotion, setEmotion] = useState('normal'); // normal, happy, wink, thinking, gasp
     const [hidden, setHidden] = useState(true); // Hidden until mounted and read from localStorage
@@ -67,6 +114,13 @@ export default function ScreenPet() {
     const [userName, setUserName] = useState('');
     const [themeColor, setThemeColor] = useState(AVAILABLE_THEMES[0]);
     const [loadElapsed, setLoadElapsed] = useState(0);
+    const [alerts, setAlerts] = useState([]);
+    const [activeAlert, setActiveAlert] = useState(null);
+    const [showCommandBar, setShowCommandBar] = useState(false);
+    const [commandSearch, setCommandSearch] = useState('');
+    const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+    const [isTourActive, setIsTourActive] = useState(false);
+    const [tourStep, setTourStep] = useState(0);
     const loadTimeInterval = useRef(null);
     const themeColorRef = useRef(themeColor);
 
@@ -340,6 +394,59 @@ export default function ScreenPet() {
         updateElementPosition();
     }, []);
 
+    // Poll for alerts every 90 seconds
+    useEffect(() => {
+        if (hidden) return;
+
+        const fetchAlerts = async () => {
+            try {
+                const res = await fetch('/api/dashboard/alerts');
+                if (res.ok) {
+                    const data = await res.json();
+                    setAlerts(data.alerts || []);
+                }
+            } catch (err) {
+                console.error('Error fetching alerts:', err);
+            }
+        };
+
+        fetchAlerts();
+        const interval = setInterval(fetchAlerts, 90000);
+        return () => clearInterval(interval);
+    }, [hidden]);
+
+    // Alert rotation / warning presentation
+    useEffect(() => {
+        if (hidden || alerts.length === 0) return;
+
+        const rotateAlert = () => {
+            // Only trigger if speech bubble isn't already active (e.g. loading, password, or manual actions)
+            if (showSpeechBubble || ['loading', 'password', 'searching', 'copied', 'downloading', 'dragged'].includes(state)) return;
+
+            // Pick a random alert
+            const alert = alerts[Math.floor(Math.random() * alerts.length)];
+            
+            // Set surprise emotion briefly
+            setEmotion('gasp');
+            setTimeout(() => {
+                setEmotion('normal');
+            }, 3000);
+
+            // Display alert
+            setActiveAlert(alert);
+            triggerSpeech(alert.message, 8000, true);
+        };
+
+        // First alert triggers after 10 seconds, then rotates every 60 seconds
+        const initialTimeout = setTimeout(rotateAlert, 10000);
+        const rotationInterval = setInterval(rotateAlert, 60000);
+
+        return () => {
+            clearTimeout(initialTimeout);
+            clearInterval(rotationInterval);
+        };
+    }, [hidden, alerts, showSpeechBubble, state]);
+
     // Set up global event listeners for state management and cursor tracking
     useEffect(() => {
         if (hidden) return;
@@ -572,12 +679,16 @@ export default function ScreenPet() {
     };
 
     // Speech bubble helper
-    const triggerSpeech = (text, duration = 4000) => {
+    const triggerSpeech = (text, duration = 4000, isAlert = false) => {
         clearTimeout(speechTimer.current);
         setSpeechText(text);
         setShowSpeechBubble(true);
+        if (!isAlert) {
+            setActiveAlert(null);
+        }
         speechTimer.current = setTimeout(() => {
             setShowSpeechBubble(false);
+            setActiveAlert(null);
         }, duration);
     };
 
@@ -708,6 +819,129 @@ export default function ScreenPet() {
             triggerSpeech(userName ? `I'm back! Let's get to work, ${userName}!` : "I'm back! Let's build some cool orders!", 5000);
         }, 100);
     };
+
+    // Command handler execution
+    const handleRunCommand = (cmd) => {
+        setShowCommandBar(false);
+        setCommandSearch('');
+        setSelectedCommandIndex(0);
+        
+        // Execute command action
+        cmd.action(router, startTour, handleRestore);
+        
+        // Make pet wink/react happily
+        setEmotion('wink');
+        triggerSpeech(`Opening ${cmd.name}...`, 3000);
+        setTimeout(() => {
+            setEmotion('normal');
+        }, 3000);
+    };
+
+    // Onboarding / Page Tour logic
+    const getTourSteps = () => {
+        if (typeof window === 'undefined') return TOUR_STEPS.default;
+        const path = window.location.pathname;
+        return TOUR_STEPS[path] || TOUR_STEPS.default;
+    };
+
+    const startTour = () => {
+        const steps = getTourSteps();
+        setIsTourActive(true);
+        setTourStep(0);
+        
+        // Move to first step
+        const first = steps[0];
+        if (petRef.current) {
+            petRef.current.style.transition = 'left 2.5s cubic-bezier(0.25, 1, 0.5, 1), top 2.5s cubic-bezier(0.25, 1, 0.5, 1)';
+        }
+        position.current = { x: first.x, y: first.y };
+        updateElementPosition();
+        
+        // Trigger speech bubble
+        triggerSpeech(first.msg, 0, false, true);
+    };
+
+    const handleNextTourStep = () => {
+        const steps = getTourSteps();
+        const nextIdx = tourStep + 1;
+        
+        if (nextIdx >= steps.length) {
+            // End tour
+            setIsTourActive(false);
+            setTourStep(0);
+            setShowSpeechBubble(false);
+            
+            // Move back to default position
+            if (petRef.current) {
+                petRef.current.style.transition = 'left 2s cubic-bezier(0.25, 1, 0.5, 1), top 2s cubic-bezier(0.25, 1, 0.5, 1)';
+            }
+            position.current = { x: 85, y: 80 };
+            updateElementPosition();
+            
+            setEmotion('happy');
+            triggerSpeech("Tour complete! I'm here if you need anything else.", 4000);
+            setTimeout(() => {
+                setEmotion('normal');
+            }, 4000);
+        } else {
+            setTourStep(nextIdx);
+            const nextStep = steps[nextIdx];
+            
+            // Move to next step coordinates
+            if (petRef.current) {
+                petRef.current.style.transition = 'left 2.5s cubic-bezier(0.25, 1, 0.5, 1), top 2.5s cubic-bezier(0.25, 1, 0.5, 1)';
+            }
+            position.current = { x: nextStep.x, y: nextStep.y };
+            updateElementPosition();
+            
+            // Show message
+            triggerSpeech(nextStep.msg, 0, false, true);
+        }
+    };
+
+    // Filter commands dynamically
+    const filteredCommands = COMMANDS.filter(cmd => 
+        cmd.name.toLowerCase().includes(commandSearch.toLowerCase()) ||
+        cmd.category.toLowerCase().includes(commandSearch.toLowerCase())
+    );
+
+    // Global keyboard listener for Command Bar (Ctrl+K or Cmd+K)
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                setShowCommandBar(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, []);
+
+    // Command Bar key navigation listener
+    useEffect(() => {
+        if (!showCommandBar) return;
+        
+        const handleKeys = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowCommandBar(false);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedCommandIndex(prev => (prev + 1) % Math.max(1, filteredCommands.length));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedCommandIndex(prev => (prev - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filteredCommands[selectedCommandIndex]) {
+                    handleRunCommand(filteredCommands[selectedCommandIndex]);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeys);
+        return () => window.removeEventListener('keydown', handleKeys);
+    }, [showCommandBar, filteredCommands, selectedCommandIndex]);
 
     const getActiveColor = () => {
         if (state === 'loading') {
@@ -914,14 +1148,46 @@ export default function ScreenPet() {
         if (!showSpeechBubble) return null;
         return (
             <div
-                className="absolute bg-neutral-900/95 text-white border border-white/15 px-3 py-2 rounded-xl text-xs font-semibold w-48 shadow-2xl pointer-events-none select-none animate-in fade-in zoom-in duration-200 text-center"
+                className="absolute bg-neutral-900/95 text-white border border-white/15 px-3 py-2.5 rounded-xl text-xs font-semibold w-48 shadow-2xl pointer-events-auto select-text animate-in fade-in zoom-in duration-200 text-center z-50"
                 style={{
                     bottom: '82px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                 }}
+                onClick={(e) => e.stopPropagation()}
             >
-                {speechText}
+                <div className="leading-snug">{speechText}</div>
+                {activeAlert && activeAlert.link && (
+                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-center">
+                        <Link
+                            href={activeAlert.link}
+                            className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-white/5 cursor-pointer transition-all hover:bg-white/10 hover:text-white ${
+                                activeAlert.severity === 'critical'
+                                    ? 'border-rose-500/30 text-rose-400 hover:border-rose-400'
+                                    : 'border-amber-500/30 text-amber-400 hover:border-amber-400'
+                            }`}
+                            onClick={() => {
+                                setShowSpeechBubble(false);
+                                setActiveAlert(null);
+                            }}
+                        >
+                            {activeAlert.linkText || 'Fix This'}
+                        </Link>
+                    </div>
+                )}
+                {isTourActive && (
+                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-center">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleNextTourStep();
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 cursor-pointer transition-all hover:bg-emerald-500/20 hover:text-emerald-300"
+                        >
+                            {tourStep < getTourSteps().length - 1 ? 'Next >' : 'Finish'}
+                        </button>
+                    </div>
+                )}
                 <div
                     className="absolute border-t-8 border-t-neutral-900 border-x-8 border-x-transparent"
                     style={{
@@ -1082,6 +1348,17 @@ export default function ScreenPet() {
                         <FiX className="w-3 h-3" />
                     </button>
 
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCommandBar(true);
+                        }}
+                        className="absolute -top-1.5 -left-1.5 bg-neutral-950 hover:bg-neutral-900 border border-white/10 hover:border-white/20 p-0.5 rounded-full text-white/50 hover:text-white opacity-0 group-hover/pet:opacity-100 transition-opacity duration-200 cursor-pointer shadow-lg z-10"
+                        title="Search / Commands (Ctrl+K)"
+                    >
+                        <FiSearch className="w-3 h-3" />
+                    </button>
+
                     {/* Robot Eyes Row */}
                     <div className="flex items-center justify-center h-6 pointer-events-none">
                         {renderEyes()}
@@ -1100,6 +1377,84 @@ export default function ScreenPet() {
                     </div> */}
                 </div>
             </div>
+
+            {/* Command Bar Modal */}
+            {showCommandBar && (
+                <div 
+                    className="fixed inset-0 z-[999999] flex items-start justify-center pt-28 px-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setShowCommandBar(false)}
+                >
+                    <div 
+                        className="w-full max-w-lg bg-neutral-950/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[420px] animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Search input header */}
+                        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 bg-white/5">
+                            <FiTerminal className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <input 
+                                type="text"
+                                autoFocus
+                                placeholder="Type a command or page name..."
+                                value={commandSearch}
+                                onChange={(e) => {
+                                     setCommandSearch(e.target.value);
+                                     setSelectedCommandIndex(0);
+                                }}
+                                className="flex-1 bg-transparent text-white placeholder-white/30 text-sm font-medium border-0 outline-none p-0 focus:ring-0"
+                            />
+                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-2 py-0.5 border border-white/10 bg-white/5 rounded-md">
+                                Esc
+                            </span>
+                        </div>
+
+                        {/* Results list */}
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                            {filteredCommands.length === 0 ? (
+                                <div className="text-center py-8 text-xs text-white/30 font-semibold uppercase tracking-wider">
+                                    No commands found
+                                </div>
+                            ) : (
+                                filteredCommands.map((cmd, idx) => {
+                                    const isSelected = idx === selectedCommandIndex;
+                                    return (
+                                        <button
+                                            key={cmd.id}
+                                            onClick={() => handleRunCommand(cmd)}
+                                            onMouseEnter={() => setSelectedCommandIndex(idx)}
+                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-150 text-left ${
+                                                isSelected 
+                                                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-white pl-4' 
+                                                    : 'bg-transparent border border-transparent text-white/60 hover:text-white hover:bg-white/5'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-transparent'}`} />
+                                                <span className="text-xs font-bold tracking-tight">{cmd.name}</span>
+                                            </div>
+                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                                isSelected 
+                                                    ? 'bg-emerald-500/20 text-emerald-400' 
+                                                     : 'bg-white/5 text-white/40'
+                                            }`}>
+                                                {cmd.category}
+                                            </span>
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Keyboard navigation helper footer */}
+                        <div className="flex items-center justify-between px-4 py-2 border-t border-white/5 bg-neutral-950 text-[10px] text-white/40 font-bold uppercase tracking-wider select-none">
+                            <div className="flex items-center gap-4">
+                                <span>↑↓ Navigate</span>
+                                <span>↵ Select</span>
+                            </div>
+                            <span>Command Mode</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

@@ -6,9 +6,9 @@ import FinishingTasksDocument from './FinishingTasksDocument';
 
 const matchesFinishing = (taskName, finName) => {
     if (!taskName || !finName) return false;
-    const taskNameLower = taskName.toLowerCase();
-    const finNameLower = finName.toLowerCase();
-    return taskNameLower.startsWith(finNameLower) || taskNameLower.includes(finNameLower);
+    const tNorm = taskName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    const fNorm = finName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
 };
 
 export async function GET(req, { params }) {

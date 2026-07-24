@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity, FiTrendingUp, FiList, FiCalendar } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
@@ -37,11 +38,20 @@ function StatPill({ label, value, accent }) {
     );
 }
 
-export default function JobPlanningPage() {
+function JobPlanningPageInner() {
+    const searchParams = useSearchParams();
     const [tab, setTab] = useState('kanban');
     const [data, setData] = useState({ machines: [], finishings: [], orders: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const queryTab = searchParams.get('tab');
+        const validTabs = ['kanban', 'routing', 'job_weekly', 'machine', 'finishing', 'services', 'analytics'];
+        if (queryTab && validTabs.includes(queryTab)) {
+            setTab(queryTab);
+        }
+    }, [searchParams]);
 
     const load = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -272,5 +282,13 @@ export default function JobPlanningPage() {
                 </>
             )}
         </div>
+    );
+}
+
+export default function JobPlanningPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading Planning...</div>}>
+            <JobPlanningPageInner />
+        </Suspense>
     );
 }
