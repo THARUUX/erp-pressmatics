@@ -531,7 +531,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                             </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 bg-neutral-900/50 border border-white/5 px-3 py-1.5 rounded-xl font-mono">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 bg-neutral-900/50 border border-white/10 px-3 py-1.5 rounded-xl font-mono">
                             <span>Total Tasks: {selectedOrderTasks.length}</span>
                             <span className="text-neutral-600">•</span>
                             <span className="text-emerald-400">Scheduled: {selectedOrderTasks.filter(t => t.scheduled_date !== null).length}</span>
@@ -587,7 +587,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                     {selectedOrderTasks.map((task, index) => {
                                         const assignment = getTaskAssignmentInfo(task);
                                         return (
-                                            <tr key={task.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.005]">
+                                            <tr key={task.id} className="border-b border-white/10 last:border-0 hover:bg-white/[0.015]">
                                                 {/* Header Column: Task Details */}
                                                 <td className="py-4 pr-3 align-middle">
                                                     <div className="flex items-start gap-2.5">
@@ -655,7 +655,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                                             onDragOver={e => handleDragOver(e, task.id, dateStr)}
                                                             onDragLeave={handleDragLeave}
                                                             onDrop={e => handleDrop(e, task, dateStr)}
-                                                            className={`p-2 align-middle border-l border-white/5 transition-all cursor-pointer group relative ${isOver ? 'bg-emerald-500/10 border-dashed border-emerald-500/30' : 'bg-transparent hover:bg-white/[0.01]'
+                                                            className={`p-2 align-middle border-l border-white/10 transition-all cursor-pointer group relative ${isOver ? 'bg-emerald-500/15 border-dashed border-emerald-500/40' : 'bg-transparent hover:bg-emerald-500/[0.04] hover:border-l-emerald-500/40'
                                                                 }`}
                                                             style={{ height: 64 }}
                                                         >
@@ -667,11 +667,11 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                                                         handleDragStart(e, task.id, selectedOrder.id);
                                                                     }}
                                                                     onClick={e => e.stopPropagation()}
-                                                                    className={`group/card relative p-2 rounded-xl border text-[10px] transition-all flex flex-col gap-1 cursor-grab active:cursor-grabbing hover:border-emerald-500/40 hover:shadow-[0_0_12px_rgba(167,139,250,0.1)] h-full justify-center ${['done', 'completed', 'ready', 'delivered'].includes(String(task.status).toLowerCase())
+                                                                    className={`group/card relative p-2 rounded-xl border text-[10px] transition-all flex flex-col gap-1 cursor-grab active:cursor-grabbing hover:border-emerald-500/50 hover:shadow-[0_0_12px_rgba(16,185,129,0.15)] h-full justify-center ${['done', 'completed', 'ready', 'delivered'].includes(String(task.status).toLowerCase())
                                                                         ? 'bg-emerald-950/20 border-emerald-500/20 text-white font-semibold'
                                                                         : ['in progress', 'in_progress', 'started'].includes(String(task.status).toLowerCase())
                                                                             ? 'bg-emerald-950/20 border-emerald-500/20 text-white font-semibold'
-                                                                            : 'bg-neutral-900/40 border-white/5 text-neutral-300 font-medium'
+                                                                            : 'bg-neutral-900/40 border-white/10 text-neutral-300 font-medium'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center justify-between gap-1">
