@@ -36,8 +36,8 @@ const NAV_GROUPS = [
     {
         label: 'Production',
         items: [
-            { icon: FiPrinter, label: 'Estimations', href: '/dashboard/estimations', permission: 'access_production' },
-            { icon: FiBox, label: 'Items', href: '/dashboard/items', permission: 'access_production' },
+            { icon: FiPrinter, label: 'Estimations', href: '/dashboard/items', permission: 'access_production' },
+            // { icon: FiBox, label: 'Items', href: '/dashboard/items', permission: 'access_production' },
             { icon: FiBriefcase, label: 'Services', href: '/dashboard/services', permission: 'access_production' },
             { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning', permission: 'access_production' },
         ],
@@ -130,7 +130,7 @@ function LayoutInner({ children }) {
                     });
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
     }, []);
 
     // WhatsApp notification state removed (moved to dedicated WhatsApp section page)
@@ -234,9 +234,9 @@ function LayoutInner({ children }) {
         })
     })).filter(group => group.items.length > 0);
 
-    const badge = ROLE_BADGE[role] || { 
-        label: role.charAt(0).toUpperCase() + role.slice(1), 
-        color: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25' 
+    const badge = ROLE_BADGE[role] || {
+        label: role.charAt(0).toUpperCase() + role.slice(1),
+        color: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25'
     };
 
     // Collapsed state: initialize so the active group is open, rest closed

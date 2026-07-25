@@ -23,6 +23,11 @@ export default function LoginPage() {
 
     // Fetch dynamic company names on mount
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('error') === 'suspended') {
+            setError('Server suspended due to the payment');
+        }
+
         fetch('/api/auth/companies')
             .then(res => res.ok ? res.json() : null)
             .then(data => {

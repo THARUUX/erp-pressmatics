@@ -10,6 +10,9 @@ import bcrypt from 'bcryptjs';
  */
 export async function POST(req) {
     try {
+        if (process.env.LICENSE_STATUS === 'inactive') {
+            return NextResponse.json({ error: 'Server suspended due to the payment' }, { status: 403 });
+        }
         const { email, password } = await req.json();
         if (!email?.trim()) {
             return NextResponse.json({ error: 'Email is required' }, { status: 400 });

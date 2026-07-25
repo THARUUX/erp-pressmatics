@@ -125,6 +125,29 @@ function getDefaultPage(role, permissions) {
 export async function middleware(request) {
     const { pathname } = request.nextUrl;
 
+    if (process.env.LICENSE_STATUS === 'inactive') {
+        if (pathname.startsWith('/api')) {
+            const isLoginOrPublic =
+                pathname === '/api/auth/login' ||
+                pathname === '/api/auth/companies' ||
+                pathname === '/api/portal/login' ||
+                pathname === '/api/whatsapp/incoming';
+            if (!isLoginOrPublic) {
+                return NextResponse.json({ error: 'Server suspended due to the payment' }, { status: 403 });
+            }
+        }
+        const isPublicPage =
+            pathname === '/login' ||
+            pathname === '/portal/login' ||
+            pathname.startsWith('/_next') ||
+            pathname.includes('.');
+        if (!isPublicPage) {
+            const response = NextResponse.redirect(new URL('/login?error=suspended', request.url));
+            response.cookies.delete('token');
+            return response;
+        }
+    }
+
     // Protect API routes
     if (pathname.startsWith('/api')) {
         const isPublicApi =
