@@ -63,7 +63,8 @@ async function generateJobTasks(id) {
 
     for (const item of lineItems) {
         const [details] = await pool.execute(
-            `SELECT qid.*, m.name as machine_name, m.speed as machine_speed, m.speed_unit as machine_speed_unit, m.make_ready_minutes as machine_make_ready_minutes
+            `SELECT qid.*, m.name as machine_name, m.speed as machine_speed, m.speed_unit as machine_speed_unit, 
+                    m.make_ready_minutes as machine_make_ready_minutes, m.setup_minutes_per_plate as machine_setup_minutes_per_plate
              FROM quotation_item_details qid
              LEFT JOIN machines m ON qid.machine_id = m.id
              WHERE qid.quotation_item_id = ?
@@ -146,10 +147,20 @@ async function generateJobTasks(id) {
                 // Separate per component
                 for (const detail of offsetDetails) {
                     const compName = detail.component_name || itemName;
+                    const pagesVal = parseInt(detail.pages) || 1;
+                    const upsVal = parseInt(detail.ups) || 1;
+                    const sidesVal = parseInt(detail.sides) || 1;
+                    const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                    const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                    const isBB = parseInt(detail.is_bb) === 1;
+
+                    const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                    const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+                    const plateCount = computedPlateCount;
+
                     const cf = parseInt(detail.colors_front ?? detail.colors ?? 4);
                     const cb = parseInt(detail.colors_back ?? 0);
                     const colorStr = cb > 0 ? `${cf}+${cb}` : `${cf}`;
-                    const plateCount = detail.plate_count || (cf + cb);
                     const ctpSpeed = parseFloat(ctpMachine?.speed) || 60;
                     const plateEstMins = Math.ceil((plateCount / ctpSpeed) * 60);
                     const finalMins = plateMakingConfig.estimated_minutes !== null ? plateMakingConfig.estimated_minutes : plateEstMins;
@@ -174,12 +185,22 @@ async function generateJobTasks(id) {
                 let colorStrings = [];
 
                 for (const detail of offsetDetails) {
+                    const pagesVal = parseInt(detail.pages) || 1;
+                    const upsVal = parseInt(detail.ups) || 1;
+                    const sidesVal = parseInt(detail.sides) || 1;
+                    const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                    const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                    const isBB = parseInt(detail.is_bb) === 1;
+
+                    const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                    const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+                    const plateCount = computedPlateCount;
+
                     const cf = parseInt(detail.colors_front ?? detail.colors ?? 4);
                     const cb = parseInt(detail.colors_back ?? 0);
                     const colorStr = cb > 0 ? `${cf}+${cb}` : `${cf}`;
                     colorStrings.push(`${detail.component_name || 'Component'}: ${colorStr}`);
 
-                    const plateCount = detail.plate_count || (cf + cb);
                     totalPlates += plateCount;
 
                     const ctpSpeed = parseFloat(ctpMachine?.speed) || 60;
@@ -255,7 +276,19 @@ async function generateJobTasks(id) {
                     const offsetSpeed = parseFloat(detail.machine_speed) || 0;
                     const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;
+                    const pagesVal = parseInt(detail.pages) || 1;
+                    const upsVal = parseInt(detail.ups) || 1;
+                    const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                    const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                    const isBB = parseInt(detail.is_bb) === 1;
+
+                    const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                    const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+                    const plateCount = computedPlateCount;
+
                     const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
+                    const plateSetupMins = plateCount * (parseFloat(detail.machine_setup_minutes_per_plate) || 0);
+                    const totalMakeReady = makeReady + plateSetupMins;
 
                     const runQty = resolveRunQty(speedUnit, {
                         totalCutSheets,
@@ -266,7 +299,7 @@ async function generateJobTasks(id) {
 
                     let offsetEstMins = null;
                     if (offsetSpeed > 0) {
-                        offsetEstMins = Math.ceil((runQty / offsetSpeed) * 60) + makeReady;
+                        offsetEstMins = Math.ceil((runQty / offsetSpeed) * 60) + totalMakeReady;
                     }
                     const finalMins = printConfig.estimated_minutes !== null ? printConfig.estimated_minutes : offsetEstMins;
 
@@ -300,7 +333,19 @@ async function generateJobTasks(id) {
                     const offsetSpeed = parseFloat(detail.machine_speed) || 0;
                     const speedUnit = detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;
+                    const pagesVal = parseInt(detail.pages) || 1;
+                    const upsVal = parseInt(detail.ups) || 1;
+                    const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                    const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                    const isBB = parseInt(detail.is_bb) === 1;
+
+                    const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                    const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+                    const plateCount = computedPlateCount;
+
                     const makeReady = parseFloat(detail.machine_make_ready_minutes) || 0;
+                    const plateSetupMins = plateCount * (parseFloat(detail.machine_setup_minutes_per_plate) || 0);
+                    const totalMakeReady = makeReady + plateSetupMins;
 
                     const runQty = resolveRunQty(speedUnit, {
                         totalCutSheets,
@@ -315,7 +360,7 @@ async function generateJobTasks(id) {
 
                     let offsetEstMins = null;
                     if (offsetSpeed > 0) {
-                        offsetEstMins = Math.ceil((runQty / offsetSpeed) * 60) + makeReady;
+                        offsetEstMins = Math.ceil((runQty / offsetSpeed) * 60) + totalMakeReady;
                         combinedMins += offsetEstMins;
                         hasCalculatedMins = true;
                     }
@@ -687,7 +732,11 @@ export async function GET(req, { params }) {
         }
 
         const [tasks] = await pool.execute(
-            'SELECT * FROM job_tasks WHERE sales_order_id = ? ORDER BY display_order ASC, id ASC',
+            `SELECT jt.*, m.type AS machine_type 
+             FROM job_tasks jt
+             LEFT JOIN machines m ON jt.machine_id = m.id
+             WHERE jt.sales_order_id = ? 
+             ORDER BY jt.display_order ASC, jt.id ASC`,
             [id]
         );
         const enrichedTasks = await enrichTasksWithEstimationDetailsForGet(tasks, [id]);
@@ -703,29 +752,62 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
 
     const placeholders = orderIds.map(() => '?').join(',');
     const [details] = await pool.execute(
-        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id
+        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                m.setup_minutes_per_plate, m.make_ready_minutes, m.type AS machine_type
          FROM quotation_item_details qid
          JOIN quotation_items qi ON qid.quotation_item_id = qi.id
          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
          JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+         LEFT JOIN machines m ON qid.machine_id = m.id
          WHERE so.id IN (${placeholders})`,
         orderIds
     );
 
     for (const task of tasks) {
-        const isOffset = task.name.toLowerCase().includes('offset printing');
-        const isDigital = task.name.toLowerCase().includes('digital print');
+        const isOffset = task.name.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
+        const isDigital = task.name.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
 
         if (isOffset || isDigital) {
             const parts = task.name.split(' — ');
-            const compName = parts[parts.length - 1]?.trim();
+            const compName = parts.length >= 3 ? parts[1]?.trim() : '';
 
-            const detail = details.find(d => 
-                d.sales_order_id === task.sales_order_id && 
-                (d.component_name === compName || 
-                 (isOffset && d.type === 'offset') || 
-                 (isDigital && d.type === 'digital'))
-            );
+            let bestDetail = null;
+            let bestScore = -1;
+
+            for (const d of details) {
+                if (d.sales_order_id !== task.sales_order_id) continue;
+
+                let score = 0;
+
+                // Check component name match
+                if (compName && d.component_name) {
+                    const c1 = compName.toLowerCase().trim();
+                    const c2 = d.component_name.toLowerCase().trim();
+                    if (c1 === c2) {
+                        score += 20;
+                    } else if (c1.includes(c2) || c2.includes(c1)) {
+                        score += 10;
+                    }
+                }
+
+                // Check machine_id match
+                if (task.machine_id && d.machine_id && task.machine_id === d.machine_id) {
+                    score += 5;
+                }
+
+                // Check type match
+                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
+                if (typeMatch) {
+                    score += 1;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDetail = d;
+                }
+            }
+
+            const detail = bestScore > 0 ? bestDetail : null;
 
             if (detail) {
                 const pagesVal = parseInt(detail.pages) || 1;
@@ -745,7 +827,18 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
                 if (task.impression_count == null || task.impression_count === 0) {
                     task.impression_count = totalImpressions;
                 }
+                const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                const isBB = parseInt(detail.is_bb) === 1;
+                const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+
                 task.job_qty = detail.item_qty || 0;
+                task.plate_count = computedPlateCount;
+                task.setup_minutes_per_plate = detail.setup_minutes_per_plate || 0;
+                task.net_sheet_count = Math.ceil(cutSheets);
+                task.wastage_sheets = wastage;
+                task.sides = sidesVal;
                 if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;

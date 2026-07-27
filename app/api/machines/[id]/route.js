@@ -8,7 +8,8 @@ export async function PUT(req, { params }) {
         const {
             name, type, sheet_factor, speed, speed_unit, plate_id,
             digital_price_max, digital_price_medium, digital_price_min,
-            assigned_employee_id, assigned_team_id, make_ready_minutes, shift_limit
+            assigned_employee_id, assigned_team_id, make_ready_minutes,
+            setup_minutes_per_plate, shift_limit
         } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -17,7 +18,8 @@ export async function PUT(req, { params }) {
             `UPDATE machines SET
                name=?, type=?, sheet_factor=?, speed=?, speed_unit=?, plate_id=?,
                digital_price_max=?, digital_price_medium=?, digital_price_min=?,
-               assigned_employee_id=?, assigned_team_id=?, make_ready_minutes=?, shift_limit=?
+               assigned_employee_id=?, assigned_team_id=?, make_ready_minutes=?,
+               setup_minutes_per_plate=?, shift_limit=?
              WHERE id=?`,
             [
                 name,
@@ -32,6 +34,7 @@ export async function PUT(req, { params }) {
                 assigned_employee_id || null,
                 assigned_team_id     || null,
                 parseInt(make_ready_minutes) || 0,
+                parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8,
                 id
             ]

@@ -291,6 +291,7 @@ export async function POST(req, { params }) {
                     machineSpeed:           machine ? parseFloat(machine.speed)        || 0   : 0,
                     machineSpeedUnit:       machine ? machine.speed_unit || 'Sheets/Hr'       : 'Sheets/Hr',
                     makeReadyMinutes:       machine ? parseFloat(machine.make_ready_minutes)   || 0   : 0,
+                    setup_minutes_per_plate: machine ? parseFloat(machine.setup_minutes_per_plate) || 0 : 0,
                     paperWidthCm:           paper ? parseFloat(paper.width)  || 0 : (detail.paper_width_cm  || 0),
                     paperHeightCm:          paper ? parseFloat(paper.height) || 0 : (detail.paper_height_cm || 0),
                     cutWidthCm:             detail.cut_width_cm,

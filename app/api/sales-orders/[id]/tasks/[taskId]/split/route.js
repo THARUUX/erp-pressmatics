@@ -60,13 +60,17 @@ export async function POST(req, { params }) {
 
         if (speed === null && originalTask.machine_id) {
             const [machines] = await connection.execute(
-                'SELECT speed, make_ready_minutes FROM machines WHERE id = ?',
+                'SELECT type, speed, make_ready_minutes, setup_minutes_per_plate FROM machines WHERE id = ?',
                 [originalTask.machine_id]
             );
             if (machines.length > 0) {
-                speed = parseFloat(machines[0].speed) || 0;
+                const mac = machines[0];
+                speed = parseFloat(mac.speed) || 0;
                 if (setup === null) {
-                    setup = parseFloat(machines[0].make_ready_minutes) || 0;
+                    const baseSetup = parseFloat(mac.make_ready_minutes) || 0;
+                    const isOffset = (mac.type || '').toLowerCase() === 'offset';
+                    const plateSetup = isOffset ? (parseInt(originalTask.plate_count || 0) * parseFloat(mac.setup_minutes_per_plate || 0)) : 0;
+                    setup = baseSetup + plateSetup;
                 }
             }
         }

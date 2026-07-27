@@ -28,6 +28,22 @@ const G = {
 
 const STATUS_DOT = { pending: '#64748b', in_progress: '#f59e0b', done: '#10b981' };
 
+const evaluateMathExpression = (str) => {
+    if (typeof str !== 'string') return str;
+    // Strip anything that is not digits, operators (+, -, *, /, .), parentheses, or spaces
+    const clean = str.replace(/[^0-9+\-*/().\s]/g, '');
+    if (!clean.trim()) return '';
+    try {
+        const res = new Function(`return (${clean})`)();
+        if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
+            return String(Math.round(res * 100) / 100);
+        }
+    } catch {
+        // fail silent
+    }
+    return str;
+};
+
 const getStartOfWeek = (d) => {
     const date = new Date(d);
     const day = date.getDay();
@@ -159,7 +175,9 @@ function TaskCard({
         // Recalculate estimated minutes if using machine defaults (no custom overrides)
         if (!task.custom_speed && task.custom_make_ready_minutes === null) {
             const speed = targetMachine?.speed || 0;
-            const setup = targetMachine?.make_ready_minutes || 0;
+            const isOffset = (targetMachine?.type || '').toLowerCase() === 'offset';
+            const plateSetup = isOffset ? (parseInt(task.plate_count || 0) * parseFloat(targetMachine?.setup_minutes_per_plate || 0)) : 0;
+            const setup = (targetMachine?.make_ready_minutes || 0) + plateSetup;
             const qty = parseFloat(task.quantity) || 0;
             if (qty && speed > 0) {
                 fields.estimated_minutes = Math.ceil((qty / speed) * 60) + setup;
@@ -181,7 +199,15 @@ function TaskCard({
         e.stopPropagation();
         const qty = parseFloat(task.quantity) || 0;
         const speed = parseFloat(task.custom_speed || machine?.speed) || 0;
-        const setup = parseFloat(task.custom_make_ready_minutes != null ? task.custom_make_ready_minutes : (machine?.make_ready_minutes || 0));
+        let setup = 0;
+        if (task.custom_make_ready_minutes != null) {
+            setup = parseFloat(task.custom_make_ready_minutes);
+        } else {
+            const baseSetup = parseFloat(machine?.make_ready_minutes || 0);
+            const isOffset = (machine?.type || '').toLowerCase() === 'offset';
+            const plateSetup = isOffset ? (parseInt(task.plate_count || 0) * parseFloat(machine?.setup_minutes_per_plate || 0)) : 0;
+            setup = baseSetup + plateSetup;
+        }
         if (!qty || !speed) return;
         const newMins = Math.ceil((qty / speed) * 60) + setup;
         setCalcLoading(true);
@@ -317,7 +343,24 @@ function TaskCard({
                             onMouseDown={e => e.stopPropagation()}
                             disabled={calcLoading}
                             className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
-                            title={`Recalculate: ${parseFloat(task.quantity) || 0} qty ÷ ${parseFloat(task.custom_speed || machine?.speed) || 0} speed + ${parseFloat(task.custom_make_ready_minutes ?? machine?.make_ready_minutes ?? 0)}m setup`}
+                            title={(() => {
+                                const qty = parseFloat(task.quantity) || 0;
+                                const speed = parseFloat(task.custom_speed || machine?.speed) || 0;
+                                let setupStr = '';
+                                if (task.custom_make_ready_minutes != null) {
+                                    setupStr = `${task.custom_make_ready_minutes}m`;
+                                } else {
+                                    const baseSetup = machine?.make_ready_minutes || 0;
+                                    const isOffset = (machine?.type || '').toLowerCase() === 'offset';
+                                    if (isOffset && task.plate_count) {
+                                        const plateSetup = parseInt(task.plate_count) * parseFloat(machine?.setup_minutes_per_plate || 0);
+                                        setupStr = `${baseSetup}m base + ${plateSetup}m plate setup`;
+                                    } else {
+                                        setupStr = `${baseSetup}m`;
+                                    }
+                                }
+                                return `Recalculate: ${qty} qty ÷ ${speed} speed + ${setupStr} setup`;
+                            })()}
                         >
                             <FiZap className="w-2.5 h-2.5" />
                         </button>
@@ -437,35 +480,62 @@ function TaskCard({
 // ── Task Detail & Override Modal ─────────────────────────────────────────
 
 function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh, onViewJobTicket }) {
-    const defaultSetup = machine?.make_ready_minutes || 0;
+    const isOffset = (machine?.type || '').toLowerCase() === 'offset';
+    const plateSetup = isOffset ? (parseInt(task.plate_count || 0) * parseFloat(machine?.setup_minutes_per_plate || 0)) : 0;
+    const defaultSetup = (machine?.make_ready_minutes || 0) + plateSetup;
     const defaultSpeed = machine?.speed || 0;
     const defaultUnit = machine?.speed_unit || 'Sheets/Hr';
 
     const initialUnit = task.custom_speed_unit || defaultUnit;
-    const getInitialQty = (u) => {
+    const getResolvedQty = (u, withWastage) => {
+        if (isOffset) {
+            const sides = parseInt(task.sides || 1) || 1;
+            const totalSheets = (task.net_sheet_count || 0) + (task.wastage_sheets || 0);
+            if (withWastage) {
+                return (totalSheets || task.sheet_count || 0) * sides;
+            } else {
+                return (task.net_sheet_count || task.sheet_count || 0) * sides;
+            }
+        }
+        const sheetCount = withWastage ? (task.sheet_count || 0) : (task.net_sheet_count || task.sheet_count || 0);
         const lowerU = (u || '').toLowerCase();
-        if (lowerU === 'impressions/hr') {
-            return task.impression_count != null && task.impression_count !== 0
-                ? String(task.impression_count)
-                : (task.quantity != null ? String(task.quantity) : '');
-        } else if (lowerU === 'sheets/hr') {
-            return task.sheet_count != null && task.sheet_count !== 0
-                ? String(task.sheet_count)
-                : (task.quantity != null ? String(task.quantity) : '');
+        if (lowerU === 'sheets/hr') {
+            return sheetCount;
+        } else if (lowerU === 'prints/hr') {
+            const sides = parseInt(task.sides || 1) || 1;
+            return sheetCount * sides;
+        } else if (lowerU === 'impressions/hr') {
+            if (withWastage) {
+                return task.impression_count != null && task.impression_count !== 0
+                    ? task.impression_count
+                    : (task.quantity || 0);
+            } else {
+                const sides = parseInt(task.sides || 1) || 1;
+                return task.net_sheet_count ? (task.net_sheet_count * sides) : (task.impression_count || task.quantity || 0);
+            }
         } else {
-            return task.job_qty != null && task.job_qty !== 0
-                ? String(task.job_qty)
-                : (task.quantity != null ? String(task.quantity) : '');
+            return task.job_qty || task.quantity || 0;
         }
     };
 
+    const getInitialQty = (u, withWastage = true) => {
+        const val = getResolvedQty(u, withWastage);
+        return val ? String(val) : '';
+    };
+
+    const [useWastage, setUseWastage] = useState(true);
     const [setupMin, setSetupMin] = useState(task.custom_make_ready_minutes != null ? String(task.custom_make_ready_minutes) : '');
     const [speed, setSpeed] = useState(task.custom_speed != null ? String(task.custom_speed) : '');
     const [unit, setUnit] = useState(initialUnit);
-    const [calcQty, setCalcQty] = useState(getInitialQty(initialUnit));
+    const [calcQty, setCalcQty] = useState(getInitialQty(initialUnit, true));
     const [multiplier, setMultiplier] = useState(task.custom_multiplier != null ? String(task.custom_multiplier) : '1');
     const [estimatedMins, setEstimatedMins] = useState(task.estimated_minutes || 0);
     const [saving, setSaving] = useState(false);
+
+    const handleToggleWastage = (val) => {
+        setUseWastage(val);
+        setCalcQty(getInitialQty(unit, val));
+    };
 
     // Split states
     const [splitQtyInput, setSplitQtyInput] = useState('');
@@ -555,14 +625,22 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
     const statusLabel = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' };
     const statusColor = { pending: G.dim, in_progress: G.warning, done: G.success };
 
-    const handleCalculate = () => {
-        const defaultQty = unit.toLowerCase() === 'prints/hr'
-            ? ((task.sheet_count || task.quantity || 0) * (task.sides || 1))
-            : (task.sheet_count != null ? task.sheet_count : task.quantity);
-        const q = parseFloat(calcQty !== '' ? calcQty : defaultQty) || 0;
-        const mult = parseFloat(multiplier) || 1;
-        const s = parseFloat(speed !== '' ? speed : defaultSpeed) || 0;
-        const t = parseFloat(setupMin !== '' ? setupMin : defaultSetup) || 0;
+    const evaluateAndCalculate = (runQtyVal = calcQty, multVal = multiplier, sMinVal = setupMin, speedVal = speed) => {
+        const qVal = evaluateMathExpression(runQtyVal);
+        const mVal = evaluateMathExpression(multVal);
+        const tVal = evaluateMathExpression(sMinVal);
+        const sVal = evaluateMathExpression(speedVal);
+
+        setCalcQty(qVal);
+        setMultiplier(mVal);
+        setSetupMin(tVal);
+        setSpeed(sVal);
+
+        const defaultQty = getResolvedQty(unit, useWastage);
+        const q = parseFloat(qVal !== '' ? qVal : defaultQty) || 0;
+        const mult = parseFloat(mVal) || 1;
+        const s = parseFloat(sVal !== '' ? sVal : defaultSpeed) || 0;
+        const t = parseFloat(tVal !== '' ? tVal : defaultSetup) || 0;
 
         if (q && s > 0) {
             const runMins = Math.ceil(((q * mult) / s) * 60);
@@ -572,6 +650,10 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
         } else {
             setEstimatedMins(0);
         }
+    };
+
+    const handleCalculate = () => {
+        evaluateAndCalculate();
     };
 
     const handleSave = async () => {
@@ -586,7 +668,13 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
         if (calcQty !== '') {
             const numQty = parseFloat(calcQty);
             payload.quantity = numQty;
-            if (unit.toLowerCase() === 'impressions/hr') {
+            const lowerUnit = (unit || '').toLowerCase();
+            const sides = parseInt(task.sides || 1) || 1;
+            if (lowerUnit === 'sheets/hr') {
+                payload.sheet_count = numQty;
+            } else if (lowerUnit === 'prints/hr') {
+                payload.sheet_count = Math.ceil(numQty / sides);
+            } else if (lowerUnit === 'impressions/hr') {
                 payload.impression_count = numQty;
             } else {
                 payload.sheet_count = numQty;
@@ -599,8 +687,8 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
 
     const handleReset = async () => {
         setSaving(true);
-        setSetupMin(''); setSpeed(''); setUnit(defaultUnit); setMultiplier('1');
-        setCalcQty(getInitialQty(defaultUnit));
+        setSetupMin(''); setSpeed(''); setUnit(defaultUnit); setMultiplier('1'); setUseWastage(true);
+        setCalcQty(getInitialQty(defaultUnit, true));
         setEstimatedMins(task.estimated_minutes || 0);
         await onSave(task.id, order?.id, {
             custom_make_ready_minutes: null,
@@ -633,7 +721,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
             onClick={onClose}
         >
             <div
-                className="bg-black/40 backdrop-blur-lg border border-white/12 rounded-[18px] w-full max-w-[680px] max-h-[90vh] overflow-y-auto shadow-[0_32px_80px_rgba(0,0,0,0.95)]"
+                className="bg-black backdrop-blur-lg border border-white/12 rounded-[18px] w-full max-w-[680px] max-h-[90vh] overflow-y-auto shadow-[0_32px_80px_rgba(0,0,0,0.95)]"
                 style={{ borderTop: `3px solid ${accentColor}` }}
                 onClick={e => e.stopPropagation()}
             >
@@ -745,7 +833,14 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                             <div className="grid grid-cols-3 gap-3.5">
                                 {[
                                     ['Default Speed', defaultSpeed ? `${defaultSpeed} ${defaultUnit}` : '—'],
-                                    ['Setup Time', defaultSetup ? `${defaultSetup} min` : '—'],
+                                    ['Setup Time', isOffset && task.plate_count ? (
+                                        <span>
+                                            {defaultSetup} min
+                                            <span className="text-[10px] text-gray-500 font-normal block mt-0.5">
+                                                ({machine?.make_ready_minutes || 0}m base + {task.plate_count} plates × {machine?.setup_minutes_per_plate || 0}m)
+                                            </span>
+                                        </span>
+                                    ) : `${defaultSetup} min`],
                                     ['Shift Limit', `${machine.shift_limit || 8} hrs`],
                                     ['Sheet Factor', machine.sheet_factor || '—'],
                                     ['Assigned To', machine.assigned_employee_name || machine.assigned_team_name || '—'],
@@ -771,45 +866,94 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Run Qty</label>
                                 <input
                                     className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
-                                    type="number"
-                                    min="0"
-                                    placeholder={String(unit.toLowerCase() === 'prints/hr' ? ((task.sheet_count || task.quantity || 0) * (task.sides || 1)) : (task.sheet_count != null ? task.sheet_count : (task.quantity || 0)))}
+                                    type="text"
+                                    placeholder={String(getResolvedQty(unit, useWastage) || 0)}
                                     value={calcQty}
                                     onChange={e => setCalcQty(e.target.value)}
+                                    onBlur={e => {
+                                        const evald = evaluateMathExpression(e.target.value);
+                                        setCalcQty(evald);
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            evaluateAndCalculate(e.target.value, multiplier, setupMin, speed);
+                                        }
+                                    }}
                                 />
+                                {(task.wastage_sheets > 0 || task.net_sheet_count > 0) && (
+                                    <div className="mt-1.5 flex items-center gap-1">
+                                        <input
+                                            type="checkbox"
+                                            id="useWastage"
+                                            checked={useWastage}
+                                            onChange={e => handleToggleWastage(e.target.checked)}
+                                            className="rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5"
+                                        />
+                                        <label htmlFor="useWastage" className="text-[9.5px] text-gray-400 select-none cursor-pointer leading-none">
+                                            Inc. Wastage ({task.wastage_sheets || 0} sheets)
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Multiplier</label>
                                 <input
                                     className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
-                                    type="number"
-                                    step="0.1"
-                                    min="0.1"
+                                    type="text"
                                     placeholder="1"
                                     value={multiplier}
                                     onChange={e => setMultiplier(e.target.value)}
+                                    onBlur={e => {
+                                        const evald = evaluateMathExpression(e.target.value);
+                                        setMultiplier(evald);
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            evaluateAndCalculate(calcQty, e.target.value, setupMin, speed);
+                                        }
+                                    }}
                                 />
                             </div>
                             <div>
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Setup (min)</label>
                                 <input
                                     className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
-                                    type="number"
-                                    min="0"
+                                    type="text"
                                     placeholder={`Default: ${defaultSetup || 0}`}
                                     value={setupMin}
                                     onChange={e => setSetupMin(e.target.value)}
+                                    onBlur={e => {
+                                        const evald = evaluateMathExpression(e.target.value);
+                                        setSetupMin(evald);
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            evaluateAndCalculate(calcQty, multiplier, e.target.value, speed);
+                                        }
+                                    }}
                                 />
                             </div>
                             <div>
                                 <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Speed</label>
                                 <input
                                     className="w-full bg-black border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-white/30"
-                                    type="number"
-                                    min="1"
+                                    type="text"
                                     placeholder={`Default: ${defaultSpeed || '—'}`}
                                     value={speed}
                                     onChange={e => setSpeed(e.target.value)}
+                                    onBlur={e => {
+                                        const evald = evaluateMathExpression(e.target.value);
+                                        setSpeed(evald);
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            evaluateAndCalculate(calcQty, multiplier, setupMin, e.target.value);
+                                        }
+                                    }}
                                 />
                             </div>
                             <div>
@@ -820,7 +964,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                                     onChange={e => {
                                         const newUnit = e.target.value;
                                         setUnit(newUnit);
-                                        setCalcQty(getInitialQty(newUnit));
+                                        setCalcQty(getInitialQty(newUnit, useWastage));
                                     }}
                                 >
                                     {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
@@ -2079,7 +2223,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                                                 className="rounded border-white/15 bg-slate-900 text-emerald-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
                                                 checked={checked}
                                                 onChange={() => {
-                                                    setWeeklyPrintDays(prev => 
+                                                    setWeeklyPrintDays(prev =>
                                                         prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
                                                     );
                                                 }}

@@ -248,7 +248,7 @@ export default function EditQuotationPage({ params }) {
                 type: 'offset',
                 quantity: quantity,
                 params: {
-                    machineId: machines.find(m => m.type === 'offset')?.id || '',
+                    machineId: '',
                     pages: 1, ups: 1, sides: 1, size: 'A4', colorsFront: 4, colorsBack: 0,
                     paperCostPerSheet: 0, plateCostPerUnit: 0, impressionCostPerUnit: 0, wastagePercent: 5, digitalImpressionCost: 0,
                     paperId: null, paperName: '',
@@ -405,6 +405,7 @@ export default function EditQuotationPage({ params }) {
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                         makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                         custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
                         pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
@@ -455,6 +456,7 @@ export default function EditQuotationPage({ params }) {
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                         makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                         custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
                         pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages

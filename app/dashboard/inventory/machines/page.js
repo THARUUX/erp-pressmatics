@@ -53,6 +53,7 @@ export default function MachinesPage() {
         assigned_employee_id: '',
         assigned_team_id: '',
         make_ready_minutes: 0,
+        setup_minutes_per_plate: 0,
         shift_limit: 8,
     });
 
@@ -161,6 +162,7 @@ export default function MachinesPage() {
             assigned_employee_id: item.assigned_employee_id || '',
             assigned_team_id: item.assigned_team_id || '',
             make_ready_minutes: item.make_ready_minutes || 0,
+            setup_minutes_per_plate: item.setup_minutes_per_plate || 0,
             shift_limit: item.shift_limit || 8,
         });
         setShowFormModal(true);
@@ -183,6 +185,7 @@ export default function MachinesPage() {
             assigned_employee_id: '',
             assigned_team_id: '',
             make_ready_minutes: 0,
+            setup_minutes_per_plate: 0,
             shift_limit: 8,
         });
     };
@@ -297,6 +300,11 @@ export default function MachinesPage() {
                         <span className="inline-flex items-center gap-1 text-[10px]  border border-amber-500/20 px-2 py-0.5 rounded-full font-medium">
                             <FiClock className="w-2.5 h-2.5" />{item.make_ready_minutes || 0}m setup
                         </span>
+                        {item.type === 'offset' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/5 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
+                                <FiClock className="w-2.5 h-2.5" />Plate Setup: {item.setup_minutes_per_plate || 0}m/plate
+                            </span>
+                        )}
                         <span className="inline-flex items-center gap-1 text-[10px]  border border-sky-500/20 px-2 py-0.5 rounded-full font-medium">
                             <FiClock className="w-2.5 h-2.5" />Shift: {item.shift_limit || 8}h
                         </span>
@@ -574,38 +582,49 @@ export default function MachinesPage() {
                             </div>
 
                             {formData.type === 'offset' && (
-                                <div className="relative">
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Default Plate</label>
-                                    <Input
-                                        value={plateSearch}
-                                        onChange={(e) => {
-                                            setPlateSearch(e.target.value);
-                                            setShowPlateSuggestions(true);
-                                            if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' }));
-                                        }}
-                                        onFocus={() => setShowPlateSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)}
-                                        placeholder="Search plate inventory..."
-                                        className="bg-secondary border-white/10"
-                                    />
-                                    {showPlateSuggestions && (
-                                        <ul className="absolute z-50 w-full  border border-white/10 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
-                                            {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).map(p => (
-                                                <li
-                                                    key={p.id}
-                                                    onClick={() => {
-                                                        setFormData(prev => ({ ...prev, plate_id: p.id }));
-                                                        setPlateSearch(p.name);
-                                                        setShowPlateSuggestions(false);
-                                                    }}
-                                                    className="px-4 py-2 hover:bg-white/5 cursor-pointer text-sm flex justify-between"
-                                                >
-                                                    <span>{p.name}</span>
-                                                    <span className="text-gray-500 text-xs">Cost: {p.unit_cost}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="relative">
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Default Plate</label>
+                                        <Input
+                                            value={plateSearch}
+                                            onChange={(e) => {
+                                                setPlateSearch(e.target.value);
+                                                setShowPlateSuggestions(true);
+                                                if (e.target.value === '') setFormData(prev => ({ ...prev, plate_id: '' }));
+                                            }}
+                                            onFocus={() => setShowPlateSuggestions(true)}
+                                            onBlur={() => setTimeout(() => setShowPlateSuggestions(false), 200)}
+                                            placeholder="Search plate inventory..."
+                                            className="bg-secondary border-white/10"
+                                        />
+                                        {showPlateSuggestions && (
+                                            <ul className="absolute z-50 w-full  border border-white/10 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl">
+                                                {plates.filter(p => p.name.toLowerCase().includes(plateSearch.toLowerCase())).map(p => (
+                                                    <li
+                                                        key={p.id}
+                                                        onClick={() => {
+                                                            setFormData(prev => ({ ...prev, plate_id: p.id }));
+                                                            setPlateSearch(p.name);
+                                                            setShowPlateSuggestions(false);
+                                                        }}
+                                                        className="px-4 py-2 hover:bg-white/5 cursor-pointer text-sm flex justify-between"
+                                                    >
+                                                        <span>{p.name}</span>
+                                                        <span className="text-gray-500 text-xs">Cost: {p.unit_cost}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Plate Setup Time (min)</label>
+                                        <Input
+                                            type="number"
+                                            value={formData.setup_minutes_per_plate}
+                                            onChange={e => setFormData(prev => ({ ...prev, setup_minutes_per_plate: parseInt(e.target.value) || 0 }))}
+                                            className="bg-secondary border-white/10"
+                                        />
+                                    </div>
                                 </div>
                             )}
 

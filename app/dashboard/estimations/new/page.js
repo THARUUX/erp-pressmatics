@@ -154,16 +154,7 @@ export default function NewQuotationPage() {
             setSfgInventory(safeSFG);
             setStaticsInventory(safeStatics);
 
-            // Set default machine for first component
-            const firstOffset = safeMachines.find(m => m.type === 'offset');
-            if (firstOffset) {
-                setComponents(prev => {
-                    const newComps = [...prev];
-                    newComps[0].params.machineId = firstOffset.id;
-                    newComps[0].params.plateCostPerUnit = firstOffset.plate_cost;
-                    return newComps;
-                });
-            }
+            // Default machine pre-selection removed to require manual selection
         }).catch(err => console.error("Failed to load data", err));
     }, []);
 
@@ -196,14 +187,14 @@ export default function NewQuotationPage() {
                 type: 'offset',
                 quantity: quantity,
                 params: {
-                    machineId: machines.find(m => m.type === 'offset')?.id || '',
+                    machineId: '',
                     pages: 1,
                     ups: 1,
                     sides: 1,
                     colorsFront: 4,
                     colorsBack: 0,
                     paperCostPerSheet: 0,
-                    plateCostPerUnit: machines.find(m => m.type === 'offset')?.plate_cost || 0,
+                    plateCostPerUnit: 0,
                     impressionCostPerUnit: 0,
                     wastagePercent: 5,
                     digitalImpressionCost: 0,
@@ -366,6 +357,7 @@ export default function NewQuotationPage() {
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                         makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                         custom_make_ready_minutes: c.params.customMakeReadyMinutes || c.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit,
                         // Cover: pages must equal sides (input is display-only, state may be stale)
@@ -428,6 +420,7 @@ export default function NewQuotationPage() {
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                         makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                         custom_make_ready_minutes: c.params.customMakeReadyMinutes || c.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: c.type === 'digital' ? c.params.digitalImpressionCost : c.params.impressionCostPerUnit
                     }

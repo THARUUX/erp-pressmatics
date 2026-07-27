@@ -74,11 +74,11 @@ export default function JobTicketModal({ orderId, onClose }) {
 
     return (
         <div
-            className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-0 z-[99999] bg-black/20 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
             onClick={onClose}
         >
             <div
-                className=" border border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100"
+                className="bg-black border border-white/15 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Modal Header */}

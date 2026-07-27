@@ -409,6 +409,7 @@ export default function NewQuotationPage() {
                         machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                         machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                         makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                        setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                         custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
                         pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
@@ -462,6 +463,7 @@ export default function NewQuotationPage() {
                     machineSpeed: selectedMachine ? selectedMachine.speed : 0,
                     machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
                     makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                    setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
                     custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                     impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit
                 }

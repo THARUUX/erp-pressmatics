@@ -29,15 +29,17 @@ export async function POST(req) {
         const {
             name, type, sheet_factor, speed, speed_unit, plate_id,
             digital_price_max, digital_price_medium, digital_price_min,
-            assigned_employee_id, assigned_team_id, make_ready_minutes, shift_limit
+            assigned_employee_id, assigned_team_id, make_ready_minutes,
+            setup_minutes_per_plate, shift_limit
         } = body;
 
         await pool.execute(
             `INSERT INTO machines
              (name, type, sheet_factor, speed, speed_unit, plate_id,
               digital_price_max, digital_price_medium, digital_price_min,
-              assigned_employee_id, assigned_team_id, make_ready_minutes, shift_limit)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              assigned_employee_id, assigned_team_id, make_ready_minutes,
+              setup_minutes_per_plate, shift_limit)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -51,6 +53,7 @@ export async function POST(req) {
                 assigned_employee_id || null,
                 assigned_team_id     || null,
                 parseInt(make_ready_minutes) || 0,
+                parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8
             ]
         );

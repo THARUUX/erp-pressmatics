@@ -26,7 +26,7 @@ export async function GET() {
     try {
         // Fetch all machines with full details for task modal defaults
         const [machines] = await pool.execute(
-            `SELECT id, name, type, speed, speed_unit, make_ready_minutes, shift_limit, sheet_factor,
+            `SELECT id, name, type, speed, speed_unit, make_ready_minutes, setup_minutes_per_plate, shift_limit, sheet_factor,
                     (SELECT e.name FROM employees e WHERE e.id = machines.assigned_employee_id LIMIT 1) AS assigned_employee_name,
                     (SELECT t.name FROM teams t WHERE t.id = machines.assigned_team_id LIMIT 1) AS assigned_team_name
              FROM machines ORDER BY name ASC`
@@ -55,7 +55,7 @@ export async function GET() {
         if (orderIds.length > 0) {
             const placeholders = orderIds.map(() => '?').join(',');
             const [rows] = await pool.execute(
-                `SELECT jt.*, m.name AS machine_label, so.delivery_date AS order_delivery_date
+                `SELECT jt.*, m.name AS machine_label, m.type AS machine_type, so.delivery_date AS order_delivery_date
                  FROM job_tasks jt
                  LEFT JOIN machines m ON jt.machine_id = m.id
                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
@@ -66,7 +66,7 @@ export async function GET() {
             tasks = await enrichTasksWithEstimationDetails(rows, orderIds);
         } else {
             const [rows] = await pool.execute(
-                `SELECT jt.*, m.name AS machine_label, NULL AS order_delivery_date
+                `SELECT jt.*, m.name AS machine_label, m.type AS machine_type, NULL AS order_delivery_date
                  FROM job_tasks jt
                  LEFT JOIN machines m ON jt.machine_id = m.id
                  WHERE jt.sales_order_id IS NULL
@@ -108,29 +108,62 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
 
     const placeholders = orderIds.map(() => '?').join(',');
     const [details] = await pool.execute(
-        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id
+        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                m.setup_minutes_per_plate, m.make_ready_minutes
          FROM quotation_item_details qid
          JOIN quotation_items qi ON qid.quotation_item_id = qi.id
          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
          JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+         LEFT JOIN machines m ON qid.machine_id = m.id
          WHERE so.id IN (${placeholders})`,
         orderIds
     );
 
     for (const task of tasks) {
-        const isOffset = task.name.toLowerCase().includes('offset printing');
-        const isDigital = task.name.toLowerCase().includes('digital print');
+        const isOffset = task.name.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
+        const isDigital = task.name.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
 
         if (isOffset || isDigital) {
             const parts = task.name.split(' — ');
-            const compName = parts[parts.length - 1]?.trim();
+            const compName = parts.length >= 3 ? parts[1]?.trim() : '';
 
-            const detail = details.find(d =>
-                d.sales_order_id === task.sales_order_id &&
-                (d.component_name === compName ||
-                    (isOffset && d.type === 'offset') ||
-                    (isDigital && d.type === 'digital'))
-            );
+            let bestDetail = null;
+            let bestScore = -1;
+
+            for (const d of details) {
+                if (d.sales_order_id !== task.sales_order_id) continue;
+
+                let score = 0;
+
+                // Check component name match
+                if (compName && d.component_name) {
+                    const c1 = compName.toLowerCase().trim();
+                    const c2 = d.component_name.toLowerCase().trim();
+                    if (c1 === c2) {
+                        score += 20;
+                    } else if (c1.includes(c2) || c2.includes(c1)) {
+                        score += 10;
+                    }
+                }
+
+                // Check machine_id match
+                if (task.machine_id && d.machine_id && task.machine_id === d.machine_id) {
+                    score += 5;
+                }
+
+                // Check type match
+                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
+                if (typeMatch) {
+                    score += 1;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDetail = d;
+                }
+            }
+
+            const detail = bestScore > 0 ? bestDetail : null;
 
             if (detail) {
                 const pagesVal = parseInt(detail.pages) || 1;
@@ -150,7 +183,18 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                 if (task.impression_count == null || task.impression_count === 0) {
                     task.impression_count = totalImpressions;
                 }
+                const forms = (upsVal * sidesVal) > 0 ? Math.ceil(pagesVal / (upsVal * sidesVal)) : 0;
+                const colorsVal = parseInt(detail.colors || detail.colors_front || 4);
+                const colorsFront = parseInt(detail.colors_front || detail.colors || 4);
+                const isBB = parseInt(detail.is_bb) === 1;
+                const computedPlateCount = isBB ? parseInt(colorsFront) : (forms * colorsVal);
+
                 task.job_qty = detail.item_qty || 0;
+                task.plate_count = computedPlateCount;
+                task.setup_minutes_per_plate = detail.setup_minutes_per_plate || 0;
+                task.net_sheet_count = Math.ceil(cutSheets);
+                task.wastage_sheets = wastage;
+                task.sides = sidesVal;
                 if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;
