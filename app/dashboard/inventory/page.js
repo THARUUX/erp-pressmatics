@@ -211,6 +211,24 @@ export default function InventoryPage() {
     const [bomSearch, setBomSearch] = useState('');
     const [bomTypeFilter, setBomTypeFilter] = useState('All');
     const [bomStatusFilter, setBomStatusFilter] = useState('All');
+    const [bomStockFilter, setBomStockFilter] = useState('All');
+    const [bomCustomerFilter, setBomCustomerFilter] = useState('All');
+    const [bomSoStatusFilter, setBomSoStatusFilter] = useState('All');
+
+    const [bomSelection, setBomSelection] = useState({});
+    const [showBulkIssueModal, setShowBulkIssueModal] = useState(false);
+    const [bulkIssueQuantities, setBulkIssueQuantities] = useState({});
+    const [bulkIssuing, setBulkIssuing] = useState(false);
+
+    const uniqueCustomers = useMemo(() => {
+        const customers = waitingList.map(item => item.customer_name).filter(Boolean);
+        return ['All', ...Array.from(new Set(customers))].sort();
+    }, [waitingList]);
+
+    const uniqueSoStatuses = useMemo(() => {
+        const statuses = waitingList.map(item => item.sales_order_status).filter(Boolean);
+        return ['All', ...Array.from(new Set(statuses))].sort();
+    }, [waitingList]);
 
     const filteredWaitingList = useMemo(() => {
         return waitingList.filter(item => {
@@ -231,16 +249,28 @@ export default function InventoryPage() {
                 const req = parseFloat(item.required_qty);
                 const issued = parseFloat(item.issued_qty);
                 const remaining = Math.max(0, req - issued);
+
+                if (bomStatusFilter === 'Pending' && issued > 0) return false;
+                if (bomStatusFilter === 'Partial' && (issued === 0 || remaining === 0)) return false;
+            }
+            if (bomStockFilter !== 'All') {
+                const req = parseFloat(item.required_qty);
+                const issued = parseFloat(item.issued_qty);
+                const remaining = Math.max(0, req - issued);
                 const available = parseFloat(item.available_qty || 0);
 
-                if (bomStatusFilter === 'Fully Issued' && remaining > 0) return false;
-                if (bomStatusFilter === 'Partial' && (issued === 0 || remaining === 0)) return false;
-                if (bomStatusFilter === 'Pending' && issued > 0) return false;
-                if (bomStatusFilter === 'Shortage' && available >= remaining) return false;
+                if (bomStockFilter === 'Ready' && available < remaining) return false;
+                if (bomStockFilter === 'Shortage' && available >= remaining) return false;
+            }
+            if (bomCustomerFilter !== 'All') {
+                if (item.customer_name !== bomCustomerFilter) return false;
+            }
+            if (bomSoStatusFilter !== 'All') {
+                if (item.sales_order_status !== bomSoStatusFilter) return false;
             }
             return true;
         });
-    }, [waitingList, bomSearch, bomTypeFilter, bomStatusFilter]);
+    }, [waitingList, bomSearch, bomTypeFilter, bomStatusFilter, bomStockFilter, bomCustomerFilter, bomSoStatusFilter]);
 
     const [issuingWaitingId, setIssuingWaitingId] = useState(null);
     const [selectedWaitingItem, setSelectedWaitingItem] = useState(null);
@@ -544,6 +574,89 @@ export default function InventoryPage() {
         printWindow.document.close();
     };
 
+    const handleOpenBulkIssueModal = () => {
+        const initialQtys = {};
+        waitingList.forEach(item => {
+            if (bomSelection[item.id]) {
+                const req = parseFloat(item.required_qty);
+                const issued = parseFloat(item.issued_qty);
+                const remaining = Math.max(0, req - issued);
+                const available = parseFloat(item.available_qty || 0);
+                initialQtys[item.id] = String(Math.min(remaining, available));
+            }
+        });
+        setBulkIssueQuantities(initialQtys);
+        setShowBulkIssueModal(true);
+    };
+
+    const handleConfirmBulkIssue = async () => {
+        const issuances = [];
+        let hasInvalidQty = false;
+
+        waitingList.forEach(item => {
+            if (bomSelection[item.id]) {
+                const qtyVal = parseFloat(bulkIssueQuantities[item.id] || 0);
+                if (qtyVal > 0) {
+                    const req = parseFloat(item.required_qty);
+                    const issued = parseFloat(item.issued_qty);
+                    const remaining = Math.max(0, req - issued);
+                    const available = parseFloat(item.available_qty || 0);
+
+                    if (qtyVal > remaining || qtyVal > available) {
+                        hasInvalidQty = true;
+                    }
+
+                    issuances.push({
+                        bom_id: item.id,
+                        sales_order_id: item.sales_order_id,
+                        quantity: qtyVal
+                    });
+                }
+            }
+        });
+
+        if (issuances.length === 0) {
+            toast.error("No valid quantities specified for bulk issuance");
+            return;
+        }
+
+        if (hasInvalidQty) {
+            if (!confirm("Some items have issue quantities exceeding stock available or remaining quantity. Do you want to proceed with the valid items?")) {
+                return;
+            }
+        }
+
+        setBulkIssuing(true);
+        try {
+            const res = await fetch('/api/inventory/bom-waiting-list/bulk-issue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ issuances })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                if (data.failedCount === 0) {
+                    toast.success(`Successfully issued stock for all ${data.successCount} items!`);
+                } else {
+                    toast.success(`Issued stock for ${data.successCount} items. ${data.failedCount} items failed.`);
+                    const errors = data.results.filter(r => !r.success).map(r => `${r.bom_id}: ${r.error}`).join('\n');
+                    console.error("Bulk Issuance failures:", errors);
+                }
+                setBomSelection({});
+                setShowBulkIssueModal(false);
+                await fetchWaitingList();
+            } else {
+                toast.error(data.error || "Failed to process bulk issue");
+            }
+        } catch (error) {
+            console.error("Error bulk issuing stock:", error);
+            toast.error("An error occurred during bulk issuance");
+        } finally {
+            setBulkIssuing(false);
+        }
+    };
+
     const fetchItems = () => {
         setLoading(true);
         fetch(`/api/inventory?category=${activeCategory}`)
@@ -552,6 +665,13 @@ export default function InventoryPage() {
     };
     useEffect(() => {
         setRowSelection({});
+        setBomSelection({});
+        setBomSearch('');
+        setBomTypeFilter('All');
+        setBomStatusFilter('All');
+        setBomStockFilter('All');
+        setBomCustomerFilter('All');
+        setBomSoStatusFilter('All');
         if (activeCategory === 'BOM Waiting List') {
             fetchWaitingList();
         } else {
@@ -714,7 +834,18 @@ export default function InventoryPage() {
 
     const handleBulkDelete = async () => {
         if (selectedIds.length === 0) return;
-        if (!(await confirmDialog(`Delete ${selectedIds.length} selected item(s)?`, { danger: true, confirmLabel: 'Delete' }))) return;
+
+        const selectedRows = table.getSelectedRowModel().flatRows;
+        const itemsWithStock = selectedRows.filter(row => parseFloat(row.original.stock_quantity) > 0);
+
+        if (itemsWithStock.length > 0) {
+            const listText = itemsWithStock.map(row => `${row.original.name} (${row.original.stock_quantity} remaining)`).join(', ');
+            if (!(await confirmDialog(`Warning: The following item(s) still have stock remaining: ${listText}. Are you sure you want to delete them?`, { danger: true, confirmLabel: 'Delete Anyway' }))) {
+                return;
+            }
+        } else {
+            if (!(await confirmDialog(`Delete ${selectedIds.length} selected item(s)?`, { danger: true, confirmLabel: 'Delete' }))) return;
+        }
 
         const total = selectedIds.length;
         let deleted = 0;
@@ -722,7 +853,7 @@ export default function InventoryPage() {
 
         // Build a name map for progress display
         const nameMap = {};
-        table.getSelectedRowModel().flatRows.forEach(row => {
+        selectedRows.forEach(row => {
             nameMap[row.original.id] = row.original.name;
         });
 
@@ -782,7 +913,14 @@ export default function InventoryPage() {
         } else toast.error('Restock failed');
     };
     const handleDelete = async (id) => {
-        if (!(await confirmDialog('Delete this item?'))) return;
+        const item = items.find(i => i.id === id);
+        if (item && parseFloat(item.stock_quantity) > 0) {
+            if (!(await confirmDialog(`Warning: This item still has stock remaining: ${item.name} (${item.stock_quantity} remaining). Are you sure you want to delete it?`, { danger: true, confirmLabel: 'Delete Anyway' }))) {
+                return;
+            }
+        } else {
+            if (!(await confirmDialog('Delete this item?'))) return;
+        }
         const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
         if (res.ok) fetchItems(); else { const d = await res.json(); toast.error(d.error || 'Failed'); }
     };
@@ -903,6 +1041,9 @@ export default function InventoryPage() {
         });
         return { totalPending, shortages, ready };
     }, [waitingList, activeCategory]);
+
+    const allFilteredSelected = filteredWaitingList.length > 0 && filteredWaitingList.every(item => bomSelection[item.id]);
+    const someFilteredSelected = filteredWaitingList.some(item => bomSelection[item.id]) && !allFilteredSelected;
 
     return (
         <div className="text-white space-y-6">
@@ -1106,18 +1247,41 @@ export default function InventoryPage() {
                             <h2 className="text-sm font-semibold text-white">Pending BOM Material Allocations</h2>
                             <p className="text-xs text-white/35 mt-0.5">Issues pending across all active Sales Orders</p>
                         </div>
-                        <button
-                            onClick={fetchWaitingList}
-                            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
-                        >
-                            <FiClock className="w-3.5 h-3.5" /> Refresh List
-                        </button>
+                        {Object.keys(bomSelection).filter(id => bomSelection[id]).length > 0 ? (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleOpenBulkIssueModal}
+                                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-black px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/10 cursor-pointer"
+                                >
+                                    <FiCheckCircle className="w-3.5 h-3.5" /> Bulk Issue ({Object.keys(bomSelection).filter(id => bomSelection[id]).length})
+                                </button>
+                                <button
+                                    onClick={() => setBomSelection({})}
+                                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                                >
+                                    Deselect All
+                                </button>
+                                <button
+                                    onClick={fetchWaitingList}
+                                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
+                                >
+                                    <FiClock className="w-3.5 h-3.5" /> Refresh List
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={fetchWaitingList}
+                                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
+                            >
+                                <FiClock className="w-3.5 h-3.5" /> Refresh List
+                            </button>
+                        )}
                     </div>
 
                     {/* BOM Waiting List Filters */}
-                    <div className="px-5 py-3 border-b border-white/[0.05] flex items-center justify-between flex-wrap gap-3 bg-white/[0.005]">
-                        <div className="flex items-center gap-3 flex-1 min-w-[280px] max-w-md">
-                            <div className="relative w-full">
+                    <div className="px-5 py-3 border-b border-white/[0.05] flex flex-col gap-3 bg-white/[0.005]">
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                            <div className="relative flex-1 min-w-[280px] max-w-md">
                                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
                                 <input
                                     value={bomSearch}
@@ -1126,38 +1290,94 @@ export default function InventoryPage() {
                                     className="w-full bg-black/40 border border-white/[0.08] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-white/20"
                                 />
                             </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/40 font-medium">Type:</span>
+                                    <select
+                                        value={bomTypeFilter}
+                                        onChange={e => setBomTypeFilter(e.target.value)}
+                                        className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                    >
+                                        <option value="All" className="bg-[#111] text-white">All Types</option>
+                                        <option value="paper" className="bg-[#111] text-white">Paper</option>
+                                        <option value="plate" className="bg-[#111] text-white">Plate</option>
+                                        <option value="sfg" className="bg-[#111] text-white">SFG</option>
+                                        <option value="statics" className="bg-[#111] text-white">Statics</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/40 font-medium">Issue Status:</span>
+                                    <select
+                                        value={bomStatusFilter}
+                                        onChange={e => setBomStatusFilter(e.target.value)}
+                                        className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                    >
+                                        <option value="All" className="bg-[#111] text-white">All Statuses</option>
+                                        <option value="Pending" className="bg-[#111] text-white">Pending</option>
+                                        <option value="Partial" className="bg-[#111] text-white">Partial</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/40 font-medium">Stock Status:</span>
+                                    <select
+                                        value={bomStockFilter}
+                                        onChange={e => setBomStockFilter(e.target.value)}
+                                        className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                    >
+                                        <option value="All" className="bg-[#111] text-white">All</option>
+                                        <option value="Ready" className="bg-[#111] text-white">Ready to Issue</option>
+                                        <option value="Shortage" className="bg-[#111] text-white">Stock Shortage</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-white/40 font-medium">Type:</span>
-                                <select
-                                    value={bomTypeFilter}
-                                    onChange={e => setBomTypeFilter(e.target.value)}
-                                    className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
-                                >
-                                    <option value="All" className="bg-[#111] text-white">All Types</option>
-                                    <option value="paper" className="bg-[#111] text-white">Paper</option>
-                                    <option value="plate" className="bg-[#111] text-white">Plate</option>
-                                    <option value="sfg" className="bg-[#111] text-white">SFG</option>
-                                    <option value="statics" className="bg-[#111] text-white">Statics</option>
-                                </select>
+                        <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-white/[0.03]">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/40 font-medium">Customer:</span>
+                                    <select
+                                        value={bomCustomerFilter}
+                                        onChange={e => setBomCustomerFilter(e.target.value)}
+                                        className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20 max-w-[200px]"
+                                    >
+                                        {uniqueCustomers.map(c => (
+                                            <option key={c} value={c} className="bg-[#111] text-white">{c === 'All' ? 'All Customers' : c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/40 font-medium">Order Status:</span>
+                                    <select
+                                        value={bomSoStatusFilter}
+                                        onChange={e => setBomSoStatusFilter(e.target.value)}
+                                        className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
+                                    >
+                                        {uniqueSoStatuses.map(s => (
+                                            <option key={s} value={s} className="bg-[#111] text-white">{s === 'All' ? 'All Statuses' : s}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-white/40 font-medium">Status:</span>
-                                <select
-                                    value={bomStatusFilter}
-                                    onChange={e => setBomStatusFilter(e.target.value)}
-                                    className="bg-black/40 border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/20"
-                                >
-                                    <option value="All" className="bg-[#111] text-white">All Statuses</option>
-                                    <option value="Pending" className="bg-[#111] text-white">Pending</option>
-                                    <option value="Partial" className="bg-[#111] text-white">Partial</option>
-                                    <option value="Shortage" className="bg-[#111] text-white">Stock Shortage</option>
-                                </select>
+                            <div className="flex items-center gap-2">
+                                {(bomSearch || bomTypeFilter !== 'All' || bomStatusFilter !== 'All' || bomStockFilter !== 'All' || bomCustomerFilter !== 'All' || bomSoStatusFilter !== 'All') && (
+                                    <button
+                                        onClick={() => {
+                                            setBomSearch('');
+                                            setBomTypeFilter('All');
+                                            setBomStatusFilter('All');
+                                            setBomStockFilter('All');
+                                            setBomCustomerFilter('All');
+                                            setBomSoStatusFilter('All');
+                                        }}
+                                        className="text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/15 border border-red-500/10 transition-colors mr-2 cursor-pointer"
+                                    >
+                                        Clear Filters
+                                    </button>
+                                )}
+                                <span className="text-xs text-white/30 shrink-0 font-mono">
+                                    {filteredWaitingList.length} item(s) found
+                                </span>
                             </div>
-                            <span className="text-xs text-white/30 shrink-0 ml-2 font-mono">
-                                {filteredWaitingList.length} item(s)
-                            </span>
                         </div>
                     </div>
  
@@ -1165,6 +1385,35 @@ export default function InventoryPage() {
                         <table className="w-full text-sm border-collapse">
                             <thead>
                                 <tr className="bg-white/[0.02] border-b border-white/[0.05]">
+                                    <th className="px-5 py-3 text-left w-12 select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={allFilteredSelected}
+                                            ref={input => {
+                                                if (input) input.indeterminate = someFilteredSelected;
+                                            }}
+                                            onChange={() => {
+                                                if (allFilteredSelected) {
+                                                    const newSelection = { ...bomSelection };
+                                                    filteredWaitingList.forEach(item => {
+                                                        delete newSelection[item.id];
+                                                    });
+                                                    setBomSelection(newSelection);
+                                                } else {
+                                                    const newSelection = { ...bomSelection };
+                                                    filteredWaitingList.forEach(item => {
+                                                        const req = parseFloat(item.required_qty);
+                                                        const issued = parseFloat(item.issued_qty);
+                                                        if (req - issued > 0) {
+                                                            newSelection[item.id] = true;
+                                                        }
+                                                    });
+                                                    setBomSelection(newSelection);
+                                                }
+                                            }}
+                                            className="rounded border-white/[0.08] bg-black/40 text-emerald-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                                        />
+                                    </th>
                                     <th className="text-left px-5 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Order</th>
                                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Job Name</th>
                                     <th className="text-left px-4 py-3 text-[11px] font-semibold text-white/35 uppercase tracking-wider">Material / Component</th>
@@ -1179,22 +1428,42 @@ export default function InventoryPage() {
                             </thead>
                             <tbody className="divide-y divide-white/[0.04]">
                                 {waitingListLoading ? (
-                                    <tr><td colSpan="10" className="py-16 text-center text-white/25 text-sm animate-pulse">Loading waiting list...</td></tr>
+                                    <tr><td colSpan="11" className="py-16 text-center text-white/25 text-sm animate-pulse">Loading waiting list...</td></tr>
                                 ) : filteredWaitingList.length === 0 ? (
-                                    <tr><td colSpan="10" className="py-16 text-center text-white/25 text-sm italic">No pending material issuances found matching the filters!</td></tr>
+                                    <tr><td colSpan="11" className="py-16 text-center text-white/25 text-sm italic">No pending material issuances found matching the filters!</td></tr>
                                 ) : (
                                     filteredWaitingList.map((item) => {
                                         const req = parseFloat(item.required_qty);
                                         const issued = parseFloat(item.issued_qty);
                                         const remaining = Math.max(0, req - issued);
                                         const available = parseFloat(item.available_qty || 0);
- 
+
                                         const isFullyIssued = remaining === 0;
                                         const isPartiallyIssued = issued > 0 && remaining > 0;
                                         const isPending = issued === 0;
- 
+
                                         return (
                                             <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="px-5 py-3.5">
+                                                    {!isFullyIssued && (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={!!bomSelection[item.id]}
+                                                            onChange={() => {
+                                                                setBomSelection(prev => {
+                                                                    const next = { ...prev };
+                                                                    if (next[item.id]) {
+                                                                        delete next[item.id];
+                                                                    } else {
+                                                                        next[item.id] = true;
+                                                                    }
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="rounded border-white/[0.08] bg-black/40 text-emerald-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                                                        />
+                                                    )}
+                                                </td>
                                                 <td className="px-5 py-3.5">
                                                     <a
                                                         href={`/dashboard/sales-orders/${item.sales_order_id}`}
@@ -1646,6 +1915,118 @@ export default function InventoryPage() {
                     onClose={() => setShowBulkEdit(false)}
                     onComplete={() => { fetchItems(); toast.success('Inventory updated!'); }}
                 />
+            )}
+
+            {/* Bulk Issue BOM Modal */}
+            {showBulkIssueModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-4xl shadow-2xl max-h-[90vh] flex flex-col">
+                        <div className="p-5 border-b border-white/[0.05] flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                    <FiCheckCircle className="w-5 h-5 text-emerald-400" />
+                                    Bulk Issue BOM Materials
+                                </h3>
+                                <p className="text-xs text-white/40 mt-1">Review and confirm stock allocations for selected items</p>
+                            </div>
+                            <button
+                                onClick={() => setShowBulkIssueModal(false)}
+                                className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                            <div className="border border-white/[0.06] rounded-xl overflow-hidden bg-black/20">
+                                <table className="w-full text-xs text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-white/[0.02] border-b border-white/[0.05]">
+                                            <th className="px-4 py-2.5 text-white/35 font-semibold uppercase tracking-wider">Order / Customer</th>
+                                            <th className="px-4 py-2.5 text-white/35 font-semibold uppercase tracking-wider">Material / Component</th>
+                                            <th className="px-4 py-2.5 text-right text-white/35 font-semibold uppercase tracking-wider">Remaining</th>
+                                            <th className="px-4 py-2.5 text-right text-white/35 font-semibold uppercase tracking-wider">Available</th>
+                                            <th className="px-4 py-2.5 text-center text-white/35 font-semibold uppercase tracking-wider w-32">Issue Quantity</th>
+                                            <th className="px-4 py-2.5 text-center text-white/35 font-semibold uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04]">
+                                        {waitingList
+                                            .filter(item => bomSelection[item.id])
+                                            .map(item => {
+                                                const req = parseFloat(item.required_qty);
+                                                const issued = parseFloat(item.issued_qty);
+                                                const remaining = Math.max(0, req - issued);
+                                                const available = parseFloat(item.available_qty || 0);
+                                                const isShortage = available < remaining;
+
+                                                return (
+                                                    <tr key={item.id} className="hover:bg-white/[0.01]">
+                                                        <td className="px-4 py-3">
+                                                            <span className="font-semibold text-white block">{item.sales_order_code}</span>
+                                                            <span className="text-[10px] text-white/30 truncate max-w-[120px] block" title={item.customer_name}>{item.customer_name}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <span className="font-semibold text-white block">{item.component_name}</span>
+                                                            <span className="text-[10px] text-white/30 block">{item.item_code}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-mono font-medium text-white">{remaining} {item.uom}</td>
+                                                        <td className="px-4 py-3 text-right font-mono font-medium text-white/60">
+                                                            <span className={isShortage ? 'text-red-400 font-semibold' : ''}>
+                                                                {available} {item.uom}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <input
+                                                                type="number"
+                                                                step="any"
+                                                                min="0"
+                                                                max={remaining}
+                                                                value={bulkIssueQuantities[item.id] || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setBulkIssueQuantities(prev => ({
+                                                                        ...prev,
+                                                                        [item.id]: val
+                                                                    }));
+                                                                }}
+                                                                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-2.5 py-1 text-xs text-white text-center focus:outline-none focus:border-white/20"
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {isShortage ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/20">
+                                                                    <FiAlertTriangle className="w-2.5 h-2.5" /> Shortage
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                    <FiCheckCircle className="w-2.5 h-2.5" /> Ready
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-white/[0.05] flex justify-end gap-3 bg-white/[0.01]">
+                            <button
+                                onClick={() => setShowBulkIssueModal(false)}
+                                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs font-semibold transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmBulkIssue}
+                                disabled={bulkIssuing}
+                                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold transition-colors shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+                            >
+                                {bulkIssuing ? 'Issuing...' : 'Confirm Bulk Issue'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
