@@ -107,15 +107,69 @@ export async function POST(req) {
             }
         }
 
-        // 1. Calculate Total Amount from selected items
-        // We fetch the amounts from the DB to ensure accuracy
+        // 1. Determine Customer VAT status & Default Tax Rate
+        let isVatCustomer = false;
+        if (customer_id) {
+            const [custRows] = await pool.execute('SELECT is_vat FROM customers WHERE id = ?', [customer_id]);
+            if (custRows.length && (custRows[0].is_vat === 1 || custRows[0].is_vat === true)) {
+                isVatCustomer = true;
+            }
+        } else if (customer_name) {
+            const [custRows] = await pool.execute('SELECT is_vat FROM customers WHERE name = ?', [customer_name]);
+            if (custRows.length && (custRows[0].is_vat === 1 || custRows[0].is_vat === true)) {
+                isVatCustomer = true;
+            }
+        }
+
+        const [settingsTax] = await pool.execute("SELECT setting_value FROM settings WHERE setting_key = 'default_tax_percentage'");
+        const defaultTaxRate = settingsTax.length ? parseFloat(settingsTax[0].setting_value) || 0 : 0;
+
+        // 2. Fetch items & update tax fields based on customer VAT status
         const placeholders = selected_item_ids.map(() => '?').join(',');
         const [items] = await pool.execute(
-            `SELECT id, total_amount FROM quotation_items WHERE id IN (${placeholders})`,
+            `SELECT id, total_amount, subtotal_amount, tax_amount, tax_mode, job_description FROM quotation_items WHERE id IN (${placeholders})`,
             selected_item_ids
         );
 
-        const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
+        for (const item of items) {
+            // Determine pure base cost before tax
+            let baseCost = parseFloat(item.total_amount || 0);
+            if (item.tax_mode === 'add' && parseFloat(item.subtotal_amount) > 0) {
+                baseCost = parseFloat(item.subtotal_amount);
+            } else if (item.tax_mode === 'deduct' && parseFloat(item.total_amount) > 0) {
+                baseCost = parseFloat(item.total_amount);
+            } else {
+                baseCost = parseFloat(item.total_amount || 0);
+            }
+
+            if (isVatCustomer && defaultTaxRate > 0) {
+                const taxAmount = baseCost * (defaultTaxRate / 100);
+                const finalTotal = baseCost + taxAmount;
+                const subtotalAmount = baseCost;
+
+                await pool.execute(
+                    `UPDATE quotation_items 
+                     SET tax_mode = 'add', tax_percentage = ?, tax_amount = ?, subtotal_amount = ?, total_amount = ? 
+                     WHERE id = ?`,
+                    [defaultTaxRate, taxAmount, subtotalAmount, finalTotal, item.id]
+                );
+            } else {
+                await pool.execute(
+                    `UPDATE quotation_items 
+                     SET tax_mode = 'none', tax_percentage = ?, tax_amount = 0, subtotal_amount = ?, total_amount = ? 
+                     WHERE id = ?`,
+                    [defaultTaxRate, baseCost, baseCost, item.id]
+                );
+            }
+        }
+
+        // Re-fetch updated items for quotation header calculations
+        const [updatedItems] = await pool.execute(
+            `SELECT id, total_amount, job_description FROM quotation_items WHERE id IN (${placeholders})`,
+            selected_item_ids
+        );
+
+        const totalAmount = updatedItems.reduce((sum, item) => sum + parseFloat(item.total_amount || 0), 0);
 
         // Generate Quotation Code
         const [settings] = await pool.execute("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('quotation_id_template', 'quotation_id_seq')");
@@ -127,9 +181,9 @@ export async function POST(req) {
         const code = template.replace('{0000}', String(seq).padStart(4, '0')).replace('{SEQ}', String(seq));
 
         // Use first item description or generic
-        const jobDescription = items.length > 0 ? items[0].job_description + (items.length > 1 ? ` (+${items.length - 1} others)` : '') : 'New Quotation';
+        const jobDescription = updatedItems.length > 0 ? updatedItems[0].job_description + (updatedItems.length > 1 ? ` (+${updatedItems.length - 1} others)` : '') : 'New Quotation';
 
-        // 2. Insert Quotation Header
+        // 3. Insert Quotation Header
         const [result] = await pool.execute(
             `INSERT INTO quotations (customer_name, customer_id, total_amount, job_description, code, quotation_date, status) VALUES (?, ?, ?, ?, ?, NOW(), 'draft')`,
             [customer_name, customer_id || null, totalAmount, jobDescription, code]

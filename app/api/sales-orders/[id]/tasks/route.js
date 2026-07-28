@@ -880,12 +880,12 @@ export async function POST(req, { params }) {
         }
 
         // Create single task
-        const { name, description, assigned_to, display_order, estimated_minutes, machine_id, machine_name, quantity } = body;
+        const { name, description, assigned_to, scheduled_date, display_order, estimated_minutes, machine_id, machine_name, quantity } = body;
         if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
 
         const [result] = await pool.execute(
-            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, display_order, estimated_minutes, quantity, is_manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
-            [id, name, description || null, machine_id || null, machine_name || null, assigned_to || null, display_order ?? 99, estimated_minutes || null, quantity || null]
+            'INSERT INTO job_tasks (sales_order_id, name, description, machine_id, machine_name, assigned_to, scheduled_date, display_order, estimated_minutes, quantity, is_manual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
+            [id, name, description || null, machine_id || null, machine_name || null, assigned_to || null, scheduled_date || null, display_order ?? 99, estimated_minutes || null, quantity || null]
         );
         const [task] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [result.insertId]);
         return NextResponse.json(task[0]);

@@ -182,6 +182,8 @@ export default function AddTaskModal({
                 machine_name: isFinishing ? null : machineName,
                 estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
                 quantity: quantity ? parseFloat(quantity) : null,
+                assigned_to: initialValues?.assigned_to || null,
+                scheduled_date: initialValues?.scheduled_date || null,
             };
 
             const targetSO = selectedOrderId || 'unassigned';

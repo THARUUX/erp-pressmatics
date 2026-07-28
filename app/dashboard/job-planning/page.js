@@ -276,7 +276,7 @@ function JobPlanningPageInner() {
 
                     {/* Employee Planning */}
                     {tab === 'employee' && (
-                        <EmployeePlanning orders={orders} />
+                        <EmployeePlanning orders={orders} employees={employees} onRefresh={load} />
                     )}
 
                     {/* Analytics Dashboard */}

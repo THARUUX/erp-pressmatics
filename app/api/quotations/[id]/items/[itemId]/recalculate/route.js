@@ -45,7 +45,25 @@ export async function POST(req, { params }) {
                 'SELECT * FROM quotation_item_finishings WHERE quotation_item_id = ?', [itemId]
             );
 
-            // Base cost = sum of all stored cost components (paper + plate + printing + finishing)
+            const detailIds = details.map(d => d.id);
+            let sfgTotal = 0;
+            let servicesTotal = 0;
+            if (detailIds.length > 0) {
+                const placeholders = detailIds.map(() => '?').join(',');
+                const [sfgRows] = await pool.execute(
+                    `SELECT SUM(quantity * unit_price) AS total FROM quotation_item_sfg_lines WHERE quotation_item_detail_id IN (${placeholders})`,
+                    detailIds
+                );
+                sfgTotal = parseFloat(sfgRows[0]?.total || 0);
+
+                const [svcRows] = await pool.execute(
+                    `SELECT SUM(rate * multiply_by) AS total FROM quotation_item_services WHERE quotation_item_detail_id IN (${placeholders})`,
+                    detailIds
+                );
+                servicesTotal = parseFloat(svcRows[0]?.total || 0);
+            }
+
+            // Base cost = sum of all stored cost components (paper + plate + printing + finishing + sfg + services)
             const compBase = details.reduce((s, d) =>
                 s + (parseFloat(d.final_paper_cost) || 0)
                   + (parseFloat(d.final_plate_cost) || 0)
@@ -55,8 +73,19 @@ export async function POST(req, { params }) {
                 .filter(f => !f.quotation_item_detail_id)
                 .reduce((s, f) => s + parseFloat(f.total_cost || 0), 0);
             const markupPct = parseFloat(item.markup_percent) || 0;
-            const preMarkup = compBase + globalBase;
-            const baseCost  = preMarkup + preMarkup * (markupPct / 100);
+            const preMarkup = compBase + globalBase + sfgTotal + servicesTotal;
+            let baseCost  = preMarkup + preMarkup * (markupPct / 100);
+
+            // Fallback if component details are missing or zero
+            if (!baseCost || baseCost <= 0) {
+                if (item.tax_mode === 'add' && parseFloat(item.subtotal_amount) > 0) {
+                    baseCost = parseFloat(item.subtotal_amount);
+                } else if (item.tax_mode === 'deduct' && parseFloat(item.total_amount) > 0) {
+                    baseCost = parseFloat(item.total_amount);
+                } else {
+                    baseCost = parseFloat(item.total_amount || item.total_amount || 0);
+                }
+            }
 
             const [settingsTax] = await pool.execute(
                 "SELECT setting_value FROM settings WHERE setting_key = 'default_tax_percentage'"
@@ -71,6 +100,10 @@ export async function POST(req, { params }) {
             } else if (tax_mode === 'deduct' && taxRate > 0) {
                 subtotalAmount = baseCost / (1 + taxRate / 100);
                 taxAmount = baseCost - subtotalAmount;
+                finalTotal = baseCost;
+            } else if (tax_mode === 'none') {
+                subtotalAmount = baseCost;
+                taxAmount = 0;
                 finalTotal = baseCost;
             }
 
