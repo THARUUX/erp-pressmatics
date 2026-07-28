@@ -286,7 +286,7 @@ function LayoutInner({ children }) {
     return (
         <div className="h-screen bg-transparent text-white flex overflow-hidden">
             {/* Sidebar */}
-            <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto transition-all duration-300 ${isSidebarHidden ? 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none' : 'w-64'
+            <aside className={`bg-black/40 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col relative z-20 shrink-0 h-full overflow-y-auto transition-all duration-300 print:hidden ${isSidebarHidden ? 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none' : 'w-64'
                 }`}>
                 <div className="p-6 pb-4 flex items-center justify-between">
                     <Link href="/dashboard">
@@ -397,11 +397,11 @@ function LayoutInner({ children }) {
             </aside>
 
             {/* Main Content Wrapper */}
-            <main className="flex-1 p-8 overflow-y-auto relative z-10 h-full">
+            <main className="flex-1 p-8 overflow-y-auto relative z-10 h-full print:p-0 print:overflow-visible print:h-auto print:bg-white">
                 {isSidebarHidden && (
                     <button
                         onClick={toggleSidebar}
-                        className="fixed left-4 top-4 z-50 flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-white cursor-pointer transition-all"
+                        className="fixed left-4 top-4 z-50 flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-white cursor-pointer transition-all print:hidden"
                         title="Show Sidebar"
                     >
                         <FiChevronRight className="w-4 h-4" />
@@ -422,7 +422,9 @@ function LayoutInner({ children }) {
                     }}
                 />
                 <ConfirmDialogContainer />
-                <ScreenPet />
+                <div className="print:hidden">
+                    <ScreenPet />
+                </div>
                 {children}
             </main>
         </div>

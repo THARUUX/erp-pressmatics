@@ -42,10 +42,10 @@ function SalesOrderProgress({ visible, progress, label }) {
 }
 
 const STATUS_COLORS = {
-    draft:     'bg-gray-500/20 text-gray-300 border-gray-500/30',
+    draft: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
     converted: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
     cancelled: 'bg-red-500/20 text-red-300 border-red-500/30',
-    sent:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    sent: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
 export default function QuotationViewPage({ params }) {
@@ -186,7 +186,7 @@ export default function QuotationViewPage({ params }) {
                     setAcceptanceNotif(data.notifications[0]);
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
     }, [id]);
 
     const handleConvert = (id) => {
@@ -401,15 +401,14 @@ export default function QuotationViewPage({ params }) {
                                     {stockShortages.map((s, i) => (
                                         <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
                                             <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                                    s.type === 'sfg'
-                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                                        : s.type === 'statics'
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${s.type === 'sfg'
+                                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                    : s.type === 'statics'
                                                         ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
                                                         : s.type === 'plate'
-                                                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
-                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-                                                }`}>
+                                                            ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
+                                                            : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                                    }`}>
                                                     <FiPackage className="w-2.5 h-2.5" />
                                                     {s.type}
                                                 </span>
@@ -460,24 +459,21 @@ export default function QuotationViewPage({ params }) {
                         </div>
 
                         {/* Connection Status */}
-                        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 border ${
-                            waStatus === 'LOADING' ? 'bg-yellow-500/5 border-yellow-500/20'
+                        <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl mb-5 border ${waStatus === 'LOADING' ? 'bg-yellow-500/5 border-yellow-500/20'
                             : waStatus === 'CONNECTED' ? 'bg-emerald-500/10 border-emerald-500/20'
-                            : 'bg-red-500/10 border-red-500/20'
-                        }`}>
-                            <FiWifi className={`w-4 h-4 ${
-                                waStatus === 'LOADING' ? 'text-yellow-400 animate-pulse'
-                                : waStatus === 'CONNECTED' ? 'text-emerald-400'
-                                : 'text-red-400'
-                            }`} />
-                            <span className={`text-xs font-semibold ${
-                                waStatus === 'LOADING' ? 'text-yellow-300'
-                                : waStatus === 'CONNECTED' ? 'text-emerald-300'
-                                : 'text-red-300'
+                                : 'bg-red-500/10 border-red-500/20'
                             }`}>
+                            <FiWifi className={`w-4 h-4 ${waStatus === 'LOADING' ? 'text-yellow-400 animate-pulse'
+                                : waStatus === 'CONNECTED' ? 'text-emerald-400'
+                                    : 'text-red-400'
+                                }`} />
+                            <span className={`text-xs font-semibold ${waStatus === 'LOADING' ? 'text-yellow-300'
+                                : waStatus === 'CONNECTED' ? 'text-emerald-300'
+                                    : 'text-red-300'
+                                }`}>
                                 {waStatus === 'LOADING' ? 'Checking WhatsApp connection…'
-                                : waStatus === 'CONNECTED' ? 'WhatsApp Connected — Ready to Send'
-                                : 'WhatsApp Disconnected — Connect in Settings'}
+                                    : waStatus === 'CONNECTED' ? 'WhatsApp Connected — Ready to Send'
+                                        : 'WhatsApp Disconnected — Connect in Settings'}
                             </span>
                         </div>
 
@@ -485,11 +481,10 @@ export default function QuotationViewPage({ params }) {
                         <div className="grid grid-cols-2 gap-3 mb-5">
                             <button
                                 onClick={() => setWaMode('link')}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
-                                    waMode === 'link'
-                                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                                        : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
-                                }`}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${waMode === 'link'
+                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                    : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
+                                    }`}
                             >
                                 <FiLink className="w-5 h-5" />
                                 <span className="text-xs font-semibold">Send as Link</span>
@@ -497,11 +492,10 @@ export default function QuotationViewPage({ params }) {
                             </button>
                             <button
                                 onClick={() => setWaMode('pdf')}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
-                                    waMode === 'pdf'
-                                        ? 'bg-blue-500/15 border-blue-500/40 text-blue-300'
-                                        : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
-                                }`}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${waMode === 'pdf'
+                                    ? 'bg-blue-500/15 border-blue-500/40 text-blue-300'
+                                    : 'bg-white/[0.03] border-white/[0.07] text-gray-400 hover:bg-white/[0.06]'
+                                    }`}
                             >
                                 <FiFileText className="w-5 h-5" />
                                 <span className="text-xs font-semibold">Send as PDF</span>
@@ -598,8 +592,8 @@ export default function QuotationViewPage({ params }) {
                         onChange={e => handleStatusChange(e.target.value)}
                         className={`h-9 px-3 rounded-xl text-xs font-bold uppercase tracking-wider border cursor-pointer bg-black/60 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all ${STATUS_COLORS[quote.status] || STATUS_COLORS.draft}`}
                     >
-                        <option value="draft"     className="bg-[#111] text-gray-300">Draft</option>
-                        <option value="sent"      className="bg-[#111] text-blue-300">Sent</option>
+                        <option value="draft" className="bg-[#111] text-gray-300">Draft</option>
+                        <option value="sent" className="bg-[#111] text-blue-300">Sent</option>
                         <option value="converted" className={`bg-[#111] text-emerald-300 ${quote.status !== 'converted' ? 'hidden' : ''}`}>Converted</option>
                         <option value="cancelled" className="bg-[#111] text-red-300">Cancelled</option>
                     </select>
@@ -664,7 +658,7 @@ export default function QuotationViewPage({ params }) {
 
 
             {/* Printable Area - A4 Size constrained if needed, or fluid */}
-            <div className="max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8"
+            <div className="quotation-print-container max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8"
                 style={{ fontFamily: "'Google Sans', 'Product Sans', Roboto, 'Helvetica Neue', Arial, sans-serif" }}>
 
                 {/* Header */}
@@ -699,7 +693,7 @@ export default function QuotationViewPage({ params }) {
                         {/* Left: Name + Address */}
                         <div>
                             <p className="text-xl font-bold text-gray-900">{quote.customer_name}</p>
-                            
+
                             {quote.customer_address && (
                                 <p className="text-sm text-gray-400 mt-0 max-w-xs whitespace-pre-wrap leading-relaxed">
                                     {quote.customer_address}
@@ -725,7 +719,7 @@ export default function QuotationViewPage({ params }) {
                         </div>
 
                         {/* Right: Contact details */}
-                        
+
                     </div>
                 </div>
 
@@ -736,7 +730,7 @@ export default function QuotationViewPage({ params }) {
                             <tr className="border-b-2 border-gray-900 text-xs font-bold text-gray-900 uppercase tracking-wider">
                                 <th className="py-3 pr-4">Description</th>
                                 <th className="py-3 px-4 text-center">Qty</th>
-                                <th className="py-3 px-4 text-right">Unit Price <span>( {currency})</span></th>
+                                <th className="py-3 px-4 text-right">Unit Price <span>({currency})</span></th>
                                 {!showSummary ? (
                                     <>
                                         <th className="py-3 px-4 text-right">Amount (Excl. Tax)</th>
@@ -744,7 +738,7 @@ export default function QuotationViewPage({ params }) {
                                         <th className="py-3 pl-4 text-right">Net Total</th>
                                     </>
                                 ) : (
-                                    <th className="py-3 pl-4 text-right">Amount <span>( {currency})</span></th>
+                                    <th className="py-3 pl-4 text-right">Amount <span>({currency})</span></th>
                                 )}
                             </tr>
                         </thead>
@@ -754,13 +748,13 @@ export default function QuotationViewPage({ params }) {
                                 const rawSubtotal = parseFloat(item.subtotal_amount || 0);
                                 const rawTotal = parseFloat(item.total_amount || 0);
                                 const taxAmount = parseFloat(item.tax_amount || 0);
-                                
+
                                 // 2. Fallback to total_amount if the database subtotal is zero or empty
                                 const itemSubtotal = rawSubtotal > 0 ? rawSubtotal : rawTotal;
-                                
+
                                 // 3. Calculate unit price based on the correct item subtotal
                                 const unitPrice = item.quantity > 0 ? itemSubtotal / item.quantity : 0;
-                                
+
                                 const isTaxAdd = item.tax_mode === 'add';
                                 const isTaxDeduct = item.tax_mode === 'deduct';
 
@@ -797,7 +791,7 @@ export default function QuotationViewPage({ params }) {
                                         ) : (
                                             /* FIXED: Changed from 'subtotal' to 'itemSubtotal' to prevent variable clashing */
                                             <td className="py-4 pl-4 text-right font-mono font-medium text-gray-900">
-                                                {currency}{itemSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                {itemSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
                                         )}
                                     </tr>
@@ -840,7 +834,7 @@ export default function QuotationViewPage({ params }) {
                         </div>
                     </div>
                 </div>
-                <div className="flex w-full"/>
+                <div className="flex w-full" />
                 <div className="flex flex-col items-end justify-end text-center mt-10">
                     <div className="flex flex-col items-center">
                         {settings.company_signature && (
@@ -853,6 +847,62 @@ export default function QuotationViewPage({ params }) {
                 </div>
 
             </div>
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @media print {
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        height: auto !important;
+                        min-height: 0 !important;
+                        overflow: visible !important;
+                        background: white !important;
+                        color: black !important;
+                    }
+
+                    body::before {
+                        display: none !important;
+                    }
+
+                    aside,
+                    nav,
+                    .print\\:hidden,
+                    button {
+                        display: none !important;
+                    }
+
+                    main {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        overflow: visible !important;
+                        height: auto !important;
+                        background: white !important;
+                    }
+
+                    .quotation-print-container {
+                        position: relative !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                        padding: 1cm !important;
+                        margin: 0 auto !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        background: white !important;
+                        color: black !important;
+                    }
+
+                    @page {
+                        margin: 0;
+                        size: A4 portrait;
+                    }
+                }
+            `}} />
         </div>
     );
 }
