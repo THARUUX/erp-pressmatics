@@ -13,8 +13,8 @@ async function run() {
             rejectUnauthorized: true,
         }
     });
-    const [rows] = await connection.query('SHOW CREATE TABLE job_tasks');
-    console.log(rows[0]['Create Table']);
+    const [rows] = await connection.query('SELECT id, sales_order_id, name, machine_name FROM job_tasks ORDER BY id DESC LIMIT 50');
+    console.log(JSON.stringify(rows, null, 2));
     await connection.end();
 }
 

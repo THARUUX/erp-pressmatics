@@ -4,6 +4,40 @@ import React from 'react';
 import pool from '@/lib/db';
 import MachineTasksDocument from './MachineTasksDocument';
 
+function generateCSVForSchedule(tasks, columnsToExport) {
+    const headers = ['Scheduled Date'];
+    const keys = [t => t.scheduled_date ? new Date(t.scheduled_date).toLocaleDateString('en-US') : 'Unplanned'];
+
+    const colMap = {
+        code: { label: 'Job Code', getVal: t => t.order_code || 'STANDALONE' },
+        customer: { label: 'Customer Name', getVal: t => t.customer_name || '—' },
+        name: { label: 'Task Name', getVal: t => t.name || '—' },
+        delivery: { label: 'Delivery Date', getVal: t => t.order_delivery_date ? new Date(t.order_delivery_date).toLocaleDateString('en-US') : '—' },
+        quantity: { label: 'Run Qty', getVal: t => (parseFloat(t.quantity) || 0) },
+        time: { label: 'Est. Time (Mins)', getVal: t => (t.estimated_minutes || 0) },
+        status: { label: 'Status', getVal: t => t.status || '—' },
+    };
+
+    columnsToExport.forEach(col => {
+        if (colMap[col]) {
+            headers.push(colMap[col].label);
+            keys.push(colMap[col].getVal);
+        }
+    });
+
+    const csvRows = [headers.join(',')];
+
+    for (const t of tasks) {
+        const values = keys.map(getVal => {
+            const val = String(getVal(t) || '').replace(/"/g, '""');
+            return `"${val}"`;
+        });
+        csvRows.push(values.join(','));
+    }
+
+    return csvRows.join('\n');
+}
+
 export async function GET(req, { params }) {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
@@ -11,10 +45,22 @@ export async function GET(req, { params }) {
     const dateParam = searchParams.get('date');
     const isDaily = !!dateParam;
     const isChecksheet = searchParams.get('checksheet') === 'true';
+    
+    const format = searchParams.get('format') || 'pdf';
+    const excludeCompleted = searchParams.get('excludeCompleted') === 'true';
+    const columnsParam = searchParams.get('columns');
+    const selectedColumns = columnsParam ? columnsParam.split(',') : ['code', 'customer', 'name', 'time', 'status'];
+
+    const includeStats = searchParams.get('includeStats') !== 'false';
+
+    const options = {
+        columns: selectedColumns,
+        includeStats,
+    };
 
     try {
         let machine;
-        let tasks;
+        let rawTasks;
         
         const weekDays = [];
         let startDateStr = '';
@@ -105,7 +151,7 @@ export async function GET(req, { params }) {
                   ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
                 [startDateStr, endDateStr]
             );
-            tasks = rows;
+            rawTasks = rows;
         } else {
             const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
             if (!machines.length) return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
@@ -125,7 +171,24 @@ export async function GET(req, { params }) {
                   ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
                 [id, startDateStr, endDateStr]
             );
-            tasks = rows;
+            rawTasks = rows;
+        }
+
+        // Filter out completed tasks if requested
+        let tasks = rawTasks;
+        if (excludeCompleted) {
+            tasks = rawTasks.filter(t => t.status !== 'done');
+        }
+
+        if (format === 'csv') {
+            const csvData = generateCSVForSchedule(tasks, selectedColumns);
+            return new NextResponse(csvData, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': `attachment; filename="machine-schedule-${machine.name.replace(/\s+/g, '-')}.csv"`,
+                },
+            });
         }
 
         // Group tasks
@@ -188,7 +251,8 @@ export async function GET(req, { params }) {
                 weekRangeStr, 
                 stats, 
                 tasksByDay, 
-                reportType: isChecksheet ? 'checksheet' : (isDaily ? 'daily' : 'weekly') 
+                reportType: isChecksheet ? 'checksheet' : (isDaily ? 'daily' : 'weekly'),
+                options
             })
         );
 

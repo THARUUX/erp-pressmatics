@@ -57,18 +57,49 @@ const formatActualTime = (dateTimeStr) => {
     }
 };
 
-export default function FinishingTasksDocument({ finishing, weekRangeStr, stats, tasksByDay, reportType = 'weekly' }) {
+const getWidths = (selectedColumns = [], hasChecksheetCols) => {
+    const defaultWidths = {
+        code: 12,
+        customer: 30,
+        name: 30,
+        quantity: 8,
+        time: 8,
+        status: 7
+    };
+    let activeColumns = selectedColumns.filter(c => c !== 'specs' && c !== 'notes' && c !== 'finishings' && c !== 'delivery');
+    if (activeColumns.length === 0) {
+        activeColumns = ['code', 'customer', 'name', 'time', 'status'];
+    }
+
+    let activeWidths = {};
+    let totalWeight = 0;
+
+    activeColumns.forEach(col => {
+        if (defaultWidths[col] !== undefined) {
+            activeWidths[col] = defaultWidths[col];
+            totalWeight += defaultWidths[col];
+        }
+    });
+
+    const normalized = {};
+    const remainingPct = hasChecksheetCols ? 72 : 100;
+
+    Object.keys(activeWidths).forEach(col => {
+        normalized[col] = `${((activeWidths[col] / totalWeight) * remainingPct).toFixed(1)}%`;
+    });
+
+    return normalized;
+};
+
+export default function FinishingTasksDocument({ finishing, weekRangeStr, stats, tasksByDay, reportType = 'weekly', options }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
     const isDailyReport = reportType === 'daily';
     const isChecksheet = reportType === 'checksheet';
+    const selectedColumns = options?.columns || ['code', 'customer', 'name', 'time', 'status'];
 
     // Filter out rows/days where there are no tasks
     const activeTasksByDay = tasksByDay.filter(item => item.tasks && item.tasks.length > 0);
-
-    const colJobCode = isChecksheet ? '10%' : '12%';
-    const colName = isChecksheet ? '27%' : '38%';
-    const colDetails = isChecksheet ? '27%' : '35%';
-    const colEst = isChecksheet ? '8%' : '8%';
+    const colWidths = getWidths(selectedColumns, isChecksheet);
 
     return (
         <Document title={`FinishingSchedule-${finishing.name}`} author="Pressmatics Cloud ERP">
@@ -93,7 +124,7 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                 </View>
 
                 {/* Stats */}
-                {isChecksheet ? null : (
+                {(isChecksheet || options?.includeStats === false) ? null : (
                     <View style={s.statsGrid}>
                         <View style={s.statCell}>
                             <Text style={s.statLabel}>{isDailyReport || isChecksheet ? 'Daily Load' : 'Weekly Load'}</Text>
@@ -116,17 +147,18 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                 {/* Table */}
                 <View style={s.table}>
                     <View style={s.tableHeader}>
-                        <Text style={[s.tableHeaderText, { width: colJobCode }]}>Job Code</Text>
-                        <Text style={[s.tableHeaderText, { width: colName }]}>Job / Customer Name</Text>
-                        <Text style={[s.tableHeaderText, { width: colDetails }]}>Task Details</Text>
-                        <Text style={[s.tableHeaderText, { width: colEst, textAlign: 'right' }]}>Est. Time</Text>
+                        {selectedColumns.includes('code') && <Text style={[s.tableHeaderText, { width: colWidths.code }]}>Job Code</Text>}
+                        {selectedColumns.includes('customer') && <Text style={[s.tableHeaderText, { width: colWidths.customer }]}>Job / Customer Name</Text>}
+                        {selectedColumns.includes('name') && <Text style={[s.tableHeaderText, { width: colWidths.name }]}>Task Details</Text>}
+                        {selectedColumns.includes('quantity') && <Text style={[s.tableHeaderText, { width: colWidths.quantity, textAlign: 'right' }]}>Run Qty</Text>}
+                        {selectedColumns.includes('time') && <Text style={[s.tableHeaderText, { width: colWidths.time, textAlign: 'right' }]}>Est. Time</Text>}
                         {isChecksheet ? (
                             <>
                                 <Text style={[s.tableHeaderText, { width: '14%', textAlign: 'center', color: '#1e3a8a', fontFamily: 'Helvetica-Bold' }]}>Start / In-Progress</Text>
                                 <Text style={[s.tableHeaderText, { width: '14%', textAlign: 'center', color: '#16a34a', fontFamily: 'Helvetica-Bold' }]}>Finish / Done</Text>
                             </>
                         ) : (
-                            <Text style={[s.tableHeaderText, { width: '7%', textAlign: 'right' }]}>Status</Text>
+                            selectedColumns.includes('status') && <Text style={[s.tableHeaderText, { width: colWidths.status, textAlign: 'right' }]}>Status</Text>
                         )}
                     </View>
 
@@ -148,37 +180,35 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                                     </View>
 
                                     {tasks.map(t => {
-                                        const cleanName = t.name.includes('—')
-                                            ? t.name.split('—')[t.name.split('—').length - 1].trim()
-                                            : t.name;
+                                        const parts = t.name.split('—');
+                                        const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                        const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                        const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                         return (
                                             <View key={t.id} style={s.tableRow}>
-                                                <Text style={[s.tableCellBold, { width: colJobCode }]}>{t.order_code || '—'}</Text>
-                                                <Text style={[s.tableCell, { width: colName }]}>
+                                                {selectedColumns.includes('code') && <Text style={[s.tableCellBold, { width: colWidths.code }]}>{t.order_code || '—'}</Text>}
+                                                {selectedColumns.includes('customer') && <Text style={[s.tableCell, { width: colWidths.customer }]}>
                                                     {t.estimation_names || t.customer_name || '—'}
-                                                </Text>
-                                                <Text style={[s.tableCell, { width: colDetails }]}>
-                                                    {cleanName} {t.description ? `(${t.description})` : ''}
-                                                </Text>
-                                                <Text style={[s.tableCell, { width: colEst, textAlign: 'right', paddingRight: 4 }]}>
+                                                </Text>}
+                                                {selectedColumns.includes('name') && <Text style={[s.tableCell, { width: colWidths.name }]}>
+                                                    {displayText}
+                                                </Text>}
+                                                {selectedColumns.includes('quantity') && <Text style={[s.tableCell, { width: colWidths.quantity, textAlign: 'right', paddingRight: 4 }]}>
+                                                    {parseFloat(t.quantity) || 0}
+                                                </Text>}
+                                                {selectedColumns.includes('time') && <Text style={[s.tableCell, { width: colWidths.time, textAlign: 'right', paddingRight: 4 }]}>
                                                     {formatTime(t.estimated_minutes)}
-                                                </Text>
+                                                </Text>}
                                                 {isChecksheet ? (
                                                     <>
                                                         <View style={{ width: '14%', borderLeftWidth: 0.5, borderLeftColor: '#e5e7eb', paddingLeft: 6, justifyContent: 'center', height: 16 }}>
-                                                            {/* <Text style={{ fontSize: 7, color: '#9ca3af', fontFamily: 'Helvetica' }}>
-                                                                [  :  ] AM/PM
-                                                            </Text> */}
                                                         </View>
                                                         <View style={{ width: '14%', borderLeftWidth: 0.5, borderLeftColor: '#e5e7eb', paddingLeft: 6, justifyContent: 'center', height: 16 }}>
-                                                            {/* <Text style={{ fontSize: 7, color: '#9ca3af', fontFamily: 'Helvetica' }}>
-                                                                [  :  ] AM/PM
-                                                            </Text> */}
                                                         </View>
                                                     </>
                                                 ) : (
-                                                    <Text style={[s.tableCell, { width: '7%', textAlign: 'right', textTransform: 'capitalize' }]}>
+                                                    selectedColumns.includes('status') && <Text style={[s.tableCell, { width: colWidths.status, textAlign: 'right', textTransform: 'capitalize' }]}>
                                                         {t.status}
                                                     </Text>
                                                 )}

@@ -66,6 +66,13 @@ const FIELD_ALIASES = {
     deductions: ['deductions', 'deduction'],
     ot_rate_multiplier: ['ot multiplier', 'ot_rate_multiplier', 'overtime multiplier'],
     standard_working_hours: ['working hours', 'standard_working_hours', 'hours'],
+    employment_type: ['employment type', 'employment_type', 'employment', 'type of employment'],
+    working_days: ['working days', 'working_days', 'work days', 'workingdays'],
+    no_pay_type: ['no pay type', 'no_pay_type', 'no-pay type', 'nopay type'],
+    no_pay_value: ['no pay value', 'no_pay_value', 'no-pay value', 'nopay value'],
+    ot_rate: ['ot rate', 'ot_rate', 'normal ot rate', 'overtime rate'],
+    double_ot_rate: ['double ot rate', 'double_ot_rate', 'double overtime rate'],
+    late_deduction_rate: ['late deduction rate', 'late_deduction_rate', 'late rate', 'late deduction'],
 };
 
 const CONFIGS = {
@@ -111,7 +118,7 @@ const CONFIGS = {
         title: 'Employees',
         endpoint: '/api/employees/bulk',
         templateName: 'employees_template.csv',
-        templateCSV: 'Name,Employee ID,Role,Department,Phone,Email,Date of Birth,Date Joined,Shift,Status,Pay Type,Base Salary,Hourly Rate,Allowances,Deductions,OT Multiplier,Working Hours,Notes\nJohn Doe,EMP001,Press Operator,Offset Press,+94771234567,john@example.com,1990-05-15,2022-01-10,Day,active,monthly,45000,0,5000,0,1.5,8,\nJane Smith,EMP002,Graphic Designer,Prepress,+94777654321,jane@example.com,1993-08-20,2023-04-01,Flexible,active,hourly,0,350,2000,0,1.5,8,\n',
+        templateCSV: 'Name,Employee ID,Role,Department,Phone,Email,Date of Birth,Date Joined,Shift,Status,Pay Type,Base Salary,Hourly Rate,Allowances,Deductions,OT Multiplier,Working Hours,Employment Type,Working Days,No-Pay Type,No-Pay Value,OT Rate,Double OT Rate,Late Deduction Rate,Notes\nJohn Doe,EMP001,Press Operator,Offset Press,+94771234567,john@example.com,1990-05-15,2022-01-10,Day,active,monthly,45000,0,5000,0,1.5,8,permanent,"Monday,Tuesday,Wednesday,Thursday,Friday",percentage,0,0,0,0,\nJane Smith,EMP002,Graphic Designer,Prepress,+94777654321,jane@example.com,1993-08-20,2023-04-01,Flexible,active,hourly,0,350,2000,0,1.5,8,permanent,"Monday,Tuesday,Wednesday,Thursday,Friday",percentage,0,0,0,0,\n',
         fields: [
             { key: 'name',       label: 'Name *',      required: true },
             { key: 'employee_id', label: 'Employee ID', required: false },
@@ -130,6 +137,13 @@ const CONFIGS = {
             { key: 'deductions', label: 'Deductions',   required: false },
             { key: 'ot_rate_multiplier', label: 'OT Multiplier', required: false },
             { key: 'standard_working_hours', label: 'Working Hours', required: false },
+            { key: 'employment_type', label: 'Employment Type', required: false },
+            { key: 'working_days', label: 'Working Days', required: false },
+            { key: 'no_pay_type', label: 'No-Pay Type', required: false },
+            { key: 'no_pay_value', label: 'No-Pay Value', required: false },
+            { key: 'ot_rate', label: 'OT Rate', required: false },
+            { key: 'double_ot_rate', label: 'Double OT Rate', required: false },
+            { key: 'late_deduction_rate', label: 'Late Deduction Rate', required: false },
             { key: 'notes',      label: 'Notes',        required: false },
         ]
     }

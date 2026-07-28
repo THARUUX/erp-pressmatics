@@ -154,9 +154,10 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                                     </View>
 
                                     {mTasks.map(t => {
-                                        const cleanName = t.name.includes('—')
-                                            ? t.name.split('—')[t.name.split('—').length - 1].trim()
-                                            : t.name;
+                                        const parts = t.name.split('—');
+                                        const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                        const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                        const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                         const statusStyle = s[`status_${t.status}`] || s.status_pending;
 
@@ -165,7 +166,7 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                                                 <Text style={[s.tableCellBold, { width: '10%' }]}>{t.order_code || '—'}</Text>
                                                 <Text style={[s.tableCell, { width: '22%' }]} numberOfLines={1}>{t.customer_name || '—'}</Text>
                                                 <Text style={[s.tableCell, { width: '32%' }]} numberOfLines={1}>
-                                                    {cleanName} {t.description ? `(${t.description})` : ''}
+                                                    {displayText}
                                                 </Text>
                                                 <View style={{ width: '9%', alignItems: 'center' }}>
                                                     <Text style={[s.statusBadge, statusStyle]}>{t.status}</Text>

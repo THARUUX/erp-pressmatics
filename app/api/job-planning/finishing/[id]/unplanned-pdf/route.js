@@ -29,16 +29,87 @@ const matchesFinishing = (taskName, finName) => {
     return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
 };
 
+function generateCSV(tasks, columnsToExport) {
+    const headers = [];
+    const keys = [];
+
+    const colMap = {
+        code: { label: 'Job Code', getVal: t => t.order_code || 'STANDALONE' },
+        customer: { label: 'Customer Name', getVal: t => t.customer_name || '—' },
+        name: { label: 'Task Name', getVal: t => t.name || '—' },
+        delivery: { label: 'Delivery Date', getVal: t => t.order_delivery_date ? new Date(t.order_delivery_date).toLocaleDateString('en-US') : '—' },
+        quantity: { label: 'Run Qty', getVal: t => (parseFloat(t.quantity) || 0) },
+        time: { label: 'Est. Time (Mins)', getVal: t => (t.estimated_minutes || 0) },
+        status: { label: 'Status', getVal: t => t.status || '—' },
+    };
+
+    columnsToExport.forEach(col => {
+        if (colMap[col]) {
+            headers.push(colMap[col].label);
+            keys.push(colMap[col].getVal);
+        }
+    });
+
+    if (columnsToExport.includes('notes')) {
+        headers.push('Job Notes');
+        keys.push(t => t.job_notes || '—');
+    }
+    if (columnsToExport.includes('specs')) {
+        headers.push('Specs (Paper / Colors / Sides / Ups)');
+        keys.push(t => {
+            if (!t.componentSpecs) return '—';
+            const spec = t.componentSpecs;
+            return `Paper: ${spec.paper_name || '—'} | Colors: ${spec.colors_front || 0}+${spec.colors_back || 0} | Sides: ${spec.sides === 2 ? 'Double' : 'Single'} | Ups: ${spec.ups || 1}`;
+        });
+    }
+    if (columnsToExport.includes('finishings')) {
+        headers.push('Finishing Details');
+        keys.push(t => {
+            const list = [];
+            if (t.finishingSpecs) {
+                list.push(`${t.finishingSpecs.name} (Qty: ${t.finishingSpecs.quantity || '—'})`);
+            }
+            if (t.globalFinishings?.length > 0) {
+                t.globalFinishings.forEach(gf => {
+                    list.push(`${gf.name} (Qty: ${gf.quantity || '—'})`);
+                });
+            }
+            return list.join('; ') || '—';
+        });
+    }
+
+    const csvRows = [headers.join(',')];
+
+    for (const t of tasks) {
+        const values = keys.map(getVal => {
+            const val = String(getVal(t) || '').replace(/"/g, '""');
+            return `"${val}"`;
+        });
+        csvRows.push(values.join(','));
+    }
+
+    return csvRows.join('\n');
+}
+
 export async function GET(req, { params }) {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
     
+    const format = searchParams.get('format') || 'pdf';
+    const excludeCompleted = searchParams.get('excludeCompleted') === 'true';
+    const columnsParam = searchParams.get('columns');
+    const selectedColumns = columnsParam ? columnsParam.split(',') : ['code', 'customer', 'name', 'delivery', 'quantity', 'time', 'status'];
+
+    const includeStats = searchParams.get('includeStats') !== 'false';
+
     const options = {
-        specs: searchParams.get('specs') === 'true',
-        notes: searchParams.get('notes') === 'true',
-        finishings: searchParams.get('finishings') === 'true',
-        dates: searchParams.get('dates') === 'true',
+        specs: selectedColumns.includes('specs'),
+        notes: selectedColumns.includes('notes'),
+        finishings: selectedColumns.includes('finishings'),
+        dates: selectedColumns.includes('delivery'),
         groupByOrder: searchParams.get('groupByOrder') === 'true',
+        columns: selectedColumns,
+        includeStats,
     };
 
     try {
@@ -63,7 +134,13 @@ export async function GET(req, { params }) {
         );
 
         // Filter by finishing name match
-        const tasks = allUnplannedTasks.filter(t => matchesFinishing(t.name, finishing.name));
+        const rawTasks = allUnplannedTasks.filter(t => matchesFinishing(t.name, finishing.name));
+
+        // Filter out completed tasks if requested
+        let tasks = rawTasks;
+        if (excludeCompleted) {
+            tasks = rawTasks.filter(t => t.status !== 'done');
+        }
 
         if (tasks.length > 0) {
             const orderIds = Array.from(new Set(tasks.map(t => t.sales_order_id).filter(Boolean)));
@@ -178,6 +255,17 @@ export async function GET(req, { params }) {
                     }
                 }
             }
+        }
+
+        if (format === 'csv') {
+            const csvData = generateCSV(tasks, selectedColumns);
+            return new NextResponse(csvData, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': `attachment; filename="finishing-unplanned-${finishing.name.replace(/\s+/g, '-')}.csv"`,
+                },
+            });
         }
 
         // Build stats

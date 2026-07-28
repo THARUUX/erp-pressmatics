@@ -1366,6 +1366,25 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [showWeeklyPrintModal, setShowWeeklyPrintModal] = useState(false);
     const [weeklyPrintDays, setWeeklyPrintDays] = useState([0, 1, 2, 3, 4, 5, 6]);
+
+    // Export customization options
+    const [exportFormat, setExportFormat] = useState('pdf'); // 'pdf' | 'csv'
+    const [excludeCompleted, setExcludeCompleted] = useState(false);
+    const [includeStats, setIncludeStats] = useState(true);
+    const [exportColumns, setExportColumns] = useState(['code', 'customer', 'name', 'delivery', 'quantity', 'specs', 'notes', 'finishings', 'time', 'status']);
+
+    const [weeklyExportFormat, setWeeklyExportFormat] = useState('pdf'); // 'pdf' | 'csv'
+    const [weeklyExcludeCompleted, setWeeklyExcludeCompleted] = useState(false);
+    const [weeklyIncludeStats, setWeeklyIncludeStats] = useState(true);
+    const [weeklyExportColumns, setWeeklyExportColumns] = useState(['code', 'customer', 'name', 'quantity', 'time', 'status']);
+
+    const [showDailyPrintModal, setShowDailyPrintModal] = useState(false);
+    const [dailyIsChecksheet, setDailyIsChecksheet] = useState(false);
+    const [dailyExportFormat, setDailyExportFormat] = useState('pdf');
+    const [dailyExcludeCompleted, setDailyExcludeCompleted] = useState(false);
+    const [dailyIncludeStats, setDailyIncludeStats] = useState(true);
+    const [dailyExportColumns, setDailyExportColumns] = useState(['code', 'customer', 'name', 'quantity', 'time', 'status']);
+
     const [printOptions, setPrintOptions] = useState({
         includeSpecs: true,
         includeNotes: true,
@@ -1463,6 +1482,10 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     };
 
     const handlePrintUnplanned = () => {
+        setExportFormat('pdf');
+        setExcludeCompleted(false);
+        setIncludeStats(true);
+        setExportColumns(['code', 'customer', 'name', 'delivery', 'quantity', 'specs', 'notes', 'finishings', 'time', 'status']);
         setShowPrintModal(true);
     };
 
@@ -1470,11 +1493,15 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
         if (!selectedFinishing) return;
         setShowPrintModal(false);
         const params = new URLSearchParams({
-            specs: printOptions.includeSpecs ? 'true' : 'false',
-            notes: printOptions.includeNotes ? 'true' : 'false',
-            finishings: printOptions.includeFinishings ? 'true' : 'false',
-            dates: printOptions.includeDates ? 'true' : 'false',
-            groupByOrder: printOptions.groupByOrder ? 'true' : 'false'
+            format: exportFormat,
+            excludeCompleted: excludeCompleted ? 'true' : 'false',
+            columns: exportColumns.join(','),
+            specs: exportColumns.includes('specs') ? 'true' : 'false',
+            notes: exportColumns.includes('notes') ? 'true' : 'false',
+            finishings: exportColumns.includes('finishings') ? 'true' : 'false',
+            dates: exportColumns.includes('delivery') ? 'true' : 'false',
+            groupByOrder: printOptions.groupByOrder ? 'true' : 'false',
+            includeStats: includeStats ? 'true' : 'false'
         }).toString();
         window.open(`/api/job-planning/finishing/${selectedFinishing.id}/unplanned-pdf?${params}`, '_blank');
     };
@@ -1988,7 +2015,14 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                                 )}
                                                 <td>{ord?.code || '—'}</td>
                                                 <td>{ord?.estimation_names || ord?.customer_name || '—'}</td>
-                                                <td>{t.name.split('—')[t.name.split('—').length - 1].trim()}</td>
+                                                <td>
+                                                    {(() => {
+                                                        const parts = t.name.split('—');
+                                                        const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                                        const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                                        return operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
+                                                    })()}
+                                                </td>
                                                 <td>{t.estimated_minutes ? `${t.estimated_minutes}m` : '0m'}</td>
                                                 <td style={{ textTransform: 'capitalize' }}>{t.status}</td>
                                             </tr>
@@ -2011,8 +2045,8 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     <FiPrinter className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">Weekly PDF Options</h2>
-                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Select which days to include in the PDF report</p>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">Schedule Export Options</h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your schedule report configuration</p>
                                 </div>
                             </div>
                             <button
@@ -2022,44 +2056,146 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                 <FiX className="w-4 h-4" />
                             </button>
                         </div>
-                        <div className="p-6 flex flex-col gap-4">
-                            <div className="grid grid-cols-2 gap-2">
-                                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, idx) => {
-                                    const checked = weeklyPrintDays.includes(idx);
-                                    return (
-                                        <label key={day} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all border border-white/5">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                                checked={checked}
-                                                onChange={() => {
-                                                    setWeeklyPrintDays(prev => 
-                                                        prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-                                                    );
-                                                }}
-                                            />
-                                            <span className="text-xs font-bold text-white">{day}</span>
-                                        </label>
-                                    );
-                                })}
+                        <div className="p-6 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 gap-1">
+                                <button
+                                    onClick={() => setWeeklyExportFormat('pdf')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${weeklyExportFormat === 'pdf' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    PDF Document
+                                </button>
+                                <button
+                                    onClick={() => setWeeklyExportFormat('csv')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${weeklyExportFormat === 'csv' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    CSV Spreadsheet
+                                </button>
                             </div>
 
-                            <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-2">
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6])}
-                                        className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
-                                    >
-                                        Select All
-                                    </button>
-                                    <span className="text-[10px] text-slate-600">|</span>
-                                    <button
-                                        onClick={() => setWeeklyPrintDays([])}
-                                        className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
-                                    >
-                                        Deselect All
-                                    </button>
+                            <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    checked={weeklyExcludeCompleted}
+                                    onChange={e => setWeeklyExcludeCompleted(e.target.checked)}
+                                />
+                                <div>
+                                    <div className="text-xs font-bold text-white">Exclude Completed Tasks</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">Filter out tasks that have already been completed</div>
                                 </div>
+                            </label>
+
+                            {weeklyExportFormat === 'pdf' && (
+                                <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={weeklyIncludeStats}
+                                        onChange={e => setWeeklyIncludeStats(e.target.checked)}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Include Stats Summary</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Show weekly summary analytics in the PDF</div>
+                                    </div>
+                                </label>
+                            )}
+
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-slate-300">Days to Include</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Select All
+                                        </button>
+                                        <span className="text-[10px] text-slate-600">|</span>
+                                        <button
+                                            onClick={() => setWeeklyPrintDays([])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Deselect All
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 border border-white/5 rounded-xl bg-white/[0.01] p-3">
+                                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, idx) => {
+                                        const checked = weeklyPrintDays.includes(idx);
+                                        return (
+                                            <label key={day} className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition-all">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                    checked={checked}
+                                                    onChange={() => {
+                                                        setWeeklyPrintDays(prev =>
+                                                            prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+                                                        );
+                                                    }}
+                                                />
+                                                <span className="text-xs font-medium text-slate-200">{day}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-slate-300">Select Columns to Export</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setWeeklyExportColumns(['code', 'customer', 'name', 'quantity', 'time', 'status'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Select All
+                                        </button>
+                                        <span className="text-[10px] text-slate-600">|</span>
+                                        <button
+                                            onClick={() => setWeeklyExportColumns(['code', 'customer', 'name'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 border border-white/5 rounded-xl bg-white/[0.01] p-3">
+                                    {[
+                                        { id: 'code', label: 'Job Code' },
+                                        { id: 'customer', label: 'Customer Name' },
+                                        { id: 'name', label: 'Task Details' },
+                                        { id: 'quantity', label: 'Run Qty' },
+                                        { id: 'time', label: 'Est. Time' },
+                                        { id: 'status', label: 'Status' }
+                                    ].map(col => {
+                                        const isChecked = weeklyExportColumns.includes(col.id);
+                                        return (
+                                            <label key={col.id} className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition-all">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        setWeeklyExportColumns(prev =>
+                                                            prev.includes(col.id) ? prev.filter(c => c !== col.id) : [...prev, col.id]
+                                                        );
+                                                    }}
+                                                />
+                                                <span className="text-xs font-medium text-slate-200">{col.label}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+                                <button
+                                    onClick={() => setShowWeeklyPrintModal(false)}
+                                    className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     onClick={() => {
                                         if (weeklyPrintDays.length === 0) {
@@ -2071,11 +2207,170 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                         const m = String(currentWeekStart.getMonth() + 1).padStart(2, '0');
                                         const d = String(currentWeekStart.getDate()).padStart(2, '0');
                                         const weekStartStr = `${y}-${m}-${d}`;
-                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?weekStart=${weekStartStr}&includeDays=${weeklyPrintDays.join(',')}`, '_blank');
+                                        const params = new URLSearchParams({
+                                            weekStart: weekStartStr,
+                                            includeDays: weeklyPrintDays.join(','),
+                                            format: weeklyExportFormat,
+                                            excludeCompleted: weeklyExcludeCompleted ? 'true' : 'false',
+                                            columns: weeklyExportColumns.join(','),
+                                            includeStats: weeklyIncludeStats ? 'true' : 'false'
+                                        }).toString();
+                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?${params}`, '_blank');
                                     }}
-                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-purple-950/20 cursor-pointer"
+                                    className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-purple-950/20 cursor-pointer"
                                 >
-                                    Download PDF
+                                    <FiDownload className="w-4 h-4" />
+                                    Generate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Daily Planner PDF/Checksheet Options Modal */}
+            {showDailyPrintModal && (
+                <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowDailyPrintModal(false)}>
+                    <div className="bg-black/10 backdrop-blur-lg border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
+                                    <FiPrinter className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">
+                                        {dailyIsChecksheet ? 'Task Sheet Export Options' : 'Daily Report Export Options'}
+                                    </h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your daily export configuration</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowDailyPrintModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 gap-1">
+                                <button
+                                    onClick={() => setDailyExportFormat('pdf')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${dailyExportFormat === 'pdf' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    PDF Document
+                                </button>
+                                <button
+                                    onClick={() => setDailyExportFormat('csv')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${dailyExportFormat === 'csv' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    CSV Spreadsheet
+                                </button>
+                            </div>
+
+                            <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    checked={dailyExcludeCompleted}
+                                    onChange={e => setDailyExcludeCompleted(e.target.checked)}
+                                />
+                                <div>
+                                    <div className="text-xs font-bold text-white">Exclude Completed Tasks</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">Filter out tasks that have already been completed</div>
+                                </div>
+                            </label>
+
+                            {dailyExportFormat === 'pdf' && (
+                                <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={dailyIncludeStats}
+                                        onChange={e => setDailyIncludeStats(e.target.checked)}
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">Include Stats Summary</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Show daily summary analytics in the PDF</div>
+                                    </div>
+                                </label>
+                            )}
+
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-slate-300">Select Columns to Export</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setDailyExportColumns(['code', 'customer', 'name', 'quantity', 'time', 'status'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Select All
+                                        </button>
+                                        <span className="text-[10px] text-slate-600">|</span>
+                                        <button
+                                            onClick={() => setDailyExportColumns(['code', 'customer', 'name'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 border border-white/5 rounded-xl bg-white/[0.01] p-3">
+                                    {[
+                                        { id: 'code', label: 'Job Code' },
+                                        { id: 'customer', label: 'Customer Name' },
+                                        { id: 'name', label: 'Task Details' },
+                                        { id: 'quantity', label: 'Run Qty' },
+                                        { id: 'time', label: 'Est. Time' },
+                                        { id: 'status', label: 'Status' }
+                                    ].map(col => {
+                                        const isChecked = dailyExportColumns.includes(col.id);
+                                        return (
+                                            <label key={col.id} className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition-all">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        setDailyExportColumns(prev =>
+                                                            prev.includes(col.id) ? prev.filter(c => c !== col.id) : [...prev, col.id]
+                                                        );
+                                                    }}
+                                                />
+                                                <span className="text-xs font-medium text-slate-200">{col.label}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+                                <button
+                                    onClick={() => setShowDailyPrintModal(false)}
+                                    className="px-4 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowDailyPrintModal(false);
+                                        const y = activeDate.getFullYear();
+                                        const m = String(activeDate.getMonth() + 1).padStart(2, '0');
+                                        const d = String(activeDate.getDate()).padStart(2, '0');
+                                        const dateStr = `${y}-${m}-${d}`;
+                                        const params = new URLSearchParams({
+                                            date: dateStr,
+                                            format: dailyExportFormat,
+                                            excludeCompleted: dailyExcludeCompleted ? 'true' : 'false',
+                                            columns: dailyExportColumns.join(','),
+                                            includeStats: dailyIncludeStats ? 'true' : 'false',
+                                            ...(dailyIsChecksheet ? { checksheet: 'true' } : {})
+                                        }).toString();
+                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?${params}`, '_blank');
+                                    }}
+                                    className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-purple-900/30 cursor-pointer"
+                                >
+                                    <FiDownload className="w-4 h-4" />
+                                    Generate
                                 </button>
                             </div>
                         </div>
@@ -2086,15 +2381,15 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             {/* Unplanned Queue PDF Options Modal */}
             {showPrintModal && (
                 <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setShowPrintModal(false)}>
-                    <div className="bg-slate-950 border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="bg-black/10 backdrop-blur-lg border border-white/15 rounded-2xl w-full max-w-md shadow-[0_32px_96px_rgba(0,0,0,0.9)] flex flex-col text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
                             <div className="flex items-center gap-2.5">
                                 <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-400">
                                     <FiPrinter className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">PDF Report Options</h2>
-                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your unplanned queue PDF report</p>
+                                    <h2 className="text-base font-extrabold text-white tracking-tight m-0">Unplanned Export Options</h2>
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5 font-medium">Customize your unplanned report configuration</p>
                                 </div>
                             </div>
                             <button
@@ -2105,71 +2400,99 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                             </button>
                         </div>
                         <div className="p-6 flex flex-col gap-4">
-                            <div className="flex flex-col gap-3">
-                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        checked={printOptions.includeSpecs}
-                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeSpecs: e.target.checked }))}
-                                    />
-                                    <div>
-                                        <div className="text-xs font-bold text-white">Technical Specifications</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">Paper stock, colors, sides, plates, run/wastage sheets</div>
-                                    </div>
-                                </label>
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 gap-1">
+                                <button
+                                    onClick={() => setExportFormat('pdf')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${exportFormat === 'pdf' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    PDF Document
+                                </button>
+                                <button
+                                    onClick={() => setExportFormat('csv')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${exportFormat === 'csv' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    CSV Spreadsheet
+                                </button>
+                            </div>
 
-                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        checked={printOptions.includeNotes}
-                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeNotes: e.target.checked }))}
-                                    />
-                                    <div>
-                                        <div className="text-xs font-bold text-white">Production Notes &amp; Instructions</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">Job notes and special production comments</div>
-                                    </div>
-                                </label>
+                            <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    checked={excludeCompleted}
+                                    onChange={e => setExcludeCompleted(e.target.checked)}
+                                />
+                                <div>
+                                    <div className="text-xs font-bold text-white">Exclude Completed Tasks</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">Filter out tasks that have already been completed</div>
+                                </div>
+                            </label>
 
-                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
+                            {exportFormat === 'pdf' && (
+                                <label className="flex items-center gap-3 cursor-pointer p-2.5 bg-white/[0.02] border border-white/5 hover:bg-white/5 rounded-xl transition-all">
                                     <input
                                         type="checkbox"
-                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        checked={printOptions.includeFinishings}
-                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeFinishings: e.target.checked }))}
+                                        className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                        checked={includeStats}
+                                        onChange={e => setIncludeStats(e.target.checked)}
                                     />
                                     <div>
-                                        <div className="text-xs font-bold text-white">Post-Press &amp; Finishing Details</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">Folding, binding, cutting, laminating, assembly specs</div>
+                                        <div className="text-xs font-bold text-white">Include Stats Summary</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Show total tasks, quantity, and hours summary in the PDF</div>
                                     </div>
                                 </label>
+                            )}
 
-                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        checked={printOptions.includeDates}
-                                        onChange={e => setPrintOptions(prev => ({ ...prev, includeDates: e.target.checked }))}
-                                    />
-                                    <div>
-                                        <div className="text-xs font-bold text-white">Expected Delivery Dates</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">Display shipment target dates for prioritization</div>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-slate-300">Select Columns to Export</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setExportColumns(['code', 'customer', 'name', 'delivery', 'quantity', 'specs', 'notes', 'finishings', 'time', 'status'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Select All
+                                        </button>
+                                        <span className="text-[10px] text-slate-600">|</span>
+                                        <button
+                                            onClick={() => setExportColumns(['code', 'customer', 'name'])}
+                                            className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                                        >
+                                            Reset
+                                        </button>
                                     </div>
-                                </label>
-
-                                <label className="flex items-start gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-lg transition-all">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-0.5 rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                        checked={printOptions.groupByOrder}
-                                        onChange={e => setPrintOptions(prev => ({ ...prev, groupByOrder: e.target.checked }))}
-                                    />
-                                    <div>
-                                        <div className="text-xs font-bold text-white">Group by Sales Order</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">Group tasks under order header card sections</div>
-                                    </div>
-                                </label>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 border border-white/5 rounded-xl bg-white/[0.01] p-3 max-h-[220px] overflow-y-auto">
+                                    {[
+                                        { id: 'code', label: 'Job Code' },
+                                        { id: 'customer', label: 'Customer Name' },
+                                        { id: 'name', label: 'Task Details' },
+                                        { id: 'delivery', label: 'Delivery Date' },
+                                        { id: 'quantity', label: 'Run Qty' },
+                                        { id: 'specs', label: 'Technical Specs' },
+                                        { id: 'notes', label: 'Production Notes' },
+                                        { id: 'finishings', label: 'Finishing Details' },
+                                        { id: 'time', label: 'Est. Time' },
+                                        { id: 'status', label: 'Status' }
+                                    ].map(col => {
+                                        const isChecked = exportColumns.includes(col.id);
+                                        return (
+                                            <label key={col.id} className="flex items-center gap-2.5 cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition-all">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-white/15 bg-slate-900 text-purple-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        setExportColumns(prev =>
+                                                            prev.includes(col.id) ? prev.filter(c => c !== col.id) : [...prev, col.id]
+                                                        );
+                                                    }}
+                                                />
+                                                <span className="text-xs font-medium text-slate-200">{col.label}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div className="flex items-center justify-end gap-2 mt-2 pt-4 border-t border-white/10">
@@ -2184,7 +2507,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-lg shadow-purple-900/30 cursor-pointer"
                                 >
                                     <FiDownload className="w-4 h-4" />
-                                    Download PDF
+                                    Generate
                                 </button>
                             </div>
                         </div>
@@ -2387,7 +2710,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
 
 
 
-                                                    { setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6]); setShowWeeklyPrintModal(true); }
+                                                    setWeeklyExportFormat('pdf');
+                                                    setWeeklyExcludeCompleted(false);
+                                                    setWeeklyExportColumns(['code', 'customer', 'name', 'quantity', 'time', 'status']);
+                                                    setWeeklyPrintDays([0, 1, 2, 3, 4, 5, 6]);
+                                                    setShowWeeklyPrintModal(true);
                                                 }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: 6,
@@ -2428,11 +2755,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                             <>
                                                 <button
                                                     onClick={() => {
-                                                        const y = activeDate.getFullYear();
-                                                        const m = String(activeDate.getMonth() + 1).padStart(2, '0');
-                                                        const d = String(activeDate.getDate()).padStart(2, '0');
-                                                        const dateStr = `${y}-${m}-${d}`;
-                                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}`, '_blank');
+                                                        setDailyIsChecksheet(false);
+                                                        setDailyExportFormat('pdf');
+                                                        setDailyExcludeCompleted(false);
+                                                        setDailyExportColumns(['code', 'customer', 'name', 'quantity', 'time', 'status']);
+                                                        setShowDailyPrintModal(true);
                                                     }}
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: 6,
@@ -2448,11 +2775,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        const y = activeDate.getFullYear();
-                                                        const m = String(activeDate.getMonth() + 1).padStart(2, '0');
-                                                        const d = String(activeDate.getDate()).padStart(2, '0');
-                                                        const dateStr = `${y}-${m}-${d}`;
-                                                        window.open(`/api/job-planning/finishing/${selectedFinishing.id}/pdf?date=${dateStr}&checksheet=true`, '_blank');
+                                                        setDailyIsChecksheet(true);
+                                                        setDailyExportFormat('pdf');
+                                                        setDailyExcludeCompleted(false);
+                                                        setDailyExportColumns(['code', 'customer', 'name', 'quantity', 'time', 'status']);
+                                                        setShowDailyPrintModal(true);
                                                     }}
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: 6,

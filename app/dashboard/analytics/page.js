@@ -521,9 +521,10 @@ export default function AnalyticsPage() {
                                                                 </thead>
                                                                 <tbody className="divide-y divide-white/[0.03]">
                                                                     {mTasks.map(t => {
-                                                                        const cleanName = t.name.includes('—')
-                                                                            ? t.name.split('—')[t.name.split('—').length - 1].trim()
-                                                                            : t.name;
+                                                                        const parts = t.name.split('—');
+                                                                        const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                                                        const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                                                        const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                                                         const varVal = t.actual_minutes != null && t.estimated_minutes != null ? t.actual_minutes - t.estimated_minutes : null;
                                                                         const varColor = varVal == null ? 'text-white/30' : varVal > 0 ? 'text-red-400 font-bold' : varVal < 0 ? 'text-emerald-400 font-bold' : 'text-white/40';
@@ -539,7 +540,7 @@ export default function AnalyticsPage() {
                                                                                 <td className="px-4 py-2.5 font-mono text-blue-400 font-semibold">{t.order_code || '—'}</td>
                                                                                 <td className="px-4 py-2.5 text-white/70 max-w-[120px] truncate">{t.customer_name || '—'}</td>
                                                                                 <td className="px-4 py-2.5 text-white font-medium">
-                                                                                    {cleanName} {t.description && <span className="text-white/40 font-normal">({t.description})</span>}
+                                                                                    {displayText}
                                                                                 </td>
                                                                                 <td className="px-4 py-2.5 text-center">
                                                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${statusCls}`}>

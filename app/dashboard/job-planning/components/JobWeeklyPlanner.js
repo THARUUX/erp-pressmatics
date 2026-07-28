@@ -195,10 +195,10 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
 
     const handleUndo = useCallback(async () => {
         if (undoStack.length === 0) return;
-        
+
         const action = undoStack[undoStack.length - 1];
         setUndoStack(prev => prev.slice(0, -1));
-        
+
         setRedoStack(prev => [...prev, {
             orderId: action.orderId,
             taskId: action.taskId,
@@ -533,7 +533,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                 </p>
                             </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
@@ -630,7 +630,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                                                                     #{index + 1}
                                                                 </span>
                                                                 <span className="truncate max-w-[170px]" title={task.name}>
-                                                                    {task.name.includes('—') ? task.name.split('—')[0]?.trim() || task.name : task.name}
+                                                                    {task.name.includes('—') ? task.name.split('—')[1]?.trim() || task.name : task.name}
                                                                 </span>
                                                             </div>
 

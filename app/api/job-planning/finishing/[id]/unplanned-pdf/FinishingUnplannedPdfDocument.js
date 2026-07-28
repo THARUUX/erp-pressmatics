@@ -54,8 +54,64 @@ const formatTime = (mins) => {
     return `${mins}m`;
 };
 
+const getFlatWidths = (selectedColumns = []) => {
+    const activeColumns = selectedColumns.length > 0 ? selectedColumns : ['code', 'customer', 'name', 'delivery', 'quantity', 'time', 'status'];
+    const defaultWidths = {
+        code: 10,
+        customer: 22,
+        name: 33,
+        delivery: 12,
+        quantity: 10,
+        time: 7,
+        status: 6
+    };
+
+    let activeWidths = {};
+    let totalWeight = 0;
+
+    activeColumns.forEach(col => {
+        if (defaultWidths[col] !== undefined) {
+            activeWidths[col] = defaultWidths[col];
+            totalWeight += defaultWidths[col];
+        }
+    });
+
+    const normalized = {};
+    Object.keys(activeWidths).forEach(col => {
+        normalized[col] = `${((activeWidths[col] / totalWeight) * 100).toFixed(1)}%`;
+    });
+    return normalized;
+};
+
+const getGroupedWidths = (selectedColumns = []) => {
+    const activeColumns = selectedColumns.length > 0 ? selectedColumns : ['name', 'quantity', 'time', 'status'];
+    const defaultWidths = {
+        name: 65,
+        quantity: 15,
+        time: 10,
+        status: 10
+    };
+
+    let activeWidths = {};
+    let totalWeight = 0;
+
+    activeColumns.forEach(col => {
+        if (defaultWidths[col] !== undefined) {
+            activeWidths[col] = defaultWidths[col];
+            totalWeight += defaultWidths[col];
+        }
+    });
+
+    const normalized = {};
+    Object.keys(activeWidths).forEach(col => {
+        normalized[col] = `${((activeWidths[col] / totalWeight) * 100).toFixed(1)}%`;
+    });
+    return normalized;
+};
+
 export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks, options }) {
     const timestamp = new Date().toLocaleString('en-US', { hour12: false });
+    const selectedColumns = options.columns || [];
     
     // Group by Sales Order helper
     const getGroupedTasks = () => {
@@ -78,6 +134,8 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
     };
 
     const groupedData = getGroupedTasks();
+    const flatWidths = getFlatWidths(selectedColumns);
+    const groupedWidths = getGroupedWidths(selectedColumns);
 
     return (
         <Document title={`UnplannedQueue-${finishing.name}`} author="Pressmatics Cloud ERP">
@@ -96,23 +154,25 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
                 </View>
 
                 {/* Stats */}
-                <View style={s.statsGrid}>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>Total Queue Load</Text>
-                        <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
-                        <Text style={s.statSub}>Pending Scheduling</Text>
+                {options.includeStats !== false ? (
+                    <View style={s.statsGrid}>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>Total Queue Load</Text>
+                            <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
+                            <Text style={s.statSub}>Pending Scheduling</Text>
+                        </View>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>Total Run Quantity</Text>
+                            <Text style={s.statValue}>{stats.totalQty.toLocaleString()}</Text>
+                            <Text style={s.statSub}>Total Operations Quantity</Text>
+                        </View>
+                        <View style={s.statCell}>
+                            <Text style={s.statLabel}>Estimated Time</Text>
+                            <Text style={s.statValue}>{stats.totalHours.toFixed(1)} Hrs</Text>
+                            <Text style={s.statSub}>Based on Operation Speeds</Text>
+                        </View>
                     </View>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>Total Run Quantity</Text>
-                        <Text style={s.statValue}>{stats.totalQty.toLocaleString()}</Text>
-                        <Text style={s.statSub}>Total Operations Quantity</Text>
-                    </View>
-                    <View style={s.statCell}>
-                        <Text style={s.statLabel}>Estimated Time</Text>
-                        <Text style={s.statValue}>{stats.totalHours.toFixed(1)} Hrs</Text>
-                        <Text style={s.statSub}>Based on Operation Speeds</Text>
-                    </View>
-                </View>
+                ) : null}
 
                 {/* Table Content */}
                 {options.groupByOrder ? (
@@ -140,25 +200,24 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
                             {/* Tasks table in this group */}
                             <View style={{ padding: 4 }}>
                                 <View style={s.tableHeader}>
-                                    <Text style={[s.tableHeaderText, { width: '45%' }]}>Task Name</Text>
-                                    <Text style={[s.tableHeaderText, { width: '20%' }]}>Description</Text>
-                                    <Text style={[s.tableHeaderText, { width: '15%', textAlign: 'right' }]}>Run Qty</Text>
-                                    <Text style={[s.tableHeaderText, { width: '10%', textAlign: 'right' }]}>Est. Time</Text>
-                                    <Text style={[s.tableHeaderText, { width: '10%', textAlign: 'right' }]}>Status</Text>
+                                    {selectedColumns.includes('name') && <Text style={[s.tableHeaderText, { width: groupedWidths.name }]}>Task Details</Text>}
+                                    {selectedColumns.includes('quantity') && <Text style={[s.tableHeaderText, { width: groupedWidths.quantity, textAlign: 'right' }]}>Run Qty</Text>}
+                                    {selectedColumns.includes('time') && <Text style={[s.tableHeaderText, { width: groupedWidths.time, textAlign: 'right' }]}>Est. Time</Text>}
+                                    {selectedColumns.includes('status') && <Text style={[s.tableHeaderText, { width: groupedWidths.status, textAlign: 'right' }]}>Status</Text>}
                                 </View>
                                 {group.tasks.map((t, tIdx) => {
-                                    const cleanName = t.name.includes('—')
-                                        ? t.name.split('—')[t.name.split('—').length - 1].trim()
-                                        : t.name;
+                                    const parts = t.name.split('—');
+                                    const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                    const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                    const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                     return (
                                         <View key={tIdx} style={{ marginBottom: 4 }}>
                                             <View style={s.tableRow}>
-                                                <Text style={[s.tableCellBold, { width: '45%' }]}>{cleanName}</Text>
-                                                <Text style={[s.tableCell, { width: '20%' }]}>{t.description || '—'}</Text>
-                                                <Text style={[s.tableCell, { width: '15%', textAlign: 'right' }]}>{(parseFloat(t.quantity) || 0).toLocaleString()}</Text>
-                                                <Text style={[s.tableCell, { width: '10%', textAlign: 'right' }]}>{formatTime(t.estimated_minutes)}</Text>
-                                                <Text style={[s.tableCell, { width: '10%', textAlign: 'right', textTransform: 'capitalize' }]}>{t.status}</Text>
+                                                {selectedColumns.includes('name') && <Text style={[s.tableCellBold, { width: groupedWidths.name }]}>{displayText}</Text>}
+                                                {selectedColumns.includes('quantity') && <Text style={[s.tableCell, { width: groupedWidths.quantity, textAlign: 'right' }]}>{(parseFloat(t.quantity) || 0).toLocaleString()}</Text>}
+                                                {selectedColumns.includes('time') && <Text style={[s.tableCell, { width: groupedWidths.time, textAlign: 'right' }]}>{formatTime(t.estimated_minutes)}</Text>}
+                                                {selectedColumns.includes('status') && <Text style={[s.tableCell, { width: groupedWidths.status, textAlign: 'right', textTransform: 'capitalize' }]}>{t.status}</Text>}
                                             </View>
 
                                             {/* Specs Box if enabled */}
@@ -201,37 +260,36 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
                 ) : (
                     <View style={s.table}>
                         <View style={s.tableHeader}>
-                            <Text style={[s.tableHeaderText, { width: '10%' }]}>Job Code</Text>
-                            <Text style={[s.tableHeaderText, { width: '22%' }]}>Customer Name</Text>
-                            <Text style={[s.tableHeaderText, { width: '33%' }]}>Task Details</Text>
-                            {options.dates && <Text style={[s.tableHeaderText, { width: '12%' }]}>Delivery</Text>}
-                            <Text style={[s.tableHeaderText, { width: '10%', textAlign: 'right' }]}>Run Qty</Text>
-                            <Text style={[s.tableHeaderText, { width: '7%', textAlign: 'right' }]}>Est. Time</Text>
-                            <Text style={[s.tableHeaderText, { width: '6%', textAlign: 'right' }]}>Status</Text>
+                            {selectedColumns.includes('code') && <Text style={[s.tableHeaderText, { width: flatWidths.code }]}>Job Code</Text>}
+                            {selectedColumns.includes('customer') && <Text style={[s.tableHeaderText, { width: flatWidths.customer }]}>Customer Name</Text>}
+                            {selectedColumns.includes('name') && <Text style={[s.tableHeaderText, { width: flatWidths.name }]}>Task Details</Text>}
+                            {selectedColumns.includes('delivery') && <Text style={[s.tableHeaderText, { width: flatWidths.delivery }]}>Delivery</Text>}
+                            {selectedColumns.includes('quantity') && <Text style={[s.tableHeaderText, { width: flatWidths.quantity, textAlign: 'right' }]}>Run Qty</Text>}
+                            {selectedColumns.includes('time') && <Text style={[s.tableHeaderText, { width: flatWidths.time, textAlign: 'right' }]}>Est. Time</Text>}
+                            {selectedColumns.includes('status') && <Text style={[s.tableHeaderText, { width: flatWidths.status, textAlign: 'right' }]}>Status</Text>}
                         </View>
 
                         {tasks.map((t, idx) => {
-                            const cleanName = t.name.includes('—')
-                                ? t.name.split('—')[t.name.split('—').length - 1].trim()
-                                : t.name;
+                            const parts = t.name.split('—');
+                            const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                            const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                            const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
                             const hasSubDetails = options.notes && t.job_notes || options.specs && t.componentSpecs || options.finishings && (t.finishingSpecs || t.globalFinishings?.length > 0);
 
                             return (
                                 <View key={idx} wrap={false} style={{ borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb' }}>
                                     <View style={s.tableRow}>
-                                        <Text style={[s.tableCellBold, { width: '10%' }]}>{t.order_code || 'STANDALONE'}</Text>
-                                        <Text style={[s.tableCell, { width: '22%' }]}>{t.customer_name || '—'}</Text>
-                                        <Text style={[s.tableCellBold, { width: '33%' }]}>
-                                            {cleanName} {t.description ? `(${t.description})` : ''}
-                                        </Text>
-                                        {options.dates && (
-                                            <Text style={[s.tableCell, { width: '12%' }]}>
+                                        {selectedColumns.includes('code') && <Text style={[s.tableCellBold, { width: flatWidths.code }]}>{t.order_code || 'STANDALONE'}</Text>}
+                                        {selectedColumns.includes('customer') && <Text style={[s.tableCell, { width: flatWidths.customer }]}>{t.customer_name || '—'}</Text>}
+                                        {selectedColumns.includes('name') && <Text style={[s.tableCellBold, { width: flatWidths.name }]}>{displayText}</Text>}
+                                        {selectedColumns.includes('delivery') && (
+                                            <Text style={[s.tableCell, { width: flatWidths.delivery }]}>
                                                 {t.order_delivery_date ? new Date(t.order_delivery_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                             </Text>
                                         )}
-                                        <Text style={[s.tableCell, { width: '10%', textAlign: 'right' }]}>{(parseFloat(t.quantity) || 0).toLocaleString()}</Text>
-                                        <Text style={[s.tableCell, { width: '7%', textAlign: 'right' }]}>{formatTime(t.estimated_minutes)}</Text>
-                                        <Text style={[s.tableCell, { width: '6%', textAlign: 'right', textTransform: 'capitalize' }]}>{t.status}</Text>
+                                        {selectedColumns.includes('quantity') && <Text style={[s.tableCell, { width: flatWidths.quantity, textAlign: 'right' }]}>{(parseFloat(t.quantity) || 0).toLocaleString()}</Text>}
+                                        {selectedColumns.includes('time') && <Text style={[s.tableCell, { width: flatWidths.time, textAlign: 'right' }]}>{formatTime(t.estimated_minutes)}</Text>}
+                                        {selectedColumns.includes('status') && <Text style={[s.tableCell, { width: flatWidths.status, textAlign: 'right', textTransform: 'capitalize' }]}>{t.status}</Text>}
                                     </View>
 
                                     {/* Sub-details (notes, specs, finishings) in a details row under the main row */}

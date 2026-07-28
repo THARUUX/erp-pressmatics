@@ -45,13 +45,23 @@ export async function POST(req) {
                 const otMultiplier = parseFloat(emp.ot_rate_multiplier) || 1.5;
                 const workingHours = parseFloat(emp.standard_working_hours) || 8;
 
+                const employmentType = emp.employment_type || 'permanent';
+                const workingDays = emp.working_days || 'Monday,Tuesday,Wednesday,Thursday,Friday';
+                const noPayType = emp.no_pay_type || 'percentage';
+                const noPayValue = parseFloat(emp.no_pay_value) || 0;
+                const otRate = parseFloat(emp.ot_rate) || 0;
+                const doubleOtRate = parseFloat(emp.double_ot_rate) || 0;
+                const lateDeductionRate = parseFloat(emp.late_deduction_rate) || 0;
+
                 await pool.execute(
                     `INSERT INTO employees
                      (employee_id, name, job_title, department, phone, email,
                       date_of_birth, date_joined, shift, status, notes,
                       pay_type, base_salary, hourly_rate, allowances, deductions,
-                      ot_rate_multiplier, standard_working_hours)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                      ot_rate_multiplier, standard_working_hours,
+                      employment_type, working_days, no_pay_type, no_pay_value,
+                      ot_rate, double_ot_rate, late_deduction_rate)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         employeeId,
                         name,
@@ -70,7 +80,14 @@ export async function POST(req) {
                         allowances,
                         deductions,
                         otMultiplier,
-                        workingHours
+                        workingHours,
+                        employmentType,
+                        workingDays,
+                        noPayType,
+                        noPayValue,
+                        otRate,
+                        doubleOtRate,
+                        lateDeductionRate
                     ]
                 );
                 imported.push(name);
