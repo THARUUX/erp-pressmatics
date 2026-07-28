@@ -4,7 +4,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
-import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiClock, FiCpu, FiChevronUp, FiChevronDown, FiDollarSign } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiClock, FiCpu, FiChevronUp, FiChevronDown, FiDollarSign, FiUsers } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useSettings } from '@/components/SettingsContext';
@@ -12,9 +12,11 @@ import { useSettings } from '@/components/SettingsContext';
 export default function FinishingsPage() {
     const { settings } = useSettings();
     const currency = settings.currency || '$';
-    
+
     const [machines, setMachines] = useState([]);
     const [finishings, setFinishings] = useState([]);
+    const [employees, setEmployees] = useState([]);
+    const [teams, setTeams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [sorting, setSorting] = useState([]);
@@ -33,12 +35,16 @@ export default function FinishingsPage() {
         cost_unit: 'Unit',
         variants: [],
         speed: '',
-        speed_unit: 'Sheets/Hr'
+        speed_unit: 'Sheets/Hr',
+        assigned_employee_ids: [],
+        assigned_team_ids: []
     });
 
     useEffect(() => {
         fetchFinishings();
         fetchMachines();
+        fetch('/api/employees').then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
+        fetch('/api/teams').then(r => r.json()).then(d => setTeams(Array.isArray(d) ? d : []));
     }, []);
 
     useEffect(() => {
@@ -136,7 +142,9 @@ export default function FinishingsPage() {
             cost_unit: item.cost_unit || 'Unit',
             variants: item.variants || [],
             speed: item.speed || '',
-            speed_unit: item.speed_unit || 'Sheets/Hr'
+            speed_unit: item.speed_unit || 'Sheets/Hr',
+            assigned_employee_ids: item.assigned_employee_ids || (item.assigned_employee_id ? [item.assigned_employee_id] : []),
+            assigned_team_ids: item.assigned_team_ids || (item.assigned_team_id ? [item.assigned_team_id] : [])
         });
         setShowFormModal(true);
     };
@@ -152,7 +160,9 @@ export default function FinishingsPage() {
             cost_unit: 'Unit',
             variants: [],
             speed: '',
-            speed_unit: 'Sheets/Hr'
+            speed_unit: 'Sheets/Hr',
+            assigned_employee_ids: [],
+            assigned_team_ids: []
         });
     };
 
@@ -188,7 +198,7 @@ export default function FinishingsPage() {
                 const item = row.original;
                 return (
                     <div>
-                        <div className="font-bold text-white text-[14px]">{item.name}</div>                  
+                        <div className="font-bold text-white text-[14px]">{item.name}</div>
                     </div>
                 );
             }
@@ -211,6 +221,30 @@ export default function FinishingsPage() {
                                 </span>
                             )}
                         </div>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'assigned_employee_name',
+            header: 'Assignments',
+            cell: ({ row }) => {
+                const item = row.original;
+                return (
+                    <div className="flex flex-wrap gap-1.5">
+                        {item.assigned_employee_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full" title={`Operators: ${item.assigned_employee_name}`}>
+                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
+                            </span>
+                        )}
+                        {item.assigned_team_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full" title={`Teams: ${item.assigned_team_name}`}>
+                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
+                            </span>
+                        )}
+                        {!item.assigned_employee_name && !item.assigned_team_name && (
+                            <span className="text-gray-600 text-xs">—</span>
+                        )}
                     </div>
                 );
             }
@@ -274,7 +308,7 @@ export default function FinishingsPage() {
                 return (
                     <div className="flex justify-end gap-1">
                         <button onClick={() => handleEdit(item)}
-                            className="p-2 text-purple-400 hover:text-purple-300 bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/15 rounded-lg transition-colors" title="Edit">
+                            className="p-2 text-gray-400 hover:text-gray-300 bg-gray-500/5 hover:bg-gray-500/10 border border-gray-500/15 rounded-lg transition-colors" title="Edit">
                             <FiEdit2 className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleDelete(item.id)}
@@ -385,8 +419,8 @@ export default function FinishingsPage() {
 
             {/* Add/Edit Form Modal */}
             {showFormModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-                    <div className="w-full max-w-lg bg-[#0d0d1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+                    <div className="w-full max-w-lg bg-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                             <h3 className="font-bold text-lg text-white">
                                 {isEditing ? 'Edit Finishing Service' : 'Add Post-Press Service'}
@@ -414,7 +448,7 @@ export default function FinishingsPage() {
                                 <div>
                                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Operation Type</label>
                                     <select
-                                        className="w-full bg-[#1b1b2d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
                                         value={formData.is_machine ? 'machine' : 'manual'}
                                         onChange={e => setFormData(prev => ({ ...prev, is_machine: e.target.value === 'machine' }))}
                                     >
@@ -425,7 +459,7 @@ export default function FinishingsPage() {
                                 <div>
                                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Cost Basis</label>
                                     <select
-                                        className="w-full bg-[#1b1b2d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
                                         value={formData.cost_unit}
                                         onChange={e => setFormData(prev => ({ ...prev, cost_unit: e.target.value }))}
                                     >
@@ -456,7 +490,7 @@ export default function FinishingsPage() {
                                 <div>
                                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Link Machine</label>
                                     <select
-                                        className="w-full bg-[#1b1b2d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                        className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
                                         value={formData.machine_id}
                                         onChange={e => setFormData(prev => ({ ...prev, machine_id: e.target.value }))}
                                     >
@@ -465,32 +499,65 @@ export default function FinishingsPage() {
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
                                     </select>
+                                    <p className="text-[11px] text-gray-500 italic mt-1.5">
+                                        * Personnel and team assignments are inherited from the linked machine.
+                                    </p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Manual Speed</label>
-                                        <Input
-                                            type="number"
-                                            value={formData.speed}
-                                            onChange={e => setFormData(prev => ({ ...prev, speed: e.target.value }))}
-                                            placeholder="500"
-                                            className="bg-secondary border-white/10"
-                                        />
+                                <div className="space-y-4 bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Manual Speed</label>
+                                            <Input
+                                                type="number"
+                                                value={formData.speed}
+                                                onChange={e => setFormData(prev => ({ ...prev, speed: e.target.value }))}
+                                                placeholder="500"
+                                                className="bg-secondary border-white/10"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Speed Unit</label>
+                                            <select
+                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                                value={formData.speed_unit}
+                                                onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}
+                                            >
+                                                <option value="Prints/Hr">Prints/Hr</option>
+                                                <option value="Sheets/Hr">Sheets/Hr</option>
+                                                <option value="Units/Hr">Units/Hr</option>
+                                                <option value="Forms/Hr">Forms/Hr</option>
+                                                <option value="Impressions/Hr">Impressions/Hr</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Speed Unit</label>
-                                        <select
-                                            className="w-full bg-[#1b1b2d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
-                                            value={formData.speed_unit}
-                                            onChange={e => setFormData(prev => ({ ...prev, speed_unit: e.target.value }))}
-                                        >
-                                            <option value="Prints/Hr">Prints/Hr</option>
-                                            <option value="Sheets/Hr">Sheets/Hr</option>
-                                            <option value="Units/Hr">Units/Hr</option>
-                                            <option value="Forms/Hr">Forms/Hr</option>
-                                            <option value="Impressions/Hr">Impressions/Hr</option>
-                                        </select>
+                                    <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-3">
+                                        <div>
+                                            <MultiSelect
+                                                label="Assign Operators"
+                                                options={employees.filter(e => e.status === 'active').map(e => ({
+                                                    value: e.id,
+                                                    label: e.name,
+                                                    sublabel: e.job_title || 'Operator'
+                                                }))}
+                                                selectedValues={formData.assigned_employee_ids || []}
+                                                onChange={ids => setFormData(prev => ({ ...prev, assigned_employee_ids: ids }))}
+                                                placeholder="Select Operators..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <MultiSelect
+                                                label="Assign Teams"
+                                                options={teams.map(t => ({
+                                                    value: t.id,
+                                                    label: t.name,
+                                                    sublabel: `${t.member_count || 0} members`
+                                                }))}
+                                                selectedValues={formData.assigned_team_ids || []}
+                                                onChange={ids => setFormData(prev => ({ ...prev, assigned_team_ids: ids }))}
+                                                placeholder="Select Teams..."
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -502,7 +569,7 @@ export default function FinishingsPage() {
                                     <button
                                         type="button"
                                         onClick={addVariant}
-                                        className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 font-bold"
+                                        className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold"
                                     >
                                         <FiPlus /> Add Variant
                                     </button>
@@ -561,3 +628,113 @@ export default function FinishingsPage() {
         </div>
     );
 }
+
+function MultiSelect({ label, options, selectedValues = [], onChange, placeholder = 'Select...' }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const dropdownRef = useRef(useMemo(() => ({ current: null }), []));
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [dropdownRef]);
+
+    const filteredOptions = options.filter(o =>
+        (o.label || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.sublabel || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    const toggleValue = (val) => {
+        const strVal = String(val);
+        const currentStrVals = selectedValues.map(v => String(v));
+        if (currentStrVals.includes(strVal)) {
+            onChange(selectedValues.filter(v => String(v) !== strVal));
+        } else {
+            onChange([...selectedValues, val]);
+        }
+    };
+
+    const selectedOptions = options.filter(o => selectedValues.some(v => String(v) === String(o.value)));
+
+    return (
+        <div className="relative w-full" ref={dropdownRef}>
+            {label && <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>}
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className="min-h-[38px] w-full bg-secondary border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs cursor-pointer flex flex-wrap items-center gap-1 hover:border-white/20 transition-colors"
+            >
+                {selectedOptions.length === 0 ? (
+                    <span className="text-gray-500">{placeholder}</span>
+                ) : (
+                    selectedOptions.map(o => (
+                        <span
+                            key={o.value}
+                            className="inline-flex items-center gap-1 bg-white/10 border border-white/10 text-white px-2 py-0.5 rounded text-[11px] font-medium"
+                        >
+                            {o.label}
+                            <span
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleValue(o.value);
+                                }}
+                                className="hover:text-red-400 cursor-pointer ml-0.5 text-xs font-bold"
+                            >
+                                ×
+                            </span>
+                        </span>
+                    ))
+                )}
+            </div>
+
+            {isOpen && (
+                <div className="absolute left-0 right-0 mt-1.5 z-50 bg-[#0d0d1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56">
+                    <div className="p-2 border-b border-white/10 bg-white/[0.02]">
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search..."
+                            className="w-full bg-secondary border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-white/30"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                    <div className="overflow-y-auto p-1 space-y-0.5">
+                        {filteredOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500 text-center">No options found</div>
+                        ) : (
+                            filteredOptions.map(o => {
+                                const isSelected = selectedValues.some(v => String(v) === String(o.value));
+                                return (
+                                    <div
+                                        key={o.value}
+                                        onClick={() => toggleValue(o.value)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                            isSelected ? 'bg-white/10 text-white font-semibold' : 'text-gray-300 hover:bg-white/5'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span>{o.label}</span>
+                                            {o.sublabel && <span className="text-[10px] text-gray-500">{o.sublabel}</span>}
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            readOnly
+                                            className="rounded border-white/20 bg-secondary text-emerald-500 focus:ring-0 cursor-pointer"
+                                        />
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+

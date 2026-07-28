@@ -467,6 +467,15 @@ function TaskCard({
                 )}
             </div>
 
+            {task.assigned_to && (
+                <div className="mt-1 pl-3.5 flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1 text-[9px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Operator: ${task.assigned_to}`}>
+                        <FiUser className="w-2.5 h-2.5" />
+                        {task.assigned_to}
+                    </span>
+                </div>
+            )}
+
             {dragOverTaskId === task.id && dragOverPosition === 'after' && (
                 <div
                     className="absolute bottom-0 left-0 right-0 h-[3px] rounded z-[99] animate-pulse"
@@ -479,12 +488,21 @@ function TaskCard({
 
 // ── Task Detail & Override Modal ─────────────────────────────────────────
 
-function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh, onViewJobTicket }) {
+function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh, onViewJobTicket, employees = [] }) {
     const isOffset = (machine?.type || '').toLowerCase() === 'offset';
     const plateSetup = isOffset ? (parseInt(task.plate_count || 0) * parseFloat(machine?.setup_minutes_per_plate || 0)) : 0;
     const defaultSetup = (machine?.make_ready_minutes || 0) + plateSetup;
     const defaultSpeed = machine?.speed || 0;
     const defaultUnit = machine?.speed_unit || 'Sheets/Hr';
+
+    const machineEmps = machine?.assigned_employees_list || [];
+    const candidateEmps = machineEmps.length > 0 ? machineEmps : employees;
+
+    const defaultAssignedTo = task.assigned_to
+        ? task.assigned_to
+        : (machineEmps.length === 1 ? machineEmps[0].name : '');
+
+    const [assignedTo, setAssignedTo] = useState(defaultAssignedTo);
 
     const initialUnit = task.custom_speed_unit || defaultUnit;
     const getResolvedQty = (u, withWastage) => {
@@ -664,6 +682,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
             custom_speed_unit: speed !== '' ? unit : null,
             custom_multiplier: multiplier !== '' ? parseFloat(multiplier) : 1,
             estimated_minutes: estimatedMins,
+            assigned_to: assignedTo || null,
         };
         if (calcQty !== '') {
             const numQty = parseFloat(calcQty);
@@ -854,6 +873,44 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                             </div>
                         </div>
                     )}
+
+                    {/* Assigned Operator / Employee */}
+                    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-gray-400">
+                                <FiUser className="w-3.5 h-3.5" /> Assigned Operator / Employee
+                            </div>
+                            {machineEmps.length > 0 && (
+                                <span className="text-[9.5px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 font-semibold">
+                                    Machine Operators: {machineEmps.map(e => e.name).join(', ')}
+                                </span>
+                            )}
+                        </div>
+                        <div>
+                            <select
+                                className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                value={assignedTo}
+                                onChange={e => setAssignedTo(e.target.value)}
+                            >
+                                <option value="">— Unassigned —</option>
+                                {candidateEmps.map(e => (
+                                    <option key={e.id || e.name} value={e.name}>
+                                        {e.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {machineEmps.length === 1 && (
+                                <p className="text-[10px] text-emerald-400 mt-1.5 italic font-medium">
+                                    * Automatically assigned to the only operator assigned to this machine ({machineEmps[0].name}).
+                                </p>
+                            )}
+                            {machineEmps.length > 1 && (
+                                <p className="text-[10px] text-gray-400 mt-1.5 italic">
+                                    Multiple operators assigned to this machine. Select who is executing this job task.
+                                </p>
+                            )}
+                        </div>
+                    </div>
 
                     {/* Custom Overrides */}
                     <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 border-emerald-500/20">
@@ -1515,7 +1572,7 @@ function BacklogColumn({
 }
 
 // ── Main MachinePlanning Component ───────────────────────────────────────
-export default function MachinePlanning({ machines, finishings = [], orders, onRefresh }) {
+export default function MachinePlanning({ machines, finishings = [], orders, employees = [], onRefresh }) {
     const [viewMode, setViewMode] = useState('daily');
     const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
     const [activeDate, setActiveDate] = useState(() => {
@@ -3299,6 +3356,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, onR
                         finishings.find(f => f.id === selectedTaskModal.task.machine_id) ||
                         selectedMachine
                     }
+                    employees={employees}
                     onClose={handleCloseModal}
                     onSave={handleTaskModalSave}
                     onDelete={handleTaskModalDelete}

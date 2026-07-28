@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity, FiTrendingUp, FiList, FiCalendar } from 'react-icons/fi';
+import { FiRefreshCw, FiGrid, FiCpu, FiLayers, FiActivity, FiTrendingUp, FiList, FiCalendar, FiUsers } from 'react-icons/fi';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DnD components (client-only)
@@ -13,6 +13,7 @@ const MachinePlanning = dynamic(() => import('./components/MachinePlanning'), { 
 const FinishingPlanning = dynamic(() => import('./components/FinishingPlanning'), { ssr: false });
 const ServicesPlanning = dynamic(() => import('./components/ServicesPlanning'), { ssr: false });
 const AnalyticsDashboard = dynamic(() => import('./components/AnalyticsDashboard'), { ssr: false });
+const EmployeePlanning = dynamic(() => import('./components/EmployeePlanning'), { ssr: false });
 
 const G = {
     bg: '#070710',
@@ -47,7 +48,7 @@ function JobPlanningPageInner() {
 
     useEffect(() => {
         const queryTab = searchParams.get('tab');
-        const validTabs = ['kanban', 'routing', 'job_weekly', 'machine', 'finishing', 'services', 'analytics'];
+        const validTabs = ['kanban', 'routing', 'job_weekly', 'machine', 'finishing', 'services', 'analytics', 'employee'];
         if (queryTab && validTabs.includes(queryTab)) {
             setTab(queryTab);
         }
@@ -81,6 +82,7 @@ function JobPlanningPageInner() {
     const machines = Array.isArray(data?.machines) ? data.machines : [];
     const finishings = Array.isArray(data?.finishings) ? data.finishings : [];
     const orders = Array.isArray(data?.orders) ? data.orders : [];
+    const employees = Array.isArray(data?.employees) ? data.employees : [];
 
     const totalTasks = orders.reduce((a, o) => a + (Array.isArray(o?.tasks) ? o.tasks.length : 0), 0);
     const doneTasks = orders.reduce((a, o) => a + (Array.isArray(o?.tasks) ? o.tasks.filter(t => t?.status === 'done').length : 0), 0);
@@ -94,6 +96,7 @@ function JobPlanningPageInner() {
         { key: 'machine',    label: 'Machine Planning',     icon: FiCpu },
         { key: 'finishing',  label: 'Finishing Planning',   icon: FiActivity },
         { key: 'services',   label: 'Services Planning',    icon: FiLayers },
+        { key: 'employee',   label: 'Employee Planning',    icon: FiUsers },
         { key: 'analytics',  label: 'Analytics',            icon: FiTrendingUp },
     ];
 
@@ -238,7 +241,7 @@ function JobPlanningPageInner() {
                                     <p style={{ color: G.subtle, fontSize: 12 }}>Add machines in Settings → Machines.</p>
                                 </div>
                             ) : (
-                                <MachinePlanning machines={machines} finishings={finishings} orders={orders} onRefresh={load} />
+                                <MachinePlanning machines={machines} finishings={finishings} orders={orders} employees={employees} onRefresh={load} />
                             )}
                         </div>
                     )}
@@ -261,7 +264,7 @@ function JobPlanningPageInner() {
                                     <p style={{ color: G.subtle, fontSize: 14 }}>No finishing operations configured yet.</p>
                                 </div>
                             ) : (
-                                <FinishingPlanning finishings={finishings} machines={machines} orders={orders} onRefresh={load} />
+                                <FinishingPlanning finishings={finishings} machines={machines} orders={orders} employees={employees} onRefresh={load} />
                             )}
                         </div>
                     )}
@@ -269,6 +272,11 @@ function JobPlanningPageInner() {
                     {/* Services Planning */}
                     {tab === 'services' && (
                         <ServicesPlanning />
+                    )}
+
+                    {/* Employee Planning */}
+                    {tab === 'employee' && (
+                        <EmployeePlanning orders={orders} />
                     )}
 
                     {/* Analytics Dashboard */}

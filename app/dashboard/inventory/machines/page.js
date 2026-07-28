@@ -52,6 +52,8 @@ export default function MachinesPage() {
         digital_price_min: 0,
         assigned_employee_id: '',
         assigned_team_id: '',
+        assigned_employee_ids: [],
+        assigned_team_ids: [],
         make_ready_minutes: 0,
         setup_minutes_per_plate: 0,
         shift_limit: 8,
@@ -161,6 +163,8 @@ export default function MachinesPage() {
             digital_price_min: item.digital_price_min || 0,
             assigned_employee_id: item.assigned_employee_id || '',
             assigned_team_id: item.assigned_team_id || '',
+            assigned_employee_ids: item.assigned_employee_ids || (item.assigned_employee_id ? [item.assigned_employee_id] : []),
+            assigned_team_ids: item.assigned_team_ids || (item.assigned_team_id ? [item.assigned_team_id] : []),
             make_ready_minutes: item.make_ready_minutes || 0,
             setup_minutes_per_plate: item.setup_minutes_per_plate || 0,
             shift_limit: item.shift_limit || 8,
@@ -184,6 +188,8 @@ export default function MachinesPage() {
             digital_price_min: 0,
             assigned_employee_id: '',
             assigned_team_id: '',
+            assigned_employee_ids: [],
+            assigned_team_ids: [],
             make_ready_minutes: 0,
             setup_minutes_per_plate: 0,
             shift_limit: 8,
@@ -216,7 +222,7 @@ export default function MachinesPage() {
                 xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#333' } }, axisLabel: { color: '#555', fontSize: 10 } },
                 yAxis: { type: 'value', splitLine: { lineStyle: { color: '#1a1a1a' } }, axisLabel: { color: '#555', fontSize: 10 } },
                 series: [
-                    { name: 'Tasks Done', type: 'bar', data: perfData.monthly.map(m => m.tasks_done), itemStyle: { color: 'rgba(167,139,250,0.5)', borderRadius: [4,4,0,0] } },
+                    { name: 'Tasks Done', type: 'bar', data: perfData.monthly.map(m => m.tasks_done), itemStyle: { color: 'rgba(167,139,250,0.5)', borderRadius: [4, 4, 0, 0] } },
                     { name: 'Avg Mins', type: 'line', yAxisIndex: 0, data: perfData.monthly.map(m => m.avg_mins), lineStyle: { color: 'rgba(255,255,255,0.2)' }, itemStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true, symbol: 'circle', symbolSize: 5 },
                 ],
             });
@@ -319,15 +325,17 @@ export default function MachinesPage() {
                 const item = row.original;
                 return (
                     <div className="flex flex-wrap gap-1.5">
-                        {item.assigned_employee_name ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                        {item.assigned_employee_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full" title={`Operators: ${item.assigned_employee_name}`}>
                                 <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
                             </span>
-                        ) : item.assigned_team_name ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full">
+                        )}
+                        {item.assigned_team_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full" title={`Teams: ${item.assigned_team_name}`}>
                                 <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
                             </span>
-                        ) : (
+                        )}
+                        {!item.assigned_employee_name && !item.assigned_team_name && (
                             <span className="text-gray-600 text-xs">—</span>
                         )}
                     </div>
@@ -401,11 +409,10 @@ export default function MachinesPage() {
                         <button
                             key={t}
                             onClick={() => setTypeFilter(t)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
-                                typeFilter === t
-                                    ? 'bg-white/10 text-white border border-white/10'
-                                    : 'text-gray-400 hover:text-white border border-transparent'
-                            }`}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${typeFilter === t
+                                ? 'bg-white/10 text-white border border-white/10'
+                                : 'text-gray-400 hover:text-white border border-transparent'
+                                }`}
                         >
                             {t}
                         </button>
@@ -424,9 +431,8 @@ export default function MachinesPage() {
                                         <th
                                             key={header.id}
                                             onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
-                                            className={`p-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-white ${
-                                                header.column.getCanSort() ? 'select-none' : ''
-                                            }`}
+                                            className={`p-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-white ${header.column.getCanSort() ? 'select-none' : ''
+                                                }`}
                                         >
                                             <div className="flex items-center gap-1.5">
                                                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -476,8 +482,8 @@ export default function MachinesPage() {
 
             {/* Add/Edit Machine Modal */}
             {showFormModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-                    <div className="w-full max-w-lg  border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+                    <div className="w-full max-w-lg bg-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                             <h3 className="font-bold text-lg text-white">
                                 {isEditing ? 'Edit Machine Settings' : 'Add New Machine'}
@@ -665,30 +671,30 @@ export default function MachinesPage() {
 
                             <div className="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Assign Operator</label>
-                                    <select
-                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
-                                        value={formData.assigned_employee_id}
-                                        onChange={e => setFormData(prev => ({ ...prev, assigned_employee_id: e.target.value }))}
-                                    >
-                                        <option value="">— None —</option>
-                                        {employees.filter(e => e.status === 'active').map(e => (
-                                            <option key={e.id} value={e.id}>{e.name} ({e.job_title || 'Operator'})</option>
-                                        ))}
-                                    </select>
+                                    <MultiSelect
+                                        label="Assign Operators"
+                                        options={employees.filter(e => e.status === 'active').map(e => ({
+                                            value: e.id,
+                                            label: e.name,
+                                            sublabel: e.job_title || 'Operator'
+                                        }))}
+                                        selectedValues={formData.assigned_employee_ids || []}
+                                        onChange={ids => setFormData(prev => ({ ...prev, assigned_employee_ids: ids }))}
+                                        placeholder="Select Operators..."
+                                    />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Assign Team</label>
-                                    <select
-                                        className="w-full  border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30 [color-scheme:dark]"
-                                        value={formData.assigned_team_id}
-                                        onChange={e => setFormData(prev => ({ ...prev, assigned_team_id: e.target.value }))}
-                                    >
-                                        <option value="">— None —</option>
-                                        {teams.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name} ({t.member_count} members)</option>
-                                        ))}
-                                    </select>
+                                    <MultiSelect
+                                        label="Assign Teams"
+                                        options={teams.map(t => ({
+                                            value: t.id,
+                                            label: t.name,
+                                            sublabel: `${t.member_count || 0} members`
+                                        }))}
+                                        selectedValues={formData.assigned_team_ids || []}
+                                        onChange={ids => setFormData(prev => ({ ...prev, assigned_team_ids: ids }))}
+                                        placeholder="Select Teams..."
+                                    />
                                 </div>
                             </div>
 
@@ -769,7 +775,7 @@ export default function MachinesPage() {
                                     <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
                                         <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Task Status Breakdown</p>
                                         <div className="space-y-2">
-                                            {[['Completed', perfData.summary.completed, 'bg-emerald-400'],['In Progress', perfData.summary.in_progress, 'bg-amber-400'],['Pending', perfData.summary.pending, 'bg-white/20']].map(([label, count, bar]) => (
+                                            {[['Completed', perfData.summary.completed, 'bg-emerald-400'], ['In Progress', perfData.summary.in_progress, 'bg-amber-400'], ['Pending', perfData.summary.pending, 'bg-white/20']].map(([label, count, bar]) => (
                                                 <div key={label} className="flex items-center gap-3">
                                                     <span className="text-xs text-white/40 w-20 shrink-0">{label}</span>
                                                     <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
@@ -822,3 +828,113 @@ export default function MachinesPage() {
         </div>
     );
 }
+
+function MultiSelect({ label, options, selectedValues = [], onChange, placeholder = 'Select...' }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = options.filter(o =>
+        (o.label || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.sublabel || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    const toggleValue = (val) => {
+        const strVal = String(val);
+        const currentStrVals = selectedValues.map(v => String(v));
+        if (currentStrVals.includes(strVal)) {
+            onChange(selectedValues.filter(v => String(v) !== strVal));
+        } else {
+            onChange([...selectedValues, val]);
+        }
+    };
+
+    const selectedOptions = options.filter(o => selectedValues.some(v => String(v) === String(o.value)));
+
+    return (
+        <div className="relative w-full" ref={dropdownRef}>
+            {label && <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>}
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className="min-h-[38px] w-full bg-secondary border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs cursor-pointer flex flex-wrap items-center gap-1 hover:border-white/20 transition-colors"
+            >
+                {selectedOptions.length === 0 ? (
+                    <span className="text-gray-500">{placeholder}</span>
+                ) : (
+                    selectedOptions.map(o => (
+                        <span
+                            key={o.value}
+                            className="inline-flex items-center gap-1 bg-white/10 border border-white/10 text-white px-2 py-0.5 rounded text-[11px] font-medium"
+                        >
+                            {o.label}
+                            <span
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleValue(o.value);
+                                }}
+                                className="hover:text-red-400 cursor-pointer ml-0.5 text-xs font-bold"
+                            >
+                                ×
+                            </span>
+                        </span>
+                    ))
+                )}
+            </div>
+
+            {isOpen && (
+                <div className="absolute left-0 right-0 mt-1.5 z-50 bg-[#0d0d1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56">
+                    <div className="p-2 border-b border-white/10 bg-white/[0.02]">
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search..."
+                            className="w-full bg-secondary border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-white/30"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                    <div className="overflow-y-auto p-1 space-y-0.5">
+                        {filteredOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500 text-center">No options found</div>
+                        ) : (
+                            filteredOptions.map(o => {
+                                const isSelected = selectedValues.some(v => String(v) === String(o.value));
+                                return (
+                                    <div
+                                        key={o.value}
+                                        onClick={() => toggleValue(o.value)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                            isSelected ? 'bg-white/10 text-white font-semibold' : 'text-gray-300 hover:bg-white/5'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span>{o.label}</span>
+                                            {o.sublabel && <span className="text-[10px] text-gray-500">{o.sublabel}</span>}
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            readOnly
+                                            className="rounded border-white/20 bg-secondary text-emerald-500 focus:ring-0 cursor-pointer"
+                                        />
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+

@@ -6,19 +6,63 @@ export async function GET() {
         const [rows] = await pool.execute(`
             SELECT m.*,
                    p.name  AS plate_name,
-                   p.unit_cost AS plate_cost,
-                   e.name  AS assigned_employee_name,
-                   e.job_title AS assigned_employee_title,
-                   t.name  AS assigned_team_name,
-                   t.color AS assigned_team_color
+                   p.unit_cost AS plate_cost
             FROM machines m
             LEFT JOIN inventory_items p ON m.plate_id = p.id
-            LEFT JOIN employees       e ON m.assigned_employee_id = e.id
-            LEFT JOIN teams           t ON m.assigned_team_id     = t.id
             ORDER BY m.name ASC
         `);
-        return NextResponse.json(rows);
+
+        const [employees] = await pool.execute(`SELECT id, name, job_title FROM employees`);
+        const [teams] = await pool.execute(`SELECT id, name, color FROM teams`);
+
+        const empMap = new Map(employees.map(e => [e.id, e]));
+        const teamMap = new Map(teams.map(t => [t.id, t]));
+
+        const result = rows.map(m => {
+            let empIds = [];
+            if (m.assigned_employee_ids) {
+                try {
+                    empIds = typeof m.assigned_employee_ids === 'string' ? JSON.parse(m.assigned_employee_ids) : m.assigned_employee_ids;
+                } catch { empIds = []; }
+            }
+            if (!Array.isArray(empIds) || empIds.length === 0) {
+                if (m.assigned_employee_id) empIds = [parseInt(m.assigned_employee_id)];
+                else empIds = [];
+            }
+
+            let teamIds = [];
+            if (m.assigned_team_ids) {
+                try {
+                    teamIds = typeof m.assigned_team_ids === 'string' ? JSON.parse(m.assigned_team_ids) : m.assigned_team_ids;
+                } catch { teamIds = []; }
+            }
+            if (!Array.isArray(teamIds) || teamIds.length === 0) {
+                if (m.assigned_team_id) teamIds = [parseInt(m.assigned_team_id)];
+                else teamIds = [];
+            }
+
+            const assignedEmployees = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean);
+            const assignedTeams = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean);
+
+            const assigned_employee_name = assignedEmployees.map(e => e.name).join(', ') || null;
+            const assigned_team_name = assignedTeams.map(t => t.name).join(', ') || null;
+
+            return {
+                ...m,
+                assigned_employee_ids: empIds,
+                assigned_team_ids: teamIds,
+                assigned_employee_id: empIds[0] || null,
+                assigned_team_id: teamIds[0] || null,
+                assigned_employees: assignedEmployees,
+                assigned_teams: assignedTeams,
+                assigned_employee_name,
+                assigned_team_name,
+            };
+        });
+
+        return NextResponse.json(result);
     } catch (error) {
+        console.error('Fetch machines error:', error);
         return NextResponse.json({ error: 'Failed to fetch machines' }, { status: 500 });
     }
 }
@@ -29,17 +73,28 @@ export async function POST(req) {
         const {
             name, type, sheet_factor, speed, speed_unit, plate_id,
             digital_price_max, digital_price_medium, digital_price_min,
-            assigned_employee_id, assigned_team_id, make_ready_minutes,
-            setup_minutes_per_plate, shift_limit
+            assigned_employee_id, assigned_team_id,
+            assigned_employee_ids, assigned_team_ids,
+            make_ready_minutes, setup_minutes_per_plate, shift_limit
         } = body;
+
+        let empIds = Array.isArray(assigned_employee_ids) ? assigned_employee_ids.map(id => parseInt(id)).filter(Boolean) : [];
+        if (empIds.length === 0 && assigned_employee_id) empIds = [parseInt(assigned_employee_id)];
+
+        let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(id => parseInt(id)).filter(Boolean) : [];
+        if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
+
+        const singleEmpId = empIds[0] || null;
+        const singleTeamId = teamIds[0] || null;
 
         await pool.execute(
             `INSERT INTO machines
              (name, type, sheet_factor, speed, speed_unit, plate_id,
               digital_price_max, digital_price_medium, digital_price_min,
-              assigned_employee_id, assigned_team_id, make_ready_minutes,
-              setup_minutes_per_plate, shift_limit)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              assigned_employee_id, assigned_team_id,
+              assigned_employee_ids, assigned_team_ids,
+              make_ready_minutes, setup_minutes_per_plate, shift_limit)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -50,8 +105,10 @@ export async function POST(req) {
                 parseFloat(digital_price_max)    || 0,
                 parseFloat(digital_price_medium) || 0,
                 parseFloat(digital_price_min)    || 0,
-                assigned_employee_id || null,
-                assigned_team_id     || null,
+                singleEmpId,
+                singleTeamId,
+                JSON.stringify(empIds),
+                JSON.stringify(teamIds),
                 parseInt(make_ready_minutes) || 0,
                 parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8

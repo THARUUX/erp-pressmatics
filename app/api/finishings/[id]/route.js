@@ -4,14 +4,29 @@ import pool from '@/lib/db';
 export async function PUT(req, { params }) {
     try {
         const { id } = await params;
-        const { name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit } = await req.json();
+        const {
+            name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit,
+            assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids
+        } = await req.json();
 
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
         }
 
+        let empIds = Array.isArray(assigned_employee_ids) ? assigned_employee_ids.map(i => parseInt(i)).filter(Boolean) : [];
+        if (empIds.length === 0 && assigned_employee_id) empIds = [parseInt(assigned_employee_id)];
+
+        let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(i => parseInt(i)).filter(Boolean) : [];
+        if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
+
+        const singleEmpId = empIds[0] || null;
+        const singleTeamId = teamIds[0] || null;
+
         await pool.execute(
-            'UPDATE finishings SET name = ?, unit_cost = ?, is_machine = ?, machine_id = ?, cost_unit = ?, speed = ?, speed_unit = ? WHERE id = ?',
+            `UPDATE finishings SET
+               name = ?, unit_cost = ?, is_machine = ?, machine_id = ?, cost_unit = ?, speed = ?, speed_unit = ?,
+               assigned_employee_id = ?, assigned_team_id = ?, assigned_employee_ids = ?, assigned_team_ids = ?
+             WHERE id = ?`,
             [
                 name,
                 parseFloat(unit_cost) || 0,
@@ -20,6 +35,10 @@ export async function PUT(req, { params }) {
                 cost_unit || 'Unit',
                 speed ? parseFloat(speed) : null,
                 speed_unit || 'Sheets/Hr',
+                singleEmpId,
+                singleTeamId,
+                JSON.stringify(empIds),
+                JSON.stringify(teamIds),
                 id
             ]
         );
@@ -41,7 +60,7 @@ export async function PUT(req, { params }) {
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("error", error);
-        return NextResponse.json({ error: 'Failed to update finishing' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to update finishing: ' + error.message }, { status: 500 });
     }
 }
 
@@ -51,7 +70,6 @@ export async function DELETE(req, { params }) {
         await pool.execute('DELETE FROM finishings WHERE id = ?', [id]);
         return NextResponse.json({ success: true });
     } catch (error) {
-        // Handle FK constraint violation if necessary
         return NextResponse.json({ error: 'Failed to delete finishing' }, { status: 500 });
     }
 }
