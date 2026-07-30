@@ -266,8 +266,10 @@ export default function SettingsPage() {
     const [whatsappEnabled, setWhatsappEnabled] = useState(false);
     const [whatsappAutoSendOrder, setWhatsappAutoSendOrder] = useState(false);
     const [whatsappAutoSendDispatch, setWhatsappAutoSendDispatch] = useState(false);
+    const [whatsappAutoSendReady, setWhatsappAutoSendReady] = useState(false);
     const [whatsappTemplateOrder, setWhatsappTemplateOrder] = useState('');
     const [whatsappTemplateDispatch, setWhatsappTemplateDispatch] = useState('');
+    const [whatsappTemplateReady, setWhatsappTemplateReady] = useState('');
     const [whatsappTemplateWelcome, setWhatsappTemplateWelcome] = useState('');
     const [whatsappTemplateQuote, setWhatsappTemplateQuote]     = useState('');
 
@@ -408,8 +410,10 @@ export default function SettingsPage() {
         setWhatsappEnabled(settings.whatsapp_enabled === 'true');
         setWhatsappAutoSendOrder(settings.whatsapp_auto_send_order === 'true');
         setWhatsappAutoSendDispatch(settings.whatsapp_auto_send_dispatch === 'true');
+        setWhatsappAutoSendReady(settings.whatsapp_auto_send_ready === 'true');
         setWhatsappTemplateOrder(settings.whatsapp_template_order || 'Hello {customer_name}, your order {order_code} has been successfully created. View status: {portal_link}');
         setWhatsappTemplateDispatch(settings.whatsapp_template_dispatch || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}');
+        setWhatsappTemplateReady(settings.whatsapp_template_ready || 'Hi {customer_name}, your order {order_code} is completed and ready for pickup/delivery! Thank you for choosing Pressmatics.');
         setWhatsappTemplateWelcome(settings.whatsapp_template_welcome || 'Hello {customer_name}, welcome to Pressmatics ERP. You can access your portal here: {portal_link}');
         setWhatsappTemplateQuote(settings.whatsapp_template_quote || 'Hello {customer_name}, here is your quotation {quote_code} for {quote_amount}. You can view it here: {portal_link}');
 
@@ -474,8 +478,10 @@ export default function SettingsPage() {
             ['whatsapp_enabled', whatsappEnabled ? 'true' : 'false'],
             ['whatsapp_auto_send_order', whatsappAutoSendOrder ? 'true' : 'false'],
             ['whatsapp_auto_send_dispatch', whatsappAutoSendDispatch ? 'true' : 'false'],
+            ['whatsapp_auto_send_ready', whatsappAutoSendReady ? 'true' : 'false'],
             ['whatsapp_template_order', whatsappTemplateOrder],
             ['whatsapp_template_dispatch', whatsappTemplateDispatch],
+            ['whatsapp_template_ready', whatsappTemplateReady],
             ['whatsapp_template_welcome', whatsappTemplateWelcome],
             ['whatsapp_template_quote', whatsappTemplateQuote],
             ['loyalty_enabled', loyaltyEnabled ? 'true' : 'false'],
@@ -1205,6 +1211,21 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Order Ready */}
+                            <div className={`flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.06] rounded-2xl transition-opacity ${!whatsappEnabled && 'opacity-40 pointer-events-none'}`}>
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Send on Order Ready</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Notify the customer when all tasks are completed and order is "Ready".</p>
+                                </div>
+                                <div className="relative">
+                                    <input type="checkbox" id="wa_auto_ready" checked={whatsappAutoSendReady} onChange={e => setWhatsappAutoSendReady(e.target.checked)} className="sr-only" />
+                                    <div onClick={() => setWhatsappAutoSendReady(!whatsappAutoSendReady)}
+                                        className={`w-10 h-5 rounded-full cursor-pointer transition-colors ${whatsappAutoSendReady ? 'bg-white' : 'bg-white/10'}`}>
+                                        <div className={`w-4 h-4 bg-black rounded-full mt-0.5 transition-transform ${whatsappAutoSendReady ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'}`} />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1224,6 +1245,10 @@ export default function SettingsPage() {
                             
                             <Field label="Sales Order Delivered/Dispatched Template">
                                 <TextArea value={whatsappTemplateDispatch} onChange={e => setWhatsappTemplateDispatch(e.target.value)} placeholder="Enter template text..." />
+                            </Field>
+
+                            <Field label="Sales Order Ready Template">
+                                <TextArea value={whatsappTemplateReady} onChange={e => setWhatsappTemplateReady(e.target.value)} placeholder="Enter template text..." />
                             </Field>
 
                             <Field label="Customer Welcome/Registration Greeting Template">

@@ -121,7 +121,7 @@ async function enrichTasks(tasks) {
                 task.net_sheet_count = Math.ceil(cutSheets);
                 task.wastage_sheets = wastage;
                 task.sides = sidesVal;
-
+                
                 if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
                     task.quantity = resolveRunQty(speedUnit, {
@@ -137,125 +137,58 @@ async function enrichTasks(tasks) {
     return tasks;
 }
 
-// Public endpoint — no auth required (accessed via QR scan)
-export async function GET(req, { params }) {
+export async function GET(req) {
     try {
-        const { id } = await params;
+        const { searchParams } = new URL(req.url);
+        const machineId = searchParams.get('machineId');
+        const search = searchParams.get('search'); // For QR scans/searches (SO code, SO id, or task id)
 
-        // Fetch sales order
-        const [orders] = await pool.execute(
-            'SELECT * FROM sales_orders WHERE id = ?', [id]
-        );
-        if (!orders.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-        const order = orders[0];
+        let query = `
+            SELECT jt.*, 
+                   so.code AS order_code, 
+                   so.customer_name, 
+                   so.status AS order_status, 
+                   so.delivery_date,
+                   m.type AS machine_type
+            FROM job_tasks jt
+            JOIN sales_orders so ON jt.sales_order_id = so.id
+            LEFT JOIN machines m ON jt.machine_id = m.id
+            WHERE so.status NOT IN ('Delivered', 'Cancelled')
+        `;
+        const params = [];
 
-        // Fetch quotation items (components)
-        let items = [];
-        if (order.quotation_id) {
-            const [lineItems] = await pool.execute(
-                `SELECT qi.*, qli.display_order
-                 FROM quotation_items qi
-                 JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                 WHERE qli.quotation_id = ?
-                 ORDER BY qli.display_order ASC`,
-                [order.quotation_id]
-            );
-            for (const item of lineItems) {
-                const [details] = await pool.execute(
-                    `SELECT qid.*, m.name as machine_name
-                     FROM quotation_item_details qid
-                     LEFT JOIN machines m ON qid.machine_id = m.id
-                     WHERE qid.quotation_item_id = ?
-                     ORDER BY qid.id ASC`,
-                    [item.id]
-                );
-                const [finishings] = await pool.execute(
-                    `SELECT qif.*, m.name as machine_name
-                     FROM quotation_item_finishings qif
-                     LEFT JOIN machines m ON qif.machine_id = m.id
-                     WHERE qif.quotation_item_id = ?
-                     ORDER BY qif.id ASC`,
-                    [item.id]
-                );
-                items.push({ ...item, details, finishings });
+        if (search) {
+            let cleanSearch = search.trim();
+            const jobUrlMatch = cleanSearch.match(/\/jobs\/(\d+)/);
+            if (jobUrlMatch) {
+                query += ` AND so.id = ?`;
+                params.push(parseInt(jobUrlMatch[1]));
+            } else if (cleanSearch.toUpperCase().startsWith('SO-')) {
+                query += ` AND so.code = ?`;
+                params.push(cleanSearch);
+            } else if (!isNaN(cleanSearch)) {
+                query += ` AND (so.id = ? OR jt.id = ?)`;
+                params.push(parseInt(cleanSearch), parseInt(cleanSearch));
+            } else {
+                query += ` AND (so.code LIKE ? OR so.customer_name LIKE ? OR jt.name LIKE ?)`;
+                const term = `%${cleanSearch}%`;
+                params.push(term, term, term);
             }
+        } else if (machineId) {
+            query += ` AND jt.machine_id = ?`;
+            params.push(parseInt(machineId));
+        } else {
+            return NextResponse.json({ error: 'Either machineId or search parameter is required' }, { status: 400 });
         }
 
-        // Fetch tasks with machine type
-        const [tasks] = await pool.execute(
-            `SELECT jt.*, m.type AS machine_type, m.name AS machine_name
-             FROM job_tasks jt
-             LEFT JOIN machines m ON jt.machine_id = m.id
-             WHERE jt.sales_order_id = ?
-             ORDER BY jt.display_order ASC, jt.id ASC`,
-            [id]
-        );
+        query += ` ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`;
 
-        // Enrich tasks with estimation data
-        const enrichedTasks = await enrichTasks(tasks);
+        const [tasks] = await pool.execute(query, params);
+        const enriched = await enrichTasks(tasks);
 
-        // Fetch employees, teams, machines, and finishings for assigned options
-        const [employees] = await pool.execute(`SELECT id, name, job_title, department FROM employees ORDER BY name ASC`);
-        const [teams] = await pool.execute(`SELECT id, name FROM teams ORDER BY name ASC`);
-        const [machines] = await pool.execute(`SELECT id, name, assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids FROM machines`);
-        const [finishings] = await pool.execute(`SELECT f.id, f.name, f.machine_id, f.assigned_employee_id, f.assigned_team_id, f.assigned_employee_ids, f.assigned_team_ids, m.assigned_employee_ids as machine_emp_ids, m.assigned_team_ids as machine_team_ids, m.assigned_employee_id as machine_emp_id, m.assigned_team_id as machine_team_id FROM finishings f LEFT JOIN machines m ON f.machine_id = m.id`);
-
-        const empMap = new Map(employees.map(e => [e.id, e]));
-        const teamMap = new Map(teams.map(t => [t.id, t]));
-
-        const parseJsonArray = (val, singleVal) => {
-            let ids = [];
-            if (val) {
-                try { ids = typeof val === 'string' ? JSON.parse(val) : val; } catch { ids = []; }
-            }
-            if (!Array.isArray(ids) || ids.length === 0) {
-                if (singleVal) ids = [parseInt(singleVal)];
-                else ids = [];
-            }
-            return ids.map(i => parseInt(i)).filter(Boolean);
-        };
-
-        for (const task of enrichedTasks) {
-            let assignedEmps = [];
-            let assignedTeams = [];
-            let sourceName = null;
-
-            let m = machines.find(mach => mach.id === task.machine_id);
-            let f = null;
-            if (!m && task.name) {
-                const taskNameLower = task.name.toLowerCase();
-                f = finishings.find(fin => fin.name && taskNameLower.includes(fin.name.toLowerCase().trim()));
-                if (f && f.machine_id) {
-                    m = machines.find(mach => mach.id === f.machine_id);
-                }
-            }
-
-            if (m) {
-                sourceName = m.name;
-                const empIds = parseJsonArray(m.assigned_employee_ids, m.assigned_employee_id);
-                const teamIds = parseJsonArray(m.assigned_team_ids, m.assigned_team_id);
-                assignedEmps = empIds.map(i => empMap.get(i)).filter(Boolean);
-                assignedTeams = teamIds.map(i => teamMap.get(i)).filter(Boolean);
-            }
-
-            if (f && assignedEmps.length === 0 && assignedTeams.length === 0) {
-                if (!sourceName) sourceName = f.name;
-                const empIds = parseJsonArray(f.assigned_employee_ids || f.machine_emp_ids, f.assigned_employee_id || f.machine_emp_id);
-                const teamIds = parseJsonArray(f.assigned_team_ids || f.machine_team_ids, f.assigned_team_id || f.machine_team_id);
-                assignedEmps = empIds.map(i => empMap.get(i)).filter(Boolean);
-                assignedTeams = teamIds.map(i => teamMap.get(i)).filter(Boolean);
-            }
-
-            task.assigned_options = {
-                assigned_employees: assignedEmps,
-                assigned_teams: assignedTeams,
-                source_name: sourceName
-            };
-        }
-
-        return NextResponse.json({ order, items, tasks: enrichedTasks, employees, teams });
-    } catch (err) {
-        console.error('Job GET error:', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        return NextResponse.json({ tasks: enriched });
+    } catch (error) {
+        console.error('Operator Tasks GET error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

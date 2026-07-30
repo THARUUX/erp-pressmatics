@@ -100,12 +100,14 @@ export async function POST(req, { params }) {
         const remainingImpCount = isNaN(originalImpCount) ? null : Math.round((remainingQty / originalQty) * originalImpCount);
         const splitImpCount = isNaN(originalImpCount) ? null : Math.round((splitQty / originalQty) * originalImpCount);
 
+        const nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
         // 3. Update original task
         await connection.execute(
             `UPDATE job_tasks 
-             SET quantity = ?, estimated_minutes = ?, sheet_count = ?, impression_count = ?, updated_at = NOW() 
+             SET quantity = ?, estimated_minutes = ?, sheet_count = ?, impression_count = ?, updated_at = ? 
              WHERE id = ?`,
-            [remainingQty, originalNewMinutes, remainingSheetCount, remainingImpCount, taskId]
+            [remainingQty, originalNewMinutes, remainingSheetCount, remainingImpCount, nowIso, taskId]
         );
 
         // 4. Create new split task name (append ' (Part 2)' or increment existing part number)
@@ -135,7 +137,7 @@ export async function POST(req, { params }) {
                 sales_order_id, name, description, status, assigned_to, display_order, 
                 machine_id, machine_name, machine_position, scheduled_date, estimated_minutes, quantity, 
                 sheet_count, impression_count, custom_make_ready_minutes, custom_speed, custom_speed_unit, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 salesOrderId,
                 newName,
@@ -153,7 +155,8 @@ export async function POST(req, { params }) {
                 splitImpCount,
                 originalTask.custom_make_ready_minutes,
                 originalTask.custom_speed,
-                originalTask.custom_speed_unit
+                originalTask.custom_speed_unit,
+                nowIso
             ]
         );
 

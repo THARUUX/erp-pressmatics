@@ -1,34 +1,47 @@
-wastage impressions should not be calc.
+Mobile-Friendly Operator Shop Floor Console
+Concept: A simplified, touch-friendly UI for offset press and finishing machine operators. Operators can scan a Job Ticket barcode, view their active daily queue, mark a task as "Running", log machine downtimes (e.g., plate breaks, wash-ups), and input actual print quantities and wastage.
+Actual vs. Estimated Cost Analysis (Post-Job Costing)
+Concept: Track the actual paper, plates, ink, and labor hours spent on a job (using feedback from the operator console) and compare it side-by-side with the original estimation. This highlights estimating errors and operational inefficiencies.
 
-Folding Forms
-
-Add commas for numbers
-
-
-
-Papers per machine paper size , with Actual Ups
-
-Add a option to copy a component
+. Camera QR-Code Scanning (Instant Load)
+How it works: We add a unique QR code to the printable Job Ticket PDF.
+The Automation: Operators on the shop floor can open the console on their phone, click the camera icon, and scan the QR code. The system immediately loads that specific task, saving them from typing code numbers or scrolling through lists.
 
 
-Laminate , Foiling Costing 
+[DONE] 3. Automatic Kanban & Order Transitions
+How it works: Planners currently drag sales orders manually.
+The Automation:
+Auto-In-Production: When an operator presses "Start" on the first task of a Sales Order, the Sales Order status automatically changes from Pending to In Production on the Kanban board.
+Auto-Ready: When the last task (e.g., packing/finishing) is marked completed by the operator, the Sales Order automatically changes to Ready on the Kanban board.
 
+[DONE] 4. Automatic Customer WhatsApp Alerts
+How it works: Ties into your active WhatsApp integration (whatsapp/server.js).
+The Automation: The moment the last finishing/packing task is completed and the Sales Order changes to Ready, the system automatically sends a WhatsApp message to the customer:
+"Hi [Customer Name], your order [SO Code] is completed and ready for pickup/delivery! Thank you for choosing Pressmatics."
 
-12 x 18 Logic
-wastage 
+[DONE] 1. Database Enhancements (Adding "Actuals")
+To compare estimates with actuals, we need to track what happened in the job_tasks table. A migration script scripts/migrate-add-task-actuals.js has been run to add these columns:
 
+actual_sheets_printed (Decimal): The actual number of sheets passed through the machine.
+actual_sheets_wasted (Decimal): The actual sheets wasted during makeready or running.
+actual_plates_used (Int): The actual number of plates imaged (important for offset).
+downtime_minutes (Int): Total minutes the machine was stopped.
+downtime_reason (Varchar): Reason for stoppage (e.g., "Paper Jam", "Plate Break", "Ink Washup").
 
+[DONE] 2. Mobile-Friendly Operator Shop Floor Console (/operator)
+Create a dedicated, mobile-optimized page for machine operators (designed for smartphones/tablets on the factory floor):
 
-Tendor details
+Simple Operator Queue: The operator logs in and selects their machine (e.g., "SM74"). They see their scheduled list of tasks for the day in order.
+Intuitive Start / Pause / Complete Controls:
+Start: Changes task status to in_progress and sets started_at = NOW().
+Pause: Pauses the timer if there is a delay.
+Complete: Opens a simple form to submit the job's actuals:
+Actual Sheets Printed (Pre-filled with estimated sheets for speed)
+Actual Wastage Sheets (Pre-filled with estimated wastage)
+Actual Plates Used (Pre-filled)
+Downtime log (optional dropdown for downtime reasons)
+Once submitted, sets status to done and completed_at = NOW().
 
-
-
-
-
-310 cover
-Laminate
-spot
-
-Inner - 120
-80 pge
-perfect binding
+[DONE] 2. "Quick Complete" (One-Click Submission)
+How it works: Most of the time, jobs run exactly as planned.
+The Automation: Instead of forcing operators to type in numbers for sheets, wastage, and plates on every job, we provide a "Quick Complete (Run as Estimated)" button. With one tap, it auto-fills the actuals with the estimated quantities and marks it as done.

@@ -21,8 +21,9 @@ import BulkUploadModal from '@/components/inventory/BulkUploadModal';
 import { BulkEditModal } from '@/components/ui/BulkEditModal';
 import BomEditor from './components/BomEditor';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import AutoReorderTab from './components/AutoReorderTab';
 
-const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics', 'BOM Waiting List'];
+const CATEGORIES = ['Paper', 'Plate', 'Ink', 'SFG', 'RM', 'FG', 'Statics', 'BOM Waiting List', 'Auto-Reorder'];
 const BOM_CATEGORIES = ['SFG', 'FG'];
 const EMPTY_FORM = { name: '', item_code: '', category: 'Paper', type: '', uom: 'Sheet', unit_cost: 0, stock_quantity: 0, min_stock: 0, width_cm: '', height_cm: '', description: '', is_active: 1 };
 
@@ -674,6 +675,8 @@ export default function InventoryPage() {
         setBomSoStatusFilter('All');
         if (activeCategory === 'BOM Waiting List') {
             fetchWaitingList();
+        } else if (activeCategory === 'Auto-Reorder') {
+            setItems([]);
         } else {
             fetchItems();
         }
@@ -685,7 +688,7 @@ export default function InventoryPage() {
                 return;
             }
             if (e.altKey && e.key.toLowerCase() === 'n') {
-                if (activeCategory === 'BOM Waiting List') return;
+                if (activeCategory === 'BOM Waiting List' || activeCategory === 'Auto-Reorder') return;
                 e.preventDefault();
                 resetForm();
                 setShowAdd(true);
@@ -1129,7 +1132,7 @@ export default function InventoryPage() {
             </div>
 
             {/* Stats */}
-            {activeCategory === 'BOM Waiting List' ? (
+            {activeCategory === 'Auto-Reorder' ? null : activeCategory === 'BOM Waiting List' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
                         { label: 'Total Pending Allocations', value: waitingStats.totalPending, icon: FiBox, color: 'text-indigo-400' },

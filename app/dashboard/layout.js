@@ -8,7 +8,7 @@ import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
     FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
-    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX,
+    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX, FiCreditCard,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -74,6 +74,7 @@ const NAV_GROUPS = [
             { icon: FiBookOpen, label: 'Guide', href: '/dashboard/guide' },
             { icon: FiInfo, label: 'System Info', href: '/dashboard/system-info', permission: 'access_system' },
             { icon: FiMessageCircle, label: 'WhatsApp', href: '/dashboard/whatsapp', permission: 'access_system' },
+            { icon: FiCreditCard, label: 'Billing', href: '/dashboard/billing', permission: 'access_system' },
         ],
     },
 ];

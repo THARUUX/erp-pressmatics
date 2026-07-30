@@ -57,7 +57,8 @@ function canAccess(role, permissions, pathname) {
         pathname.startsWith('/dashboard/users') ||
         pathname.startsWith('/dashboard/settings') ||
         pathname.startsWith('/dashboard/system-info') ||
-        pathname.startsWith('/dashboard/whatsapp')
+        pathname.startsWith('/dashboard/whatsapp') ||
+        pathname.startsWith('/dashboard/billing')
     ) {
         return !!permissions.access_system;
     }
@@ -194,8 +195,8 @@ export async function middleware(request) {
         }
     }
 
-    // Protect all /dashboard routes
-    if (pathname.startsWith('/dashboard')) {
+    // Protect all /dashboard and /operator routes
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/operator')) {
         const token = request.cookies.get('token')?.value;
 
         if (!token) {
@@ -212,8 +213,8 @@ export async function middleware(request) {
         const role = payload.role || 'operator';
         const permissions = payload.permissions || {};
 
-        // Role-based access control
-        if (!canAccess(role, permissions, pathname)) {
+        // Role-based access control (only enforce canAccess check on /dashboard routes)
+        if (pathname.startsWith('/dashboard') && !canAccess(role, permissions, pathname)) {
             const fallback = getDefaultPage(role, permissions);
             return NextResponse.redirect(new URL(fallback + '?denied=1', request.url));
         }
@@ -247,5 +248,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-    matcher: ['/', '/dashboard/:path*', '/api/:path*'],
+    matcher: ['/', '/dashboard/:path*', '/operator/:path*', '/api/:path*'],
 };

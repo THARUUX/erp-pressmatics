@@ -23,6 +23,7 @@
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "framer-motion": "^12.23.26",
+    "html5-qrcode": "^2.3.8",
     "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.16.0",
