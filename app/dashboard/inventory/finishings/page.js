@@ -2,7 +2,7 @@
 
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
 import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiClock, FiCpu, FiChevronUp, FiChevronDown, FiDollarSign, FiUsers } from 'react-icons/fi';
 import Button from '@/components/ui/Button';

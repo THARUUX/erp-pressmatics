@@ -72,10 +72,10 @@ function JobPlanningPageInner() {
     useEffect(() => { load(); }, [load]);
 
     // When kanban moves a card, update local state immediately (optimistic)
-    const handleOrderMoved = (orderId, newStatus) => {
+    const handleOrderMoved = (orderId, newStatus, updatedOrders) => {
         setData(prev => ({
             ...prev,
-            orders: prev.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o),
+            orders: updatedOrders || prev.orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o),
         }));
     };
 

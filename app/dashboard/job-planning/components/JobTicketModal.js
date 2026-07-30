@@ -250,85 +250,141 @@ export default function JobTicketModal({ orderId, onClose }) {
 
                                         <div className="p-4 flex flex-col gap-3">
                                             {/* Details / Printing Components */}
-                                            {item.details?.map((detail, dIdx) => (
-                                                <div key={detail.id || dIdx} className="bg-white/1 border border-white/10 rounded-lg p-3 text-xs flex flex-col gap-2">
-                                                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                                        <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                                                            <span className="w-2 h-2 rounded-full bg-blue-400" />
-                                                            {detail.component_name} ({detail.type?.toUpperCase()})
-                                                        </span>
-                                                        {detail.machine_name && (
-                                                            <span className="text-[11px] text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded font-mono">
-                                                                Machine: {detail.machine_name}
+                                            {item.details?.filter(d => {
+                                                const nameLower = (d.component_name || '').toLowerCase();
+                                                const isFinishing = nameLower.includes('finish');
+                                                const isSFGComp = d.type === 'sfg' || nameLower.includes('assets') || nameLower.includes('sfg');
+                                                const isServicesComp = d.type === 'services' || nameLower.includes('service');
+                                                const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
+
+                                                if (isPrinting) return true;
+                                                return (d.finishings?.length > 0 || d.services?.length > 0 || d.sfgLines?.length > 0);
+                                            }).map((detail, dIdx) => {
+                                                const nameLower = (detail.component_name || '').toLowerCase();
+                                                const isFinishing = nameLower.includes('finish');
+                                                const isSFGComp = detail.type === 'sfg' || nameLower.includes('assets') || nameLower.includes('sfg');
+                                                const isServicesComp = detail.type === 'services' || nameLower.includes('service');
+                                                const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
+
+                                                return (
+                                                    <div key={detail.id || dIdx} className="bg-white/1 border border-white/10 rounded-lg p-3 text-xs flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                                            <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                                                                <span className="w-2 h-2 rounded-full bg-blue-400" />
+                                                                {detail.component_name} ({detail.type?.toUpperCase()})
                                                             </span>
+                                                            {detail.machine_name && (
+                                                                <span className="text-[11px] text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded font-mono">
+                                                                    Machine: {detail.machine_name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {(() => {
+                                                            if (!isPrinting) return null;
+
+                                                            const pagesVal = parseInt(detail.pages) || 1;
+                                                            const upsVal = parseInt(detail.ups) || 1;
+                                                            const sidesVal = parseInt(detail.sides) || 1;
+                                                            const qtyVal = parseFloat(item.quantity || detail.quantity) || 0;
+                                                            const divisor = upsVal * sidesVal;
+
+                                                            let netCutSheets = parseFloat(detail.printed_sheets) || 0;
+                                                            if (divisor > 0 && qtyVal > 0) {
+                                                                netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
+                                                            }
+                                                            const wastageSheets = parseFloat(detail.wastage_sheets) || 0;
+                                                            const totalCutSheets = netCutSheets + wastageSheets;
+
+                                                            return (
+                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-300 pt-1">
+                                                                    <div>
+                                                                        <span className="text-[9px] text-slate-400 block font-bold uppercase">Paper Stock</span>
+                                                                        <span className="font-semibold text-white">{detail.paper_name || '—'}</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-[9px] text-slate-400 block font-bold uppercase">Cut Sheets</span>
+                                                                        <span className="font-semibold text-emerald-400 block">
+                                                                            {totalCutSheets.toLocaleString()} sheets
+                                                                        </span>
+                                                                        <span className="text-[9px] text-slate-400 block">
+                                                                            ({netCutSheets.toLocaleString()} + {wastageSheets.toLocaleString()} wst)
+                                                                        </span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-[9px] text-slate-400 block font-bold uppercase">Colors &amp; Sides</span>
+                                                                        <span>
+                                                                            {detail.colors_front ?? detail.colors ?? 0}
+                                                                            {detail.colors_back != null ? `+${detail.colors_back}` : ''} colors
+                                                                            {' · '}{detail.sides === 2 ? 'Double-sided' : 'Single-sided'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-[9px] text-slate-400 block font-bold uppercase">Imposition Ups</span>
+                                                                        <span>{detail.ups ? `${detail.ups} Ups` : '—'}</span>
+                                                                        <span className="text-[9px] text-slate-400 block">
+                                                                            Impressions: {(parseFloat(detail.printed_sheets) || 0).toLocaleString()}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+
+                                                        {/* Component SFG Lines */}
+                                                        {detail.sfgLines?.length > 0 && (
+                                                            <div className="mt-2 rounded py-2 border-t border-white/5">
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                                                                    Required SFG &amp; Stock Assets
+                                                                </span>
+                                                                <div className="flex flex-col gap-1">
+                                                                    {detail.sfgLines.map((sfg, sfgIdx) => (
+                                                                        <div key={sfgIdx} className="text-[11px] text-slate-300 bg-white/5 border border-white/10 px-2 py-1 rounded flex justify-between">
+                                                                            <span>{sfg.item_name || sfg.name} <span className="text-slate-500 font-mono text-[9px]">({sfg.item_code})</span></span>
+                                                                            <span className="font-bold text-white">{sfg.quantity} {sfg.uom || 'Unit'}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Component Services */}
+                                                        {detail.services?.length > 0 && (
+                                                            <div className="mt-2 rounded py-2 border-t border-white/5">
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                                                                    Production Services &amp; Assignments
+                                                                </span>
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    {detail.services.map((svc, svcIdx) => (
+                                                                        <div key={svcIdx} className="text-[11px] text-slate-300 bg-white/5 border border-white/10 px-2 py-1.5 rounded flex flex-col gap-0.5">
+                                                                            <div className="flex justify-between items-center">
+                                                                                <span className="font-bold text-white">{svc.service_name}</span>
+                                                                                {svc.employee_name && <span className="text-[10px] text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded">{svc.employee_name}</span>}
+                                                                            </div>
+                                                                            {svc.note && <span className="text-[10px] text-slate-400 font-serif italic">{svc.note}</span>}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Component Finishings */}
+                                                        {detail.finishings?.length > 0 && (
+                                                            <div className="mt-2 rounded py-2 border-t border-white/5">
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                                                                    Component Finishings
+                                                                </span>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {detail.finishings.map((f, fIdx) => (
+                                                                        <span key={fIdx} className="text-[10px] bg-slate-800 border border-white/10 px-2 py-0.5 rounded text-slate-200">
+                                                                            {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${f.quantity} ${(f.speed_unit || f.machine_speed_unit || f.cost_unit || '').replace(/\/(Hr|Hour|hr|h)$/i, '').trim()}` : ''}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
                                                         )}
                                                     </div>
-
-                                                    {(() => {
-                                                        const pagesVal = parseInt(detail.pages) || 1;
-                                                        const upsVal = parseInt(detail.ups) || 1;
-                                                        const sidesVal = parseInt(detail.sides) || 1;
-                                                        const qtyVal = parseFloat(item.quantity || detail.quantity) || 0;
-                                                        const divisor = upsVal * sidesVal;
-
-                                                        let netCutSheets = parseFloat(detail.printed_sheets) || 0;
-                                                        if (divisor > 0 && qtyVal > 0) {
-                                                            netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
-                                                        }
-                                                        const wastageSheets = parseFloat(detail.wastage_sheets) || 0;
-                                                        const totalCutSheets = netCutSheets + wastageSheets;
-
-                                                        return (detail.paper_name || detail.printed_sheets > 0 || !['sfg', 'services'].includes(detail.type?.toLowerCase())) && (
-                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-300 pt-1">
-                                                                <div>
-                                                                    <span className="text-[9px] text-slate-400 block font-bold uppercase">Paper Stock</span>
-                                                                    <span className="font-semibold text-white">{detail.paper_name || '—'}</span>
-                                                                </div>
-                                                                <div>
-                                                                    <span className="text-[9px] text-slate-400 block font-bold uppercase">Cut Sheets</span>
-                                                                    <span className="font-semibold text-emerald-400 block">
-                                                                        {totalCutSheets.toLocaleString()} sheets
-                                                                    </span>
-                                                                    <span className="text-[9px] text-slate-400 block">
-                                                                        ({netCutSheets.toLocaleString()} + {wastageSheets.toLocaleString()} wst)
-                                                                    </span>
-                                                                </div>
-                                                                <div>
-                                                                    <span className="text-[9px] text-slate-400 block font-bold uppercase">Colors &amp; Sides</span>
-                                                                    <span>
-                                                                        {detail.colors_front ?? detail.colors ?? 0}
-                                                                        {detail.colors_back != null ? `+${detail.colors_back}` : ''} colors
-                                                                        {' · '}{detail.sides === 2 ? 'Double-sided' : 'Single-sided'}
-                                                                    </span>
-                                                                </div>
-                                                                <div>
-                                                                    <span className="text-[9px] text-slate-400 block font-bold uppercase">Imposition Ups</span>
-                                                                    <span>{detail.ups ? `${detail.ups} Ups` : '—'}</span>
-                                                                    <span className="text-[9px] text-slate-400 block">
-                                                                        Impressions: {(parseFloat(detail.printed_sheets) || 0).toLocaleString()}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
-
-                                                    {/* Component Finishings */}
-                                                    {detail.finishings?.length > 0 && (
-                                                        <div className="mt-2  rounded py-2">
-                                                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
-                                                                Component Finishings
-                                                            </span>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {detail.finishings.map((f, fIdx) => (
-                                                                    <span key={fIdx} className="text-[10px] bg-slate-800 border border-white/10 px-2 py-0.5 rounded text-slate-200">
-                                                                        {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${f.quantity} ${(f.speed_unit || f.machine_speed_unit || f.cost_unit || '').replace(/\/(Hr|Hour|hr|h)$/i, '').trim()}` : ''}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             {/* Global Finishings */}
                                             {item.globalFinishings?.length > 0 && (

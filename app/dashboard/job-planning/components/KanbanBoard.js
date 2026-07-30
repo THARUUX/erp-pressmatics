@@ -1,11 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import {
-    DndContext, DragOverlay, closestCorners,
-    PointerSensor, useSensor, useSensors,
-} from '@dnd-kit/core';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { FiSearch, FiX } from 'react-icons/fi';
 
 const G = {
     bg: '#070710',
@@ -34,15 +30,26 @@ function urgencyColor(d) {
     return '#10b981';
 }
 
-function DraggableCard({ order, isDragging }) {
-    const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: String(order.id) });
+function DraggableCard({
+    order,
+    isDragging,
+    onDragStart,
+    onDragEnd,
+    draggedOrderId,
+    dragOverOrderId,
+    dragOverPosition,
+    onDragOverCard,
+    onDragLeaveCard,
+    onDropCard,
+    status
+}) {
     const done = order.tasks.filter(t => t.status === 'done').length;
     const total = order.tasks.length;
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
     const uc = urgencyColor(order.delivery_date);
+    const cfg = STATUS_CFG[status] || { accent: '#64748b' };
     const style = {
-        transform: transform ? `translate(${transform.x}px,${transform.y}px)` : undefined,
-        opacity: isDragging ? 0.4 : 1,
+        opacity: isDragging ? 0.25 : 1,
         cursor: 'grab',
         background: G.glass,
         backdropFilter: 'blur(16px)',
@@ -52,9 +59,49 @@ function DraggableCard({ order, isDragging }) {
         marginBottom: 10,
         transition: 'border-color 0.2s',
         userSelect: 'none',
+        position: 'relative',
     };
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+        <div
+            draggable="true"
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDragOver={onDragOverCard}
+            onDragLeave={onDragLeaveCard}
+            onDrop={onDropCard}
+            style={style}
+        >
+            {dragOverOrderId === order.id && dragOverPosition === 'before' && (
+                <div
+                    className="animate-pulse"
+                    style={{
+                        position: 'absolute',
+                        top: -6,
+                        left: 0,
+                        right: 0,
+                        height: 3,
+                        borderRadius: 2,
+                        zIndex: 99,
+                        backgroundColor: cfg.accent,
+                    }}
+                />
+            )}
+            {dragOverOrderId === order.id && dragOverPosition === 'after' && (
+                <div
+                    className="animate-pulse"
+                    style={{
+                        position: 'absolute',
+                        bottom: -6,
+                        left: 0,
+                        right: 0,
+                        height: 3,
+                        borderRadius: 2,
+                        zIndex: 99,
+                        backgroundColor: cfg.accent,
+                    }}
+                />
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     {order.estimation_names && (
@@ -93,9 +140,53 @@ function DraggableCard({ order, isDragging }) {
     );
 }
 
-function DroppableColumn({ status, orders, activeId }) {
+function DroppableColumn({
+    status,
+    orders,
+    draggedOrderId,
+    dragOverStatus,
+    setDragOverStatus,
+    dragOverOrderId,
+    dragOverPosition,
+    onDragOverCard,
+    onDragLeaveCard,
+    onDrop,
+    onDragStartCard,
+    onDragEndCard
+}) {
     const cfg = STATUS_CFG[status] || { accent: '#64748b', glow: 'rgba(100,116,139,0.1)' };
-    const { isOver, setNodeRef } = useDroppable({ id: status });
+    const isOver = dragOverStatus === status;
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        setDragOverStatus(status);
+    };
+
+    const getSortTime = (dateStr) => {
+        if (!dateStr) return 0;
+        const t = new Date(dateStr).getTime();
+        return isNaN(t) ? 0 : t;
+    };
+
+    const sortWithFallback = (list) => {
+        return [...list].sort((a, b) => {
+            const posA = a.kanban_position != null ? a.kanban_position : 999999;
+            const posB = b.kanban_position != null ? b.kanban_position : 999999;
+            if (posA !== posB) return posA - posB;
+            
+            const da = getSortTime(a.delivery_date);
+            const db = getSortTime(b.delivery_date);
+            if (da !== db) return da - db;
+            return b.id - a.id;
+        });
+    };
+
+    const displayOrders = sortWithFallback(orders);
+
     return (
         <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 12, borderBottom: `2px solid ${cfg.accent}33` }}>
@@ -108,7 +199,12 @@ function DroppableColumn({ status, orders, activeId }) {
                 </span>
             </div>
             <div
-                ref={setNodeRef}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    onDrop(draggedOrderId, status);
+                }}
                 style={{
                     minHeight: 120, borderRadius: 12, padding: 8,
                     background: isOver ? 'rgba(255,255,255,0.04)' : 'transparent',
@@ -116,12 +212,31 @@ function DroppableColumn({ status, orders, activeId }) {
                     transition: 'all 0.2s',
                 }}
             >
-                {orders.length === 0 ? (
+                {displayOrders.length === 0 ? (
                     <div style={{ padding: '28px 16px', textAlign: 'center', color: G.subtle, fontSize: 12 }}>
                         Drop orders here
                     </div>
                 ) : (
-                    orders.map(o => <DraggableCard key={o.id} order={o} isDragging={String(o.id) === activeId} />)
+                    displayOrders.map(o => (
+                        <DraggableCard
+                            key={o.id}
+                            order={o}
+                            isDragging={o.id === draggedOrderId}
+                            onDragStart={(e) => onDragStartCard(e, o.id)}
+                            onDragEnd={onDragEndCard}
+                            draggedOrderId={draggedOrderId}
+                            dragOverOrderId={dragOverOrderId}
+                            dragOverPosition={dragOverPosition}
+                            onDragOverCard={onDragOverCard}
+                            onDragLeaveCard={onDragLeaveCard}
+                            onDropCard={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onDrop(draggedOrderId, status, o.id, dragOverPosition);
+                            }}
+                            status={status}
+                        />
+                    ))
                 )}
             </div>
         </div>
@@ -129,61 +244,380 @@ function DroppableColumn({ status, orders, activeId }) {
 }
 
 export default function KanbanBoard({ orders, onOrderMoved }) {
-    const [activeId, setActiveId] = useState(null);
+    const [localOrders, setLocalOrders] = useState(orders);
+    const [draggedOrderId, setDraggedOrderId] = useState(null);
+    const [dragOverStatus, setDragOverStatus] = useState(null);
+    const [dragOverOrderId, setDragOverOrderId] = useState(null);
+    const [dragOverPosition, setDragOverPosition] = useState(null);
 
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+    // Filter states
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateFilter, setDateFilter] = useState('all');
+
+    useEffect(() => {
+        setLocalOrders(orders);
+    }, [orders]);
 
     const STATUSES = ['Pending', 'In Production', 'Ready'];
+
+    // Filter calculations
+    const isToday = (dateStr) => {
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        const today = new Date();
+        return d.getDate() === today.getDate() &&
+               d.getMonth() === today.getMonth() &&
+               d.getFullYear() === today.getFullYear();
+    };
+
+    const isOverdue = (dateStr) => {
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        return d < today;
+    };
+
+    const isThisWeek = (dateStr) => {
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+        return d >= today && d <= nextWeek;
+    };
+
+    const filteredOrders = localOrders.filter(o => {
+        // 1. Text Search Filter
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const matchesText = (
+                (o.code || '').toLowerCase().includes(term) ||
+                (o.customer_name || '').toLowerCase().includes(term) ||
+                (o.estimation_names || '').toLowerCase().includes(term)
+            );
+            if (!matchesText) return false;
+        }
+
+        // 2. Date Filter
+        if (dateFilter === 'overdue') {
+            return isOverdue(o.delivery_date) && o.status !== 'Ready';
+        }
+        if (dateFilter === 'today') {
+            return isToday(o.delivery_date);
+        }
+        if (dateFilter === 'week') {
+            return isThisWeek(o.delivery_date);
+        }
+        if (dateFilter === 'future') {
+            const d = new Date(o.delivery_date);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+            return d > nextWeek;
+        }
+        if (dateFilter === 'unscheduled') {
+            return !o.delivery_date;
+        }
+
+        return true;
+    });
+
     const grouped = {};
     STATUSES.forEach(s => { grouped[s] = []; });
-    orders.forEach(o => {
+    filteredOrders.forEach(o => {
         if (STATUSES.includes(o.status)) grouped[o.status].push(o);
     });
 
-    const activeOrder = activeId ? orders.find(o => String(o.id) === activeId) : null;
+    const arrayMove = (arr, fromIndex, toIndex) => {
+        const element = arr[fromIndex];
+        const newArr = [...arr];
+        newArr.splice(fromIndex, 1);
+        if (toIndex > fromIndex) {
+            toIndex = toIndex - 1;
+        }
+        newArr.splice(toIndex, 0, element);
+        return newArr;
+    };
 
-    const handleDragEnd = async ({ active, over }) => {
-        setActiveId(null);
-        if (!over || !active) return;
-        const newStatus = over.id;
-        const orderId = parseInt(active.id);
-        const order = orders.find(o => o.id === orderId);
-        if (!order || order.status === newStatus || !STATUSES.includes(newStatus)) return;
-        onOrderMoved(orderId, newStatus);
+    const handleDragStartCard = (e, orderId) => {
+        setDraggedOrderId(orderId);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(orderId));
+    };
+
+    const handleDragEndCard = () => {
+        setDraggedOrderId(null);
+        setDragOverStatus(null);
+        setDragOverOrderId(null);
+        setDragOverPosition(null);
+    };
+
+    const handleDragOverCard = (e, cardId) => {
+        if (draggedOrderId === cardId) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        const isUpper = relativeY < rect.height / 2;
+
+        setDragOverOrderId(cardId);
+        setDragOverPosition(isUpper ? 'before' : 'after');
+    };
+
+    const handleDragLeaveCard = () => {
+        setDragOverOrderId(null);
+        setDragOverPosition(null);
+    };
+
+    const handleDrop = async (draggedId, overId, targetOrderId = null, dragPosition = null) => {
+        setDraggedOrderId(null);
+        setDragOverStatus(null);
+        setDragOverOrderId(null);
+        setDragOverPosition(null);
+
+        if (!draggedId) return;
+
+        const orderId = parseInt(draggedId);
+        const originalOrder = localOrders.find(o => o.id === orderId);
+        if (!originalOrder) return;
+
+        let newStatus = overId;
+
+        if (targetOrderId) {
+            const targetOrder = localOrders.find(o => o.id === targetOrderId);
+            if (targetOrder) {
+                newStatus = targetOrder.status;
+            }
+        }
+
+        const containerChanged = originalOrder.status !== newStatus;
+
+        // 1. Gather all orders for each column
+        const lists = {
+            'Pending': [],
+            'In Production': [],
+            'Ready': [],
+        };
+
+        localOrders.forEach(order => {
+            const status = order.id === orderId ? newStatus : order.status;
+            if (lists[status]) {
+                lists[status].push({
+                    ...order,
+                    ...(order.id === orderId ? { status: newStatus } : {})
+                });
+            }
+        });
+
+        // 2. Sort each container by current kanban_position / fallback delivery_date
+        const getSortTime = (dateStr) => {
+            if (!dateStr) return 0;
+            const t = new Date(dateStr).getTime();
+            return isNaN(t) ? 0 : t;
+        };
+
+        const sortWithFallback = list => {
+            return list.sort((a, b) => {
+                const isAActiveChanged = a.id === orderId && containerChanged;
+                const isBActiveChanged = b.id === orderId && containerChanged;
+
+                const posA = isAActiveChanged ? 999999 : (a.kanban_position != null ? a.kanban_position : 999999);
+                const posB = isBActiveChanged ? 999999 : (b.kanban_position != null ? b.kanban_position : 999999);
+                if (posA !== posB) return posA - posB;
+
+                const dateA = getSortTime(a.delivery_date);
+                const dateB = getSortTime(b.delivery_date);
+                if (dateA !== dateB) return dateA - dateB;
+
+                return b.id - a.id;
+            });
+        };
+
+        Object.keys(lists).forEach(statusKey => {
+            sortWithFallback(lists[statusKey]);
+        });
+
+        // 3. If targetOrderId is specified, find it and splice/reorder the list
+        if (targetOrderId) {
+            const list = lists[newStatus] || [];
+            const oldIndex = list.findIndex(o => o.id === orderId);
+            let newIndex = list.findIndex(o => o.id === targetOrderId);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                if (dragPosition === 'after') {
+                    newIndex = newIndex + 1;
+                }
+                const moved = arrayMove(list, oldIndex, newIndex);
+                lists[newStatus] = moved;
+            }
+        }
+
+        // 4. Map of orderId -> new position
+        const positionMap = {};
+        Object.keys(lists).forEach(statusKey => {
+            lists[statusKey].forEach((order, idx) => {
+                positionMap[order.id] = idx + 1;
+            });
+        });
+
+        // 5. Optimistically update state
+        const updatedOrders = localOrders.map(o => {
+            const newPos = positionMap[o.id];
+            const isDraggedOrder = o.id === orderId;
+            return {
+                ...o,
+                status: isDraggedOrder ? newStatus : o.status,
+                kanban_position: newPos !== undefined ? newPos : o.kanban_position,
+            };
+        });
+
+        setLocalOrders(updatedOrders);
+        onOrderMoved(orderId, newStatus, updatedOrders);
+
+        // 6. Persist to DB
         try {
             await fetch(`/api/sales-orders/${orderId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({
+                    status: newStatus,
+                    kanban_position: positionMap[orderId] || null,
+                }),
             });
-        } catch (e) { console.error('Status update failed:', e); }
+
+            const targetList = lists[newStatus] || [];
+            for (const item of targetList) {
+                if (item.id === orderId) continue;
+                await fetch(`/api/sales-orders/${item.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        kanban_position: positionMap[item.id],
+                    }),
+                });
+            }
+
+            if (containerChanged) {
+                const sourceList = lists[originalOrder.status] || [];
+                for (const item of sourceList) {
+                    await fetch(`/api/sales-orders/${item.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            kanban_position: positionMap[item.id],
+                        }),
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Reorder update failed:', e);
+            setLocalOrders(orders);
+        }
     };
 
     return (
-        <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={({ active }) => setActiveId(String(active.id))}
-            onDragEnd={handleDragEnd}
-            onDragCancel={() => setActiveId(null)}
-        >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Filter Bar */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap'
+            }}>
+                {/* Search Input Container */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: G.glass,
+                    border: `1px solid ${G.border}`,
+                    borderRadius: 10,
+                    padding: '8px 14px',
+                    width: 260,
+                    position: 'relative',
+                }}>
+                    <FiSearch style={{ color: G.subtle, fontSize: 14 }} />
+                    <input
+                        type="text"
+                        placeholder="Filter by code, customer, items..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{
+                            flex: 1,
+                            background: 'transparent',
+                            border: 'none',
+                            outline: 'none',
+                            color: G.text,
+                            fontSize: 12,
+                            fontFamily: 'Inter, sans-serif',
+                        }}
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: G.subtle,
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: 0,
+                            }}
+                        >
+                            <FiX style={{ fontSize: 14 }} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Date Dropdown */}
+                <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    style={{
+                        background: G.glass,
+                        border: `1px solid ${G.border}`,
+                        borderRadius: 10,
+                        padding: '8px 12px',
+                        color: G.text,
+                        fontSize: 12,
+                        outline: 'none',
+                        cursor: 'pointer',
+                        fontFamily: 'Inter, sans-serif',
+                        height: 36,
+                    }}
+                >
+                    <option value="all" style={{ background: '#0e0e20', color: '#fff' }}>All Dates</option>
+                    <option value="overdue" style={{ background: '#0e0e20', color: '#ff6b6b' }}>Overdue</option>
+                    <option value="today" style={{ background: '#0e0e20', color: '#fff' }}>Due Today</option>
+                    <option value="week" style={{ background: '#0e0e20', color: '#fff' }}>Due This Week</option>
+                    <option value="future" style={{ background: '#0e0e20', color: '#fff' }}>Future Dates</option>
+                    <option value="unscheduled" style={{ background: '#0e0e20', color: '#fff' }}>Unscheduled</option>
+                </select>
+            </div>
+
+            {/* Columns Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
                 {STATUSES.map(status => (
-                    <DroppableColumn key={status} status={status} orders={grouped[status] || []} activeId={activeId} />
+                    <DroppableColumn
+                        key={status}
+                        status={status}
+                        orders={grouped[status] || []}
+                        draggedOrderId={draggedOrderId}
+                        dragOverStatus={dragOverStatus}
+                        setDragOverStatus={setDragOverStatus}
+                        dragOverOrderId={dragOverOrderId}
+                        dragOverPosition={dragOverPosition}
+                        onDragOverCard={handleDragOverCard}
+                        onDragLeaveCard={handleDragLeaveCard}
+                        onDrop={handleDrop}
+                        onDragStartCard={handleDragStartCard}
+                        onDragEndCard={handleDragEndCard}
+                    />
                 ))}
             </div>
-            <DragOverlay>
-                {activeOrder ? (
-                    <div style={{
-                        background: 'rgba(15,15,30,0.95)', backdropFilter: 'blur(24px)',
-                        border: '1px solid rgba(255,255,255,0.18)', borderRadius: 12, padding: '14px 16px',
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.6)', width: 260,
-                    }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f1f5f9' }}>{activeOrder.code}</span>
-                        <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>{activeOrder.customer_name}</p>
-                    </div>
-                ) : null}
-            </DragOverlay>
-        </DndContext>
+        </div>
     );
 }

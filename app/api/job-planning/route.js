@@ -79,7 +79,7 @@ export async function GET() {
 
         // Fetch all active sales orders, plus completed ones that have assigned machine tasks
         const [orders] = await pool.execute(
-            `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id,
+            `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id, so.kanban_position,
                     (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
                      FROM quotation_items qi
                      JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
@@ -87,7 +87,7 @@ export async function GET() {
              FROM sales_orders so
              WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
                 OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
-             ORDER BY so.delivery_date ASC, so.id DESC`
+             ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
         );
 
         // Fetch all finishings that do NOT have a machine assigned

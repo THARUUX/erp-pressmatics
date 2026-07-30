@@ -17,7 +17,7 @@ function SortableTaskItem({ task, idx }) {
 
     const statusColor = task.status === 'done' ? 'border-white/60 bg-white/10 text-white'
         : task.status === 'in_progress' ? 'border-white/30 bg-white/[0.05] text-white/70'
-        : 'border-white/[0.10] bg-transparent text-white/30';
+            : 'border-white/[0.10] bg-transparent text-white/30';
 
     return (
         <div ref={setNodeRef} style={style} className={`flex items-start gap-4 ${isDragging ? 'opacity-50' : ''}`}>
@@ -34,11 +34,10 @@ function SortableTaskItem({ task, idx }) {
                         {task.machine_name && <p className="text-[11px] text-white/20 mt-0.5">{task.machine_name}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                            task.status === 'done' ? 'bg-white/[0.06] text-white/50 border-white/[0.10]' :
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${task.status === 'done' ? 'bg-white/[0.06] text-white/50 border-white/[0.10]' :
                             task.status === 'in_progress' ? 'bg-white/[0.04] text-white/40 border-white/[0.07]' :
-                            'bg-transparent text-white/20 border-white/[0.06]'
-                        }`}>{task.status?.replace('_', ' ')}</span>
+                                'bg-transparent text-white/20 border-white/[0.06]'
+                            }`}>{task.status?.replace('_', ' ')}</span>
                         {/* Drag handle */}
                         <button {...attributes} {...listeners}
                             className="p-1.5 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.05] cursor-grab active:cursor-grabbing transition-colors touch-none">
@@ -297,7 +296,7 @@ export default function SalesOrderDetailPage({ params }) {
     const handleOpenWhatsappModal = async () => {
         setWhatsappModalOpen(true);
         setWaNumber(order?.customer_phone || '');
-        
+
         // Fetch status
         try {
             const statusRes = await fetch('/api/whatsapp/status');
@@ -316,13 +315,13 @@ export default function SalesOrderDetailPage({ params }) {
             const settingsRes = await fetch('/api/settings');
             if (settingsRes.ok) {
                 const settings = await settingsRes.json();
-                
+
                 const templateOrder = settings.whatsapp_template_order || 'Hello {customer_name}, your order {order_code} has been successfully created. View status: {portal_link}';
                 const templateDispatch = settings.whatsapp_template_dispatch || 'Hello {customer_name}, your order {order_code} is now ready/delivered. View status: {portal_link}';
-                
+
                 const origin = window.location.origin;
                 const portalLink = order?.customer_portal_token ? `${origin}/portal/${order.customer_portal_token}` : '';
-                
+
                 const formatMsg = (tpl) => {
                     return tpl
                         .replace(/{customer_name}/g, order?.customer_name || '')
@@ -438,7 +437,7 @@ export default function SalesOrderDetailPage({ params }) {
                             <Button
                                 onClick={() => handleDownloadPdf(pdfLayout)}
                                 disabled={pdfLoading}
-                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none"
+                                className="bg-white/95 hover:bg-white/70 text-black rounded-r-none"
                             >
                                 {pdfLoading ? (
                                     <><span className="mr-2 animate-spin inline-block">⟳</span> Generating...</>
@@ -449,17 +448,17 @@ export default function SalesOrderDetailPage({ params }) {
                             <button
                                 onClick={() => setShowLayoutMenu(!showLayoutMenu)}
                                 disabled={pdfLoading}
-                                className="px-2 bg-blue-700 hover:bg-blue-800 text-white rounded-r-lg border-l border-blue-500/40 transition-all disabled:opacity-50 flex items-center justify-center"
+                                className="px-2 bg-white/95 hover:bg-white/70 text-black rounded-r-lg border-l border-blue-500/40 transition-all disabled:opacity-50 flex items-center justify-center"
                                 title="Select PDF Layout Style"
                             >
                                 <FiChevronDown className="w-4 h-4" />
                             </button>
 
                             {showLayoutMenu && (
-                                <div className="absolute right-0 top-full mt-2 w-52 bg-slate-900 border border-white/20 rounded-xl shadow-2xl z-50 p-1.5 text-xs text-slate-100">
+                                <div className="absolute right-0 top-full mt-2 w-52 bg-black border border-white/20 rounded-xl shadow-2xl z-50 p-1.5 text-xs text-slate-100">
                                     <button
                                         onClick={() => { setPdfLayout('clean'); handleDownloadPdf('clean'); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between ${pdfLayout === 'clean' ? 'bg-blue-600/40 text-blue-200 font-bold border border-blue-500/40' : 'hover:bg-white/10 text-slate-200'}`}
+                                        className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center justify-between ${pdfLayout === 'clean' ? 'bg-white/5 text-white font-bold border border-white/40' : 'hover:bg-white/10 text-white'}`}
                                     >
                                         <div>
                                             <div className="font-semibold">Clean Document</div>
@@ -537,12 +536,12 @@ export default function SalesOrderDetailPage({ params }) {
                             <h2 className="text-base font-bold text-white">Production Tasks</h2>
                             <p className="text-xs text-gray-500 mt-0.5">
                                 {tasks.filter(t => t.status === 'done').length}/{tasks.length} completed
-                                {tasks.length > 0 && ` · ${Math.round(tasks.filter(t=>t.status==='done').length/tasks.length*100)}%`}
+                                {tasks.length > 0 && ` · ${Math.round(tasks.filter(t => t.status === 'done').length / tasks.length * 100)}%`}
                             </p>
                         </div>
                         <div className="flex gap-2 items-center">
                             <a href={`/jobs/${id}`} target="_blank" rel="noreferrer"
-                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-xs font-semibold hover:bg-indigo-600/30 transition-colors">
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-xs font-semibold hover:bg-indigo-600/30 transition-colors">
                                 <FiExternalLink className="text-xs" /> Live View
                             </a>
                             <img src={`/api/sales-orders/${id}/qr`} alt="QR" className="w-12 h-12 rounded" />
@@ -553,7 +552,7 @@ export default function SalesOrderDetailPage({ params }) {
                     {tasks.length > 0 && (
                         <div className="h-1 bg-white/5">
                             <div className="h-full bg-gradient-to-r from-blue-500 to-green-400 transition-all duration-500"
-                                 style={{ width: `${Math.round(tasks.filter(t=>t.status==='done').length/tasks.length*100)}%` }} />
+                                style={{ width: `${Math.round(tasks.filter(t => t.status === 'done').length / tasks.length * 100)}%` }} />
                         </div>
                     )}
 
@@ -562,10 +561,9 @@ export default function SalesOrderDetailPage({ params }) {
                         {(showAllTasks ? tasks : tasks.slice(0, TASK_PREVIEW)).map(task => (
                             <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/5 transition-colors group">
                                 <button onClick={() => handleToggleTaskStatus(task)}
-                                    className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                                        task.status === 'done' ? 'bg-green-500 border-green-500' :
+                                    className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${task.status === 'done' ? 'bg-green-500 border-green-500' :
                                         task.status === 'in_progress' ? 'border-blue-500' : 'border-white/20'
-                                    }`}>
+                                        }`}>
                                     {task.status === 'done' && <FiCheckCircle className="text-white text-xs" />}
                                 </button>
                                 <div className="flex-1 min-w-0">
@@ -589,11 +587,10 @@ export default function SalesOrderDetailPage({ params }) {
                                         </div>
                                     )}
                                 </div>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                                    task.status === 'done' ? 'bg-green-500/10 text-green-400' :
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${task.status === 'done' ? 'bg-green-500/10 text-green-400' :
                                     task.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
-                                    'bg-white/5 text-gray-500'
-                                }`}>
+                                        'bg-white/5 text-gray-500'
+                                    }`}>
                                     {task.status.replace('_', ' ')}
                                 </span>
                                 <button onClick={() => handleDeleteTask(task.id)}
@@ -768,12 +765,11 @@ export default function SalesOrderDetailPage({ params }) {
                                                             )}
                                                         </td>
                                                         <td className="px-4 py-3.5">
-                                                            <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                                                                item.component_type === 'paper' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                                                            <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${item.component_type === 'paper' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
                                                                 item.component_type === 'plate' ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20' :
-                                                                item.component_type === 'sfg' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
-                                                                'bg-violet-500/10 text-violet-300 border-violet-500/20'
-                                                            }`}>
+                                                                    item.component_type === 'sfg' ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                                                                        'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                                                                }`}>
                                                                 {item.component_type}
                                                             </span>
                                                         </td>
@@ -786,11 +782,10 @@ export default function SalesOrderDetailPage({ params }) {
                                                             </span>
                                                         </td>
                                                         <td className="px-4 py-3.5 text-center">
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                                                isFullyIssued ? 'bg-emerald-500/15 text-emerald-400' :
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${isFullyIssued ? 'bg-emerald-500/15 text-emerald-400' :
                                                                 isPartiallyIssued ? 'bg-amber-500/15 text-amber-400' :
-                                                                'bg-white/10 text-white/50'
-                                                            }`}>
+                                                                    'bg-white/10 text-white/50'
+                                                                }`}>
                                                                 {isFullyIssued ? 'Fully Issued' : isPartiallyIssued ? 'Partial' : 'Pending'}
                                                             </span>
                                                         </td>
@@ -888,13 +883,12 @@ export default function SalesOrderDetailPage({ params }) {
                                                 {ops.map(op => (
                                                     <div key={op.step} className="flex items-start gap-4 group">
                                                         {/* Step badge */}
-                                                        <div className={`relative z-10 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${
-                                                            op.kind === 'print'
-                                                                ? 'bg-white/[0.07] border-white/[0.12] text-white/70'
-                                                                : op.kind === 'global'
+                                                        <div className={`relative z-10 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold border ${op.kind === 'print'
+                                                            ? 'bg-white/[0.07] border-white/[0.12] text-white/70'
+                                                            : op.kind === 'global'
                                                                 ? 'bg-white/[0.04] border-white/[0.08] text-white/40'
                                                                 : 'bg-white/[0.04] border-white/[0.07] text-white/40'
-                                                        }`}>
+                                                            }`}>
                                                             {op.step}
                                                         </div>
                                                         {/* Step info */}
@@ -906,11 +900,10 @@ export default function SalesOrderDetailPage({ params }) {
                                                                 </div>
                                                                 <div className="shrink-0 text-right">
                                                                     <p className="text-xs font-medium text-white/50">{op.machine}</p>
-                                                                    <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border mt-1 ${
-                                                                        op.kind === 'print'
-                                                                            ? 'bg-white/[0.06] text-white/50 border-white/[0.10]'
-                                                                            : 'bg-white/[0.03] text-white/30 border-white/[0.06]'
-                                                                    }`}>
+                                                                    <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border mt-1 ${op.kind === 'print'
+                                                                        ? 'bg-white/[0.06] text-white/50 border-white/[0.10]'
+                                                                        : 'bg-white/[0.03] text-white/30 border-white/[0.06]'
+                                                                        }`}>
                                                                         {op.kind === 'print' ? 'Print' : op.kind === 'global' ? 'Finishing (Global)' : 'Finishing'}
                                                                     </span>
                                                                 </div>

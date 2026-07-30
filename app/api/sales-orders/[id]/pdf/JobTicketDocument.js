@@ -92,12 +92,24 @@ const fmtTime = t => (parseFloat(t) > 0 ? `${parseFloat(t).toFixed(1)} hr` : '�
 
 // ─── Precision Imposition Vector Block ───────────────────────────────────────
 function ImpositionSVG({ detail, svgW = 340, svgH = 160 }) {
+    const rawPaperW = parseFloat(detail.cut_width_cm) || parseFloat(detail.paper_width_cm) || 0;
+    const rawPaperH = parseFloat(detail.cut_height_cm) || parseFloat(detail.paper_height_cm) || 0;
+    const rawCompW = parseFloat(detail.comp_width_cm) || 0;
+    const rawCompH = parseFloat(detail.comp_height_cm) || 0;
+
+    // Swap to rotate 90 degrees if paper is portrait (so it renders landscape in the landscape PDF page)
+    const shouldRotate = rawPaperW < rawPaperH;
+    const paperWidthCm = shouldRotate ? rawPaperH : rawPaperW;
+    const paperHeightCm = shouldRotate ? rawPaperW : rawPaperH;
+    const compWidthCm = shouldRotate ? rawCompH : rawCompW;
+    const compHeightCm = shouldRotate ? rawCompW : rawCompH;
+
     const layout = calculateImpositionLayout({
         ups: detail.ups,
-        paperWidthCm: detail.paper_width_cm,
-        paperHeightCm: detail.paper_height_cm,
-        compWidthCm: detail.comp_width_cm,
-        compHeightCm: detail.comp_height_cm,
+        paperWidthCm,
+        paperHeightCm,
+        compWidthCm,
+        compHeightCm,
         bleedMm: detail.bleed_mm ?? 3,
     });
 
@@ -533,8 +545,14 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
                     </View>
 
                     {item.details?.filter(d => {
-                        const name = (d.component_name || '').toLowerCase();
-                        return !name.includes('finish') && !['services', 'sfg', 'assets'].includes(name);
+                        const nameLower = (d.component_name || '').toLowerCase();
+                        const isFinishing = nameLower.includes('finish');
+                        const isSFGComp = d.type === 'sfg' || nameLower.includes('assets') || nameLower.includes('sfg');
+                        const isServicesComp = d.type === 'services' || nameLower.includes('service');
+                        const isPrinting = !isFinishing && !isSFGComp && !isServicesComp;
+
+                        if (isPrinting) return true;
+                        return (d.finishings?.length > 0 || d.services?.length > 0 || d.sfgLines?.length > 0);
                     }).map((detail, dIdx) => (
                         <DetailCard key={detail.id || dIdx} detail={detail} tasks={order.tasks} itemQuantity={item.quantity} />
                     ))}
@@ -544,12 +562,6 @@ function JobTicketPage({ order, qrDataUrl, jobUrl }) {
             ))}
 
             <BOMTable bom={order.bom} />
-
-            <View style={s.signoffRow} wrap={false}>
-                <View style={s.signoffBox}>
-                    <Text style={s.signoffText}>Floor Controller Sign-Off</Text>
-                </View>
-            </View>
         </View>
     );
 }
