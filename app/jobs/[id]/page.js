@@ -66,6 +66,8 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
     const [startConfirm, setStartConfirm] = useState(false);
     const [startAssignee, setStartAssignee] = useState(task.assigned_to || '');
     const [isCustomAssignee, setIsCustomAssignee] = useState(false);
+    const [startHelper, setStartHelper] = useState(task.helper_name || '');
+    const [isCustomHelper, setIsCustomHelper] = useState(false);
 
     const st = STATUS_CFG[status] || STATUS_CFG.pending;
 
@@ -87,16 +89,23 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
     };
 
     const handleStart = () => {
+        const taskAssignedHelpers = task.assigned_options?.assigned_helpers || [];
+        const defaultHelper = task.helper_name || (taskAssignedHelpers[0]?.name) || '';
         const taskAssignedEmps = task.assigned_options?.assigned_employees || [];
         const taskAssignedTeams = task.assigned_options?.assigned_teams || [];
         const defaultAssignee = task.assigned_to || (taskAssignedEmps[0]?.name) || (taskAssignedTeams[0]?.name) || '';
         setStartAssignee(defaultAssignee);
         setIsCustomAssignee(false);
+        setStartHelper(defaultHelper);
+        setIsCustomHelper(false);
         setStartConfirm(true);
     };
     const confirmStart = () => {
         setStartConfirm(false);
-        save('in_progress', { assigned_to: startAssignee || null });
+        save('in_progress', {
+            assigned_to: startAssignee || null,
+            helper_name: startHelper || null
+        });
     };
     const handlePause = () => save('paused');
     const handleQuickDone = () => setQuickDoneConfirm(true);
@@ -138,7 +147,7 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
                     </div>
                     {task.machine_name && <div className="text-[10px] text-indigo-400 mt-0.5 inline-flex items-center gap-0.5"><FiPrinter className="w-3 h-3" /> {task.machine_name}</div>}
                     {task.description && <div className="text-[11px] text-neutral-600 mt-0.5 truncate">{task.description}</div>}
-                    {task.status === 'done' && <div className="text-[11px] text-emerald-500 mt-0.5 inline-flex items-center gap-0.5"><FiCheck className="w-3 h-3" /> {task.completed_by || task.assigned_to || 'Completed'}{task.completed_at && ` · ${fmtDt(task.completed_at)}`}</div>}
+                    {task.status === 'done' && <div className="text-[11px] text-emerald-500 mt-0.5 inline-flex items-center gap-0.5"><FiCheck className="w-3 h-3" /> {task.completed_by || task.assigned_to || 'Completed'}{task.completed_by_helper ? ` (Helper: ${task.completed_by_helper})` : ''}{task.completed_at && ` · ${fmtDt(task.completed_at)}`}</div>}
                 </div>
                 <div className="flex items-center gap-2.5 flex-shrink-0">
                     <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${st.badge} ${status === 'in_progress' ? 'animate-pulse' : ''}`}>{st.label}</span>
@@ -349,6 +358,85 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
                                                     {startAssignee && !knownNames.includes(startAssignee) && (
                                                         <optgroup label="Current Assigned">
                                                             <option value={startAssignee}>{startAssignee}</option>
+                                                        </optgroup>
+                                                    )}
+                                                    <option value="__CUSTOM__">+ Custom / Enter Other…</option>
+                                                </select>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            <div>
+                                {(() => {
+                                    const taskAssignedHelpers = task.assigned_options?.assigned_helpers || [];
+                                    const sourceName = task.assigned_options?.source_name;
+                                    const taskHelperIds = new Set(taskAssignedHelpers.map(e => e.id));
+
+                                    const otherEmployees = (allEmployees || []).filter(e => !taskHelperIds.has(e.id));
+
+                                    const knownNames = [
+                                        ...taskAssignedHelpers.map(e => e.name),
+                                        ...otherEmployees.map(e => e.name)
+                                    ];
+
+                                    return (
+                                        <>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-[10px] font-bold text-neutral-500 uppercase">Assigned Helper</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsCustomHelper(!isCustomHelper)}
+                                                    className="text-[10px] text-indigo-400 hover:underline"
+                                                >
+                                                    {isCustomHelper ? 'Select from list' : 'Custom name'}
+                                                </button>
+                                            </div>
+
+                                            {isCustomHelper ? (
+                                                <input
+                                                    type="text"
+                                                    value={startHelper}
+                                                    onChange={e => setStartHelper(e.target.value)}
+                                                    placeholder="Enter Helper Name"
+                                                    className="w-full px-3 py-2 bg-black border border-white/[0.09] rounded-xl text-xs text-white outline-none focus:border-emerald-500 placeholder-neutral-600"
+                                                />
+                                            ) : (
+                                                <select
+                                                    value={startHelper}
+                                                    onChange={e => {
+                                                        if (e.target.value === '__CUSTOM__') {
+                                                            setIsCustomHelper(true);
+                                                            setStartHelper('');
+                                                        } else {
+                                                            setStartHelper(e.target.value);
+                                                        }
+                                                    }}
+                                                    className="w-full px-3 py-2 bg-black border border-white/[0.09] rounded-xl text-xs text-white outline-none focus:border-emerald-500"
+                                                >
+                                                    <option value="">-- Select Helper --</option>
+                                                    {taskAssignedHelpers.length > 0 && (
+                                                        <optgroup label={`Assigned Helpers for ${sourceName || task.machine_name || 'Machine'}`}>
+                                                            {taskAssignedHelpers.map(emp => (
+                                                                <option key={`m-helper-${emp.id}`} value={emp.name}>
+                                                                    {emp.name} {emp.job_title ? `(${emp.job_title})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                    {otherEmployees.length > 0 && (
+                                                        <optgroup label={taskAssignedHelpers.length > 0 ? "Other Employees" : "All Employees"}>
+                                                            {otherEmployees.map(emp => (
+                                                                <option key={`emp-helper-${emp.id}`} value={emp.name}>
+                                                                    {emp.name} {emp.job_title ? `(${emp.job_title})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                    {startHelper && !knownNames.includes(startHelper) && (
+                                                        <optgroup label="Current Assigned">
+                                                            <option value={startHelper}>{startHelper}</option>
                                                         </optgroup>
                                                     )}
                                                     <option value="__CUSTOM__">+ Custom / Enter Other…</option>

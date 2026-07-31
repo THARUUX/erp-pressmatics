@@ -147,13 +147,14 @@ export async function PUT(req, { params }) {
             scheduled_date, custom_make_ready_minutes, custom_speed, custom_speed_unit,
             quantity, sheet_count, impression_count,
             actual_sheets_printed, actual_sheets_wasted, actual_plates_used,
-            downtime_minutes, downtime_reason
+            downtime_minutes, downtime_reason,
+            helper_name, completed_by_helper
         } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
 
         // Fetch current task to detect in_progress and done transitions
-        const [current] = await pool.execute('SELECT status, started_at, sales_order_id FROM job_tasks WHERE id = ?', [taskId]);
+        const [current] = await pool.execute('SELECT status, started_at, sales_order_id, assigned_to, helper_name FROM job_tasks WHERE id = ?', [taskId]);
         const prevStatus = current[0]?.status;
         const alreadyStarted = current[0]?.started_at;
         const salesOrderId = current[0]?.sales_order_id;
@@ -192,6 +193,17 @@ export async function PUT(req, { params }) {
         } else if (setCompletedAt) {
             updates.push('completed_by = ?');
             paramsList.push(assigned_to || current[0]?.assigned_to || 'Operator');
+        }
+        if (completed_by_helper !== undefined) {
+            updates.push('completed_by_helper = ?');
+            paramsList.push(completed_by_helper || null);
+        } else if (setCompletedAt) {
+            updates.push('completed_by_helper = ?');
+            paramsList.push(helper_name || current[0]?.helper_name || null);
+        }
+        if (helper_name !== undefined) {
+            updates.push('helper_name = ?');
+            paramsList.push(helper_name || null);
         }
         if (assigned_to !== undefined) {
             updates.push('assigned_to = ?');

@@ -11,7 +11,8 @@ export async function GET() {
                    m.assigned_employee_ids as machine_employee_ids,
                    m.assigned_team_ids as machine_team_ids,
                    m.assigned_employee_id as machine_employee_id,
-                   m.assigned_team_id as machine_team_id
+                   m.assigned_team_id as machine_team_id,
+                   m.assigned_helper_ids as machine_helper_ids
             FROM finishings f 
             LEFT JOIN machines m ON f.machine_id = m.id 
             ORDER BY f.name ASC
@@ -33,6 +34,7 @@ export async function GET() {
 
             let empIds = [];
             let teamIds = [];
+            let helperIds = [];
 
             if (isMachine && f.machine_id) {
                 // Inherit from machine
@@ -49,6 +51,10 @@ export async function GET() {
                 if (!Array.isArray(teamIds) || teamIds.length === 0) {
                     if (f.machine_team_id) teamIds = [parseInt(f.machine_team_id)];
                 }
+
+                if (f.machine_helper_ids) {
+                    try { helperIds = typeof f.machine_helper_ids === 'string' ? JSON.parse(f.machine_helper_ids) : f.machine_helper_ids; } catch { helperIds = []; }
+                }
             } else {
                 // Manual finishing - read from finishing record
                 if (f.assigned_employee_ids) {
@@ -64,13 +70,23 @@ export async function GET() {
                 if (!Array.isArray(teamIds) || teamIds.length === 0) {
                     if (f.assigned_team_id) teamIds = [parseInt(f.assigned_team_id)];
                 }
+
+                if (f.assigned_helper_ids) {
+                    try { helperIds = typeof f.assigned_helper_ids === 'string' ? JSON.parse(f.assigned_helper_ids) : f.assigned_helper_ids; } catch { helperIds = []; }
+                }
+            }
+
+            if (!Array.isArray(helperIds)) {
+                helperIds = [];
             }
 
             const assignedEmployees = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean);
             const assignedTeams = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean);
+            const assignedHelpers = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean);
 
             const assigned_employee_name = assignedEmployees.map(e => e.name).join(', ') || null;
             const assigned_team_name = assignedTeams.map(t => t.name).join(', ') || null;
+            const assigned_helper_name = assignedHelpers.map(e => e.name).join(', ') || null;
 
             return {
                 ...f,
@@ -78,12 +94,15 @@ export async function GET() {
                 speed_unit: effectiveUnit,
                 assigned_employee_ids: empIds,
                 assigned_team_ids: teamIds,
+                assigned_helper_ids: helperIds,
                 assigned_employee_id: empIds[0] || null,
                 assigned_team_id: teamIds[0] || null,
                 assigned_employees: assignedEmployees,
                 assigned_teams: assignedTeams,
+                assigned_helpers: assignedHelpers,
                 assigned_employee_name,
                 assigned_team_name,
+                assigned_helper_name,
                 variants: variants.filter(v => v.finishing_id === f.id)
             };
         });
@@ -99,7 +118,8 @@ export async function POST(req) {
     try {
         const {
             name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit,
-            assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids
+            assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids,
+            assigned_helper_ids
         } = await req.json();
 
         if (!name) {
@@ -112,14 +132,16 @@ export async function POST(req) {
         let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(i => parseInt(i)).filter(Boolean) : [];
         if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
 
+        let helperIds = Array.isArray(assigned_helper_ids) ? assigned_helper_ids.map(i => parseInt(i)).filter(Boolean) : [];
+
         const singleEmpId = empIds[0] || null;
         const singleTeamId = teamIds[0] || null;
 
         const [result] = await pool.execute(
             `INSERT INTO finishings
              (name, unit_cost, is_machine, machine_id, cost_unit, speed, speed_unit,
-              assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids, assigned_helper_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 parseFloat(unit_cost) || 0,
@@ -131,7 +153,8 @@ export async function POST(req) {
                 singleEmpId,
                 singleTeamId,
                 JSON.stringify(empIds),
-                JSON.stringify(teamIds)
+                JSON.stringify(teamIds),
+                JSON.stringify(helperIds)
             ]
         );
 

@@ -13,7 +13,7 @@ const dbConfig = {
   user: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  timezone: 'Z',
+  dateStrings: true,
   ssl: {
     minVersion: 'TLSv1.2',
     rejectUnauthorized: true,
@@ -23,11 +23,8 @@ const dbConfig = {
 async function viewLogs() {
   const connection = await mysql.createConnection(dbConfig);
   try {
-    const [rows] = await connection.execute('SELECT * FROM zkteco_attendance_logs ORDER BY timestamp DESC LIMIT 5');
-    console.log('Saved Logs (last 5):');
-    rows.forEach(r => {
-      console.log(`ID: ${r.id}, UserID: ${r.device_user_id}, Timestamp: ${r.timestamp}, CreatedAt: ${r.created_at}`);
-    });
+    const [rows] = await connection.execute('SELECT * FROM employee_zkteco_mapping WHERE employee_id = 150003');
+    console.log('Mapping records for employee 150003:', rows);
   } catch (err) {
     console.error(err);
   } finally {

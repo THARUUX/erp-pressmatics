@@ -46,7 +46,8 @@ function TaskRow({ task, onUpdated }) {
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState(task.status);
     const [completedAt, setCompletedAt] = useState(toLocalDt(task.completed_at) || nowDt());
-    const [completedBy, setCompletedBy] = useState(task.completed_by || '');
+    const [completedBy, setCompletedBy] = useState(task.completed_by || task.assigned_to || '');
+    const [completedByHelper, setCompletedByHelper] = useState(task.completed_by_helper || task.helper_name || '');
 
     const st = STATUS[status] || STATUS.pending;
 
@@ -61,13 +62,14 @@ function TaskRow({ task, onUpdated }) {
                     status: s,
                     completed_at: s === 'done' ? new Date(completedAt).toISOString() : null,
                     completed_by: completedBy || null,
+                    completed_by_helper: completedByHelper || null,
                 }),
             });
             const updated = await res.json();
             if (updated.error) throw new Error(updated.error);
             setStatus(updated.status);
             setOpen(false);
-            onUpdated(task.id, updated.status, updated.completed_by, updated.completed_at);
+            onUpdated(task.id, updated.status, updated.completed_by, updated.completed_by_helper, updated.completed_at);
         } catch (e) { console.error(e); }
         finally { setSaving(false); }
     };
@@ -122,9 +124,9 @@ function TaskRow({ task, onUpdated }) {
                             {task.description}
                         </p>
                     )}
-                    {status === 'done' && task.completed_by && (
+                    {status === 'done' && (task.completed_by || task.completed_by_helper) && (
                         <p style={{ fontSize: 10, color: STATUS.done.text, margin: '2px 0 0' }}>
-                            ✓ {task.completed_by}
+                            ✓ {task.completed_by || '—'}{task.completed_by_helper ? ` (Helper: ${task.completed_by_helper})` : ''}
                             {task.completed_at && ` · ${new Date(task.completed_at).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}`}
                         </p>
                     )}
@@ -165,7 +167,7 @@ function TaskRow({ task, onUpdated }) {
                         ))}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                         <div>
                             <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Date & Time</label>
                             <input type="datetime-local" value={completedAt} onChange={e => setCompletedAt(e.target.value)} style={{
@@ -176,8 +178,17 @@ function TaskRow({ task, onUpdated }) {
                             }} />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Completed By</label>
-                            <input type="text" value={completedBy} placeholder="Name / Team" onChange={e => setCompletedBy(e.target.value)} style={{
+                            <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Completed By (Operator)</label>
+                            <input type="text" value={completedBy} placeholder="Operator Name" onChange={e => setCompletedBy(e.target.value)} style={{
+                                width: '100%', background: 'rgba(255,255,255,0.04)',
+                                border: `1px solid ${G.border}`, borderRadius: 8,
+                                padding: '9px 10px', color: G.text, fontSize: 12,
+                                outline: 'none', boxSizing: 'border-box',
+                            }} />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 9, fontWeight: 700, color: G.subtle, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>Completed By (Helper)</label>
+                            <input type="text" value={completedByHelper} placeholder="Helper Name" onChange={e => setCompletedByHelper(e.target.value)} style={{
                                 width: '100%', background: 'rgba(255,255,255,0.04)',
                                 border: `1px solid ${G.border}`, borderRadius: 8,
                                 padding: '9px 10px', color: G.text, fontSize: 12,
@@ -207,7 +218,8 @@ function QueueTask({ task, order, accent, onUpdated, machine }) {
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState(task.status);
     const [completedAt, setCompletedAt] = useState(toLocalDt(task.completed_at) || nowDt());
-    const [completedBy, setCompletedBy] = useState(task.completed_by || '');
+    const [completedBy, setCompletedBy] = useState(task.completed_by || task.assigned_to || '');
+    const [completedByHelper, setCompletedByHelper] = useState(task.completed_by_helper || task.helper_name || '');
 
     const st = STATUS[status] || STATUS.pending;
     const soColor = ORDER_STATUS_COLOR[order?.status] || '#64748b';
@@ -252,13 +264,14 @@ function QueueTask({ task, order, accent, onUpdated, machine }) {
                     status: s,
                     completed_at: s === 'done' ? new Date(completedAt).toISOString() : null,
                     completed_by: completedBy || null,
+                    completed_by_helper: completedByHelper || null,
                 }),
             });
             const updated = await res.json();
             if (updated.error) throw new Error(updated.error);
             setStatus(updated.status);
             setOpen(false);
-            onUpdated(task.id, updated.status, updated.completed_by, updated.completed_at);
+            onUpdated(task.id, updated.status, updated.completed_by, updated.completed_by_helper, updated.completed_at);
         } catch (e) { console.error(e); }
         finally { setSaving(false); }
     };
@@ -310,8 +323,10 @@ function QueueTask({ task, order, accent, onUpdated, machine }) {
                             {order.customer_name}
                         </span>
                     )}
-                    {status === 'done' && task.completed_by && (
-                        <span className="text-sm text-white/50 font-medium">✓ {task.completed_by}</span>
+                    {status === 'done' && (task.completed_by || task.completed_by_helper) && (
+                        <span className="text-sm text-white/50 font-medium">
+                            ✓ {task.completed_by || '—'}{task.completed_by_helper ? ` (Helper: ${task.completed_by_helper})` : ''}
+                        </span>
                     )}
                 </div>
 
@@ -367,7 +382,7 @@ function QueueTask({ task, order, accent, onUpdated, machine }) {
                     </div>
 
                     {/* Date & By */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                         <div>
                             <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Date &amp; Time</label>
                             <input
@@ -379,12 +394,22 @@ function QueueTask({ task, order, accent, onUpdated, machine }) {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Completed By</label>
+                            <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Completed By (Operator)</label>
                             <input
                                 type="text"
                                 value={completedBy}
-                                placeholder="Name / Team"
+                                placeholder="Operator Name"
                                 onChange={e => setCompletedBy(e.target.value)}
+                                className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none placeholder:text-white/20"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Completed By (Helper)</label>
+                            <input
+                                type="text"
+                                value={completedByHelper}
+                                placeholder="Helper Name"
+                                onChange={e => setCompletedByHelper(e.target.value)}
                                 className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none placeholder:text-white/20"
                             />
                         </div>
@@ -434,13 +459,13 @@ export default function MachinePage({ params }) {
     }, [load]);
 
     // Flat update — works on the orders-grouped structure
-    const handleTaskUpdated = (taskId, newStatus, completedBy, completedAt) => {
+    const handleTaskUpdated = (taskId, newStatus, completedBy, completedByHelper, completedAt) => {
         setData(prev => ({
             ...prev,
             orders: prev.orders.map(o => ({
                 ...o,
                 tasks: o.tasks.map(t => t.id === taskId
-                    ? { ...t, status: newStatus, completed_by: completedBy, completed_at: completedAt }
+                    ? { ...t, status: newStatus, completed_by: completedBy, completed_by_helper: completedByHelper, completed_at: completedAt }
                     : t
                 ),
             })),

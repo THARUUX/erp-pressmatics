@@ -398,12 +398,20 @@ function TaskCard({
                 )}
             </div>
 
-            {task.assigned_to && (
-                <div className="mt-1 pl-3.5 flex items-center gap-1">
-                    <span className="inline-flex items-center gap-1 text-[9px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Operator: ${task.assigned_to}`}>
-                        <FiUser className="w-2.5 h-2.5" />
-                        {task.assigned_to}
-                    </span>
+            {(task.assigned_to || task.helper_name) && (
+                <div className="mt-1 pl-3.5 flex flex-wrap gap-1">
+                    {task.assigned_to && (
+                        <span className="inline-flex items-center gap-1 text-[9px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Operator: ${task.assigned_to}`}>
+                            <FiUser className="w-2.5 h-2.5" />
+                            {task.assigned_to}
+                        </span>
+                    )}
+                    {task.helper_name && (
+                        <span className="inline-flex items-center gap-1 text-[9px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Helper: ${task.helper_name}`}>
+                            <FiUser className="w-2.5 h-2.5" />
+                            {task.helper_name}
+                        </span>
+                    )}
                 </div>
             )}
 
@@ -427,11 +435,19 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
     const machineEmps = machine?.assigned_employees_list || [];
     const candidateEmps = machineEmps.length > 0 ? machineEmps : employees;
 
+    const machineHelpers = machine?.assigned_helpers_list || [];
+    const candidateHelpers = machineHelpers.length > 0 ? machineHelpers : employees;
+
     const defaultAssignedTo = task.assigned_to
         ? task.assigned_to
         : (machineEmps.length === 1 ? machineEmps[0].name : '');
 
+    const defaultHelperName = task.helper_name
+        ? task.helper_name
+        : (machineHelpers.length === 1 ? machineHelpers[0].name : '');
+
     const [assignedTo, setAssignedTo] = useState(defaultAssignedTo);
+    const [helperName, setHelperName] = useState(defaultHelperName);
 
     const initialUnit = task.custom_speed_unit || defaultUnit;
     const getInitialQty = (u) => {
@@ -575,6 +591,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
             custom_multiplier: multiplier !== '' ? parseFloat(multiplier) : 1,
             estimated_minutes: estimatedMins,
             assigned_to: assignedTo || null,
+            helper_name: helperName || null,
         };
         if (calcQty !== '') {
             const numQty = parseFloat(calcQty);
@@ -750,41 +767,59 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                         </div>
                     )}
 
-                    {/* Assigned Operator / Employee */}
+                    {/* Staffing Assignments */}
                     <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
                         <div className="text-[10px] font-bold uppercase tracking-wider mb-2.5 flex items-center justify-between">
                             <div className="flex items-center gap-1 text-gray-400">
-                                <FiUser className="w-3.5 h-3.5" /> Assigned Operator / Employee
+                                <FiUser className="w-3.5 h-3.5" /> Staffing Assignments
                             </div>
-                            {machineEmps.length > 0 && (
+                            {(machineEmps.length > 0 || machineHelpers.length > 0) && (
                                 <span className="text-[9.5px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 font-semibold">
-                                    Assigned Operators: {machineEmps.map(e => e.name).join(', ')}
+                                    Service Staff: Operators ({machineEmps.length > 0 ? machineEmps.map(e => e.name).join(', ') : 'any'}){machineHelpers.length > 0 ? ` · Helpers (${machineHelpers.map(e => e.name).join(', ')})` : ''}
                                 </span>
                             )}
                         </div>
-                        <div>
-                            <select
-                                className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark]"
-                                value={assignedTo}
-                                onChange={e => setAssignedTo(e.target.value)}
-                            >
-                                <option value="">— Unassigned —</option>
-                                {candidateEmps.map(e => (
-                                    <option key={e.id || e.name} value={e.name}>
-                                        {e.name}
-                                    </option>
-                                ))}
-                            </select>
-                            {machineEmps.length === 1 && (
-                                <p className="text-[10px] text-emerald-400 mt-1.5 italic font-medium">
-                                    * Automatically assigned to the only operator assigned to this service ({machineEmps[0].name}).
-                                </p>
-                            )}
-                            {machineEmps.length > 1 && (
-                                <p className="text-[10px] text-gray-400 mt-1.5 italic">
-                                    Multiple operators assigned to this service. Select who is executing this task.
-                                </p>
-                            )}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Operator</label>
+                                <select
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                    value={assignedTo}
+                                    onChange={e => setAssignedTo(e.target.value)}
+                                >
+                                    <option value="">— Unassigned —</option>
+                                    {candidateEmps.map(e => (
+                                        <option key={e.id || e.name} value={e.name}>
+                                            {e.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {machineEmps.length === 1 && (
+                                    <p className="text-[10px] text-emerald-400 mt-1.5 italic font-medium">
+                                        * Automatically assigned to the only operator assigned to this service ({machineEmps[0].name}).
+                                    </p>
+                                )}
+                                {machineEmps.length > 1 && (
+                                    <p className="text-[10px] text-gray-400 mt-1.5 italic">
+                                        Multiple operators assigned. Select who is executing this task.
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Helper</label>
+                                <select
+                                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-white/30 [color-scheme:dark]"
+                                    value={helperName}
+                                    onChange={e => setHelperName(e.target.value)}
+                                >
+                                    <option value="">— Unassigned —</option>
+                                    {candidateHelpers.map(e => (
+                                        <option key={e.id || e.name} value={e.name}>
+                                            {e.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
 

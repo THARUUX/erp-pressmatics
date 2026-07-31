@@ -72,10 +72,11 @@ export async function POST(req) {
 
         // Fetch all active employees
         const [employees] = await pool.execute(`
-            SELECT e.*, m.device_user_id
+            SELECT e.*, GROUP_CONCAT(m.device_user_id) as device_user_ids
             FROM employees e
             LEFT JOIN employee_zkteco_mapping m ON e.id = m.employee_id
             WHERE e.status = 'active'
+            GROUP BY e.id
         `);
 
         if (employees.length === 0) {
@@ -194,7 +195,7 @@ export async function POST(req) {
 
         // 2. Loop through all employees and generate payslips
         for (const emp of employees) {
-            const userId = emp.device_user_id;
+            const deviceIds = emp.device_user_ids ? emp.device_user_ids.split(',') : [];
             
             let totalHoursWorked = 0;
             let normalOTHours = 0;
@@ -216,8 +217,19 @@ export async function POST(req) {
                 const isHoliday = isNonWorkingDay || isMarkedHoliday;
 
                 let dayHours = 0;
-                if (userId && logsByUser[userId] && logsByUser[userId][dateStr]) {
-                    const dayLogs = logsByUser[userId][dateStr];
+                
+                // Collect logs across all device user IDs mapped to this employee for this day
+                const dayLogs = [];
+                for (const devId of deviceIds) {
+                    if (logsByUser[devId] && logsByUser[devId][dateStr]) {
+                        dayLogs.push(...logsByUser[devId][dateStr]);
+                    }
+                }
+
+                if (dayLogs.length > 0) {
+                    // Sort logs chronologically
+                    dayLogs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    
                     let lastCheckIn = null;
 
                     for (const log of dayLogs) {

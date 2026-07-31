@@ -9,7 +9,7 @@ export async function PUT(req, { params }) {
             name, type, sheet_factor, speed, speed_unit, plate_id,
             digital_price_max, digital_price_medium, digital_price_min,
             assigned_employee_id, assigned_team_id,
-            assigned_employee_ids, assigned_team_ids,
+            assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
             make_ready_minutes, setup_minutes_per_plate, shift_limit
         } = body;
 
@@ -21,6 +21,8 @@ export async function PUT(req, { params }) {
         let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(i => parseInt(i)).filter(Boolean) : [];
         if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
 
+        let helperIds = Array.isArray(assigned_helper_ids) ? assigned_helper_ids.map(i => parseInt(i)).filter(Boolean) : [];
+
         const singleEmpId = empIds[0] || null;
         const singleTeamId = teamIds[0] || null;
 
@@ -29,7 +31,7 @@ export async function PUT(req, { params }) {
                name=?, type=?, sheet_factor=?, speed=?, speed_unit=?, plate_id=?,
                digital_price_max=?, digital_price_medium=?, digital_price_min=?,
                assigned_employee_id=?, assigned_team_id=?,
-               assigned_employee_ids=?, assigned_team_ids=?,
+               assigned_employee_ids=?, assigned_team_ids=?, assigned_helper_ids=?,
                make_ready_minutes=?, setup_minutes_per_plate=?, shift_limit=?
              WHERE id=?`,
             [
@@ -46,6 +48,7 @@ export async function PUT(req, { params }) {
                 singleTeamId,
                 JSON.stringify(empIds),
                 JSON.stringify(teamIds),
+                JSON.stringify(helperIds),
                 parseInt(make_ready_minutes) || 0,
                 parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8,

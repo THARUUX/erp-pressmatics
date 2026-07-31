@@ -65,15 +65,23 @@ export async function GET() {
             let teamIds = []; try { teamIds = typeof m.assigned_team_ids === 'string' ? JSON.parse(m.assigned_team_ids) : (m.assigned_team_ids || []); } catch {}
             if (!Array.isArray(teamIds) || !teamIds.length) { if (m.assigned_team_id) teamIds = [parseInt(m.assigned_team_id)]; else teamIds = []; }
 
+            let helperIds = []; try { helperIds = typeof m.assigned_helper_ids === 'string' ? JSON.parse(m.assigned_helper_ids) : (m.assigned_helper_ids || []); } catch {}
+            if (!Array.isArray(helperIds)) helperIds = [];
+
             const empNames = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
             const teamNames = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean).join(', ');
+            const helperNames = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
+
             const assignedEmpsList = resolveAssignedEmployees(empIds, teamIds);
+            const assignedHelpersList = helperIds.map(id => ({ id, name: empMap.get(parseInt(id)) })).filter(e => Boolean(e.name));
 
             return {
                 ...m,
                 assigned_employees_list: assignedEmpsList,
+                assigned_helpers_list: assignedHelpersList,
                 assigned_employee_name: empNames || null,
-                assigned_team_name: teamNames || null
+                assigned_team_name: teamNames || null,
+                assigned_helper_name: helperNames || null
             };
         });
 
@@ -101,15 +109,23 @@ export async function GET() {
             let teamIds = []; try { teamIds = typeof f.assigned_team_ids === 'string' ? JSON.parse(f.assigned_team_ids) : (f.assigned_team_ids || []); } catch {}
             if (!Array.isArray(teamIds) || !teamIds.length) { if (f.assigned_team_id) teamIds = [parseInt(f.assigned_team_id)]; else teamIds = []; }
 
+            let helperIds = []; try { helperIds = typeof f.assigned_helper_ids === 'string' ? JSON.parse(f.assigned_helper_ids) : (f.assigned_helper_ids || []); } catch {}
+            if (!Array.isArray(helperIds)) helperIds = [];
+
             const empNames = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
             const teamNames = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean).join(', ');
+            const helperNames = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
+
             const assignedEmpsList = resolveAssignedEmployees(empIds, teamIds);
+            const assignedHelpersList = helperIds.map(id => ({ id, name: empMap.get(parseInt(id)) })).filter(e => Boolean(e.name));
 
             return {
                 ...f,
                 assigned_employees_list: assignedEmpsList,
+                assigned_helpers_list: assignedHelpersList,
                 assigned_employee_name: empNames || null,
-                assigned_team_name: teamNames || null
+                assigned_team_name: teamNames || null,
+                assigned_helper_name: helperNames || null
             };
         });
 

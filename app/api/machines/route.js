@@ -41,22 +41,37 @@ export async function GET() {
                 else teamIds = [];
             }
 
+            let helperIds = [];
+            if (m.assigned_helper_ids) {
+                try {
+                    helperIds = typeof m.assigned_helper_ids === 'string' ? JSON.parse(m.assigned_helper_ids) : m.assigned_helper_ids;
+                } catch { helperIds = []; }
+            }
+            if (!Array.isArray(helperIds)) {
+                helperIds = [];
+            }
+
             const assignedEmployees = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean);
             const assignedTeams = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean);
+            const assignedHelpers = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean);
 
             const assigned_employee_name = assignedEmployees.map(e => e.name).join(', ') || null;
             const assigned_team_name = assignedTeams.map(t => t.name).join(', ') || null;
+            const assigned_helper_name = assignedHelpers.map(e => e.name).join(', ') || null;
 
             return {
                 ...m,
                 assigned_employee_ids: empIds,
                 assigned_team_ids: teamIds,
+                assigned_helper_ids: helperIds,
                 assigned_employee_id: empIds[0] || null,
                 assigned_team_id: teamIds[0] || null,
                 assigned_employees: assignedEmployees,
                 assigned_teams: assignedTeams,
+                assigned_helpers: assignedHelpers,
                 assigned_employee_name,
                 assigned_team_name,
+                assigned_helper_name,
             };
         });
 
@@ -74,7 +89,7 @@ export async function POST(req) {
             name, type, sheet_factor, speed, speed_unit, plate_id,
             digital_price_max, digital_price_medium, digital_price_min,
             assigned_employee_id, assigned_team_id,
-            assigned_employee_ids, assigned_team_ids,
+            assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
             make_ready_minutes, setup_minutes_per_plate, shift_limit
         } = body;
 
@@ -84,6 +99,8 @@ export async function POST(req) {
         let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(id => parseInt(id)).filter(Boolean) : [];
         if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
 
+        let helperIds = Array.isArray(assigned_helper_ids) ? assigned_helper_ids.map(id => parseInt(id)).filter(Boolean) : [];
+
         const singleEmpId = empIds[0] || null;
         const singleTeamId = teamIds[0] || null;
 
@@ -92,9 +109,9 @@ export async function POST(req) {
              (name, type, sheet_factor, speed, speed_unit, plate_id,
               digital_price_max, digital_price_medium, digital_price_min,
               assigned_employee_id, assigned_team_id,
-              assigned_employee_ids, assigned_team_ids,
+              assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
               make_ready_minutes, setup_minutes_per_plate, shift_limit)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -109,6 +126,7 @@ export async function POST(req) {
                 singleTeamId,
                 JSON.stringify(empIds),
                 JSON.stringify(teamIds),
+                JSON.stringify(helperIds),
                 parseInt(make_ready_minutes) || 0,
                 parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8

@@ -5,10 +5,12 @@ export async function GET() {
     try {
         // 1. Fetch all active employees with ZKTeco mapping
         const [employees] = await pool.execute(`
-            SELECT e.id, e.employee_id as erp_code, e.name, e.job_title, e.department, e.shift, e.status, m.device_user_id
+            SELECT e.id, e.employee_id as erp_code, e.name, e.job_title, e.department, e.shift, e.status, 
+                   GROUP_CONCAT(m.device_user_id) as device_user_ids
             FROM employees e
             LEFT JOIN employee_zkteco_mapping m ON e.id = m.employee_id
             WHERE e.status = 'active'
+            GROUP BY e.id
             ORDER BY e.name ASC
         `);
 
@@ -16,7 +18,7 @@ export async function GET() {
         const [logs] = await pool.execute(`
             SELECT device_user_id, timestamp, state, verification_type
             FROM zkteco_attendance_logs
-            WHERE timestamp >= CONCAT(CURRENT_DATE(), ' 00:00:00') AND state IN (0, 1, 4, 5)
+            WHERE timestamp >= CONCAT(DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')), ' 00:00:00') AND state IN (0, 1, 4, 5)
             ORDER BY timestamp ASC
         `);
 
@@ -42,9 +44,25 @@ export async function GET() {
         let onBreakCount = 0;
 
         const results = employees.map(emp => {
-            const hasMapping = !!emp.device_user_id;
-            const lastLog = hasMapping ? latestLogsMap[emp.device_user_id] : null;
-            const todayLogs = hasMapping ? (logsByEmployee[emp.device_user_id] || []) : [];
+            const deviceIds = emp.device_user_ids ? emp.device_user_ids.split(',') : [];
+            const hasMapping = deviceIds.length > 0;
+            
+            let lastLog = null;
+            const todayLogs = [];
+
+            for (const devId of deviceIds) {
+                const devLastLog = latestLogsMap[devId];
+                if (devLastLog) {
+                    if (!lastLog || new Date(devLastLog.timestamp) > new Date(lastLog.timestamp)) {
+                        lastLog = devLastLog;
+                    }
+                }
+                const devTodayLogs = logsByEmployee[devId] || [];
+                todayLogs.push(...devTodayLogs);
+            }
+
+            // Sort todayLogs chronologically
+            todayLogs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
             let status = 'Absent';
             let lastPunchTime = null;
@@ -74,7 +92,7 @@ export async function GET() {
                 job_title: emp.job_title,
                 department: emp.department,
                 shift: emp.shift,
-                device_user_id: emp.device_user_id,
+                device_user_id: deviceIds.join(', '),
                 status,
                 lastPunchTime,
                 lastPunchState,

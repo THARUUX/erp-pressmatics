@@ -54,6 +54,7 @@ export default function MachinesPage() {
         assigned_team_id: '',
         assigned_employee_ids: [],
         assigned_team_ids: [],
+        assigned_helper_ids: [],
         make_ready_minutes: 0,
         setup_minutes_per_plate: 0,
         shift_limit: 8,
@@ -165,6 +166,7 @@ export default function MachinesPage() {
             assigned_team_id: item.assigned_team_id || '',
             assigned_employee_ids: item.assigned_employee_ids || (item.assigned_employee_id ? [item.assigned_employee_id] : []),
             assigned_team_ids: item.assigned_team_ids || (item.assigned_team_id ? [item.assigned_team_id] : []),
+            assigned_helper_ids: item.assigned_helper_ids || [],
             make_ready_minutes: item.make_ready_minutes || 0,
             setup_minutes_per_plate: item.setup_minutes_per_plate || 0,
             shift_limit: item.shift_limit || 8,
@@ -190,6 +192,7 @@ export default function MachinesPage() {
             assigned_team_id: '',
             assigned_employee_ids: [],
             assigned_team_ids: [],
+            assigned_helper_ids: [],
             make_ready_minutes: 0,
             setup_minutes_per_plate: 0,
             shift_limit: 8,
@@ -330,12 +333,17 @@ export default function MachinesPage() {
                                 <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
                             </span>
                         )}
+                        {item.assigned_helper_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-full" title={`Helpers: ${item.assigned_helper_name}`}>
+                                <FiUsers className="w-2.5 h-2.5" />Helpers: {item.assigned_helper_name}
+                            </span>
+                        )}
                         {item.assigned_team_name && (
                             <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full" title={`Teams: ${item.assigned_team_name}`}>
                                 <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
                             </span>
                         )}
-                        {!item.assigned_employee_name && !item.assigned_team_name && (
+                        {!item.assigned_employee_name && !item.assigned_team_name && !item.assigned_helper_name && (
                             <span className="text-gray-600 text-xs">—</span>
                         )}
                     </div>
@@ -482,8 +490,8 @@ export default function MachinesPage() {
 
             {/* Add/Edit Machine Modal */}
             {showFormModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-                    <div className="w-full max-w-lg bg-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-4xl bg-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                             <h3 className="font-bold text-lg text-white">
                                 {isEditing ? 'Edit Machine Settings' : 'Add New Machine'}
@@ -669,7 +677,7 @@ export default function MachinesPage() {
                                 </div>
                             )}
 
-                            <div className="border-t border-white/5 pt-4 grid grid-cols-2 gap-4">
+                            <div className="border-t border-white/5 pt-4 grid grid-cols-3 gap-4">
                                 <div>
                                     <MultiSelect
                                         label="Assign Operators"
@@ -681,6 +689,19 @@ export default function MachinesPage() {
                                         selectedValues={formData.assigned_employee_ids || []}
                                         onChange={ids => setFormData(prev => ({ ...prev, assigned_employee_ids: ids }))}
                                         placeholder="Select Operators..."
+                                    />
+                                </div>
+                                <div>
+                                    <MultiSelect
+                                        label="Assign Helpers"
+                                        options={employees.filter(e => e.status === 'active').map(e => ({
+                                            value: e.id,
+                                            label: e.name,
+                                            sublabel: e.job_title || 'Helper'
+                                        }))}
+                                        selectedValues={formData.assigned_helper_ids || []}
+                                        onChange={ids => setFormData(prev => ({ ...prev, assigned_helper_ids: ids }))}
+                                        placeholder="Select Helpers..."
                                     />
                                 </div>
                                 <div>
@@ -913,9 +934,8 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
                                     <div
                                         key={o.value}
                                         onClick={() => toggleValue(o.value)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                                            isSelected ? 'bg-white/10 text-white font-semibold' : 'text-gray-300 hover:bg-white/5'
-                                        }`}
+                                        className={`px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition-colors ${isSelected ? 'bg-white/10 text-white font-semibold' : 'text-gray-300 hover:bg-white/5'
+                                            }`}
                                     >
                                         <div className="flex flex-col">
                                             <span>{o.label}</span>

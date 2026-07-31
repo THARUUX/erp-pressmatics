@@ -197,8 +197,8 @@ export async function GET(req, { params }) {
         // Fetch employees, teams, machines, and finishings for assigned options
         const [employees] = await pool.execute(`SELECT id, name, job_title, department FROM employees ORDER BY name ASC`);
         const [teams] = await pool.execute(`SELECT id, name FROM teams ORDER BY name ASC`);
-        const [machines] = await pool.execute(`SELECT id, name, assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids FROM machines`);
-        const [finishings] = await pool.execute(`SELECT f.id, f.name, f.machine_id, f.assigned_employee_id, f.assigned_team_id, f.assigned_employee_ids, f.assigned_team_ids, m.assigned_employee_ids as machine_emp_ids, m.assigned_team_ids as machine_team_ids, m.assigned_employee_id as machine_emp_id, m.assigned_team_id as machine_team_id FROM finishings f LEFT JOIN machines m ON f.machine_id = m.id`);
+        const [machines] = await pool.execute(`SELECT id, name, assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids, assigned_helper_ids FROM machines`);
+        const [finishings] = await pool.execute(`SELECT f.id, f.name, f.machine_id, f.assigned_employee_id, f.assigned_team_id, f.assigned_employee_ids, f.assigned_team_ids, f.assigned_helper_ids, m.assigned_employee_ids as machine_emp_ids, m.assigned_team_ids as machine_team_ids, m.assigned_employee_id as machine_emp_id, m.assigned_team_id as machine_team_id, m.assigned_helper_ids as machine_helper_ids FROM finishings f LEFT JOIN machines m ON f.machine_id = m.id`);
 
         const empMap = new Map(employees.map(e => [e.id, e]));
         const teamMap = new Map(teams.map(t => [t.id, t]));
@@ -218,6 +218,7 @@ export async function GET(req, { params }) {
         for (const task of enrichedTasks) {
             let assignedEmps = [];
             let assignedTeams = [];
+            let assignedHelpers = [];
             let sourceName = null;
 
             let m = machines.find(mach => mach.id === task.machine_id);
@@ -234,21 +235,26 @@ export async function GET(req, { params }) {
                 sourceName = m.name;
                 const empIds = parseJsonArray(m.assigned_employee_ids, m.assigned_employee_id);
                 const teamIds = parseJsonArray(m.assigned_team_ids, m.assigned_team_id);
+                const helperIds = parseJsonArray(m.assigned_helper_ids, null);
                 assignedEmps = empIds.map(i => empMap.get(i)).filter(Boolean);
                 assignedTeams = teamIds.map(i => teamMap.get(i)).filter(Boolean);
+                assignedHelpers = helperIds.map(i => empMap.get(i)).filter(Boolean);
             }
 
             if (f && assignedEmps.length === 0 && assignedTeams.length === 0) {
                 if (!sourceName) sourceName = f.name;
                 const empIds = parseJsonArray(f.assigned_employee_ids || f.machine_emp_ids, f.assigned_employee_id || f.machine_emp_id);
                 const teamIds = parseJsonArray(f.assigned_team_ids || f.machine_team_ids, f.assigned_team_id || f.machine_team_id);
+                const helperIds = parseJsonArray(f.assigned_helper_ids || f.machine_helper_ids, null);
                 assignedEmps = empIds.map(i => empMap.get(i)).filter(Boolean);
                 assignedTeams = teamIds.map(i => teamMap.get(i)).filter(Boolean);
+                assignedHelpers = helperIds.map(i => empMap.get(i)).filter(Boolean);
             }
 
             task.assigned_options = {
                 assigned_employees: assignedEmps,
                 assigned_teams: assignedTeams,
+                assigned_helpers: assignedHelpers,
                 source_name: sourceName
             };
         }

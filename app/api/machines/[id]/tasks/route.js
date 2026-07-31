@@ -10,7 +10,63 @@ export async function GET(req, { params }) {
         // Fetch machine
         const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
         if (!machines.length) return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
-        const machine = machines[0];
+        
+        // Fetch all employees and teams to build employee map and resolve helpers/operators
+        const [employees] = await pool.execute('SELECT id, name, status, job_title FROM employees');
+        const [teams] = await pool.execute('SELECT t.id, t.name FROM teams t');
+        const [teamMembers] = await pool.execute('SELECT team_id, employee_id FROM team_members');
+
+        const empMap = new Map(employees.map(e => [e.id, e.name]));
+        const teamMap = new Map(teams.map(t => [t.id, t.name]));
+
+        const resolveAssignedEmployees = (empIds, teamIds) => {
+            const list = [];
+            const added = new Set();
+            empIds.forEach(eid => {
+                const name = empMap.get(parseInt(eid));
+                if (name && !added.has(name)) {
+                    list.push({ id: eid, name });
+                    added.add(name);
+                }
+            });
+            teamIds.forEach(tid => {
+                const members = teamMembers.filter(tm => parseInt(tm.team_id) === parseInt(tid));
+                members.forEach(tm => {
+                    const name = empMap.get(parseInt(tm.employee_id));
+                    if (name && !added.has(name)) {
+                        list.push({ id: tm.employee_id, name });
+                        added.add(name);
+                    }
+                });
+            });
+            return list;
+        };
+
+        const m = machines[0];
+        let empIds = []; try { empIds = typeof m.assigned_employee_ids === 'string' ? JSON.parse(m.assigned_employee_ids) : (m.assigned_employee_ids || []); } catch {}
+        if (!Array.isArray(empIds) || !empIds.length) { if (m.assigned_employee_id) empIds = [parseInt(m.assigned_employee_id)]; else empIds = []; }
+
+        let teamIds = []; try { teamIds = typeof m.assigned_team_ids === 'string' ? JSON.parse(m.assigned_team_ids) : (m.assigned_team_ids || []); } catch {}
+        if (!Array.isArray(teamIds) || !teamIds.length) { if (m.assigned_team_id) teamIds = [parseInt(m.assigned_team_id)]; else teamIds = []; }
+
+        let helperIds = []; try { helperIds = typeof m.assigned_helper_ids === 'string' ? JSON.parse(m.assigned_helper_ids) : (m.assigned_helper_ids || []); } catch {}
+        if (!Array.isArray(helperIds)) helperIds = [];
+
+        const empNames = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
+        const teamNames = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean).join(', ');
+        const helperNames = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
+
+        const assignedEmpsList = resolveAssignedEmployees(empIds, teamIds);
+        const assignedHelpersList = helperIds.map(id => ({ id, name: empMap.get(parseInt(id)) })).filter(e => Boolean(e.name));
+
+        const machine = {
+            ...m,
+            assigned_employees_list: assignedEmpsList,
+            assigned_helpers_list: assignedHelpersList,
+            assigned_employee_name: empNames || null,
+            assigned_team_name: teamNames || null,
+            assigned_helper_name: helperNames || null
+        };
 
         // Fetch all tasks for this machine, joined with sales order info
         const [tasks] = await pool.execute(
@@ -95,6 +151,8 @@ export async function GET(req, { params }) {
                 status: t.status,
                 completed_at: t.completed_at,
                 completed_by: t.completed_by,
+                completed_by_helper: t.completed_by_helper,
+                helper_name: t.helper_name,
                 display_order: t.display_order,
                 machine_position: t.machine_position,
                 sales_order_id: t.sales_order_id,

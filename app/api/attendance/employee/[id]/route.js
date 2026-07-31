@@ -13,17 +13,18 @@ export async function GET(req, { params }) {
         // 1. Fetch employee details and device mapping
         const [[emp]] = await pool.execute(`
             SELECT e.id, e.name, e.employee_id as erp_code, e.job_title, e.department, 
-                   e.standard_working_hours, m.device_user_id
+                   e.standard_working_hours, GROUP_CONCAT(m.device_user_id) as device_user_ids
             FROM employees e
             LEFT JOIN employee_zkteco_mapping m ON e.id = m.employee_id
             WHERE e.id = ?
+            GROUP BY e.id
         `, [id]);
 
         if (!emp) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
 
-        const deviceUserId = emp.device_user_id;
+        const deviceIds = emp.device_user_ids ? emp.device_user_ids.split(',') : [];
         const stdHours = parseFloat(emp.standard_working_hours || 8.00);
 
         // Calculate days in the month
@@ -53,14 +54,14 @@ export async function GET(req, { params }) {
             });
         }
 
-        if (deviceUserId) {
+        if (deviceIds.length > 0) {
             // Fetch logs for this employee (ignoring states 4 & 5)
             const [logs] = await pool.execute(`
                 SELECT timestamp, state
                 FROM zkteco_attendance_logs
-                WHERE device_user_id = ? AND timestamp >= ? AND timestamp <= ? AND state IN (0, 1)
+                WHERE device_user_id IN (${deviceIds.map(() => '?').join(',')}) AND timestamp >= ? AND timestamp <= ? AND state IN (0, 1)
                 ORDER BY timestamp ASC
-            `, [deviceUserId, startStr, endStr]);
+            `, [...deviceIds, startStr, endStr]);
 
             // Group logs by date
             const logsByDate = {};
@@ -111,8 +112,8 @@ export async function GET(req, { params }) {
                     overtime = dailyHours - stdHours;
                 }
 
-                item.checkIn = checkInTime ? checkInTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
-                item.checkOut = checkOutTime ? checkOutTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+                item.checkIn = checkInTime ? checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : null;
+                item.checkOut = checkOutTime ? checkOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : null;
                 item.totalHours = parseFloat(dailyHours.toFixed(2));
                 item.overtimeHours = parseFloat(overtime.toFixed(2));
                 item.incomplete = incomplete;
@@ -133,7 +134,7 @@ export async function GET(req, { params }) {
                 erp_code: emp.erp_code,
                 department: emp.department,
                 job_title: emp.job_title,
-                device_user_id: deviceUserId
+                device_user_id: deviceIds.join(', ')
             },
             summary: {
                 present: totalPresent,

@@ -9,7 +9,7 @@ import pool from '@/lib/db';
  *  (fallback)      → item qty
  */
 function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
-    const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
+    const u = String(speedUnit || 'Sheets/Hr').toLowerCase().trim();
     const sides = parseInt(sidesVal) || 1;
     const upsVal = parseInt(ups) || 1;
     const pagesVal = parseInt(pages) || 1;
@@ -115,7 +115,7 @@ async function generateJobTasks(id) {
             const itemServices = item.services || [];
             for (const s of itemServices) {
                 let estMins = null;
-                if (s.rate_unit && (s.rate_unit.toLowerCase().includes('hour') || s.rate_unit.toLowerCase().includes('hr'))) {
+                if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
                     estMins = Math.round((parseFloat(s.multiply_by) || 0) * 60);
                 }
                 taskList.push({
@@ -525,7 +525,7 @@ async function generateJobTasks(id) {
         const grouped = {};
         for (const f of finishings) {
             const specificFinishingConfig = configs.find(c => 
-                (c.task_key.startsWith('finishing_') && c.name.toLowerCase() === f.name.toLowerCase()) ||
+                (c.task_key.startsWith('finishing_') && f.name && c.name.toLowerCase() === f.name.toLowerCase()) ||
                 (f.machine_name && c.name.toLowerCase() === f.machine_name.toLowerCase()) ||
                 (f.machine_id && c.task_key === `machine_${f.machine_id}`)
             );
@@ -742,7 +742,7 @@ export async function GET(req, { params }) {
         const enrichedTasks = await enrichTasksWithEstimationDetailsForGet(tasks, [id]);
         return NextResponse.json(enrichedTasks);
     } catch (err) {
-        console.error('Tasks GET error:', err);
+        console.error('Tasks GET error stack trace:', err.stack || err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
@@ -764,12 +764,13 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
     );
 
     for (const task of tasks) {
-        const isOffset = task.name.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
-        const isDigital = task.name.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
+        const taskName = task.name || '';
+        const isOffset = taskName.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
+        const isDigital = taskName.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
 
         if (isOffset || isDigital) {
-            const parts = task.name.split(' — ');
-            const compName = parts.length >= 3 ? parts[1]?.trim() : '';
+            const parts = taskName.split(' — ');
+            const compName = (parts.length >= 3 ? parts[1] : '') || '';
 
             let bestDetail = null;
             let bestScore = -1;
@@ -890,7 +891,7 @@ export async function POST(req, { params }) {
         const [task] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [result.insertId]);
         return NextResponse.json(task[0]);
     } catch (err) {
-        console.error('Tasks POST error:', err);
+        console.error('Tasks POST error stack trace:', err.stack || err);
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

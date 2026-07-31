@@ -37,23 +37,29 @@ const avatarColor = (name) => {
     return cols[h % cols.length];
 };
 
+const parseLocalTime = (isoString) => {
+    if (!isoString) return null;
+    const cleanStr = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(cleanStr);
+};
+
 const getTimelineSegments = (todayLogs, currentStatus) => {
     if (!todayLogs || todayLogs.length === 0) return [];
 
-    const sortedLogs = [...todayLogs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const sortedLogs = [...todayLogs].sort((a, b) => parseLocalTime(a.timestamp) - parseLocalTime(b.timestamp));
 
     const START_MINS = 8 * 60;   // 8:00 AM
     const END_MINS = 18 * 60;     // 6:00 PM
     const TOTAL_MINS = END_MINS - START_MINS;
 
     const getPercent = (timeStr) => {
-        const d = new Date(timeStr);
+        const d = parseLocalTime(timeStr);
         const mins = d.getHours() * 60 + d.getMinutes();
         return Math.max(0, Math.min(100, ((mins - START_MINS) / TOTAL_MINS) * 100));
     };
 
     const formatTimeLabel = (timeStr) => {
-        return new Date(timeStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return parseLocalTime(timeStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
     const segments = [];
@@ -975,7 +981,7 @@ export default function AttendancePage() {
                                             <span className="font-semibold text-right">
                                                 {emp.lastPunchTime ? (
                                                     <span className="flex items-center gap-1 justify-end">
-                                                        <FiClock className="w-3 h-3 text-zinc-500" /> {new Date(emp.lastPunchTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        <FiClock className="w-3 h-3 text-zinc-500" /> {parseLocalTime(emp.lastPunchTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 ) : '—'}
                                             </span>
@@ -1209,7 +1215,7 @@ export default function AttendancePage() {
                                         logsData.data.map(log => (
                                             <tr key={log.id} className="hover:bg-white/[0.01] transition-colors">
                                                 <td className="p-4 font-mono text-zinc-300">
-                                                    {new Date(log.timestamp).toLocaleString('en-US', {
+                                                    {parseLocalTime(log.timestamp).toLocaleString('en-US', {
                                                         year: 'numeric', month: 'short', day: '2-digit',
                                                         hour: '2-digit', minute: '2-digit', second: '2-digit'
                                                     })}

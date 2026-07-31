@@ -6,7 +6,8 @@ export async function PUT(req, { params }) {
         const { id } = await params;
         const {
             name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit,
-            assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids
+            assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids,
+            assigned_helper_ids
         } = await req.json();
 
         if (!name) {
@@ -19,13 +20,15 @@ export async function PUT(req, { params }) {
         let teamIds = Array.isArray(assigned_team_ids) ? assigned_team_ids.map(i => parseInt(i)).filter(Boolean) : [];
         if (teamIds.length === 0 && assigned_team_id) teamIds = [parseInt(assigned_team_id)];
 
+        let helperIds = Array.isArray(assigned_helper_ids) ? assigned_helper_ids.map(i => parseInt(i)).filter(Boolean) : [];
+
         const singleEmpId = empIds[0] || null;
         const singleTeamId = teamIds[0] || null;
 
         await pool.execute(
             `UPDATE finishings SET
                name = ?, unit_cost = ?, is_machine = ?, machine_id = ?, cost_unit = ?, speed = ?, speed_unit = ?,
-               assigned_employee_id = ?, assigned_team_id = ?, assigned_employee_ids = ?, assigned_team_ids = ?
+               assigned_employee_id = ?, assigned_team_id = ?, assigned_employee_ids = ?, assigned_team_ids = ?, assigned_helper_ids = ?
              WHERE id = ?`,
             [
                 name,
@@ -39,6 +42,7 @@ export async function PUT(req, { params }) {
                 singleTeamId,
                 JSON.stringify(empIds),
                 JSON.stringify(teamIds),
+                JSON.stringify(helperIds),
                 id
             ]
         );
