@@ -30,6 +30,7 @@ const NAV_GROUPS = [
             { icon: FiUser, label: 'Customers', href: '/dashboard/customers', permission: 'access_sales' },
             { icon: FiFileText, label: 'Quotations', href: '/dashboard/quotations', permission: 'access_sales' },
             { icon: FiShoppingCart, label: 'Sales Orders', href: '/dashboard/sales-orders', permission: 'access_sales' },
+            { icon: FiTruck, label: 'Deliveries', href: '/dashboard/deliveries', permission: 'access_sales' },
             { icon: FiDollarSign, label: 'Invoices', href: '/dashboard/invoices', permission: 'access_sales' },
         ],
     },

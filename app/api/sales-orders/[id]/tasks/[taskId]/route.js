@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
+import { syncSalesOrderToDeliveryQueue } from '@/lib/delivery-helper';
 
 // Convert ISO 8601 string → MySQL DATETIME format (YYYY-MM-DD HH:MM:SS)
 function toMySQL(isoStr) {
@@ -57,6 +58,14 @@ async function syncSalesOrderStatus(salesOrderId) {
         if (newSoStatus !== currentSoStatus) {
             console.log(`[Auto-Transition] Sales Order #${salesOrderId} status from ${currentSoStatus} → ${newSoStatus}`);
             await pool.execute('UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?', [newSoStatus, salesOrderId]);
+
+            if (newSoStatus === 'Ready') {
+                try {
+                    await syncSalesOrderToDeliveryQueue(salesOrderId, pool);
+                } catch (e) {
+                    console.error('Failed to sync to delivery queue in background:', e);
+                }
+            }
 
             // WhatsApp Notification Trigger for Order Ready
             if (newSoStatus === 'Ready') {
@@ -284,6 +293,36 @@ export async function PUT(req, { params }) {
              WHERE id = ?`,
              paramsList
         );
+
+        // Auto-deduct machine parts when a task is marked done
+        if (status === 'done' && prevStatus !== 'done') {
+            try {
+                const [finalTaskRows] = await pool.execute('SELECT * FROM job_tasks WHERE id = ?', [taskId]);
+                const finalTask = finalTaskRows[0];
+                if (finalTask && finalTask.machine_id) {
+                    const runQty = parseFloat(finalTask.actual_sheets_printed || finalTask.impression_count || finalTask.quantity || 0);
+                    let runMinutes = 0;
+                    if (finalTask.started_at && finalTask.completed_at) {
+                        runMinutes = (new Date(finalTask.completed_at) - new Date(finalTask.started_at)) / (1000 * 60);
+                    } else if (finalTask.estimated_minutes) {
+                        runMinutes = finalTask.estimated_minutes;
+                    }
+                    const runHours = runMinutes / 60;
+
+                    if (runQty > 0 || runHours > 0) {
+                        await pool.execute(`
+                            UPDATE machine_parts
+                            SET
+                              balance_run_quantity = CASE WHEN limit_run_quantity IS NOT NULL THEN GREATEST(0, balance_run_quantity - ?) ELSE balance_run_quantity END,
+                              balance_hours = CASE WHEN limit_hours IS NOT NULL THEN GREATEST(0, balance_hours - ?) ELSE balance_hours END
+                            WHERE machine_id = ?
+                        `, [runQty, runHours, finalTask.machine_id]);
+                    }
+                }
+            } catch (deductErr) {
+                console.error('Failed to auto-deduct machine part wear:', deductErr);
+            }
+        }
 
         // Sync Sales Order status automatically based on task states
         if (salesOrderId) {

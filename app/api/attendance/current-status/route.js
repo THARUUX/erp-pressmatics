@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         // 1. Fetch all active employees with ZKTeco mapping

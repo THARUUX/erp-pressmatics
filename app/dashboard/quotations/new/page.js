@@ -153,6 +153,8 @@ export default function NewQuotationContainerPage() {
             return;
         }
 
+        const shouldIgnore = ignoreStock === true;
+
         setLoading(true);
         try {
             const res = await fetch('/api/quotations/save', {
@@ -162,7 +164,7 @@ export default function NewQuotationContainerPage() {
                     customer_name: customerName,
                     customer_id: customerId,
                     selected_item_ids: selectedItemIds,
-                    ignore_stock_warning: ignoreStock
+                    ignore_stock_warning: shouldIgnore
                 })
             });
 
@@ -359,7 +361,7 @@ export default function NewQuotationContainerPage() {
                     </Link>
                     <h1 className="text-2xl font-bold tracking-tighter">Create Master Quotation</h1>
                 </div>
-                <Button onClick={handleSave} disabled={loading} className="bg-white text-black hover:bg-gray-200">
+                <Button onClick={() => handleSave(false)} disabled={loading} className="bg-white text-black hover:bg-gray-200">
                     {loading ? 'Saving...' : 'Finalize Quotation'}
                 </Button>
             </header>

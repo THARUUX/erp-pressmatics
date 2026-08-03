@@ -653,7 +653,39 @@ export default function FinishingsPage() {
 function MultiSelect({ label, options, selectedValues = [], onChange, placeholder = 'Select...' }) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
-    const dropdownRef = useRef(useMemo(() => ({ current: null }), []));
+    const dropdownRef = useRef(null);
+    const triggerRef = useRef(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+    const updateCoords = () => {
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom,
+                left: rect.left,
+                width: rect.width
+            });
+        }
+    };
+
+    const handleToggle = () => {
+        if (!isOpen) {
+            updateCoords();
+        }
+        setIsOpen(!isOpen);
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            updateCoords();
+            window.addEventListener('scroll', updateCoords, true);
+            window.addEventListener('resize', updateCoords);
+        }
+        return () => {
+            window.removeEventListener('scroll', updateCoords, true);
+            window.removeEventListener('resize', updateCoords);
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -663,7 +695,7 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [dropdownRef]);
+    }, []);
 
     const filteredOptions = options.filter(o =>
         (o.label || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -686,7 +718,8 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
         <div className="relative w-full" ref={dropdownRef}>
             {label && <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>}
             <div
-                onClick={() => setIsOpen(!isOpen)}
+                ref={triggerRef}
+                onClick={handleToggle}
                 className="min-h-[38px] w-full bg-secondary border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs cursor-pointer flex flex-wrap items-center gap-1 hover:border-white/20 transition-colors"
             >
                 {selectedOptions.length === 0 ? (
@@ -713,7 +746,15 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
             </div>
 
             {isOpen && (
-                <div className="absolute left-0 right-0 mt-1.5 z-50 bg-[#0d0d1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56">
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: `${coords.top + 6}px`,
+                        left: `${coords.left}px`,
+                        width: `${coords.width}px`,
+                    }}
+                    className="z-50 bg-[#0d0d1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56"
+                >
                     <div className="p-2 border-b border-white/10 bg-white/[0.02]">
                         <input
                             type="text"

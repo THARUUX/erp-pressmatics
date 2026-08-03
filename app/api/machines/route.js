@@ -6,7 +6,12 @@ export async function GET() {
         const [rows] = await pool.execute(`
             SELECT m.*,
                    p.name  AS plate_name,
-                   p.unit_cost AS plate_cost
+                   p.unit_cost AS plate_cost,
+                   (SELECT COUNT(*) FROM machine_parts mp WHERE mp.machine_id = m.id) AS total_parts,
+                   (SELECT COUNT(*) FROM machine_parts mp WHERE mp.machine_id = m.id AND (
+                       (mp.limit_run_quantity IS NOT NULL AND mp.balance_run_quantity <= mp.limit_run_quantity * 0.1) OR
+                       (mp.limit_hours IS NOT NULL AND mp.balance_hours <= mp.limit_hours * 0.1)
+                   )) AS warning_parts
             FROM machines m
             LEFT JOIN inventory_items p ON m.plate_id = p.id
             ORDER BY m.name ASC

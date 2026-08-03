@@ -952,7 +952,7 @@ export default function AttendancePage() {
                     ) : viewMode === 'card' ? (
                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                             {filteredStatusEmployees.map(emp => (
-                                <div key={emp.id} className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all group flex flex-col justify-between">
+                                <div key={`${emp.id}-${emp.device_user_id || ''}`} className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all group flex flex-col justify-between">
                                     <div>
                                         <div className="flex items-start justify-between mb-4">
                                             <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${avatarColor(emp.name)} to-black/50 flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
@@ -1356,7 +1356,7 @@ export default function AttendancePage() {
                                                 const isChanged = localChange !== undefined;
 
                                                 return (
-                                                    <tr key={mapItem.employee_id} className={`transition-colors hover:bg-white/[0.01] ${isChanged ? 'bg-indigo-500/5' : ''}`}>
+                                                    <tr key={`${mapItem.employee_id}-${mapItem.device_user_id || ''}`} className={`transition-colors hover:bg-white/[0.01] ${isChanged ? 'bg-indigo-500/5' : ''}`}>
                                                         <td className="p-4 font-semibold text-white">{mapItem.name}</td>
                                                         <td className="p-4 font-mono text-zinc-400">{mapItem.erp_code || '—'}</td>
                                                         <td className="p-4 text-zinc-400">{mapItem.department || '—'}</td>

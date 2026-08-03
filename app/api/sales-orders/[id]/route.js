@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
+import { syncSalesOrderToDeliveryQueue } from '@/lib/delivery-helper';
 
 export async function GET(req, { params }) {
     try {
@@ -174,6 +175,10 @@ export async function PUT(req, { params }) {
             query += ' WHERE id = ?';
             queryParams.push(id);
             await pool.execute(query, queryParams);
+
+            if (status === 'Ready') {
+                await syncSalesOrderToDeliveryQueue(id, pool);
+            }
         }
 
         // If status changed to Delivered, check if we should notify via WhatsApp

@@ -4,6 +4,9 @@ import pool from '@/lib/db';
 export async function GET(req, { params }) {
     try {
         const { id } = await params;
+        const url = new URL(req.url);
+        const startDate = url.searchParams.get('startDate');
+        const endDate = url.searchParams.get('endDate');
 
         // Machine info
         const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
@@ -11,7 +14,7 @@ export async function GET(req, { params }) {
         const machine = machines[0];
 
         // Overall task summary
-        const [summary] = await pool.execute(`
+        let summaryQuery = `
             SELECT
                 COUNT(*)                                                            AS total_tasks,
                 COUNT(CASE WHEN status = 'done' THEN 1 END)                        AS completed,
@@ -27,7 +30,17 @@ export async function GET(req, { params }) {
                 MAX(CASE WHEN status = 'done' AND completed_at IS NOT NULL THEN completed_at END) AS last_completed
             FROM job_tasks
             WHERE machine_id = ?
-        `, [id]);
+        `;
+        const summaryParams = [id];
+        if (startDate && endDate) {
+            summaryQuery += ` AND (
+                (scheduled_date BETWEEN ? AND ?)
+                OR (scheduled_date IS NULL AND created_at BETWEEN ? AND ?)
+            )`;
+            summaryParams.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+        }
+
+        const [summary] = await pool.execute(summaryQuery, summaryParams);
 
         // Monthly completed task counts (last 6 months)
         const [monthly] = await pool.execute(`
@@ -45,7 +58,7 @@ export async function GET(req, { params }) {
         `, [id]);
 
         // Recent completed tasks (last 20)
-        const [recent] = await pool.execute(`
+        let recentQuery = `
             SELECT
                 jt.id, jt.name, jt.status, jt.created_at, jt.started_at, jt.completed_at, jt.completed_by,
                 so.code AS order_code, so.customer_name,
@@ -58,9 +71,18 @@ export async function GET(req, { params }) {
             FROM job_tasks jt
             JOIN sales_orders so ON jt.sales_order_id = so.id
             WHERE jt.machine_id = ? AND jt.status = 'done'
-            ORDER BY jt.completed_at DESC
-            LIMIT 20
-        `, [id]);
+        `;
+        const recentParams = [id];
+        if (startDate && endDate) {
+            recentQuery += ` AND (
+                (jt.scheduled_date BETWEEN ? AND ?)
+                OR (jt.scheduled_date IS NULL AND jt.created_at BETWEEN ? AND ?)
+            )`;
+            recentParams.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+        }
+        recentQuery += ` ORDER BY jt.completed_at DESC LIMIT 20`;
+
+        const [recent] = await pool.execute(recentQuery, recentParams);
 
         // Currently running task
         const [running] = await pool.execute(`
@@ -71,12 +93,20 @@ export async function GET(req, { params }) {
             ORDER BY jt.started_at DESC LIMIT 1
         `, [id]);
 
+        // Machine parts
+        const [parts] = await pool.execute(`
+            SELECT * FROM machine_parts
+            WHERE machine_id = ?
+            ORDER BY part_name ASC
+        `, [id]);
+
         return NextResponse.json({
             machine,
             summary: summary[0],
             monthly,
             recent,
             currentTask: running[0] || null,
+            parts: parts || []
         });
     } catch (err) {
         console.error('Machine performance error:', err);

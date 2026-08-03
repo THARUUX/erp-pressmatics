@@ -34,6 +34,7 @@ export default function MachinesPage() {
     const [perfMachine, setPerfMachine] = useState(null);
     const [perfData, setPerfData] = useState(null);
     const [perfLoading, setPerfLoading] = useState(false);
+    const [detailsTab, setDetailsTab] = useState('performance');
     const chartRef = useRef(null);
     const chartInstance = useRef(null);
 
@@ -203,6 +204,7 @@ export default function MachinesPage() {
         setPerfMachine(machine);
         setPerfData(null);
         setPerfLoading(true);
+        setDetailsTab('performance');
         try {
             const res = await fetch(`/api/machines/${machine.id}/performance`);
             const data = await res.json();
@@ -210,6 +212,15 @@ export default function MachinesPage() {
         } catch { toast.error('Failed to load analytics'); }
         finally { setPerfLoading(false); }
     }, []);
+
+    const refreshPerfData = async (machineId) => {
+        try {
+            const res = await fetch(`/api/machines/${machineId}/performance`);
+            const data = await res.json();
+            setPerfData(data);
+            fetchMachines();
+        } catch { toast.error('Failed to reload data'); }
+    };
 
     // Render ECharts bar chart when perfData changes
     useEffect(() => {
@@ -347,6 +358,28 @@ export default function MachinesPage() {
                             <span className="text-gray-600 text-xs">—</span>
                         )}
                     </div>
+                );
+            }
+        },
+        {
+            id: 'parts_status',
+            header: 'Parts & Maintenance',
+            cell: ({ row }) => {
+                const item = row.original;
+                if (!item.total_parts) {
+                    return <span className="text-white/20 text-xs">No parts defined</span>;
+                }
+                if (item.warning_parts > 0) {
+                    return (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-medium">
+                            <FiZap className="w-2.5 h-2.5 text-red-400 animate-pulse" /> {item.warning_parts} part(s) low
+                        </span>
+                    );
+                }
+                return (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
+                        <FiZap className="w-2.5 h-2.5 text-emerald-400" /> {item.total_parts} parts OK
+                    </span>
                 );
             }
         },
@@ -751,10 +784,33 @@ export default function MachinesPage() {
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-white">{perfMachine.name}</p>
-                                    <p className="text-xs text-white/30 capitalize">{perfMachine.type} · Performance Analytics</p>
+                                    <p className="text-xs text-white/30 capitalize">{perfMachine.type} · Performance & Maintenance</p>
                                 </div>
                             </div>
                             <button onClick={() => { setPerfMachine(null); setPerfData(null); }} className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white transition-all"><FiX /></button>
+                        </div>
+
+                        <div className="flex border-b border-white/[0.06] bg-white/[0.02]">
+                            <button
+                                onClick={() => setDetailsTab('performance')}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    detailsTab === 'performance'
+                                        ? 'border-white text-white bg-white/[0.03]'
+                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                }`}
+                            >
+                                Performance
+                            </button>
+                            <button
+                                onClick={() => setDetailsTab('maintenance')}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    detailsTab === 'maintenance'
+                                        ? 'border-white text-white bg-white/[0.03]'
+                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                }`}
+                            >
+                                Parts & Maintenance
+                            </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
@@ -763,82 +819,90 @@ export default function MachinesPage() {
                                     <div className="w-5 h-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
                                 </div>
                             ) : perfData ? (
-                                <>
-                                    {perfData.currentTask && (
-                                        <div className="bg-white/[0.04] border border-white/[0.10] rounded-2xl p-4">
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-1.5"><FiActivity className="w-3 h-3 text-purple-400" />Currently Running</p>
-                                            <p className="text-sm font-semibold text-white">{perfData.currentTask.name}</p>
-                                            <p className="text-xs text-white/40 mt-0.5">{perfData.currentTask.order_code} · {perfData.currentTask.customer_name}</p>
-                                            {perfData.currentTask.started_at && (
-                                                <p className="text-xs text-white/30 mt-1 flex items-center gap-1">
-                                                    <FiClock className="w-3 h-3" />
-                                                    Started {new Date(perfData.currentTask.started_at).toLocaleString()}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                        {[
-                                            { label: 'Total Tasks', value: perfData.summary.total_tasks, sub: 'assigned' },
-                                            { label: 'Completed', value: perfData.summary.completed, sub: `${perfData.summary.total_tasks > 0 ? Math.round(perfData.summary.completed / perfData.summary.total_tasks * 100) : 0}% done` },
-                                            { label: 'Avg Active Time', value: perfData.summary.avg_active_mins ? `${perfData.summary.avg_active_mins}m` : '—', sub: 'started → done' },
-                                            { label: 'Total Active', value: perfData.summary.total_active_mins ? `${Math.round(perfData.summary.total_active_mins / 60)}h` : '—', sub: 'machine hours' },
-                                        ].map(({ label, value, sub }) => (
-                                            <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">{label}</p>
-                                                <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
-                                                <p className="text-[11px] text-white/25 mt-1">{sub}</p>
+                                detailsTab === 'maintenance' ? (
+                                    <MachinePartsList
+                                        machineId={perfMachine.id}
+                                        parts={perfData.parts || []}
+                                        onRefresh={() => refreshPerfData(perfMachine.id)}
+                                    />
+                                ) : (
+                                    <>
+                                        {perfData.currentTask && (
+                                            <div className="bg-white/[0.04] border border-white/[0.10] rounded-2xl p-4">
+                                                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 flex items-center gap-1.5"><FiActivity className="w-3 h-3 text-purple-400" />Currently Running</p>
+                                                <p className="text-sm font-semibold text-white">{perfData.currentTask.name}</p>
+                                                <p className="text-xs text-white/40 mt-0.5">{perfData.currentTask.order_code} · {perfData.currentTask.customer_name}</p>
+                                                {perfData.currentTask.started_at && (
+                                                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1">
+                                                        <FiClock className="w-3 h-3" />
+                                                        Started {new Date(perfData.currentTask.started_at).toLocaleString()}
+                                                    </p>
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
+                                        )}
 
-                                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
-                                        <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Task Status Breakdown</p>
-                                        <div className="space-y-2">
-                                            {[['Completed', perfData.summary.completed, 'bg-emerald-400'], ['In Progress', perfData.summary.in_progress, 'bg-amber-400'], ['Pending', perfData.summary.pending, 'bg-white/20']].map(([label, count, bar]) => (
-                                                <div key={label} className="flex items-center gap-3">
-                                                    <span className="text-xs text-white/40 w-20 shrink-0">{label}</span>
-                                                    <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
-                                                        <div className={`h-full ${bar} rounded-full transition-all`} style={{ width: `${perfData.summary.total_tasks > 0 ? Math.round(count / perfData.summary.total_tasks * 100) : 0}%` }} />
-                                                    </div>
-                                                    <span className="text-xs font-mono text-white/40 w-6 text-right">{count}</span>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            {[
+                                                { label: 'Total Tasks', value: perfData.summary.total_tasks, sub: 'assigned' },
+                                                { label: 'Completed', value: perfData.summary.completed, sub: `${perfData.summary.total_tasks > 0 ? Math.round(perfData.summary.completed / perfData.summary.total_tasks * 100) : 0}% done` },
+                                                { label: 'Avg Active Time', value: perfData.summary.avg_active_mins ? `${perfData.summary.avg_active_mins}m` : '—', sub: 'started → done' },
+                                                { label: 'Total Active', value: perfData.summary.total_active_mins ? `${Math.round(perfData.summary.total_active_mins / 60)}h` : '—', sub: 'machine hours' },
+                                            ].map(({ label, value, sub }) => (
+                                                <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">{label}</p>
+                                                    <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
+                                                    <p className="text-[11px] text-white/25 mt-1">{sub}</p>
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
 
-                                    {perfData.monthly?.length > 0 && (
                                         <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
-                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Monthly Output (last 6 months)</p>
-                                            <div ref={chartRef} style={{ height: 180 }} />
-                                        </div>
-                                    )}
-
-                                    {perfData.recent?.length > 0 && (
-                                        <div>
-                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Recent Completed Tasks</p>
-                                            <div className="space-y-1.5">
-                                                {perfData.recent.map(t => (
-                                                    <div key={t.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-medium text-white/70 truncate">{t.name}</p>
-                                                            <p className="text-[11px] text-white/25 mt-0.5">{t.order_code} · {t.customer_name}</p>
+                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Task Status Breakdown</p>
+                                            <div className="space-y-2">
+                                                {[['Completed', perfData.summary.completed, 'bg-emerald-400'], ['In Progress', perfData.summary.in_progress, 'bg-amber-400'], ['Pending', perfData.summary.pending, 'bg-white/20']].map(([label, count, bar]) => (
+                                                    <div key={label} className="flex items-center gap-3">
+                                                        <span className="text-xs text-white/40 w-20 shrink-0">{label}</span>
+                                                        <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                                                            <div className={`h-full ${bar} rounded-full transition-all`} style={{ width: `${perfData.summary.total_tasks > 0 ? Math.round(count / perfData.summary.total_tasks * 100) : 0}%` }} />
                                                         </div>
-                                                        <div className="text-right shrink-0">
-                                                            {t.active_mins != null ? (
-                                                                <p className="text-xs font-mono text-white/50">{t.active_mins}m active</p>
-                                                            ) : (
-                                                                <p className="text-xs text-white/20">—</p>
-                                                            )}
-                                                            <p className="text-[10px] text-white/20 mt-0.5">{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ''}</p>
-                                                        </div>
+                                                        <span className="text-xs font-mono text-white/40 w-6 text-right">{count}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
-                                </>
+
+                                        {perfData.monthly?.length > 0 && (
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Monthly Output (last 6 months)</p>
+                                                <div ref={chartRef} style={{ height: 180 }} />
+                                            </div>
+                                        )}
+
+                                        {perfData.recent?.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">Recent Completed Tasks</p>
+                                                <div className="space-y-1.5">
+                                                    {perfData.recent.map(t => (
+                                                        <div key={t.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium text-white/70 truncate">{t.name}</p>
+                                                                <p className="text-[11px] text-white/25 mt-0.5">{t.order_code} · {t.customer_name}</p>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                {t.active_mins != null ? (
+                                                                    <p className="text-xs font-mono text-white/50">{t.active_mins}m active</p>
+                                                                ) : (
+                                                                    <p className="text-xs text-white/20">—</p>
+                                                                )}
+                                                                <p className="text-[10px] text-white/20 mt-0.5">{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ''}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )
                             ) : (
                                 <p className="text-center text-white/25 text-sm py-12">No analytics data available.</p>
                             )}
@@ -854,6 +918,38 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const dropdownRef = useRef(null);
+    const triggerRef = useRef(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+    const updateCoords = () => {
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom,
+                left: rect.left,
+                width: rect.width
+            });
+        }
+    };
+
+    const handleToggle = () => {
+        if (!isOpen) {
+            updateCoords();
+        }
+        setIsOpen(!isOpen);
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            updateCoords();
+            window.addEventListener('scroll', updateCoords, true);
+            window.addEventListener('resize', updateCoords);
+        }
+        return () => {
+            window.removeEventListener('scroll', updateCoords, true);
+            window.removeEventListener('resize', updateCoords);
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -886,7 +982,8 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
         <div className="relative w-full" ref={dropdownRef}>
             {label && <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>}
             <div
-                onClick={() => setIsOpen(!isOpen)}
+                ref={triggerRef}
+                onClick={handleToggle}
                 className="min-h-[38px] w-full bg-secondary border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs cursor-pointer flex flex-wrap items-center gap-1 hover:border-white/20 transition-colors"
             >
                 {selectedOptions.length === 0 ? (
@@ -913,7 +1010,15 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
             </div>
 
             {isOpen && (
-                <div className="absolute left-0 right-0 mt-1.5 z-50 bg-[#0d0d1a] border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56">
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: `${coords.top + 6}px`,
+                        left: `${coords.left}px`,
+                        width: `${coords.width}px`,
+                    }}
+                    className="z-[999] bg-black border border-white/15 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-56"
+                >
                     <div className="p-2 border-b border-white/10 bg-white/[0.02]">
                         <input
                             type="text"
@@ -954,6 +1059,236 @@ function MultiSelect({ label, options, selectedValues = [], onChange, placeholde
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function MachinePartsList({ machineId, parts = [], onRefresh }) {
+    const [isAdding, setIsAdding] = useState(false);
+    const [name, setName] = useState('');
+    const [runLimit, setRunLimit] = useState('');
+    const [hoursLimit, setHoursLimit] = useState('');
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`/api/machines/${machineId}/parts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    part_name: name,
+                    limit_run_quantity: runLimit || null,
+                    limit_hours: hoursLimit || null
+                })
+            });
+            if (res.ok) {
+                toast.success('Machine part added successfully');
+                setName('');
+                setRunLimit('');
+                setHoursLimit('');
+                setIsAdding(false);
+                onRefresh();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to add part');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('An error occurred');
+        }
+    };
+
+    const handleReplace = async (partId) => {
+        if (!confirm('Are you sure you have replaced this part? This will reset the run and time balances.')) return;
+        try {
+            const res = await fetch(`/api/machines/${machineId}/parts/${partId}/replace`, {
+                method: 'POST'
+            });
+            if (res.ok) {
+                toast.success('Part wear balance reset successfully');
+                onRefresh();
+            } else {
+                toast.error('Failed to replace part');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('An error occurred');
+        }
+    };
+
+    const handleDelete = async (partId) => {
+        if (!confirm('Are you sure you want to delete this part?')) return;
+        try {
+            const res = await fetch(`/api/machines/${machineId}/parts/${partId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                toast.success('Part deleted successfully');
+                onRefresh();
+            } else {
+                toast.error('Failed to delete part');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('An error occurred');
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                <div>
+                    <h3 className="font-semibold text-white text-sm">Machine Lifespan Parts</h3>
+                    <p className="text-xs text-white/30">Track wear on rollers, blades, plates, etc.</p>
+                </div>
+            </div>
+
+            {/* Add Part Area */}
+            {isAdding ? (
+                <form onSubmit={handleAdd} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 space-y-3">
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1">
+                        <h5 className="text-xs font-bold text-white uppercase tracking-wider">New Machine Part</h5>
+                        <button type="button" onClick={() => setIsAdding(false)} className="text-white/40 hover:text-white"><FiX className="w-4 h-4" /></button>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Part Name</label>
+                        <input
+                            type="text"
+                            required
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            placeholder="e.g. Suction Belts"
+                            className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Run Limit (optional)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={runLimit}
+                                onChange={e => setRunLimit(e.target.value)}
+                                placeholder="e.g. 100000"
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Hours Limit (optional)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={hoursLimit}
+                                onChange={e => setHoursLimit(e.target.value)}
+                                placeholder="e.g. 200"
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/30"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                        <button
+                            type="button"
+                            onClick={() => setIsAdding(false)}
+                            className="px-3 py-1.5 text-[10.5px] border border-white/10 hover:bg-white/5 rounded text-white/60 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-1.5 text-[10.5px] bg-white text-black font-bold rounded hover:opacity-90 transition-colors"
+                        >
+                            Add Part
+                        </button>
+                    </div>
+                </form>
+            ) : (
+                <button
+                    onClick={() => setIsAdding(true)}
+                    className="w-full py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-dashed border-white/10 hover:border-white/20 rounded-xl text-xs text-white/60 hover:text-white flex items-center justify-center gap-1.5 transition-all"
+                >
+                    <FiPlus className="w-3.5 h-3.5" /> Add Machine Part
+                </button>
+            )}
+
+            {/* Parts Cards List */}
+            <div className="space-y-3">
+                {parts.length === 0 ? (
+                    <p className="text-center text-white/20 text-xs py-8 bg-white/[0.01] border border-dashed border-white/5 rounded-xl">No parts tracked for this machine yet.</p>
+                ) : (
+                    parts.map(part => {
+                        let remainingPct = 100;
+                        const runPct = part.limit_run_quantity > 0 ? (part.balance_run_quantity / part.limit_run_quantity) * 100 : null;
+                        const hoursPct = part.limit_hours > 0 ? (part.balance_hours / part.limit_hours) * 100 : null;
+
+                        if (runPct !== null && hoursPct !== null) {
+                            remainingPct = Math.min(runPct, hoursPct);
+                        } else if (runPct !== null) {
+                            remainingPct = runPct;
+                        } else if (hoursPct !== null) {
+                            remainingPct = hoursPct;
+                        }
+                        remainingPct = Math.max(0, Math.min(100, remainingPct));
+
+                        return (
+                            <div key={part.id} className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 className="font-semibold text-white text-sm">{part.part_name}</h4>
+                                        <p className="text-[10px] text-white/30">Last changed: {part.last_changed_at ? new Date(part.last_changed_at).toLocaleDateString() : 'Never'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => handleReplace(part.id)}
+                                            className="px-2.5 py-1 text-[10px] font-bold bg-white/10 hover:bg-white/20 text-white rounded transition-colors"
+                                        >
+                                            Replace Part
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(part.id)}
+                                            className="p-1 text-white/30 hover:text-red-400 rounded transition-colors"
+                                            title="Remove Part"
+                                        >
+                                            <FiTrash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-white/40">Lifespan Remaining</span>
+                                        <span className={`font-bold ${
+                                            remainingPct <= 15 ? 'text-red-400 animate-pulse' : remainingPct <= 50 ? 'text-amber-400' : 'text-emerald-400'
+                                        }`}>{Math.round(remainingPct)}%</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                remainingPct <= 15 ? 'bg-red-500' : remainingPct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                                            }`}
+                                            style={{ width: `${remainingPct}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 pt-1 text-[11px] text-white/50">
+                                    {part.limit_run_quantity !== null && (
+                                        <div>
+                                            <span className="text-white/25 block text-[9px] uppercase font-bold">Run Balance</span>
+                                            <span className="font-mono text-white/80">{Math.round(part.balance_run_quantity).toLocaleString()}</span> / {Math.round(part.limit_run_quantity).toLocaleString()} runs
+                                        </div>
+                                    )}
+                                    {part.limit_hours !== null && (
+                                        <div>
+                                            <span className="text-white/25 block text-[9px] uppercase font-bold">Hours Balance</span>
+                                            <span className="font-mono text-white/80">{Number(part.balance_hours).toFixed(1)}</span> / {Number(part.limit_hours).toFixed(1)} hrs
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
         </div>
     );
 }
