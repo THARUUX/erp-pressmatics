@@ -2,9 +2,9 @@
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 
-import { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiSave, FiArrowLeft, FiPlus, FiFileText, FiAlertCircle, FiPackage, FiCpu } from 'react-icons/fi';
+import { FiSave, FiArrowLeft, FiPlus, FiFileText, FiAlertCircle, FiPackage, FiCpu, FiCopy, FiHelpCircle, FiDownload } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Link from 'next/link';
@@ -90,6 +90,30 @@ export default function EditQuotationPage({ params }) {
     const [globalFinishings, setGlobalFinishings] = useState([]);
     const [globalFinishingSearch, setGlobalFinishingSearch] = useState('');
     const [showGlobalFinishingSuggestions, setShowGlobalFinishingSuggestions] = useState(false);
+
+    // Bulk Variations Generator state
+    const [showBulkModal, setShowBulkModal] = useState(false);
+    const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+    const [bulkMethod, setBulkMethod] = useState('list'); // 'list' | 'helper'
+    const [bulkPageCounts, setBulkPageCounts] = useState('');
+    const [bulkPageList, setBulkPageList] = useState('');
+    const [bulkNamingPattern, setBulkNamingPattern] = useState('[Original] - [Pages]pg');
+    const [bulkDescPattern, setBulkDescPattern] = useState('[Original]');
+    const [generatingBulk, setGeneratingBulk] = useState(false);
+    const [bulkProgressCurrent, setBulkProgressCurrent] = useState(0);
+    const [bulkProgressTotal, setBulkProgressTotal] = useState(0);
+    const [bulkSelectedComponentId, setBulkSelectedComponentId] = useState('');
+    const [bulkQuantities, setBulkQuantities] = useState('');
+    const [bulkMarkupRates, setBulkMarkupRates] = useState('');
+
+    useEffect(() => {
+        if (showBulkModal) {
+            const pComps = components.filter(c => c.type === 'offset' || c.type === 'digital');
+            if (pComps.length > 0 && !bulkSelectedComponentId) {
+                setBulkSelectedComponentId(pComps[0].id);
+            }
+        }
+    }, [showBulkModal, components, bulkSelectedComponentId]);
 
     useEffect(() => {
         const baseTotal = grandTotal + globalFinishings.reduce((a, b) => a + (parseFloat(b.total_cost) || 0), 0);
@@ -259,7 +283,7 @@ export default function EditQuotationPage({ params }) {
                 }));
 
                 setComponents(mappedComps);
-                
+
                 const pct = item.markup_percent != null ? parseFloat(item.markup_percent) : 0;
                 const totalBeforeMarkup = parseFloat(item.total_amount || 0) / (1 + pct / 100);
                 const subTotal = totalBeforeMarkup - globalFinishingCost;
@@ -546,6 +570,659 @@ export default function EditQuotationPage({ params }) {
         }
     };
 
+    const getPrintComponents = () => {
+        return components.filter(c => c.type === 'offset' || c.type === 'digital');
+    };
+
+    const escapeCSVField = (val) => {
+        const strVal = String(val == null ? '' : val).trim();
+        if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') || strVal.includes('\t') || strVal.includes('|')) {
+            return `"${strVal.replace(/"/g, '""')}"`;
+        }
+        return strVal;
+    };
+
+    const splitCSVLine = (line, separator) => {
+        const parts = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            } else if (char === separator && !inQuotes) {
+                parts.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        parts.push(current.trim());
+        return parts.map(p => {
+            let s = p;
+            if (s.startsWith('"') && s.endsWith('"')) {
+                s = s.slice(1, -1);
+            }
+            return s.replace(/""/g, '"');
+        });
+    };
+
+    const buildBulkHeaderRow = (pComps) => {
+        const headers = ["Name", "Quantity", "Markup %"];
+        pComps.forEach(c => {
+            headers.push(`${c.name} Pages`);
+            headers.push(`${c.name} Colors Front`);
+            headers.push(`${c.name} Colors Back`);
+            headers.push(`${c.name} Ups`);
+            headers.push(`${c.name} Sides`);
+            headers.push(`${c.name} Machine ID`);
+            headers.push(`${c.name} Paper ID`);
+        });
+        headers.push("Description");
+        return headers.map(escapeCSVField).join(', ');
+    };
+
+    const buildActiveEstimationRow = (pComps) => {
+        const rowParts = [];
+        rowParts.push(escapeCSVField(estimationName || 'Estimation'));
+        rowParts.push(quantity);
+        rowParts.push(markupPercent);
+        pComps.forEach(c => {
+            rowParts.push(c.params.pages || c.params.sides || 0);
+            rowParts.push(c.params.colorsFront || 0);
+            rowParts.push(c.params.colorsBack || 0);
+            rowParts.push(c.params.ups || 1);
+            rowParts.push(c.params.sides || 1);
+            rowParts.push(c.params.machineId || '');
+            rowParts.push(c.params.paperId || '');
+        });
+        rowParts.push(escapeCSVField(jobDescription || ''));
+        return rowParts.join(', ');
+    };
+
+    const handleLoadActiveAsTemplate = () => {
+        const pComps = getPrintComponents();
+        const header = buildBulkHeaderRow(pComps);
+        const row = buildActiveEstimationRow(pComps);
+        setBulkPageList(`${header}\n${row}`);
+        setBulkMethod('list');
+        toast.success("Loaded current item configuration as a template!");
+    };
+
+    const parseBulkText = (text) => {
+        if (!text) return [];
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const pComps = getPrintComponents();
+        let headerLine = lines[0];
+        let separator = ',';
+        if (headerLine.includes('\t')) separator = '\t';
+        else if (headerLine.includes('|')) separator = '|';
+        
+        const tokens = splitCSVLine(headerLine.toLowerCase(), separator);
+        const hasHeader = tokens.includes('name') || 
+                          ((tokens.includes('quantity') || tokens.includes('qty')) && 
+                           (tokens.includes('markup %') || tokens.includes('markup') || tokens.includes('markup percent') || tokens.some(t => t.endsWith('pages'))));
+        
+        let dataLines = lines;
+        let headers = [];
+        const colMap = {
+            nameIdx: -1,
+            qtyIdx: -1,
+            markupIdx: -1,
+            descIdx: -1,
+            compFields: {}
+        };
+
+        if (hasHeader) {
+            let separator = ',';
+            if (headerLine.includes('\t')) separator = '\t';
+            else if (headerLine.includes('|')) separator = '|';
+            
+            headers = splitCSVLine(headerLine, separator);
+            dataLines = lines.slice(1);
+
+            headers.forEach((h, idx) => {
+                const hl = h.toLowerCase();
+                if (hl === 'name') colMap.nameIdx = idx;
+                else if (hl === 'quantity' || hl === 'qty') colMap.qtyIdx = idx;
+                else if (hl === 'markup %' || hl === 'markup' || hl === 'markup percent') colMap.markupIdx = idx;
+                else if (hl === 'description' || hl === 'desc') colMap.descIdx = idx;
+                else {
+                    pComps.forEach(c => {
+                        const cNameLower = c.name.toLowerCase();
+                        if (hl.startsWith(cNameLower)) {
+                            let suffix = hl.substring(cNameLower.length).trim();
+                            suffix = suffix.replace(/^[-_\s]+/, '');
+                            if (!colMap.compFields[c.id]) {
+                                colMap.compFields[c.id] = {};
+                            }
+                            if (suffix === 'pages') colMap.compFields[c.id].pages = idx;
+                            else if (suffix === 'colors front' || suffix === 'colorsfront' || suffix === 'colors_front' || suffix === 'front colors') colMap.compFields[c.id].colorsFront = idx;
+                            else if (suffix === 'colors back' || suffix === 'colorsback' || suffix === 'colors_back' || suffix === 'back colors') colMap.compFields[c.id].colorsBack = idx;
+                            else if (suffix === 'ups') colMap.compFields[c.id].ups = idx;
+                            else if (suffix === 'sides') colMap.compFields[c.id].sides = idx;
+                            else if (suffix === 'machine id' || suffix === 'machineid' || suffix === 'machine_id' || suffix === 'machine') colMap.compFields[c.id].machineId = idx;
+                            else if (suffix === 'paper id' || suffix === 'paperid' || suffix === 'paper_id' || suffix === 'paper') colMap.compFields[c.id].paperId = idx;
+                        }
+                    });
+                }
+            });
+        }
+
+        return dataLines.map((line) => {
+            let separator = ',';
+            if (line.includes('\t')) {
+                separator = '\t';
+            } else if (line.includes('|')) {
+                separator = '|';
+            } else {
+                separator = ',';
+            }
+            const parts = splitCSVLine(line, separator);
+
+            let name = '';
+            let qty = parseInt(quantity);
+            let markup = parseFloat(markupPercent || 0);
+            let desc = jobDescription;
+            const compPages = [];
+
+            if (hasHeader) {
+                if (colMap.nameIdx !== -1) name = parts[colMap.nameIdx] || '';
+                if (colMap.qtyIdx !== -1) {
+                    let qtyVal = parseInt(parts[colMap.qtyIdx]);
+                    if (!isNaN(qtyVal)) qty = qtyVal;
+                }
+                if (colMap.markupIdx !== -1) {
+                    let markupVal = parseFloat(parts[colMap.markupIdx]);
+                    if (!isNaN(markupVal)) markup = markupVal;
+                }
+                
+                pComps.forEach(c => {
+                    const fields = colMap.compFields[c.id] || {};
+                    let pVal = fields.pages !== undefined ? parseInt(parts[fields.pages]) : NaN;
+                    let fallbackPages = parseInt(c.params.pages) || parseInt(c.params.sides) || 0;
+                    
+                    let cColorsFront = fields.colorsFront !== undefined ? parseInt(parts[fields.colorsFront]) : undefined;
+                    let cColorsBack = fields.colorsBack !== undefined ? parseInt(parts[fields.colorsBack]) : undefined;
+                    let cUps = fields.ups !== undefined ? parseInt(parts[fields.ups]) : undefined;
+                    let cSides = fields.sides !== undefined ? parseInt(parts[fields.sides]) : undefined;
+                    let cMachineId = fields.machineId !== undefined ? parts[fields.machineId] : undefined;
+                    let cPaperId = fields.paperId !== undefined ? parts[fields.paperId] : undefined;
+
+                    compPages.push({
+                        componentId: c.id,
+                        componentName: c.name,
+                        pages: isNaN(pVal) ? fallbackPages : pVal,
+                        colorsFront: cColorsFront !== undefined && !isNaN(cColorsFront) ? cColorsFront : c.params.colorsFront,
+                        colorsBack: cColorsBack !== undefined && !isNaN(cColorsBack) ? cColorsBack : c.params.colorsBack,
+                        ups: cUps !== undefined && !isNaN(cUps) ? cUps : c.params.ups,
+                        sides: cSides !== undefined && !isNaN(cSides) ? cSides : c.params.sides,
+                        machineId: cMachineId !== undefined ? cMachineId : c.params.machineId,
+                        paperId: cPaperId !== undefined ? cPaperId : c.params.paperId
+                    });
+                });
+
+                if (colMap.descIdx !== -1) {
+                    desc = parts[colMap.descIdx] || '';
+                }
+            } else {
+                name = parts[0] || '';
+                let qtyVal = parseInt(parts[1]);
+                qty = isNaN(qtyVal) ? parseInt(quantity) : qtyVal;
+
+                let pageStartIdx = 2;
+                if (parts.length >= pComps.length + 4) {
+                    let markupVal = parseFloat(parts[2]);
+                    markup = isNaN(markupVal) ? parseFloat(markupPercent || 0) : markupVal;
+                    pageStartIdx = 3;
+                } else {
+                    pageStartIdx = 2;
+                }
+
+                const totalComps = pComps.length;
+                let colsPerComp = 1;
+                if (parts.length >= pageStartIdx + totalComps * 7) {
+                    colsPerComp = 7;
+                }
+
+                let colIdx = pageStartIdx;
+                pComps.forEach(c => {
+                    if (colsPerComp === 7) {
+                        let pVal = parseInt(parts[colIdx]);
+                        let cColorsFront = parseInt(parts[colIdx + 1]);
+                        let cColorsBack = parseInt(parts[colIdx + 2]);
+                        let cUps = parseInt(parts[colIdx + 3]);
+                        let cSides = parseInt(parts[colIdx + 4]);
+                        let cMachineId = parts[colIdx + 5];
+                        let cPaperId = parts[colIdx + 6];
+
+                        let fallbackPages = parseInt(c.params.pages) || parseInt(c.params.sides) || 0;
+
+                        compPages.push({
+                            componentId: c.id,
+                            componentName: c.name,
+                            pages: isNaN(pVal) ? fallbackPages : pVal,
+                            colorsFront: isNaN(cColorsFront) ? c.params.colorsFront : cColorsFront,
+                            colorsBack: isNaN(cColorsBack) ? c.params.colorsBack : cColorsBack,
+                            ups: isNaN(cUps) ? c.params.ups : cUps,
+                            sides: isNaN(cSides) ? c.params.sides : cSides,
+                            machineId: cMachineId !== undefined ? cMachineId : c.params.machineId,
+                            paperId: cPaperId !== undefined ? cPaperId : c.params.paperId
+                        });
+                        colIdx += 7;
+                    } else {
+                        let pVal = parseInt(parts[colIdx]);
+                        let fallback = parseInt(c.params.pages) || parseInt(c.params.sides) || 0;
+                        compPages.push({
+                            componentId: c.id,
+                            componentName: c.name,
+                            pages: isNaN(pVal) ? fallback : pVal,
+                            colorsFront: c.params.colorsFront,
+                            colorsBack: c.params.colorsBack,
+                            ups: c.params.ups,
+                            sides: c.params.sides,
+                            machineId: c.params.machineId,
+                            paperId: c.params.paperId
+                        });
+                        colIdx++;
+                    }
+                });
+
+                if (parts.length > colIdx) {
+                    desc = parts.slice(colIdx).join(separator).trim();
+                } else {
+                    desc = jobDescription;
+                }
+            }
+
+            if (!name) {
+                const pageStr = compPages.map(cp => `${cp.pages}pg`).join('-');
+                name = `${estimationName || 'Estimation'} - ${pageStr}`;
+            }
+
+            return {
+                name,
+                qty,
+                markup,
+                pages: compPages,
+                description: desc
+            };
+        });
+    };
+
+    const handleGenerateTemplate = () => {
+        const pComps = getPrintComponents();
+        if (pComps.length === 0) {
+            toast.error("No print components found in this estimation.");
+            return;
+        }
+
+        const targetComp = pComps.find(c => c.id === bulkSelectedComponentId) || pComps[0];
+        
+        let pList = bulkPageCounts
+            .split(',')
+            .map(p => parseInt(p.trim()))
+            .filter(p => !isNaN(p) && p > 0);
+        
+        if (pList.length === 0) {
+            toast.error("Please enter a valid list of page counts.");
+            return;
+        }
+
+        let qList = bulkQuantities
+            .split(',')
+            .map(q => parseInt(q.trim()))
+            .filter(q => !isNaN(q) && q > 0);
+        if (qList.length === 0) {
+            qList = [parseInt(quantity)];
+        }
+
+        let mList = bulkMarkupRates
+            ? bulkMarkupRates.split(',').map(m => parseFloat(m.trim())).filter(m => !isNaN(m))
+            : [parseFloat(markupPercent || 0)];
+        if (mList.length === 0) {
+            mList = [parseFloat(markupPercent || 0)];
+        }
+
+        const headerRow = buildBulkHeaderRow(pComps);
+        let csvRows = [headerRow];
+        const maxLen = Math.max(pList.length, qList.length, mList.length);
+        for (let i = 0; i < maxLen; i++) {
+            const p = pList[Math.min(i, pList.length - 1)];
+            const q = qList[Math.min(i, qList.length - 1)];
+            const m = mList[Math.min(i, mList.length - 1)];
+
+            const rowParts = [];
+            let name = bulkNamingPattern
+                .replace('[Original]', estimationName || 'Estimation')
+                .replace('[Pages]', p)
+                .replace('[Qty]', q)
+                .replace('[Markup]', m);
+            
+            let desc = bulkDescPattern
+                .replace('[Original]', jobDescription || '')
+                .replace('[Pages]', p)
+                .replace('[Qty]', q)
+                .replace('[Markup]', m);
+            
+            rowParts.push(escapeCSVField(name));
+            rowParts.push(q);
+            rowParts.push(m);
+
+            pComps.forEach(c => {
+                if (c.id === targetComp.id) {
+                    rowParts.push(p);
+                    rowParts.push(c.params.colorsFront || 0);
+                    rowParts.push(c.params.colorsBack || 0);
+                    rowParts.push(c.params.ups || 1);
+                    rowParts.push(c.params.sides || 1);
+                    rowParts.push(c.params.machineId || '');
+                    rowParts.push(c.params.paperId || '');
+                } else {
+                    rowParts.push(c.params.pages || c.params.sides || 0);
+                    rowParts.push(c.params.colorsFront || 0);
+                    rowParts.push(c.params.colorsBack || 0);
+                    rowParts.push(c.params.ups || 1);
+                    rowParts.push(c.params.sides || 1);
+                    rowParts.push(c.params.machineId || '');
+                    rowParts.push(c.params.paperId || '');
+                }
+            });
+
+            rowParts.push(escapeCSVField(desc || ''));
+            csvRows.push(rowParts.join(', '));
+        }
+
+        setBulkPageList(csvRows.join('\n'));
+        setBulkMethod('list');
+        toast.success(`Generated ${csvRows.length - 1} rows in the editor!`);
+    };
+
+    const updateRowCell = (rowIndex, field, value, subIndex = null, subField = 'pages') => {
+        const parsed = parseBulkText(bulkPageList);
+        if (!parsed[rowIndex]) return;
+
+        if (field === 'name') {
+            parsed[rowIndex].name = value;
+        } else if (field === 'qty') {
+            parsed[rowIndex].qty = value === '' ? '' : (parseInt(value) || 0);
+        } else if (field === 'markup') {
+            parsed[rowIndex].markup = value === '' ? '' : (parseFloat(value) || 0);
+        } else if (field === 'description') {
+            parsed[rowIndex].description = value;
+        } else if (field === 'pages' && subIndex !== null) {
+            if (parsed[rowIndex].pages[subIndex]) {
+                if (subField === 'pages' || subField === 'colorsFront' || subField === 'colorsBack' || subField === 'ups' || subField === 'sides') {
+                    parsed[rowIndex].pages[subIndex][subField] = value === '' ? '' : (parseInt(value) || 0);
+                } else {
+                    parsed[rowIndex].pages[subIndex][subField] = value;
+                }
+            }
+        }
+
+        // Convert parsed rows back to text format
+        const pComps = getPrintComponents();
+        const header = buildBulkHeaderRow(pComps);
+        const rows = parsed.map(row => {
+            const rowParts = [];
+            rowParts.push(escapeCSVField(row.name));
+            rowParts.push(row.qty);
+            rowParts.push(row.markup);
+            pComps.forEach(pc => {
+                const pObj = row.pages.find(p => p.componentId === pc.id || p.componentName === pc.name);
+                if (pObj) {
+                    rowParts.push(pObj.pages);
+                    rowParts.push(pObj.colorsFront);
+                    rowParts.push(pObj.colorsBack);
+                    rowParts.push(pObj.ups);
+                    rowParts.push(pObj.sides);
+                    rowParts.push(pObj.machineId || '');
+                    rowParts.push(pObj.paperId || '');
+                } else {
+                    rowParts.push('', '', '', '', '', '', '');
+                }
+            });
+            rowParts.push(escapeCSVField(row.description));
+            return rowParts.join(', ');
+        });
+
+        setBulkPageList([header, ...rows].join('\n'));
+    };
+
+    const handleExportCSV = () => {
+        const parsed = parseBulkText(bulkPageList);
+        if (parsed.length === 0) {
+            toast.error("No variations to export.");
+            return;
+        }
+        const pComps = getPrintComponents();
+        const headerRow = buildBulkHeaderRow(pComps);
+        const headers = splitCSVLine(headerRow, ',');
+        
+        const rows = parsed.map(row => {
+            const line = [];
+            line.push(escapeCSVField(row.name));
+            line.push(row.qty);
+            line.push(row.markup);
+            pComps.forEach(pc => {
+                const pObj = row.pages.find(p => p.componentId === pc.id || p.componentName === pc.name);
+                if (pObj) {
+                    line.push(pObj.pages);
+                    line.push(pObj.colorsFront);
+                    line.push(pObj.colorsBack);
+                    line.push(pObj.ups);
+                    line.push(pObj.sides);
+                    line.push(escapeCSVField(pObj.machineId || ''));
+                    line.push(escapeCSVField(pObj.paperId || ''));
+                } else {
+                    line.push('', '', '', '', '', '', '');
+                }
+            });
+            line.push(escapeCSVField(row.description));
+
+            return line.join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${estimationName || 'estimations'}_variations_preview.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const getCutSheetDimensions = (W, H, factor) => {
+        const f = parseFloat(factor) || 1.0;
+        if (f <= 1.0) return { width: W, height: H };
+
+        const num = Math.round(f);
+        let bestCols = 1;
+        let bestRows = num;
+        let minDifference = Infinity;
+
+        for (let c = 1; c <= num; c++) {
+            if (num % c === 0) {
+                const r = num / c;
+                const origRatio = W / H;
+                const cutRatio = (W / c) / (H / r);
+                const diff = Math.abs(origRatio - cutRatio);
+                if (diff < minDifference) {
+                    minDifference = diff;
+                    bestCols = c;
+                    bestRows = r;
+                }
+            }
+        }
+
+        let finalW, finalH;
+        if (W >= H) {
+            const div1 = Math.max(bestCols, bestRows);
+            const div2 = Math.min(bestCols, bestRows);
+            finalW = W / div1;
+            finalH = H / div2;
+        } else {
+            const div1 = Math.max(bestCols, bestRows);
+            const div2 = Math.min(bestCols, bestRows);
+            finalW = W / div2;
+            finalH = H / div1;
+        }
+
+        return {
+            width: Math.round(finalW * 100) / 100,
+            height: Math.round(finalH * 100) / 100
+        };
+    };
+
+    const handleBulkGenerate = async () => {
+        const parsedRows = parseBulkText(bulkPageList);
+        if (parsedRows.length === 0) {
+            toast.error("No variations found to generate. Please paste or enter rows in the list editor.");
+            return;
+        }
+
+        if (parsedRows.length > 500) {
+            toast.error("Maximum 500 variations allowed in one batch.");
+            return;
+        }
+
+        if (!(await confirmDialog(`Generate and calculate ${parsedRows.length} estimation variations? This will create new entries in your estimations directory.`, { confirmLabel: 'Generate' }))) {
+            return;
+        }
+
+        setShowBulkModal(false);
+        setGeneratingBulk(true);
+        setBulkProgressCurrent(0);
+        setBulkProgressTotal(parsedRows.length);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < parsedRows.length; i++) {
+            const row = parsedRows[i];
+            try {
+                const updatedComponents = components.map(c => {
+                    const rowPagesObj = row.pages.find(rp => rp.componentId === c.id || rp.componentName === c.name);
+                    if (rowPagesObj) {
+                        const machine = machines.find(m => String(m.id) === String(rowPagesObj.machineId));
+                        const paper = papers.find(p => String(p.id) === String(rowPagesObj.paperId));
+
+                        let paperCost = c.params.paperCostPerSheet;
+                        if (paper) {
+                            paperCost = parseFloat(paper.unit_cost) || parseFloat(paper.cost_per_sheet) || 0;
+                        }
+
+                        const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                        const paperW = paper ? (parseFloat(paper.width_cm) || 0) : (parseFloat(c.params.paperWidthCm) || 0);
+                        const paperH = paper ? (parseFloat(paper.height_cm) || 0) : (parseFloat(c.params.paperHeightCm) || 0);
+                        const cutDims = getCutSheetDimensions(paperW, paperH, factor);
+
+                        return {
+                            ...c,
+                            quantity: row.qty,
+                            params: {
+                                ...c.params,
+                                pages: rowPagesObj.pages,
+                                colorsFront: rowPagesObj.colorsFront,
+                                colorsBack: rowPagesObj.colorsBack,
+                                ups: rowPagesObj.ups,
+                                sides: rowPagesObj.sides,
+                                machineId: rowPagesObj.machineId || null,
+                                paperId: rowPagesObj.paperId || null,
+                                paperName: paper ? paper.name : c.params.paperName,
+                                paperWidthCm: paperW,
+                                paperHeightCm: paperH,
+                                paperCostPerSheet: paperCost,
+                                cutWidthCm: cutDims.width,
+                                cutHeightCm: cutDims.height,
+                                plateCostPerUnit: machine ? (parseFloat(machine.plate_cost) || 0) : (parseFloat(c.params.plateCostPerUnit) || 0),
+                            }
+                        };
+                    }
+                    return {
+                        ...c,
+                        quantity: row.qty
+                    };
+                });
+
+                const payloadComponents = updatedComponents.map(c => {
+                    const norm = normalizeComponent(c);
+                    const selectedMachine = machines.find(m => String(m.id) === String(norm.params.machineId));
+                    const selectedPaper = papers.find(m => String(m.id) === String(norm.params.paperId));
+                    return {
+                        ...norm,
+                        params: {
+                            ...norm.params,
+                            machineSheetFactor: selectedMachine ? selectedMachine.sheet_factor : 1.0,
+                            machineSpeed: selectedMachine ? selectedMachine.speed : 0,
+                            machineSpeedUnit: selectedMachine ? selectedMachine.speed_unit : 'Sheets/Hr',
+                            makeReadyMinutes: selectedMachine ? selectedMachine.make_ready_minutes : 0,
+                            setup_minutes_per_plate: selectedMachine ? selectedMachine.setup_minutes_per_plate : 0,
+                            custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
+                            impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
+                            pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
+                            paperWidthCm: selectedPaper ? (parseFloat(selectedPaper.width_cm) || 0) : (parseFloat(norm.params.paperWidthCm) || 0),
+                            paperHeightCm: selectedPaper ? (parseFloat(selectedPaper.height_cm) || 0) : (parseFloat(norm.params.paperHeightCm) || 0),
+                        }
+                    };
+                });
+
+                const calcRes = await fetch('/api/items/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ components: payloadComponents })
+                });
+
+                if (!calcRes.ok) throw new Error("Calculation failed");
+                const calcData = await calcRes.json();
+
+                if (calcData.results) {
+                    calcData.results.forEach((r, idx) => {
+                        if (r && r.computedFinishings) {
+                            payloadComponents[idx].finishings = r.computedFinishings;
+                        }
+                    });
+                }
+
+                const saveRes = await fetch('/api/items/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_name: customerName,
+                        customer_id: customerId,
+                        estimation_name: row.name,
+                        job_description: row.description,
+                        quantity: row.qty,
+                        components: payloadComponents,
+                        markup_percent: row.markup,
+                        global_finishings: globalFinishings
+                    })
+                });
+
+                if (saveRes.ok) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (err) {
+                console.error(`Failed to generate variation ${row.name}:`, err);
+                failCount++;
+            }
+
+            setBulkProgressCurrent(prev => prev + 1);
+        }
+
+        setGeneratingBulk(false);
+        if (successCount > 0) {
+            toast.success(`Successfully generated ${successCount} variations!${failCount > 0 ? ` (${failCount} failed)` : ''}`);
+            router.push('/dashboard/items');
+        } else {
+            toast.error("Failed to generate variations.");
+        }
+    };
+
     const handleConvertToQuote = async (ignoreStock = false) => {
         setSaving(true);
 
@@ -645,6 +1322,447 @@ export default function EditQuotationPage({ params }) {
     return (
         <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
             <QuotationProgress visible={creatingQuotation} progress={qProgress} label={qLabel} />
+
+            {/* ── Bulk Instructions Modal ─────────────────────────────────── */}
+            {showInstructionsModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center gap-2 mb-4">
+                            <FiHelpCircle className="w-5 h-5 text-emerald-400" />
+                            <h2 className="text-lg font-bold text-white">How Bulk Page Generation Works</h2>
+                        </div>
+
+                        <div className="space-y-4 text-xs text-gray-300 leading-relaxed max-h-96 overflow-y-auto pr-1">
+                            <p>
+                                Use this tool to generate dozens or hundreds of variations of this estimation with different page counts automatically.
+                            </p>
+
+                            <div className="border-l-2 border-emerald-500/50 pl-3 py-1 space-y-2">
+                                <h4 className="font-semibold text-white font-bold">1. Select Page Count Method</h4>
+                                <ul className="list-disc pl-4 space-y-1">
+                                    <li><strong>Range:</strong> Creates variations using a start page, end page, and step interval (e.g. from 16 to 128 in steps of 8 creates: 16, 24, 32, ... 128).</li>
+                                    <li><strong>Specific List:</strong> Enter specific page counts separated by commas (e.g. <code className="text-emerald-400">16, 24, 48, 96</code>).</li>
+                                </ul>
+                            </div>
+
+                            <div className="border-l-2 border-emerald-500/50 pl-3 py-1 space-y-2">
+                                <h4 className="font-semibold text-white font-bold">2. Naming Pattern</h4>
+                                <p>
+                                    Customize the output names using placeholders:
+                                </p>
+                                <ul className="list-disc pl-4 space-y-1">
+                                    <li><code className="text-emerald-400">[Original]</code> inserts this estimation's current name.</li>
+                                    <li><code className="text-emerald-400">[Pages]</code> inserts the specific variation's page count.</li>
+                                </ul>
+                            </div>
+
+                            <div className="border-l-2 border-emerald-500/50 pl-3 py-1 space-y-2">
+                                <h4 className="font-semibold text-white font-bold">3. Component Target</h4>
+                                <p>
+                                    The generator updates page parameters for all non-Cover components. Cover components retain their sides/cover settings.
+                                </p>
+                            </div>
+
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-emerald-300 text-[11px]">
+                                <strong>Note:</strong> Each variation is fully calculated (running the pricing engine for sheets, plates, and finishings) before saving. This guarantees accurate costs!
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end mt-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowInstructionsModal(false)}
+                                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-semibold text-white transition-colors"
+                            >
+                                Got it
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Bulk Page Variations Modal ───────────────────────────────── */}
+            {showBulkModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl p-6 w-full max-w-4xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-lg font-bold text-white">Bulk Generate Variations</h2>
+                            <button
+                                type="button"
+                                onClick={() => setShowInstructionsModal(true)}
+                                className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
+                            >
+                                <FiHelpCircle size={14} /> Help & Instructions
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Generate variations with custom names, quantities, descriptions, and page counts per component.
+                        </p>
+
+                        {/* Tab Headers */}
+                        <div className="flex gap-2 mb-4 border-b border-white/10 pb-2">
+                            <button
+                                type="button"
+                                onClick={() => setBulkMethod('list')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bulkMethod === 'list'
+                                    ? 'bg-emerald-600 border-emerald-500 text-white'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                    }`}
+                            >
+                                1. List Editor / Excel Paste
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setBulkMethod('helper')}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bulkMethod === 'helper'
+                                    ? 'bg-emerald-600 border-emerald-500 text-white'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                    }`}
+                            >
+                                2. Auto-Generate Helper
+                            </button>
+                        </div>
+
+                        {bulkMethod === 'list' ? (
+                            <div className="space-y-4 text-xs">
+                                <div>
+                                    <div className="text-gray-400 mb-1 font-semibold uppercase tracking-wider text-[10px]">
+                                        Expected Columns (Comma or Tab Separated):
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 p-2.5 rounded-lg font-mono text-[10px] text-emerald-300">
+                                        Name | Qty | Markup % | {getPrintComponents().map(c => `${c.name} Pages`).join(' | ')} | Description
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 mt-1">
+                                        Tip: You can copy-paste directly from Microsoft Excel or Google Sheets. Leave any column blank to use the original value.
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-gray-400 font-semibold">Enter / Paste Rows:</label>
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={handleLoadActiveAsTemplate}
+                                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold hover:underline"
+                                            >
+                                                Load Current as Template
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setBulkPageList('')}
+                                                className="text-[10px] text-red-400 hover:text-red-300 font-semibold hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea
+                                        rows={6}
+                                        value={bulkPageList}
+                                        onChange={e => setBulkPageList(e.target.value)}
+                                        placeholder={`e.g. paste Excel rows with headers or raw values here...`}
+                                        className="w-full bg-secondary text-white border border-white/10 rounded-lg p-2.5 font-mono text-xs focus:outline-none focus:border-white/30"
+                                    />
+                                </div>
+
+                                {/* Preview Grid */}
+                                {parseBulkText(bulkPageList).length > 0 && (
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <div className="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">
+                                                Parsed Spreadsheet Preview ({parseBulkText(bulkPageList).length} rows):
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleExportCSV}
+                                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 hover:underline"
+                                            >
+                                                <FiDownload size={12} /> Export CSV / Excel
+                                            </button>
+                                        </div>
+                                        <div className="border border-white/10 rounded-lg overflow-x-auto max-h-60 overflow-y-auto">
+                                            <table className="w-full text-[11px] text-left border-collapse min-w-[1000px]">
+                                                <thead>
+                                                    <tr className="bg-white/5 border-b border-white/10 text-gray-400 font-semibold">
+                                                        <th className="p-2 border-r border-white/10 w-48">Name</th>
+                                                        <th className="p-2 border-r border-white/10 text-right w-16">Qty</th>
+                                                        <th className="p-2 border-r border-white/10 text-right w-16">Markup %</th>
+                                                        {getPrintComponents().flatMap(c => [
+                                                            <th key={`${c.id}-pages`} className="p-2 border-r border-white/10 text-right w-16 whitespace-nowrap">{c.name} Pages</th>,
+                                                            <th key={`${c.id}-colors`} className="p-2 border-r border-white/10 text-center w-20 whitespace-nowrap">{c.name} Colors (F/B)</th>,
+                                                            <th key={`${c.id}-ups`} className="p-2 border-r border-white/10 text-center w-20 whitespace-nowrap">{c.name} Ups/Sides</th>,
+                                                            <th key={`${c.id}-machine`} className="p-2 border-r border-white/10 text-left w-28 whitespace-nowrap">{c.name} Machine</th>,
+                                                            <th key={`${c.id}-paper`} className="p-2 border-r border-white/10 text-left w-36 whitespace-nowrap">{c.name} Paper</th>
+                                                        ])}
+                                                        <th className="p-2">Description</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {parseBulkText(bulkPageList).map((row, rIdx) => (
+                                                        <tr key={rIdx} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                                            <td className="p-1 border-r border-white/10">
+                                                                <input
+                                                                    type="text"
+                                                                    value={row.name}
+                                                                    onChange={e => updateRowCell(rIdx, 'name', e.target.value)}
+                                                                    className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded outline-none"
+                                                                />
+                                                            </td>
+                                                            <td className="p-1 border-r border-white/10">
+                                                                <input
+                                                                    type="number"
+                                                                    value={row.qty}
+                                                                    onChange={e => updateRowCell(rIdx, 'qty', e.target.value)}
+                                                                    className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-right font-mono outline-none"
+                                                                />
+                                                            </td>
+                                                            <td className="p-1 border-r border-white/10">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={row.markup}
+                                                                    onChange={e => updateRowCell(rIdx, 'markup', e.target.value)}
+                                                                    className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-right font-mono outline-none"
+                                                                />
+                                                            </td>
+                                                            {row.pages.map((p, pIdx) => (
+                                                                <React.Fragment key={pIdx}>
+                                                                    {/* Pages */}
+                                                                    <td className="p-1 border-r border-white/10">
+                                                                        <input
+                                                                            type="number"
+                                                                            value={p.pages}
+                                                                            onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'pages')}
+                                                                            className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-emerald-400 rounded text-right font-mono outline-none"
+                                                                        />
+                                                                    </td>
+                                                                    {/* Colors F/B */}
+                                                                    <td className="p-1 border-r border-white/10">
+                                                                        <div className="flex items-center gap-1 font-mono">
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="F"
+                                                                                value={p.colorsFront}
+                                                                                onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'colorsFront')}
+                                                                                className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-center outline-none"
+                                                                            />
+                                                                            <span className="text-gray-600">/</span>
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="B"
+                                                                                value={p.colorsBack}
+                                                                                onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'colorsBack')}
+                                                                                className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-center outline-none"
+                                                                            />
+                                                                        </div>
+                                                                    </td>
+                                                                    {/* Ups/Sides */}
+                                                                    <td className="p-1 border-r border-white/10">
+                                                                        <div className="flex items-center gap-1 font-mono">
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="U"
+                                                                                value={p.ups}
+                                                                                onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'ups')}
+                                                                                className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-center outline-none"
+                                                                            />
+                                                                            <span className="text-gray-600">/</span>
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="S"
+                                                                                value={p.sides}
+                                                                                onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'sides')}
+                                                                                className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded text-center outline-none"
+                                                                            />
+                                                                        </div>
+                                                                    </td>
+                                                                    {/* Machine Selection */}
+                                                                    <td className="p-1 border-r border-white/10">
+                                                                        <select
+                                                                            value={p.machineId || ''}
+                                                                            onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'machineId')}
+                                                                            className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded outline-none"
+                                                                        >
+                                                                            <option value="" className="bg-secondary text-white">Select Machine</option>
+                                                                            {machines.map(m => (
+                                                                                <option key={m.id} value={m.id} className="bg-secondary text-white">
+                                                                                    {m.name}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </td>
+                                                                    {/* Paper Selection */}
+                                                                    <td className="p-1 border-r border-white/10">
+                                                                        <select
+                                                                            value={p.paperId || ''}
+                                                                            onChange={e => updateRowCell(rIdx, 'pages', e.target.value, pIdx, 'paperId')}
+                                                                            className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-white rounded outline-none"
+                                                                        >
+                                                                            <option value="" className="bg-secondary text-white">Select Paper</option>
+                                                                            {papers.map(pa => (
+                                                                                <option key={pa.id} value={pa.id} className="bg-secondary text-white">
+                                                                                    {pa.name}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </td>
+                                                                </React.Fragment>
+                                                            ))}
+                                                            <td className="p-1">
+                                                                <input
+                                                                    type="text"
+                                                                    value={row.description}
+                                                                    onChange={e => updateRowCell(rIdx, 'description', e.target.value)}
+                                                                    className="w-full bg-transparent focus:bg-white/5 border border-transparent focus:border-white/10 px-1 py-0.5 text-xs text-gray-300 rounded outline-none"
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-4 text-xs">
+                                <div className="bg-white/5 border border-white/10 p-3 rounded-lg text-gray-400 leading-relaxed">
+                                    Use this helper to quickly generate a range of values for one component.
+                                    Once generated, it will be loaded into the <strong>List Editor</strong> where you can inspect, customize, or paste additional details before executing.
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Component to Vary:</label>
+                                        <select
+                                            value={bulkSelectedComponentId}
+                                            onChange={e => setBulkSelectedComponentId(e.target.value)}
+                                            className="w-full bg-secondary border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-white/30 text-xs"
+                                        >
+                                            {getPrintComponents().map(c => (
+                                                <option key={c.id} value={c.id}>{c.name} (currently {c.params.pages || c.params.sides || 0}pg)</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Page Counts (comma separated):</label>
+                                        <Input
+                                            value={bulkPageCounts}
+                                            onChange={e => setBulkPageCounts(e.target.value)}
+                                            placeholder="e.g. 16, 24, 32, 48, 64, 80, 96, 128"
+                                            className="bg-secondary border-white/10 text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Quantities (comma separated list):</label>
+                                        <Input
+                                            value={bulkQuantities}
+                                            onChange={e => setBulkQuantities(e.target.value)}
+                                            placeholder={`e.g. 500, 1000, 2000 (defaults to current: ${quantity})`}
+                                            className="bg-secondary border-white/10 text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Markup % Rates (comma separated list):</label>
+                                        <Input
+                                            value={bulkMarkupRates}
+                                            onChange={e => setBulkMarkupRates(e.target.value)}
+                                            placeholder={`e.g. 10, 15, 20 (defaults to current: ${markupPercent}%)`}
+                                            className="bg-secondary border-white/10 text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Naming Pattern:</label>
+                                        <Input
+                                            value={bulkNamingPattern}
+                                            onChange={e => setBulkNamingPattern(e.target.value)}
+                                            placeholder="[Original] - [Pages]pg"
+                                            className="bg-secondary border-white/10 text-xs"
+                                        />
+                                        <span className="text-[10px] text-gray-500 mt-1 block">
+                                            Placeholders: <code className="text-emerald-400">[Original]</code>, <code className="text-emerald-400">[Pages]</code>, <code className="text-emerald-400">[Qty]</code>, <code className="text-emerald-400">[Markup]</code>
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-400 mb-1 font-semibold">Description Pattern:</label>
+                                        <Input
+                                            value={bulkDescPattern}
+                                            onChange={e => setBulkDescPattern(e.target.value)}
+                                            placeholder="e.g. [Original] - [Pages]pg"
+                                            className="bg-secondary border-white/10 text-xs"
+                                        />
+                                        <span className="text-[10px] text-gray-500 mt-1 block">
+                                            Placeholders: <code className="text-emerald-400">[Original]</code>, <code className="text-emerald-400">[Pages]</code>, <code className="text-emerald-400">[Qty]</code>, <code className="text-emerald-400">[Markup]</code>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateTemplate}
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition-colors"
+                                >
+                                    Generate & Load into Editor
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-3 mt-6 border-t border-white/10 pt-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowBulkModal(false)}
+                                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-semibold text-gray-300 transition-colors"
+                            >
+                                Close
+                            </button>
+                            {bulkMethod === 'list' && (
+                                <button
+                                    type="button"
+                                    onClick={handleBulkGenerate}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-semibold text-white transition-colors"
+                                >
+                                    Generate Variations
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Bulk Progress Overlay ───────────────────────────────────────── */}
+            {generatingBulk && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
+                    <div className="bg-[#0f0f0f] border border-emerald-500/20 rounded-2xl p-8 w-full max-w-md text-center shadow-2xl">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+                        </div>
+                        <h3 className="text-md font-bold text-white mb-2">Generating Page Variations...</h3>
+                        <p className="text-xs text-gray-400 mb-4">
+                            Calculating machine sheet usage, plates, and costs for page variation {bulkProgressCurrent} of {bulkProgressTotal}.
+                        </p>
+
+                        <div className="w-full bg-white/5 rounded-full h-2.5 mb-2 overflow-hidden border border-white/10">
+                            <div
+                                className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
+                                style={{ width: `${(bulkProgressCurrent / bulkProgressTotal) * 100}%` }}
+                            />
+                        </div>
+
+                        <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                            <span>{Math.round((bulkProgressCurrent / bulkProgressTotal) * 100)}%</span>
+                            <span>{bulkProgressCurrent} / {bulkProgressTotal}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Stock Shortage Warning Modal ───────────────────────────────── */}
             {quotationShortages && (
@@ -1160,6 +2278,24 @@ export default function EditQuotationPage({ params }) {
                                     <FiFileText className="w-4 h-4" />
                                     Convert to Quote
                                 </Button>
+                                <div className="flex gap-2 items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBulkModal(true)}
+                                        className="flex-1 py-2 px-4 rounded-lg text-xs font-semibold bg-emerald-950/30 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 transition-all duration-300 flex items-center justify-center gap-2"
+                                    >
+                                        <FiCopy size={14} className="text-emerald-500" />
+                                        Bulk Generate
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowInstructionsModal(true)}
+                                        className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                        title="How to use Bulk Generator"
+                                    >
+                                        <FiHelpCircle size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </section>
 

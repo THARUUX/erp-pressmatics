@@ -143,7 +143,10 @@ const s = StyleSheet.create({
     signoffRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginTop: 25
+        position: 'absolute',
+        bottom: 30,
+        left: 20,
+        right: 20
     },
     signoffBox: {
         width: 160,

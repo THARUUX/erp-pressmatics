@@ -561,13 +561,37 @@ async function generateJobTasks(id) {
                     const matchingDetail = item.details?.find(d => d.id === f.quotation_item_detail_id);
                     const compName = matchingDetail ? (matchingDetail.component_name || '') : '';
                     
-                    const qty = parseFloat(f.quantity) || 0;
+                    const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
+                    const su = speedUnit.toLowerCase().trim();
+                    const itemQty = parseFloat(item.quantity) || 0;
+                    let runQty = parseFloat(f.quantity) || 0;
+
+                    if (su.includes('unit')) {
+                        runQty = itemQty;
+                    } else if (matchingDetail) {
+                        const pagesVal = parseInt(matchingDetail.pages) || 1;
+                        const upsVal = parseInt(matchingDetail.ups) || 1;
+                        const sidesVal = parseInt(matchingDetail.sides) || 1;
+                        const divisor = upsVal * sidesVal;
+                        let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+                        if (divisor > 0 && itemQty > 0) {
+                            netCutSheets = Math.ceil((pagesVal * itemQty) / divisor);
+                        }
+                        const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+
+                        if (su.includes('print')) {
+                            runQty = totalCutSheets * sidesVal;
+                        } else if (su.includes('sheet')) {
+                            runQty = totalCutSheets;
+                        }
+                    }
+
                     const speed = parseFloat(f.speed) || 0;
                     let estMins = null;
                     if (f.total_time && parseFloat(f.total_time) > 0) {
                         estMins = Math.round(parseFloat(f.total_time) * 60);
-                    } else if (qty && speed && f.cost_unit === 'Unit') {
-                        estMins = Math.ceil((qty / speed) * 60);
+                    } else if (runQty && speed) {
+                        estMins = Math.ceil((runQty / speed) * 60);
                     }
                     const finalMins = finConfig.estimated_minutes !== null ? finConfig.estimated_minutes : estMins;
 
@@ -582,7 +606,7 @@ async function generateJobTasks(id) {
                         machine_name: f.machine_name || (finConfig.machine_id ? machineMap.get(finConfig.machine_id) : null) || null,
                         display_order: finConfig.display_order,
                         estimated_minutes: finalMins,
-                        quantity: qty
+                        quantity: runQty
                     });
                 }
             } else {
@@ -596,15 +620,40 @@ async function generateJobTasks(id) {
 
                 for (const g of group.items) {
                     const f = g.finishing;
-                    const qty = parseFloat(f.quantity) || 0;
-                    combinedQty += qty;
+                    const matchingDetail = item.details?.find(d => d.id === f.quotation_item_detail_id);
+                    const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
+                    const su = speedUnit.toLowerCase().trim();
+                    const itemQty = parseFloat(item.quantity) || 0;
+                    let runQty = parseFloat(f.quantity) || 0;
+
+                    if (su.includes('unit')) {
+                        runQty = itemQty;
+                    } else if (matchingDetail) {
+                        const pagesVal = parseInt(matchingDetail.pages) || 1;
+                        const upsVal = parseInt(matchingDetail.ups) || 1;
+                        const sidesVal = parseInt(matchingDetail.sides) || 1;
+                        const divisor = upsVal * sidesVal;
+                        let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+                        if (divisor > 0 && itemQty > 0) {
+                            netCutSheets = Math.ceil((pagesVal * itemQty) / divisor);
+                        }
+                        const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+
+                        if (su.includes('print')) {
+                            runQty = totalCutSheets * sidesVal;
+                        } else if (su.includes('sheet')) {
+                            runQty = totalCutSheets;
+                        }
+                    }
+
+                    combinedQty += runQty;
 
                     const speed = parseFloat(f.speed) || 0;
                     let estMins = null;
                     if (f.total_time && parseFloat(f.total_time) > 0) {
                         estMins = Math.round(parseFloat(f.total_time) * 60);
-                    } else if (qty && speed && f.cost_unit === 'Unit') {
-                        estMins = Math.ceil((qty / speed) * 60);
+                    } else if (runQty && speed) {
+                        estMins = Math.ceil((runQty / speed) * 60);
                     }
                     if (estMins !== null) {
                         combinedEstMins += estMins;
@@ -763,6 +812,24 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
         orderIds
     );
 
+    let finishings = [];
+    try {
+        const [finRows] = await pool.execute(
+            `SELECT qif.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                    m.speed_unit AS machine_speed_unit, m.type AS machine_type
+             FROM quotation_item_finishings qif
+             JOIN quotation_items qi ON qif.quotation_item_id = qi.id
+             JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+             JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+             LEFT JOIN machines m ON qif.machine_id = m.id
+             WHERE so.id IN (${placeholders})`,
+            orderIds
+        );
+        finishings = finRows;
+    } catch (e) {
+        console.error('Error fetching finishings in enrichTasks:', e);
+    }
+
     for (const task of tasks) {
         const taskName = task.name || '';
         const isOffset = taskName.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
@@ -849,6 +916,84 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
                         totalImpressions,
                         itemQty: detail.item_qty || 0
                     });
+                }
+            }
+        } else {
+            // Match finishing
+            let bestFinishing = null;
+            let bestScore = -1;
+
+            const parts = taskName.split(' — ');
+            const finName = parts[0]?.trim().toLowerCase();
+            const compName = parts.length >= 3 ? parts[1]?.trim().toLowerCase() : '';
+
+            for (const f of finishings) {
+                if (f.sales_order_id !== task.sales_order_id) continue;
+                if (!f.name) continue;
+
+                let score = 0;
+                const fNameLower = f.name.toLowerCase().trim();
+
+                if (finName && fNameLower === finName) {
+                    score += 10;
+                } else if (finName && (fNameLower.includes(finName) || finName.includes(fNameLower))) {
+                    score += 5;
+                }
+
+                // If component name is in the task, match it with detail component name
+                if (compName && f.quotation_item_detail_id) {
+                    const d = details.find(det => det.id === f.quotation_item_detail_id);
+                    if (d && d.component_name) {
+                        const c2 = d.component_name.toLowerCase().trim();
+                        if (compName === c2) {
+                            score += 20;
+                        } else if (compName.includes(c2) || c2.includes(compName)) {
+                            score += 10;
+                        }
+                    }
+                }
+
+                if (task.machine_id && f.machine_id && task.machine_id === f.machine_id) {
+                    score += 2;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestFinishing = f;
+                }
+            }
+
+            const finishing = bestScore > 0 ? bestFinishing : null;
+            if (finishing) {
+                task.job_qty = finishing.item_qty || 0;
+
+                const speedUnit = task.custom_speed_unit || finishing.machine_speed_unit || finishing.cost_unit || '';
+                const su = speedUnit.toLowerCase().trim();
+                const matchingDetail = details.find(d => d.id === finishing.quotation_item_detail_id);
+
+                if (su.includes('unit')) {
+                    task.job_qty = finishing.item_qty || 0;
+                    if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
+                        task.quantity = finishing.item_qty || 0;
+                    }
+                } else if (matchingDetail) {
+                    const pagesVal = parseInt(matchingDetail.pages) || 1;
+                    const upsVal = parseInt(matchingDetail.ups) || 1;
+                    const sidesVal = parseInt(matchingDetail.sides) || 1;
+                    const divisor = upsVal * sidesVal;
+                    let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+                    if (divisor > 0 && finishing.item_qty > 0) {
+                        netCutSheets = Math.ceil((pagesVal * finishing.item_qty) / divisor);
+                    }
+                    const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+
+                    if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
+                        if (su.includes('print')) {
+                            task.quantity = totalCutSheets * sidesVal;
+                        } else if (su.includes('sheet')) {
+                            task.quantity = totalCutSheets;
+                        }
+                    }
                 }
             }
         }

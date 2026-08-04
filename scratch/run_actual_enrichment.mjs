@@ -1,7 +1,22 @@
-import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import mysql from 'mysql2/promise';
+import 'dotenv/config';
 
-// Resolve run quantity based on speed unit (mirrors tasks/route.js logic)
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '4000', 10),
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  timezone: '+00:00',
+  ssl: {
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: false,
+  },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
+
 function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
     const u = (speedUnit || 'Sheets/Hr').toLowerCase().trim();
     const sides = parseInt(sidesVal) || 1;
@@ -17,169 +32,6 @@ function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpre
     }
     if (u === 'impressions/hr') return totalImpressions || (totalCutSheets * sides);
     return qty;
-}
-
-// GET /api/job-planning
-// Returns { machines, orders }
-// orders includes tasks with machine_id + machine_name
-export async function GET() {
-    try {
-        const [employees] = await pool.execute(`SELECT id, name FROM employees`);
-        const [teams] = await pool.execute(`SELECT id, name FROM teams`);
-        let teamMembers = [];
-        try {
-            const [tmRows] = await pool.execute(`SELECT team_id, employee_id FROM team_members`);
-            teamMembers = tmRows;
-        } catch (e) {
-            teamMembers = [];
-        }
-
-        const empMap = new Map(employees.map(e => [e.id, e.name]));
-        const teamMap = new Map(teams.map(t => [t.id, t.name]));
-
-        const teamMembersMap = new Map();
-        for (const tm of teamMembers) {
-            const tId = parseInt(tm.team_id);
-            const eId = parseInt(tm.employee_id);
-            if (!teamMembersMap.has(tId)) teamMembersMap.set(tId, []);
-            teamMembersMap.get(tId).push(eId);
-        }
-
-        const resolveAssignedEmployees = (empIds, teamIds) => {
-            const empSet = new Set();
-            empIds.forEach(id => { if (id) empSet.add(parseInt(id)); });
-            teamIds.forEach(tId => {
-                const members = teamMembersMap.get(parseInt(tId)) || [];
-                members.forEach(eId => empSet.add(parseInt(eId)));
-            });
-            return Array.from(empSet)
-                .map(id => ({ id, name: empMap.get(id) }))
-                .filter(e => Boolean(e.name));
-        };
-
-        const [machinesRaw] = await pool.execute(`SELECT * FROM machines ORDER BY name ASC`);
-        const machines = machinesRaw.map(m => {
-            let empIds = []; try { empIds = typeof m.assigned_employee_ids === 'string' ? JSON.parse(m.assigned_employee_ids) : (m.assigned_employee_ids || []); } catch {}
-            if (!Array.isArray(empIds) || !empIds.length) { if (m.assigned_employee_id) empIds = [parseInt(m.assigned_employee_id)]; else empIds = []; }
-
-            let teamIds = []; try { teamIds = typeof m.assigned_team_ids === 'string' ? JSON.parse(m.assigned_team_ids) : (m.assigned_team_ids || []); } catch {}
-            if (!Array.isArray(teamIds) || !teamIds.length) { if (m.assigned_team_id) teamIds = [parseInt(m.assigned_team_id)]; else teamIds = []; }
-
-            let helperIds = []; try { helperIds = typeof m.assigned_helper_ids === 'string' ? JSON.parse(m.assigned_helper_ids) : (m.assigned_helper_ids || []); } catch {}
-            if (!Array.isArray(helperIds)) helperIds = [];
-
-            const empNames = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
-            const teamNames = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean).join(', ');
-            const helperNames = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
-
-            const assignedEmpsList = resolveAssignedEmployees(empIds, teamIds);
-            const assignedHelpersList = helperIds.map(id => ({ id, name: empMap.get(parseInt(id)) })).filter(e => Boolean(e.name));
-
-            return {
-                ...m,
-                assigned_employees_list: assignedEmpsList,
-                assigned_helpers_list: assignedHelpersList,
-                assigned_employee_name: empNames || null,
-                assigned_team_name: teamNames || null,
-                assigned_helper_name: helperNames || null
-            };
-        });
-
-        // Fetch all active sales orders, plus completed ones that have assigned machine tasks
-        const [orders] = await pool.execute(
-            `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id, so.kanban_position,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM sales_orders so
-             WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
-                OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
-             ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
-        );
-
-        // Fetch all finishings that do NOT have a machine assigned
-        const [finishingsRaw] = await pool.execute(
-            `SELECT * FROM finishings WHERE machine_id IS NULL OR is_machine = 0 ORDER BY name ASC`
-        );
-        const finishings = finishingsRaw.map(f => {
-            let empIds = []; try { empIds = typeof f.assigned_employee_ids === 'string' ? JSON.parse(f.assigned_employee_ids) : (f.assigned_employee_ids || []); } catch {}
-            if (!Array.isArray(empIds) || !empIds.length) { if (f.assigned_employee_id) empIds = [parseInt(f.assigned_employee_id)]; else empIds = []; }
-
-            let teamIds = []; try { teamIds = typeof f.assigned_team_ids === 'string' ? JSON.parse(f.assigned_team_ids) : (f.assigned_team_ids || []); } catch {}
-            if (!Array.isArray(teamIds) || !teamIds.length) { if (f.assigned_team_id) teamIds = [parseInt(f.assigned_team_id)]; else teamIds = []; }
-
-            let helperIds = []; try { helperIds = typeof f.assigned_helper_ids === 'string' ? JSON.parse(f.assigned_helper_ids) : (f.assigned_helper_ids || []); } catch {}
-            if (!Array.isArray(helperIds)) helperIds = [];
-
-            const empNames = empIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
-            const teamNames = teamIds.map(id => teamMap.get(parseInt(id))).filter(Boolean).join(', ');
-            const helperNames = helperIds.map(id => empMap.get(parseInt(id))).filter(Boolean).join(', ');
-
-            const assignedEmpsList = resolveAssignedEmployees(empIds, teamIds);
-            const assignedHelpersList = helperIds.map(id => ({ id, name: empMap.get(parseInt(id)) })).filter(e => Boolean(e.name));
-
-            return {
-                ...f,
-                assigned_employees_list: assignedEmpsList,
-                assigned_helpers_list: assignedHelpersList,
-                assigned_employee_name: empNames || null,
-                assigned_team_name: teamNames || null,
-                assigned_helper_name: helperNames || null
-            };
-        });
-
-        const orderIds = orders.map(o => o.id);
-        let tasks = [];
-        if (orderIds.length > 0) {
-            const placeholders = orderIds.map(() => '?').join(',');
-            const [rows] = await pool.execute(
-                `SELECT jt.*, m.name AS machine_label, m.type AS machine_type, so.delivery_date AS order_delivery_date
-                 FROM job_tasks jt
-                 LEFT JOIN machines m ON jt.machine_id = m.id
-                 LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-                 WHERE jt.sales_order_id IN (${placeholders}) OR jt.sales_order_id IS NULL
-                 ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
-                orderIds
-            );
-            tasks = await enrichTasksWithEstimationDetails(rows, orderIds);
-        } else {
-            const [rows] = await pool.execute(
-                `SELECT jt.*, m.name AS machine_label, m.type AS machine_type, NULL AS order_delivery_date
-                 FROM job_tasks jt
-                 LEFT JOIN machines m ON jt.machine_id = m.id
-                 WHERE jt.sales_order_id IS NULL
-                 ORDER BY jt.machine_position ASC, jt.display_order ASC, jt.id ASC`
-            );
-            tasks = await enrichTasksWithEstimationDetails(rows, []);
-        }
-
-        const standaloneTasks = tasks.filter(t => t.sales_order_id === null);
-
-        // Attach tasks to each order
-        const ordersWithTasks = orders.map(o => ({
-            ...o,
-            tasks: tasks.filter(t => t.sales_order_id === o.id),
-        }));
-
-        if (standaloneTasks.length > 0) {
-            ordersWithTasks.push({
-                id: null,
-                code: 'GENERAL',
-                customer_name: 'Standalone Tasks',
-                status: 'In Progress',
-                delivery_date: null,
-                quotation_id: null,
-                estimation_names: 'Manual / Standalone',
-                tasks: standaloneTasks,
-            });
-        }
-
-        return NextResponse.json({ machines, orders: ordersWithTasks, finishings, employees });
-    } catch (err) {
-        console.error('Job planning GET error:', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
 }
 
 async function enrichTasksWithEstimationDetails(tasks, orderIds) {
@@ -232,7 +84,6 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
 
                 let score = 0;
 
-                // Check component name match
                 if (compName && d.component_name) {
                     const c1 = compName.toLowerCase().trim();
                     const c2 = d.component_name.toLowerCase().trim();
@@ -243,12 +94,10 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                     }
                 }
 
-                // Check machine_id match
                 if (task.machine_id && d.machine_id && task.machine_id === d.machine_id) {
                     score += 5;
                 }
 
-                // Check type match
                 const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
                 if (typeMatch) {
                     score += 1;
@@ -304,7 +153,6 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                 }
             }
         } else {
-            // Match finishing
             let bestFinishing = null;
             let bestScore = -1;
 
@@ -325,7 +173,6 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                     score += 5;
                 }
 
-                // If component name is in the task, match it with detail component name
                 if (compName && f.quotation_item_detail_id) {
                     const d = details.find(det => det.id === f.quotation_item_detail_id);
                     if (d && d.component_name) {
@@ -385,3 +232,40 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
     }
     return tasks;
 }
+
+async function main() {
+    try {
+        const [tasks] = await pool.execute(
+            `SELECT jt.*, m.type AS machine_type 
+             FROM job_tasks jt
+             LEFT JOIN machines m ON jt.machine_id = m.id
+             WHERE jt.sales_order_id IS NOT NULL`
+        );
+        const orderIds = Array.from(new Set(tasks.map(t => t.sales_order_id).filter(Boolean)));
+        
+        console.log(`Loaded ${tasks.length} tasks across ${orderIds.length} orders.`);
+
+        const enriched = await enrichTasksWithEstimationDetails(JSON.parse(JSON.stringify(tasks)), orderIds);
+
+        console.log('\n--- COMPARISON ---');
+        let compared = 0;
+        for (let i = 0; i < tasks.length; i++) {
+            const original = tasks[i];
+            const updated = enriched[i];
+
+            if (original.name.toLowerCase().includes('laminating') || original.name.toLowerCase().includes('bind') || original.name.toLowerCase().includes('cut')) {
+                console.log(`Task ID ${original.id} | Name: ${original.name}`);
+                console.log(`  Original Qty: ${original.quantity} | Enriched Qty: ${updated.quantity} | job_qty: ${updated.job_qty}`);
+                compared++;
+                if (compared >= 20) break;
+            }
+        }
+
+        await pool.end();
+        process.exit(0);
+    } catch (e) {
+        console.error(e);
+        process.exit(1);
+    }
+}
+main();

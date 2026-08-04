@@ -3,6 +3,36 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FiX, FiDownload, FiExternalLink, FiPrinter, FiPackage, FiLayers, FiSettings, FiCheckCircle, FiClock, FiUser, FiCalendar, FiCpu, FiChevronDown, FiCheck } from 'react-icons/fi';
 
+function formatFinishingVolume(f, detail, itemQuantity) {
+    const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
+    const su = speedUnit.toLowerCase().trim();
+    const qtyVal = parseFloat(itemQuantity || (detail && detail.quantity)) || 0;
+    let qty = parseFloat(f.quantity) || 0;
+
+    if (su.includes('unit')) {
+        qty = qtyVal;
+    } else if (detail) {
+        const pagesVal = parseInt(detail.pages) || 1;
+        const upsVal = parseInt(detail.ups) || 1;
+        const sidesVal = parseInt(detail.sides) || 1;
+        const divisor = upsVal * sidesVal;
+        let netCutSheets = parseFloat(detail.printed_sheets) || 0;
+        if (divisor > 0 && qtyVal > 0) {
+            netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
+        }
+        const totalCutSheets = netCutSheets + (parseFloat(detail.wastage_sheets) || 0);
+
+        if (su.includes('print')) {
+            qty = totalCutSheets * sidesVal;
+        } else if (su.includes('sheet')) {
+            qty = totalCutSheets;
+        }
+    }
+
+    const displayUnit = speedUnit.replace(/\/(Hr|Hour|hr|h)$/i, '').trim();
+    return `${qty.toLocaleString()} ${displayUnit}`;
+}
+
 export default function JobTicketModal({ orderId, onClose }) {
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -376,7 +406,7 @@ export default function JobTicketModal({ orderId, onClose }) {
                                                                 <div className="flex flex-wrap gap-2">
                                                                     {detail.finishings.map((f, fIdx) => (
                                                                         <span key={fIdx} className="text-[10px] bg-slate-800 border border-white/10 px-2 py-0.5 rounded text-slate-200">
-                                                                            {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${f.quantity} ${(f.speed_unit || f.machine_speed_unit || f.cost_unit || '').replace(/\/(Hr|Hour|hr|h)$/i, '').trim()}` : ''}
+                                                                            {f.name} {f.machine_name ? `(${f.machine_name})` : ''} {f.quantity ? `— ${formatFinishingVolume(f, detail, item.quantity)}` : ''}
                                                                         </span>
                                                                     ))}
                                                                 </div>
@@ -395,7 +425,7 @@ export default function JobTicketModal({ orderId, onClose }) {
                                                     <div className="flex flex-wrap gap-2">
                                                         {item.globalFinishings.map((gf, gIdx) => (
                                                             <span key={gIdx} className="text-[11px] bg-indigo-900/40 border border-indigo-400/30 px-2 py-0.5 rounded text-indigo-200 font-medium">
-                                                                {gf.name} {gf.machine_name ? `(${gf.machine_name})` : ''} {gf.quantity ? `— ${gf.quantity} ${(gf.speed_unit || gf.machine_speed_unit || gf.cost_unit || '').replace(/\/(Hr|Hour|hr|h)$/i, '').trim()}` : ''}
+                                                                {gf.name} {gf.machine_name ? `(${gf.machine_name})` : ''} {gf.quantity ? `— ${formatFinishingVolume(gf, null, item.quantity)}` : ''}
                                                             </span>
                                                         ))}
                                                     </div>

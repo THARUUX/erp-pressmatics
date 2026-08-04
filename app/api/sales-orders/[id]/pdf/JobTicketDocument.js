@@ -213,13 +213,16 @@ const fmtFinishTime = (f, tasks) => {
 
 function formatFinishingVolume(f, matchingDetail, itemQuantity) {
     const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
+    const su = speedUnit.toLowerCase().trim();
+    const qtyVal = parseFloat(itemQuantity || (matchingDetail && matchingDetail.quantity)) || 0;
     let qty = parseFloat(f.quantity) || 0;
 
-    if (matchingDetail) {
+    if (su.includes('unit')) {
+        qty = qtyVal;
+    } else if (matchingDetail) {
         const pagesVal = parseInt(matchingDetail.pages) || 1;
         const upsVal = parseInt(matchingDetail.ups) || 1;
         const sidesVal = parseInt(matchingDetail.sides) || 1;
-        const qtyVal = parseFloat(itemQuantity || matchingDetail.quantity) || 0;
         const divisor = upsVal * sidesVal;
         let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
         if (divisor > 0 && qtyVal > 0) {
@@ -227,7 +230,6 @@ function formatFinishingVolume(f, matchingDetail, itemQuantity) {
         }
         const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
 
-        const su = speedUnit.toLowerCase().trim();
         if (su.includes('print')) {
             qty = totalCutSheets * sidesVal;
         } else if (su.includes('sheet')) {
