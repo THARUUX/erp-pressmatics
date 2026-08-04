@@ -105,7 +105,7 @@ export async function POST(req, { params }) {
         // 3. Update original task
         await connection.execute(
             `UPDATE job_tasks 
-             SET quantity = ?, estimated_minutes = ?, sheet_count = ?, impression_count = ?, updated_at = ? 
+             SET quantity = ?, estimated_minutes = ?, sheet_count = ?, impression_count = ?, is_manual = 1, updated_at = ? 
              WHERE id = ?`,
             [remainingQty, originalNewMinutes, remainingSheetCount, remainingImpCount, nowIso, taskId]
         );
@@ -136,8 +136,8 @@ export async function POST(req, { params }) {
             `INSERT INTO job_tasks (
                 sales_order_id, name, description, status, assigned_to, display_order, 
                 machine_id, machine_name, machine_position, scheduled_date, estimated_minutes, quantity, 
-                sheet_count, impression_count, custom_make_ready_minutes, custom_speed, custom_speed_unit, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                sheet_count, impression_count, custom_make_ready_minutes, custom_speed, custom_speed_unit, is_manual, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
             [
                 salesOrderId,
                 newName,
