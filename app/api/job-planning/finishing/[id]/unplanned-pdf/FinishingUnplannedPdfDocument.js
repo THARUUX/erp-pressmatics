@@ -118,13 +118,15 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
         const grouped = {};
         tasks.forEach(t => {
             const key = t.sales_order_id || 'standalone';
+            const parts = t.name ? t.name.split('—') : [];
+            const taskName = parts.length >= 2 ? parts[parts.length - 2]?.trim() : (t.name || 'Task');
             if (!grouped[key]) {
                 grouped[key] = {
-                    code: t.order_code || (t.sales_order_id ? 'SO-UNKNOWN' : 'STANDALONE'),
-                    customer_name: t.customer_name || 'Standalone / Indirect Tasks',
+                    code: t.order_code || (t.sales_order_id ? 'SO-UNKNOWN' : '—'),
+                    customer_name: t.sales_order_id === null ? 'Standalone Tasks' : (t.customer_name || '—'),
                     delivery_date: t.order_delivery_date || null,
                     job_notes: t.job_notes || '',
-                    estimation_names: t.estimation_names || '',
+                    estimation_names: t.sales_order_id === null ? 'Manual / Standalone' : (t.estimation_names || ''),
                     tasks: []
                 };
             }
@@ -270,17 +272,24 @@ export default function FinishingUnplannedPdfDocument({ finishing, stats, tasks,
                         </View>
 
                         {tasks.map((t, idx) => {
-                            const parts = t.name.split('—');
+                            const parts = t.name ? t.name.split('—') : [];
+                            const taskName = parts.length >= 2 ? parts[parts.length - 2]?.trim() : (t.name || 'Task');
                             const cleanName = parts[parts.length - 1]?.trim() || t.name;
                             const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
-                            const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
+                            const displayText = t.sales_order_id === null
+                                ? taskName
+                                : (operationDetail ? `${cleanName} (${operationDetail})` : cleanName);
                             const hasSubDetails = options.notes && t.job_notes || options.specs && t.componentSpecs || options.finishings && (t.finishingSpecs || t.globalFinishings?.length > 0);
 
                             return (
                                 <View key={idx} wrap={false} style={{ borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb' }}>
                                     <View style={s.tableRow}>
-                                        {selectedColumns.includes('code') && <Text style={[s.tableCellBold, { width: flatWidths.code }]}>{t.order_code || 'STANDALONE'}</Text>}
-                                        {selectedColumns.includes('customer') && <Text style={[s.tableCell, { width: flatWidths.customer }]}>{t.customer_name || '—'}</Text>}
+                                        {selectedColumns.includes('code') && <Text style={[s.tableCellBold, { width: flatWidths.code }]}>{t.order_code || '—'}</Text>}
+                                        {selectedColumns.includes('customer') && (
+                                            <Text style={[s.tableCell, { width: flatWidths.customer }]}>
+                                                {t.sales_order_id === null ? 'Standalone Task' : (t.customer_name || '—')}
+                                            </Text>
+                                        )}
                                         {selectedColumns.includes('name') && <Text style={[s.tableCellBold, { width: flatWidths.name }]}>{displayText}</Text>}
                                         {selectedColumns.includes('delivery') && (
                                             <Text style={[s.tableCell, { width: flatWidths.delivery }]}>

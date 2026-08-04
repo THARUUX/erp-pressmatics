@@ -213,8 +213,11 @@ function TaskCard({
         onDrop(draggedTaskId, columnId, task.id, dragOverPosition);
     };
 
-    const jobName = order?.estimation_names || order?.customer_name || 'No Job Name';
-    const customerName = order?.customer_name || '';
+    const isStandalone = task.sales_order_id === null;
+    const jobName = isStandalone
+        ? 'Standalone Task'
+        : (order?.estimation_names || order?.customer_name || 'No Job Name');
+    const customerName = isStandalone ? '' : (order?.customer_name || '');
     const orderCode = order?.code || '—';
     const dot = STATUS_DOT[task.status] || STATUS_DOT.pending;
     const hasCustom = task.custom_speed || task.custom_make_ready_minutes != null;
@@ -461,9 +464,9 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                 ? String(task.sheet_count)
                 : (task.quantity != null ? String(task.quantity) : '');
         } else {
-            return task.job_qty != null && task.job_qty !== 0
-                ? String(task.job_qty)
-                : (task.quantity != null ? String(task.quantity) : '');
+            return task.quantity != null && task.quantity !== 0
+                ? String(task.quantity)
+                : (task.job_qty != null ? String(task.job_qty) : '');
         }
     };
 

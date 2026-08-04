@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     FiChevronLeft, FiChevronRight, FiPrinter, FiDownload, FiPlus, FiX, FiCheck,
     FiUser, FiFilter, FiSearch, FiActivity, FiCalendar, FiGrid, FiClock,
@@ -247,7 +247,9 @@ function TaskCard({ task, employees = [], onDragStart, isDragging, onUpdateStatu
     const nameParts = task.name ? task.name.split('—') : [];
     const cleanName = nameParts.length >= 2 ? nameParts[nameParts.length - 2]?.trim() : (task.name || 'Task');
     const jobCode = task.order_code || 'GEN';
-    const jobLabel = task.customer_name || task.estimation_names || 'Standalone Job';
+    const jobLabel = task.sales_order_id === null
+        ? 'Standalone Task'
+        : (task.customer_name || task.estimation_names || 'Standalone Job');
 
     return (
         <div
@@ -314,42 +316,15 @@ function SearchableEmployeeSelect({ employees, value, onChange }) {
     }
 
     const dropdownRef = useRef(null);
-    const triggerRef = useRef(null);
-    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-
-    const updateCoords = () => {
-        if (triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect();
-            setCoords({
-                top: rect.bottom,
-                left: rect.left,
-                width: rect.width
-            });
-        }
-    };
 
     const handleFocus = () => {
-        updateCoords();
         setIsOpen(true);
     };
 
     const handleInputChange = (e) => {
         setSearchVal(e.target.value);
-        updateCoords();
         setIsOpen(true);
     };
-
-    useEffect(() => {
-        if (isOpen) {
-            updateCoords();
-            window.addEventListener('scroll', updateCoords, true);
-            window.addEventListener('resize', updateCoords);
-        }
-        return () => {
-            window.removeEventListener('scroll', updateCoords, true);
-            window.removeEventListener('resize', updateCoords);
-        };
-    }, [isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -362,15 +337,17 @@ function SearchableEmployeeSelect({ employees, value, onChange }) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [value]);
 
-    const filtered = employees.filter(e =>
-        e.name.toLowerCase().includes(searchVal.toLowerCase()) ||
-        (e.job_title || '').toLowerCase().includes(searchVal.toLowerCase()) ||
-        (e.department || '').toLowerCase().includes(searchVal.toLowerCase())
-    );
+    const filtered = searchVal && searchVal !== value
+        ? employees.filter(e =>
+            e.name.toLowerCase().includes(searchVal.toLowerCase()) ||
+            (e.job_title || '').toLowerCase().includes(searchVal.toLowerCase()) ||
+            (e.department || '').toLowerCase().includes(searchVal.toLowerCase())
+          )
+        : employees;
 
     return (
         <div className="relative w-full max-w-[320px] z-50" ref={dropdownRef}>
-            <div className="flex items-center relative" ref={triggerRef}>
+            <div className="flex items-center relative">
                 <input
                     type="text"
                     placeholder="Type to filter & select employee..."
@@ -394,13 +371,7 @@ function SearchableEmployeeSelect({ employees, value, onChange }) {
 
             {isOpen && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        top: `${coords.top + 6}px`,
-                        left: `${coords.left}px`,
-                        width: `${coords.width}px`,
-                    }}
-                    className="bg-[#0a0a14]/95 backdrop-blur-[20px] border border-white/10 rounded-xl max-h-[240px] overflow-y-auto z-[1000] shadow-2xl p-1"
+                    className="absolute top-full left-0 w-full mt-1.5 bg-[#0a0a14]/95 backdrop-blur-[20px] border border-white/10 rounded-xl max-h-[240px] overflow-y-auto z-[1000] shadow-2xl p-1"
                 >
                     {filtered.length === 0 ? (
                         <div className="px-3.5 py-3 text-xs text-slate-500 text-center">
@@ -438,7 +409,9 @@ function DetailedTaskRow({ task, onUpdateStatus }) {
     const nameParts = task.name ? task.name.split('—') : [];
     const cleanName = nameParts.length >= 2 ? nameParts[nameParts.length - 2]?.trim() : (task.name || 'Task');
     const jobCode = task.order_code || 'GEN';
-    const jobLabel = task.customer_name || task.estimation_names || 'Standalone Job';
+    const jobLabel = task.sales_order_id === null
+        ? 'Standalone Task'
+        : (task.customer_name || task.estimation_names || 'Standalone Job');
 
     const formatDuration = (mins) => {
         if (!mins) return '0m';
@@ -1041,7 +1014,7 @@ export default function EmployeePlanning({ orders = [], employees: initialEmploy
                             {viewMode === 'day' && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                     {/* Selection Header */}
-                                    <div className="flex gap-3 items-center flex-wrap bg-white/[0.03] backdrop-blur-[20px] border border-white/10 rounded-2xl p-4">
+                                    <div className="flex gap-3 items-center flex-wrap bg-white/[0.03] backdrop-blur-[20px] border border-white/10 rounded-2xl p-4 relative z-50">
                                         <label className="text-xs font-bold text-slate-400">
                                             Select Employee:
                                         </label>

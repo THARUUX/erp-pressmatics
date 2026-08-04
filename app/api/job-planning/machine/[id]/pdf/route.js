@@ -144,11 +144,11 @@ export async function GET(req, { params }) {
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
                   FROM job_tasks jt
-                  JOIN sales_orders so ON jt.sales_order_id = so.id
+                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
                   WHERE jt.machine_id IS NULL AND (
                       (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
                   )
-                  ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                  ORDER BY jt.scheduled_date ASC, jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
                 [startDateStr, endDateStr]
             );
             rawTasks = rows;
@@ -164,11 +164,11 @@ export async function GET(req, { params }) {
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
                   FROM job_tasks jt
-                  JOIN sales_orders so ON jt.sales_order_id = so.id
+                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
                   WHERE jt.machine_id = ? AND (
                       (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
                   )
-                  ORDER BY jt.scheduled_date ASC, so.delivery_date ASC, jt.display_order ASC`,
+                  ORDER BY jt.scheduled_date ASC, jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
                 [id, startDateStr, endDateStr]
             );
             rawTasks = rows;

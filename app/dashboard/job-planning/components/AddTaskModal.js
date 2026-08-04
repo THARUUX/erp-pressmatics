@@ -128,6 +128,7 @@ export default function AddTaskModal({
     initialMachineId = null,
     initialMachineName = '',
     isFinishing = false,
+    initialValues = null,
     onClose,
     onSuccess
 }) {

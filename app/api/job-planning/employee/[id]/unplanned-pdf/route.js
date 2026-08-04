@@ -42,7 +42,7 @@ export async function GET(req, { params }) {
              LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
              WHERE jt.assigned_to = ?
                AND jt.scheduled_date IS NULL
-             ORDER BY so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
+             ORDER BY jt.display_order ASC, jt.id ASC`,
             [employee.name]
         );
 

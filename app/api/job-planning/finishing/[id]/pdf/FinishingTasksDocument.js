@@ -180,16 +180,19 @@ export default function FinishingTasksDocument({ finishing, weekRangeStr, stats,
                                     </View>
 
                                     {tasks.map(t => {
-                                        const parts = t.name.split('—');
+                                        const parts = t.name ? t.name.split('—') : [];
+                                        const taskName = parts.length >= 2 ? parts[parts.length - 2]?.trim() : (t.name || 'Task');
                                         const cleanName = parts[parts.length - 1]?.trim() || t.name;
                                         const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
-                                        const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
+                                        const displayText = t.sales_order_id === null
+                                            ? taskName
+                                            : (operationDetail ? `${cleanName} (${operationDetail})` : cleanName);
 
                                         return (
                                             <View key={t.id} style={s.tableRow}>
                                                 {selectedColumns.includes('code') && <Text style={[s.tableCellBold, { width: colWidths.code }]}>{t.order_code || '—'}</Text>}
                                                 {selectedColumns.includes('customer') && <Text style={[s.tableCell, { width: colWidths.customer }]}>
-                                                    {t.estimation_names || t.customer_name || '—'}
+                                                    {t.sales_order_id === null ? 'Standalone Task' : (t.estimation_names || t.customer_name || '—')}
                                                 </Text>}
                                                 {selectedColumns.includes('name') && <Text style={[s.tableCell, { width: colWidths.name }]}>
                                                     {displayText}

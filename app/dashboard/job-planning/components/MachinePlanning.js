@@ -253,8 +253,13 @@ function TaskCard({
         onDrop(draggedTaskId, columnId, task.id, dragOverPosition);
     };
 
-    const jobName = order?.estimation_names || order?.customer_name || 'No Job Name';
-    const customerName = order?.customer_name || '';
+    const isStandalone = task.sales_order_id === null;
+    const parts = task.name ? task.name.split('—') : [];
+    const cleanName = parts.length >= 2 ? parts[parts.length - 2]?.trim() : (task.name || '');
+    const jobName = isStandalone
+        ? cleanName
+        : (order?.estimation_names || order?.customer_name || 'No Job Name');
+    const customerName = isStandalone ? '' : (order?.customer_name || '');
     const orderCode = order?.code || '—';
     const dot = STATUS_DOT[task.status] || STATUS_DOT.pending;
     const hasCustom = task.custom_speed || task.custom_make_ready_minutes != null;
@@ -548,7 +553,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                 return task.net_sheet_count ? (task.net_sheet_count * sides) : (task.impression_count || task.quantity || 0);
             }
         } else {
-            return task.job_qty || task.quantity || 0;
+            return task.quantity || task.job_qty || 0;
         }
     };
 
@@ -1651,7 +1656,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [showWeeklyPrintModal, setShowWeeklyPrintModal] = useState(false);
     const [weeklyPrintDays, setWeeklyPrintDays] = useState([0, 1, 2, 3, 4, 5, 6]);
-    
+
     // Export customization options
     const [exportFormat, setExportFormat] = useState('pdf'); // 'pdf' | 'csv'
     const [excludeCompleted, setExcludeCompleted] = useState(false);
