@@ -8,6 +8,164 @@ const matchesFinishing = (taskName, finName) => {
     return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
 };
 
+async function enrichTasksWithRevenueDetails(tasks, orderIds, resType) {
+    if (!tasks || !tasks.length || !orderIds || !orderIds.length) return tasks;
+
+    const placeholders = orderIds.map(() => '?').join(',');
+    
+    // Fetch details
+    const [details] = await pool.execute(
+        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                m.type AS machine_type
+         FROM quotation_item_details qid
+         JOIN quotation_items qi ON qid.quotation_item_id = qi.id
+         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+         JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+         LEFT JOIN machines m ON qid.machine_id = m.id
+         WHERE so.id IN (${placeholders})`,
+        orderIds
+    );
+
+    // Fetch finishings
+    let finishings = [];
+    try {
+        const [finRows] = await pool.execute(
+            `SELECT qif.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                    m.speed_unit AS machine_speed_unit, m.type AS machine_type
+             FROM quotation_item_finishings qif
+             JOIN quotation_items qi ON qif.quotation_item_id = qi.id
+             JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+             JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+             LEFT JOIN machines m ON qif.machine_id = m.id
+             WHERE so.id IN (${placeholders})`,
+            orderIds
+        );
+        finishings = finRows;
+    } catch (e) {
+        console.error('Error fetching finishings in enrichTasksWithRevenueDetails:', e);
+    }
+
+    for (const task of tasks) {
+        task.revenue = 0;
+        task.rate = 0;
+        task.rate_unit = '';
+        task.is_finishing = false;
+        task.printed_sheets = 0;
+        task.finishing_qty = 0;
+        task.component_name = '';
+
+        const taskName = task.name || '';
+
+        if (resType === 'machine') {
+            const isOffset = taskName.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
+            const isDigital = taskName.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
+            
+            const parts = taskName.split(' — ');
+            const compName = (parts.length >= 3 ? parts[1] : '') || '';
+
+            let bestDetail = null;
+            let bestScore = -1;
+
+            for (const d of details) {
+                if (d.sales_order_id !== task.sales_order_id) continue;
+
+                let score = 0;
+
+                // Check component name match
+                if (compName && d.component_name) {
+                    const c1 = compName.toLowerCase().trim();
+                    const c2 = d.component_name.toLowerCase().trim();
+                    if (c1 === c2) {
+                        score += 20;
+                    } else if (c1.includes(c2) || c2.includes(c1)) {
+                        score += 10;
+                    }
+                }
+
+                // Check machine_id match
+                if (task.machine_id && d.machine_id && task.machine_id === d.machine_id) {
+                    score += 5;
+                }
+
+                // Check type match
+                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
+                if (typeMatch) {
+                    score += 1;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDetail = d;
+                }
+            }
+
+            const detail = bestScore > 0 ? bestDetail : null;
+            if (detail) {
+                task.revenue = parseFloat(detail.final_printing_cost) || 0;
+                task.rate = parseFloat(detail.impression_cost_unit) || 0; // Impression rate per 1000
+                task.rate_unit = 'per 1000 impressions';
+                task.printed_sheets = parseFloat(detail.printed_sheets) || 0;
+                task.component_name = detail.component_name || '';
+            }
+        } else {
+            // finishing
+            task.is_finishing = true;
+            let bestFinishing = null;
+            let bestScore = -1;
+
+            const parts = taskName.split(' — ');
+            const finName = parts[0]?.trim().toLowerCase();
+            const compName = parts.length >= 3 ? parts[1]?.trim().toLowerCase() : '';
+
+            for (const f of finishings) {
+                if (f.sales_order_id !== task.sales_order_id) continue;
+                if (!f.name) continue;
+
+                let score = 0;
+                const fNameLower = f.name.toLowerCase().trim();
+
+                if (finName && fNameLower === finName) {
+                    score += 10;
+                } else if (finName && (fNameLower.includes(finName) || finName.includes(fNameLower))) {
+                    score += 5;
+                }
+
+                // If component name is in the task, match it with detail component name
+                if (compName && f.quotation_item_detail_id) {
+                    const d = details.find(det => det.id === f.quotation_item_detail_id);
+                    if (d && d.component_name) {
+                        const c2 = d.component_name.toLowerCase().trim();
+                        if (compName === c2) {
+                            score += 20;
+                        } else if (compName.includes(c2) || c2.includes(compName)) {
+                            score += 10;
+                        }
+                    }
+                }
+
+                if (task.machine_id && f.machine_id && task.machine_id === f.machine_id) {
+                    score += 2;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestFinishing = f;
+                }
+            }
+
+            const finishing = bestScore > 0 ? bestFinishing : null;
+            if (finishing) {
+                task.revenue = parseFloat(finishing.total_cost) || 0;
+                task.rate = parseFloat(finishing.unit_cost) || 0;
+                task.rate_unit = finishing.cost_unit || 'Unit';
+                task.finishing_qty = parseFloat(finishing.quantity) || 0;
+            }
+        }
+    }
+
+    return tasks;
+}
+
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
@@ -33,12 +191,13 @@ export async function GET(req) {
             }
             name = mRows[0].name;
 
-            let query = `SELECT jt.*, so.code AS order_code, so.customer_name,
+            let query = `SELECT jt.*, so.code AS order_code, so.customer_name, m.type AS machine_type,
                         CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL
                              THEN TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at)
                              ELSE NULL END AS actual_minutes
                   FROM job_tasks jt
                   LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
+                  LEFT JOIN machines m ON jt.machine_id = m.id
                   WHERE jt.machine_id = ?`;
             const paramsList = [id];
 
@@ -62,12 +221,13 @@ export async function GET(req) {
             const finName = fRows[0].name;
             name = finName;
 
-            let query = `SELECT jt.*, so.code AS order_code, so.customer_name,
+            let query = `SELECT jt.*, so.code AS order_code, so.customer_name, m.type AS machine_type,
                         CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL
                              THEN TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at)
                              ELSE NULL END AS actual_minutes
                  FROM job_tasks jt
                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
+                 LEFT JOIN machines m ON jt.machine_id = m.id
                  WHERE jt.machine_id IS NULL`;
             const paramsList = [];
 
@@ -89,6 +249,22 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 });
         }
 
+        // Enrich tasks with revenue details
+        const orderIds = Array.from(new Set(tasks.map(t => t.sales_order_id).filter(Boolean)));
+        if (orderIds.length > 0) {
+            await enrichTasksWithRevenueDetails(tasks, orderIds, type);
+        } else {
+            tasks.forEach(t => {
+                t.revenue = 0;
+                t.rate = 0;
+                t.rate_unit = '';
+                t.is_finishing = false;
+                t.printed_sheets = 0;
+                t.finishing_qty = 0;
+                t.component_name = '';
+            });
+        }
+
         // Metrics calculations
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'done').length;
@@ -103,6 +279,11 @@ export async function GET(req) {
         const totalActMinutes = tasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
         const unplannedDuration = tasks.filter(t => !t.scheduled_date).reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
         const uncompletedDuration = tasks.filter(t => t.status !== 'done').reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
+
+        // Revenue calculations
+        const totalRevenue = tasks.reduce((sum, t) => sum + (t.revenue || 0), 0);
+        const completedRevenue = tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.revenue || 0), 0);
+        const pendingRevenue = totalRevenue - completedRevenue;
 
         let finalUnplannedRunQty = unplannedRunQty;
         let finalUnplannedDuration = unplannedDuration;
@@ -151,7 +332,9 @@ export async function GET(req) {
                     runQty: 0,
                     completedRunQty: 0,
                     estMinutes: 0,
-                    actMinutes: 0
+                    actMinutes: 0,
+                    revenue: 0,
+                    completedRevenue: 0
                 };
             }
 
@@ -164,6 +347,8 @@ export async function GET(req) {
 
             dailyMap[key].estMinutes += (t.estimated_minutes || 0);
             dailyMap[key].actMinutes += (t.actual_minutes || 0);
+            dailyMap[key].revenue += (t.revenue || 0);
+            if (t.status === 'done') dailyMap[key].completedRevenue += (t.revenue || 0);
         });
 
         const dailySummary = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -184,7 +369,10 @@ export async function GET(req) {
                 totalEstMinutes,
                 totalActMinutes,
                 unplannedDuration: finalUnplannedDuration,
-                uncompletedDuration: finalUncompletedDuration
+                uncompletedDuration: finalUncompletedDuration,
+                totalRevenue,
+                completedRevenue,
+                pendingRevenue
             },
             dailySummary,
             tasks: tasks.map(t => ({
@@ -196,7 +384,14 @@ export async function GET(req) {
                 quantity: t.quantity,
                 scheduled_date: t.scheduled_date,
                 estimated_minutes: t.estimated_minutes,
-                actual_minutes: t.actual_minutes
+                actual_minutes: t.actual_minutes,
+                revenue: t.revenue || 0,
+                rate: t.rate || 0,
+                rate_unit: t.rate_unit || '',
+                printed_sheets: t.printed_sheets || 0,
+                finishing_qty: t.finishing_qty || 0,
+                is_finishing: t.is_finishing || false,
+                component_name: t.component_name || ''
             }))
         });
     } catch (err) {

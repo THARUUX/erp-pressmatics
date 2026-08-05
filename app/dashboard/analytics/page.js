@@ -158,6 +158,7 @@ export default function AnalyticsPage() {
     const [planReport, setPlanReport] = useState(null);
     const [planLoading, setPlanLoading] = useState(false);
     const [planSearch, setPlanSearch] = useState('');
+    const [prodRevenueChartMetric, setProdRevenueChartMetric] = useState('revenue'); // 'revenue' or 'rate'
     const [resSearchQuery, setResSearchQuery] = useState('');
     const [resDropdownOpen, setResDropdownOpen] = useState(false);
     const [planDurationType, setPlanDurationType] = useState('last_30_days');
@@ -536,6 +537,199 @@ export default function AnalyticsPage() {
                 itemStyle: { color: item.color }
             }))
         }],
+    } : null;
+
+    // Job-wise Revenue Option (Horizontal Bar Chart)
+    const prodRevenueBarOption = planReport?.tasks?.length ? {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            ...TT,
+            formatter: p => {
+                const item = p[0];
+                return `<b>${item.name}</b><br/>Revenue: <b>${fmtCurrency(item.value)}</b>`;
+            }
+        },
+        grid: { left: 10, right: 40, top: 10, bottom: 10, containLabel: true },
+        xAxis: {
+            type: 'value',
+            axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10, formatter: v => fmt(v) },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+        },
+        yAxis: {
+            type: 'category',
+            data: planReport.tasks
+                .filter(t => (t.revenue || 0) > 0)
+                .sort((a, b) => (a.revenue || 0) - (b.revenue || 0))
+                .slice(-10)
+                .map(t => {
+                    const parts = t.name.split(' — ');
+                    const cleanName = parts.length >= 3 ? parts[1] : (parts[0] || 'Job');
+                    return `${t.order_code || 'Unassigned'} - ${cleanName.substring(0, 15)}${cleanName.length > 15 ? '...' : ''}`;
+                }),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 9 }
+        },
+        series: [{
+            type: 'bar',
+            data: planReport.tasks
+                .filter(t => (t.revenue || 0) > 0)
+                .sort((a, b) => (a.revenue || 0) - (b.revenue || 0))
+                .slice(-10)
+                .map(t => Number(t.revenue || 0)),
+            barMaxWidth: 16,
+            itemStyle: {
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                    colorStops: [
+                        { offset: 0, color: 'rgba(16, 185, 129, 0.1)' },
+                        { offset: 1, color: 'rgba(16, 185, 129, 0.75)' }
+                    ]
+                },
+                borderRadius: [0, 4, 4, 0]
+            },
+            label: {
+                show: true,
+                position: 'right',
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: 9,
+                formatter: p => fmtCurrency(p.value)
+            }
+        }],
+    } : null;
+
+    // Job-wise Rate Option (Horizontal Bar Chart)
+    const prodRateBarOption = planReport?.tasks?.length ? {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            ...TT,
+            formatter: p => {
+                const item = p[0];
+                const task = planReport.tasks.find(t => {
+                    const parts = t.name.split(' — ');
+                    const cleanName = parts.length >= 3 ? parts[1] : (parts[0] || 'Job');
+                    const label = `${t.order_code || 'Unassigned'} - ${cleanName.substring(0, 15)}${cleanName.length > 15 ? '...' : ''}`;
+                    return label === item.name;
+                });
+                if (!task) return `<b>${item.name}</b><br/>Rate: <b>${fmtCurrency(item.value)}</b>`;
+                const unit = task.is_finishing ? (task.rate_unit || 'Unit') : '1k Imps';
+                const qty = task.is_finishing 
+                    ? `${fmt(task.quantity || task.finishing_qty)} ${task.rate_unit || 'Units'}`
+                    : `${fmt(task.printed_sheets || task.quantity)} Imps`;
+                return `<b>${task.name}</b><br/>
+                        Order: <b>${task.order_code || 'Unassigned'}</b><br/>
+                        Rate: <b>${fmtCurrency(task.rate)} / ${unit}</b><br/>
+                        Qty: <b>${qty}</b><br/>
+                        Est. Revenue: <b>${fmtCurrency(task.revenue)}</b>`;
+            }
+        },
+        grid: { left: 10, right: 40, top: 10, bottom: 10, containLabel: true },
+        xAxis: {
+            type: 'value',
+            axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10, formatter: v => fmt(v) },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+        },
+        yAxis: {
+            type: 'category',
+            data: planReport.tasks
+                .filter(t => (t.rate || 0) > 0)
+                .sort((a, b) => (a.rate || 0) - (b.rate || 0))
+                .slice(-10)
+                .map(t => {
+                    const parts = t.name.split(' — ');
+                    const cleanName = parts.length >= 3 ? parts[1] : (parts[0] || 'Job');
+                    return `${t.order_code || 'Unassigned'} - ${cleanName.substring(0, 15)}${cleanName.length > 15 ? '...' : ''}`;
+                }),
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 9 }
+        },
+        series: [{
+            type: 'bar',
+            data: planReport.tasks
+                .filter(t => (t.rate || 0) > 0)
+                .sort((a, b) => (a.rate || 0) - (b.rate || 0))
+                .slice(-10)
+                .map(t => Number(t.rate || 0)),
+            barMaxWidth: 16,
+            itemStyle: {
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 1, y2: 0,
+                    colorStops: [
+                        { offset: 0, color: 'rgba(59, 130, 246, 0.1)' },
+                        { offset: 1, color: 'rgba(59, 130, 246, 0.75)' }
+                    ]
+                },
+                borderRadius: [0, 4, 4, 0]
+            },
+            label: {
+                show: true,
+                position: 'right',
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: 9,
+                formatter: p => fmtCurrency(p.value)
+            }
+        }],
+    } : null;
+
+    // Daily Revenue Trend Option
+    const prodRevenueTrendOption = planReport?.dailySummary?.length ? {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            ...TT,
+            formatter: p => `<b>${p[0]?.name}</b><br/>` + p.map(i => `<span style="color:${i.color}">${i.seriesName}</span>: <b>${fmtCurrency(i.value)}</b>`).join('<br/>')
+        },
+        legend: { data: ['Potential Revenue', 'Realized Revenue'], textStyle: { color: 'rgba(255,255,255,0.3)', fontSize: 11 }, right: 0 },
+        grid: { left: 8, right: 8, top: 32, bottom: 0, containLabel: true },
+        xAxis: {
+            type: 'category',
+            data: planReport.dailySummary.map(d => new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })),
+            axisLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
+            axisTick: { show: false },
+            axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10 }
+        },
+        yAxis: {
+            type: 'value',
+            axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10, formatter: v => fmt(v) },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+        },
+        series: [
+            {
+                name: 'Potential Revenue',
+                type: 'line',
+                smooth: true,
+                data: planReport.dailySummary.map(d => d.revenue),
+                lineStyle: { color: 'rgba(59, 130, 246, 0.45)', width: 2, type: 'dashed' },
+                symbol: 'circle',
+                symbolSize: 4,
+                itemStyle: { color: 'rgba(59, 130, 246, 0.6)' }
+            },
+            {
+                name: 'Realized Revenue',
+                type: 'line',
+                smooth: true,
+                data: planReport.dailySummary.map(d => d.completedRevenue),
+                lineStyle: { color: 'rgba(16, 185, 129, 0.95)', width: 2 },
+                symbol: 'circle',
+                symbolSize: 6,
+                itemStyle: { color: 'rgba(16, 185, 129, 1)' },
+                areaStyle: {
+                    color: {
+                        type: 'linear',
+                        x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: [
+                            { offset: 0, color: 'rgba(16, 185, 129, 0.08)' },
+                            { offset: 1, color: 'rgba(0,0,0,0)' }
+                        ]
+                    }
+                }
+            },
+        ],
     } : null;
 
     const dailyMachineBarOption = reportData?.machines?.length ? {
@@ -1201,6 +1395,40 @@ export default function AnalyticsPage() {
                                         </div>
                                     </div>
 
+                                    {/* Report Revenue KPI Metrics Cards */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1.5">Total Potential Revenue</p>
+                                            <p className="text-xl font-bold text-blue-400 tracking-tight">{fmtCurrency(planReport.stats.totalRevenue)}</p>
+                                            <p className="text-[10px] text-white/30 mt-0.5">
+                                                Estimated revenue of all jobs
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1.5">Realized Revenue</p>
+                                            <p className="text-xl font-bold text-emerald-400 tracking-tight">{fmtCurrency(planReport.stats.completedRevenue)}</p>
+                                            <p className="text-[10px] text-white/30 mt-0.5">
+                                                Revenue from completed tasks
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1.5">Pending Revenue</p>
+                                            <p className="text-xl font-bold text-amber-400 tracking-tight">{fmtCurrency(planReport.stats.pendingRevenue)}</p>
+                                            <p className="text-[10px] text-white/30 mt-0.5">
+                                                Revenue from remaining tasks
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1.5">Average Revenue / Job</p>
+                                            <p className="text-xl font-bold text-white tracking-tight">
+                                                {fmtCurrency(planReport.tasks.length ? Math.round(planReport.stats.totalRevenue / planReport.tasks.length) : 0)}
+                                            </p>
+                                            <p className="text-[10px] text-white/30 mt-0.5">
+                                                Across {planReport.tasks.length} total tasks
+                                            </p>
+                                        </div>
+                                    </div>
+
                                     {/* Production Analytics Charts */}
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                         {/* Daily Production Time Trend */}
@@ -1226,6 +1454,105 @@ export default function AnalyticsPage() {
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* Production Financial / Revenue Charts */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                        {/* Job-wise Revenue or Rate Horizontal Bar Chart */}
+                                        <div className="lg:col-span-2 bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 flex flex-col justify-between">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider">
+                                                    {prodRevenueChartMetric === 'revenue' 
+                                                        ? 'Job-wise Revenue Distribution (Top 10)' 
+                                                        : `Job-wise Rate Comparison (Top 10)`}
+                                                </p>
+                                                <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/[0.05]">
+                                                    <button
+                                                        onClick={() => setProdRevenueChartMetric('revenue')}
+                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${
+                                                            prodRevenueChartMetric === 'revenue'
+                                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                                : 'text-white/40 hover:text-white/70 border border-transparent'
+                                                        }`}
+                                                    >
+                                                        Revenue
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setProdRevenueChartMetric('rate')}
+                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${
+                                                            prodRevenueChartMetric === 'rate'
+                                                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                                                : 'text-white/40 hover:text-white/70 border border-transparent'
+                                                        }`}
+                                                    >
+                                                        Rate
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {prodRevenueChartMetric === 'revenue' ? (
+                                                prodRevenueBarOption ? (
+                                                    <ReactECharts option={prodRevenueBarOption} style={{ height: 220 }} />
+                                                ) : (
+                                                    <div className="h-[220px] flex items-center justify-center text-white/20 text-xs">
+                                                        No revenue data available.
+                                                    </div>
+                                                )
+                                            ) : (
+                                                prodRateBarOption ? (
+                                                    <ReactECharts option={prodRateBarOption} style={{ height: 220 }} />
+                                                ) : (
+                                                    <div className="h-[220px] flex items-center justify-center text-white/20 text-xs">
+                                                        No rate data available.
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+
+                                        {/* Top Revenue Jobs List */}
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 flex flex-col justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-3.5">Top Jobs by Revenue</p>
+                                                <div className="space-y-2">
+                                                    {planReport.tasks
+                                                        .filter(t => (t.revenue || 0) > 0)
+                                                        .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+                                                        .slice(0, 4)
+                                                        .map((t, idx) => {
+                                                            const parts = t.name.split(' — ');
+                                                            const cleanName = parts.length >= 3 ? parts[1] : (parts[0] || 'Job');
+                                                            return (
+                                                                <div key={t.id || idx} className="flex items-center justify-between bg-white/[0.01] border border-white/[0.03] rounded-lg p-2 text-xs">
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-semibold text-white truncate max-w-[120px]">{t.order_code || 'Unassigned'}</p>
+                                                                        <p className="text-[10px] text-white/40 truncate max-w-[120px]">{t.customer_name || '—'}</p>
+                                                                    </div>
+                                                                    <div className="text-right shrink-0">
+                                                                        <p className="font-bold text-emerald-400">{fmtCurrency(t.revenue)}</p>
+                                                                        <p className="text-[9px] text-white/30">{t.is_finishing ? 'Finishing' : 'Print'}</p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    {planReport.tasks.filter(t => (t.revenue || 0) > 0).length === 0 && (
+                                                        <div className="h-[120px] flex items-center justify-center text-white/20 text-xs italic">
+                                                            No revenue generating tasks.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Daily Revenue Trend Chart */}
+                                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4">
+                                        <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-3">Daily Revenue Trend (Potential vs Realized)</p>
+                                        {prodRevenueTrendOption ? (
+                                            <ReactECharts option={prodRevenueTrendOption} style={{ height: 200 }} />
+                                        ) : (
+                                            <div className="h-[200px] flex items-center justify-center text-white/20 text-xs">
+                                                No daily scheduled revenue data available.
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Daily Production Progress Report */}
@@ -1324,9 +1651,11 @@ export default function AnalyticsPage() {
                                                                 <th className="px-4 py-2.5">SO Code</th>
                                                                 <th className="px-4 py-2.5">Customer</th>
                                                                 <th className="px-4 py-2.5">Task Description</th>
-                                                                <th className="px-4 py-2.5 text-right">Run Qty</th>
+                                                                <th className="px-4 py-2.5 text-right">Run Qty / Imps</th>
                                                                 <th className="px-4 py-2.5 text-center">Status</th>
                                                                 <th className="px-4 py-2.5">Scheduled Date</th>
+                                                                <th className="px-4 py-2.5 text-right font-mono">Rate</th>
+                                                                <th className="px-4 py-2.5 text-right font-mono">Revenue</th>
                                                                 <th className="px-4 py-2.5 text-right">Est. Time</th>
                                                                 <th className="px-4 py-2.5 text-right">Act. Time</th>
                                                             </tr>
@@ -1344,12 +1673,16 @@ export default function AnalyticsPage() {
                                                                         ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
                                                                         : 'bg-white/5 text-white/50 border-white/10';
 
+                                                                const qtyDisplay = t.is_finishing 
+                                                                    ? `${fmt(t.quantity || t.finishing_qty)} ${t.rate_unit || 'Units'}`
+                                                                    : `${fmt(t.printed_sheets || t.quantity)} Imps`;
+
                                                                 return (
                                                                     <tr key={t.id} className="hover:bg-white/[0.01] transition-colors">
                                                                         <td className="px-4 py-2.5 font-mono text-blue-400 font-semibold">{t.order_code || '—'}</td>
                                                                         <td className="px-4 py-2.5 text-white/70 max-w-[120px] truncate">{t.customer_name || '—'}</td>
                                                                         <td className="px-4 py-2.5 text-white font-medium">{displayText}</td>
-                                                                        <td className="px-4 py-2.5 text-right font-mono text-white/80">{fmt(t.quantity)}</td>
+                                                                        <td className="px-4 py-2.5 text-right font-mono text-white/80">{qtyDisplay}</td>
                                                                         <td className="px-4 py-2.5 text-center">
                                                                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${statusCls}`}>
                                                                                 {t.status}
@@ -1359,6 +1692,18 @@ export default function AnalyticsPage() {
                                                                             {t.scheduled_date ? new Date(t.scheduled_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : (
                                                                                 <span className="text-amber-400/60 font-semibold">Unplanned</span>
                                                                             )}
+                                                                        </td>
+                                                                        <td className="px-4 py-2.5 text-right text-white/50 font-mono">
+                                                                            {t.rate ? (
+                                                                                t.is_finishing ? (
+                                                                                    `${fmtCurrency(t.rate)} / ${t.rate_unit || 'Unit'}`
+                                                                                ) : (
+                                                                                    `${fmtCurrency(t.rate)} / 1k Imps`
+                                                                                )
+                                                                            ) : '—'}
+                                                                        </td>
+                                                                        <td className="px-4 py-2.5 text-right text-emerald-400 font-bold font-mono">
+                                                                            {t.revenue ? fmtCurrency(t.revenue) : '—'}
                                                                         </td>
                                                                         <td className="px-4 py-2.5 text-right text-white/50 font-mono">{formatMins(t.estimated_minutes)}</td>
                                                                         <td className="px-4 py-2.5 text-right text-white/70 font-mono">{formatMins(t.actual_minutes)}</td>

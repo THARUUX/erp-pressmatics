@@ -155,7 +155,9 @@ export async function middleware(request) {
             pathname === '/api/auth/login' ||
             pathname === '/api/auth/companies' ||
             pathname.startsWith('/api/portal/') ||
-            pathname === '/api/whatsapp/incoming';
+            pathname === '/api/whatsapp/incoming' ||
+            pathname.startsWith('/api/jobs/') ||
+            (pathname.startsWith('/api/sales-orders/') && pathname.includes('/tasks/'));
 
         if (!isPublicApi) {
             const token = request.cookies.get('token')?.value;
