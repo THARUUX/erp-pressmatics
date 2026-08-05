@@ -302,6 +302,10 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                         itemQty: detail.item_qty || 0
                     });
                 }
+                task.rate = parseFloat(detail.impression_cost_unit) || 0;
+                task.rate_unit = 'per 1000 impressions';
+                task.revenue = parseFloat(detail.final_printing_cost) || 0;
+                task.is_finishing = false;
             }
         } else {
             // Match finishing
@@ -380,6 +384,10 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                         }
                     }
                 }
+                task.rate = parseFloat(finishing.unit_cost) || 0;
+                task.rate_unit = finishing.cost_unit || 'Unit';
+                task.revenue = parseFloat(finishing.total_cost) || 0;
+                task.is_finishing = true;
             }
         }
     }

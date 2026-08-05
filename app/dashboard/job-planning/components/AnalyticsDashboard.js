@@ -1,12 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import ReactECharts from 'echarts-for-react';
 import {
     FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock,
     FiCpu, FiInbox, FiLayers, FiList, FiTrendingUp, FiZap,
 } from 'react-icons/fi';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
+function fmt(val) {
+    if (val === null || val === undefined) return '0';
+    return Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function fmtCurrency(val) {
+    if (val === null || val === undefined) return 'LKR 0.00';
+    return 'LKR ' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function getWeekStart(d = new Date()) {
     const day = new Date(d);
     const diff = day.getDay() === 0 ? -6 : 1 - day.getDay();
@@ -95,6 +105,111 @@ function StatusBadge({ count, label, color, grad }) {
 // ─── main component ──────────────────────────────────────────────────────────
 export default function AnalyticsDashboard({ machines, finishings, orders }) {
     const weekStart = useMemo(() => getWeekStart(), []);
+    const [chartMetric, setChartMetric] = useState('rate');
+
+    const allTasks = useMemo(() => orders.flatMap(o => o.tasks || []), [orders]);
+
+    const tasksWithDetails = useMemo(() => {
+        return allTasks.map(t => {
+            const order = orders.find(o => o.id === t.sales_order_id);
+            return {
+                ...t,
+                order_code: order?.code || 'GENERAL',
+                customer_name: order?.customer_name || 'Standalone Tasks'
+            };
+        });
+    }, [allTasks, orders]);
+
+    const chartTasks = useMemo(() => {
+        return tasksWithDetails
+            .filter(t => (chartMetric === 'rate' ? (t.rate || 0) > 0 : (t.revenue || 0) > 0))
+            .sort((a, b) => {
+                const valA = chartMetric === 'rate' ? (a.rate || 0) : (a.revenue || 0);
+                const valB = chartMetric === 'rate' ? (b.rate || 0) : (b.revenue || 0);
+                return valA - valB;
+            })
+            .slice(-10);
+    }, [tasksWithDetails, chartMetric]);
+
+    const areaChartOption = useMemo(() => {
+        if (!chartTasks.length) return null;
+
+        const xData = chartTasks.map(t => {
+            const parts = t.name.split(' — ');
+            const cleanName = parts.length >= 3 ? parts[1] : (parts[0] || 'Job');
+            return `${t.order_code} - ${cleanName.substring(0, 15)}${cleanName.length > 15 ? '...' : ''}`;
+        });
+
+        const seriesData = chartTasks.map(t => (chartMetric === 'rate' ? Number(t.rate || 0) : Number(t.revenue || 0)));
+
+        return {
+            backgroundColor: 'transparent',
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'line', lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+                backgroundColor: 'rgba(7, 7, 16, 0.95)',
+                borderColor: 'rgba(255, 255, 255, 0.12)',
+                borderWidth: 1,
+                textStyle: { color: '#f1f5f9', fontSize: 11 },
+                formatter: p => {
+                    const item = p[0];
+                    const task = chartTasks[item.dataIndex];
+                    if (!task) return '';
+                    const unit = task.is_finishing ? (task.rate_unit || 'Unit') : '1k Imps';
+                    const qty = task.is_finishing 
+                        ? `${fmt(task.quantity)} ${task.rate_unit || 'Units'}`
+                        : `${fmt(task.impression_count || task.quantity)} Imps`;
+                    return `<b>${task.name}</b><br/>
+                            Order: <b>${task.order_code}</b><br/>
+                            Customer: <b>${task.customer_name}</b><br/>
+                            Rate: <b>${fmtCurrency(task.rate)} / ${unit}</b><br/>
+                            Qty: <b>${qty}</b><br/>
+                            Est. Revenue: <b>${fmtCurrency(task.revenue)}</b>`;
+                }
+            },
+            grid: { left: 10, right: 20, top: 20, bottom: 10, containLabel: true },
+            xAxis: {
+                type: 'category',
+                data: xData,
+                axisLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 9, rotate: 20 },
+                axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+                axisTick: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { color: 'rgba(255,255,255,0.25)', fontSize: 10, formatter: v => fmt(v) },
+                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }
+            },
+            series: [{
+                type: 'line',
+                data: seriesData,
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 6,
+                itemStyle: {
+                    color: chartMetric === 'rate' ? '#06b6d4' : '#10b981'
+                },
+                lineStyle: {
+                    width: 2.5,
+                    color: chartMetric === 'rate' ? '#06b6d4' : '#10b981'
+                },
+                areaStyle: {
+                    color: {
+                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                        colorStops: chartMetric === 'rate' 
+                            ? [
+                                { offset: 0, color: 'rgba(6, 182, 212, 0.35)' },
+                                { offset: 1, color: 'rgba(6, 182, 212, 0.02)' }
+                              ]
+                            : [
+                                { offset: 0, color: 'rgba(16, 185, 129, 0.35)' },
+                                { offset: 1, color: 'rgba(16, 185, 129, 0.02)' }
+                              ]
+                    }
+                }
+            }],
+        };
+    }, [chartTasks, chartMetric]);
 
     // Build week date keys (Mon–Sun)
     const weekDays = useMemo(() => {
@@ -104,8 +219,6 @@ export default function AnalyticsDashboard({ machines, finishings, orders }) {
             return { dateStr: formatDateKey(d), label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) };
         });
     }, [weekStart]);
-
-    const allTasks = useMemo(() => orders.flatMap(o => o.tasks || []), [orders]);
 
     // ─── global stats ─────────────────────────────────────────────────────────
     const totalOrders  = orders.filter(o => o.id != null).length;
@@ -278,6 +391,47 @@ export default function AnalyticsDashboard({ machines, finishings, orders }) {
                             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${globalPct}%`, background: GRAD_GREEN }} />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* ── Job-wise Rate & Revenue Analysis ─────────────────────────── */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <SectionTitle icon={FiTrendingUp} title="Job-wise Rate & Revenue Analysis" accent="#06b6d4" />
+                    
+                    {/* Toggle Selector */}
+                    <div className="flex bg-white/5 border border-white/10 p-1 rounded-xl self-start sm:self-auto">
+                        <button
+                            onClick={() => setChartMetric('rate')}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                chartMetric === 'rate'
+                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/20'
+                                    : 'text-gray-400 hover:text-white border border-transparent'
+                            }`}
+                        >
+                            Job-wise Rates
+                        </button>
+                        <button
+                            onClick={() => setChartMetric('revenue')}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                chartMetric === 'revenue'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
+                                    : 'text-gray-400 hover:text-white border border-transparent'
+                            }`}
+                        >
+                            Job-wise Revenues
+                        </button>
+                    </div>
+                </div>
+
+                <div className="w-full font-sans" style={{ minHeight: '260px' }}>
+                    {areaChartOption ? (
+                        <ReactECharts option={areaChartOption} style={{ height: 260 }} />
+                    ) : (
+                        <div className="flex items-center justify-center h-48 border border-dashed border-white/5 rounded-xl bg-white/[0.01]">
+                            <span className="text-gray-500 text-xs">No rate or revenue data available for active jobs.</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
