@@ -1834,6 +1834,50 @@ export default function AttendancePage() {
                 </div>
             )}
 
+            {/* DAILY SHEET DATE PICKER MODAL */}
+            {showDailySheetModal && (
+                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowDailySheetModal(false)}>
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.07]">
+                            <h3 className="text-lg font-bold text-white">Daily Attendance Sheet</h3>
+                            <button onClick={() => setShowDailySheetModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Select Date</label>
+                                <input
+                                    type="date"
+                                    value={dailySheetDate}
+                                    onChange={e => setDailySheetDate(e.target.value)}
+                                    max={new Date().toISOString().slice(0, 10)}
+                                    className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-sm text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
+                                />
+                            </div>
+                            <p className="text-[11px] text-gray-500">
+                                Report will include check-in/out times, breaks, and work hours for all employees on the selected date.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDailySheetModal(false)}
+                                    className="flex-1 py-2.5 bg-white/5 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:bg-white/10 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleExportDailySheet(dailySheetDate)}
+                                    disabled={exportingDailySheet || !dailySheetDate}
+                                    className="flex-1 py-2.5 bg-emerald-600 border border-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    <FiDownload className="w-4 h-4" /> {exportingDailySheet ? 'Generating…' : 'Download'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* MANUAL ADJUSTMENT MODAL */}
             {showManualModal && (
                 <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowManualModal(false)}>
