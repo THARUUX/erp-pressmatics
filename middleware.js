@@ -157,6 +157,7 @@ export async function middleware(request) {
             pathname.startsWith('/api/portal/') ||
             pathname === '/api/whatsapp/incoming' ||
             pathname.startsWith('/api/jobs/') ||
+            pathname.startsWith('/api/operator/') ||
             (pathname.startsWith('/api/sales-orders/') && pathname.includes('/tasks/'));
 
         if (!isPublicApi) {
@@ -197,8 +198,8 @@ export async function middleware(request) {
         }
     }
 
-    // Protect all /dashboard and /operator routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/operator')) {
+    // Protect all /dashboard routes
+    if (pathname.startsWith('/dashboard')) {
         const token = request.cookies.get('token')?.value;
 
         if (!token) {
