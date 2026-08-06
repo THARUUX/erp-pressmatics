@@ -146,6 +146,9 @@ export default function AttendancePage() {
     const [columnFilters, setColumnFilters] = useState([]);
     const [columnVisibility, setColumnVisibility] = useState({});
     const [exportingPdf, setExportingPdf] = useState(false);
+    const [exportingDailySheet, setExportingDailySheet] = useState(false);
+    const [showDailySheetModal, setShowDailySheetModal] = useState(false);
+    const [dailySheetDate, setDailySheetDate] = useState(new Date().toISOString().slice(0, 10));
 
     const handleExportPDF = async () => {
         setExportingPdf(true);
@@ -191,6 +194,131 @@ export default function AttendancePage() {
             toast.error('An error occurred while generating PDF');
         } finally {
             setExportingPdf(false);
+        }
+    };
+
+    const handleExportDailySheet = async (targetDate) => {
+        setExportingDailySheet(true);
+        try {
+            // Fetch attendance data for the selected date
+            const statusRes = await fetch(`/api/attendance/current-status?date=${targetDate}`);
+            const dateStatusData = await statusRes.json();
+            if (!statusRes.ok) {
+                toast.error('Failed to load attendance data for selected date');
+                return;
+            }
+
+            const employees = dateStatusData.employees || [];
+            const dateObj = new Date(targetDate + 'T00:00:00');
+            const dateLabel = dateObj.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+
+            const columns = [
+                { key: 'name', header: 'Employee' },
+                { key: 'department', header: 'Department' },
+                { key: 'check_in', header: 'Check In' },
+                { key: 'check_out', header: 'Check Out' },
+                { key: 'break_time', header: 'Break' },
+                { key: 'work_hours', header: 'Work Hours' },
+                { key: 'status', header: 'Status' },
+            ];
+
+            const rows = employees.map(emp => {
+                const logs = (emp.todayLogs || []).sort((a, b) => parseLocalTime(a.timestamp) - parseLocalTime(b.timestamp));
+                const fmtTime = (ts) => {
+                    if (!ts) return '\u2014';
+                    const d = parseLocalTime(ts);
+                    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                };
+
+                const firstCheckIn = logs.find(l => l.state === 0 || l.state === 5);
+                const checkOuts = logs.filter(l => l.state === 1);
+                const lastCheckOut = checkOuts.length > 0 ? checkOuts[checkOuts.length - 1] : null;
+
+                let breakMins = 0;
+                let breakStart = null;
+                for (const log of logs) {
+                    if (log.state === 4) {
+                        breakStart = parseLocalTime(log.timestamp);
+                    } else if (log.state === 5 && breakStart) {
+                        breakMins += (parseLocalTime(log.timestamp) - breakStart) / 60000;
+                        breakStart = null;
+                    }
+                }
+                if (breakStart && emp.status === 'On Break') {
+                    breakMins += (Date.now() - breakStart.getTime()) / 60000;
+                }
+
+                let workMins = 0;
+                if (firstCheckIn) {
+                    const endTime = lastCheckOut ? parseLocalTime(lastCheckOut.timestamp) : (emp.status === 'Checked In' || emp.status === 'On Break' ? new Date() : null);
+                    if (endTime) {
+                        workMins = Math.max(0, (endTime - parseLocalTime(firstCheckIn.timestamp)) / 60000 - breakMins);
+                    }
+                }
+
+                const fmtDuration = (mins) => {
+                    if (!mins || mins <= 0) return '\u2014';
+                    const h = Math.floor(mins / 60);
+                    const m = Math.round(mins % 60);
+                    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                };
+
+                return {
+                    name: emp.name,
+                    department: emp.department || emp.job_title || '\u2014',
+                    check_in: fmtTime(firstCheckIn?.timestamp),
+                    check_out: fmtTime(lastCheckOut?.timestamp),
+                    break_time: fmtDuration(breakMins),
+                    work_hours: fmtDuration(workMins),
+                    status: emp.status,
+                };
+            });
+
+            const statusOrder = { 'Checked In': 0, 'On Break': 1, 'Checked Out': 2, 'Absent': 3 };
+            rows.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || a.name.localeCompare(b.name));
+
+            const summary = dateStatusData.summary || {};
+            const stats = [
+                { label: 'Total Active', value: summary.totalActive || 0 },
+                { label: 'Checked In', value: summary.checkedIn || 0 },
+                { label: 'On Break', value: summary.onBreak || 0 },
+                { label: 'Checked Out', value: summary.checkedOut || 0 },
+                { label: 'Absent', value: summary.absent || 0 },
+            ];
+
+            const res = await fetch('/api/pdf/dynamic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: 'Daily Attendance Sheet',
+                    subtitle: dateLabel,
+                    columns,
+                    rows,
+                    stats,
+                })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to generate daily sheet');
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `daily_attendance_${targetDate}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('Daily attendance sheet downloaded');
+            setShowDailySheetModal(false);
+        } catch (error) {
+            console.error('Daily sheet export error:', error);
+            toast.error('Failed to generate daily attendance sheet');
+        } finally {
+            setExportingDailySheet(false);
         }
     };
     
@@ -914,6 +1042,12 @@ export default function AttendancePage() {
                             className="px-4 py-2.5 bg-black/30 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         >
                             <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                        </button>
+                        <button
+                            onClick={() => { setDailySheetDate(new Date().toISOString().slice(0, 10)); setShowDailySheetModal(true); }}
+                            className="px-4 py-2.5 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 rounded-xl text-sm font-semibold hover:bg-emerald-600/30 hover:border-emerald-500/50 hover:text-emerald-200 transition-colors cursor-pointer flex items-center gap-2"
+                        >
+                            <FiDownload className="w-4 h-4" /> Daily Sheet
                         </button>
                         
                         {/* View Mode Toggle */}

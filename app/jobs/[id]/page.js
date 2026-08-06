@@ -37,7 +37,7 @@ function fmtDt(isoStr) {
     // Convert UTC → IST (UTC+5:30) manually
     const ist = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
     const day = String(ist.getUTCDate()).padStart(2, '0');
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const mon = months[ist.getUTCMonth()];
     const hr = String(ist.getUTCHours()).padStart(2, '0');
     const mn = String(ist.getUTCMinutes()).padStart(2, '0');
@@ -63,6 +63,8 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
     const [completedBy, setCB] = useState(task.completed_by || '');
     const [dtError, setDtError] = useState(false);
     const [quickDoneConfirm, setQuickDoneConfirm] = useState(false);
+    const [startTime, setStartTime] = useState(nowDt());
+    const [quickDoneTime, setQuickDoneTime] = useState(nowDt());
     const [startConfirm, setStartConfirm] = useState(false);
     const [startAssignee, setStartAssignee] = useState(task.assigned_to || '');
     const [isCustomAssignee, setIsCustomAssignee] = useState(false);
@@ -98,17 +100,19 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
         setIsCustomAssignee(false);
         setStartHelper(defaultHelper);
         setIsCustomHelper(false);
+        setStartTime(nowDt());
         setStartConfirm(true);
     };
     const confirmStart = () => {
         setStartConfirm(false);
         save('in_progress', {
             assigned_to: startAssignee || null,
-            helper_name: startHelper || null
+            helper_name: startHelper || null,
+            started_at: startTime ? new Date(startTime).toISOString() : new Date().toISOString()
         });
     };
     const handlePause = () => save('paused');
-    const handleQuickDone = () => setQuickDoneConfirm(true);
+    const handleQuickDone = () => { setQuickDoneTime(nowDt()); setQuickDoneConfirm(true); };
     const confirmQuickDone = () => {
         setQuickDoneConfirm(false);
         const estSheets = task.sheet_count != null ? parseFloat(task.sheet_count) : 0;
@@ -119,6 +123,7 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
             actual_sheets_wasted: estWastage,
             actual_plates_used: estPlates,
             downtime_minutes: 0, downtime_reason: 'None',
+            completed_at: quickDoneTime ? new Date(quickDoneTime).toISOString() : new Date().toISOString(),
         });
     };
 
@@ -140,19 +145,20 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
                     {status === 'done' && <FiCheck className="w-2.5 h-2.5 text-white" />}
                     {status === 'in_progress' && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex flex-col gap-1 min-w-0 w-full">
                     <div className="flex items-center gap-2">
-                        <div className={`font-semibold text-sm truncate ${status === 'done' ? 'text-neutral-500 line-through' : 'text-neutral-100'}`}>{task.name}</div>
-                        {task.estimated_minutes > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.08] text-neutral-400 font-semibold flex-shrink-0 inline-flex items-center gap-0.5"><FiClock className="w-3 h-3" /> {task.estimated_minutes < 60 ? `${task.estimated_minutes}m` : `${(task.estimated_minutes / 60).toFixed(1)}h`}</span>}
+                        <div className={`font-semibold text-sm truncate ${status === 'done' ? 'text-neutral-500 line-through' : 'text-neutral-100'}`}>{task.name.split('—')[0]}</div>
+                        {/*{task.estimated_minutes > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.08] text-neutral-400 font-semibold flex-shrink-0 inline-flex items-center gap-0.5"><FiClock className="w-3 h-3" /> {task.estimated_minutes < 60 ? `${task.estimated_minutes}m` : `${(task.estimated_minutes / 60).toFixed(1)}h`}</span>}*/}
+                        {task.name && <div className="text-[13px] text-neutral-400  truncate">{task.name.split('—')[1]}</div>}
                     </div>
-                    {task.machine_name && <div className="text-[10px] text-indigo-400 mt-0.5 inline-flex items-center gap-0.5"><FiPrinter className="w-3 h-3" /> {task.machine_name}</div>}
+                    {task.machine_name && <div className="text-[10px] text-indigo-400 mt-1 inline-flex items-center gap-0.5"><FiPrinter className="w-3 h-3" /> {task.machine_name}</div>}
                     {task.description && <div className="text-[11px] text-neutral-600 mt-0.5 truncate">{task.description}</div>}
                     {task.status === 'done' && <div className="text-[11px] text-emerald-500 mt-0.5 inline-flex items-center gap-0.5"><FiCheck className="w-3 h-3" /> {task.completed_by || task.assigned_to || 'Completed'}{task.completed_by_helper ? ` (Helper: ${task.completed_by_helper})` : ''}{task.completed_at && ` · ${fmtDt(task.completed_at)}`}</div>}
                 </div>
                 <div className="flex items-center gap-2.5 flex-shrink-0">
-                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${st.badge} ${status === 'in_progress' ? 'animate-pulse' : ''}`}>{st.label}</span>
                     {open ? <FiX className="w-4 h-4 text-neutral-500" /> : <FiChevronDown className="w-4 h-4 text-neutral-700" />}
                 </div>
+                {/* {status !== 'pending' && <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${st.badge} ${status === 'in_progress' ? 'animate-pulse' : ''}`}>{st.label}</span>} */}
             </button>
 
             {open && (
@@ -240,6 +246,15 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
                             <h3 className="font-extrabold text-white text-base">Quick Complete</h3>
                             <p className="text-[11px] text-neutral-400 mt-1.5 leading-relaxed">This will mark <span className="text-white font-semibold">{task.name}</span> as done using the estimated values.</p>
                         </div>
+                        <div className="bg-white/[0.02] border border-white/[0.06] p-3 rounded-xl">
+                            <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">Completed Time</label>
+                            <input
+                                type="datetime-local"
+                                value={quickDoneTime}
+                                onChange={e => setQuickDoneTime(e.target.value)}
+                                className="w-full px-3 py-2 bg-black border border-white/[0.09] rounded-xl text-xs text-white outline-none focus:border-emerald-500"
+                            />
+                        </div>
                         <div className="flex gap-2">
                             <button onClick={() => setQuickDoneConfirm(false)} className="flex-1 py-2.5 rounded-xl text-[11px] font-bold border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10 transition-all">Cancel</button>
                             <button onClick={confirmQuickDone} disabled={saving} className="flex-1 py-2.5 rounded-xl text-[11px] font-bold border border-emerald-500/60 bg-emerald-600 text-white hover:bg-emerald-500 transition-all disabled:opacity-40 inline-flex items-center justify-center gap-1"><FiCheck className="w-3.5 h-3.5" />Confirm</button>
@@ -260,11 +275,13 @@ function TaskItem({ task, orderId, onUpdated, onOpenComplete, allEmployees = [],
 
                         <div className="space-y-3 bg-white/[0.02] border border-white/[0.06] p-3 rounded-xl">
                             <div>
-                                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">Start Time (IST)</label>
-                                <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-                                    <FiClock className="w-3.5 h-3.5" />
-                                    {fmtDt(new Date().toISOString())}
-                                </div>
+                                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">Start Time</label>
+                                <input
+                                    type="datetime-local"
+                                    value={startTime}
+                                    onChange={e => setStartTime(e.target.value)}
+                                    className="w-full px-3 py-2 bg-black border border-white/[0.09] rounded-xl text-xs text-white outline-none focus:border-emerald-500"
+                                />
                             </div>
                             <div>
                                 {(() => {
@@ -473,6 +490,7 @@ export default function JobTrackerPage({ params }) {
     const [downtimeMinutes, setDowntimeMinutes] = useState('0');
     const [downtimeReason, setDowntimeReason] = useState('None');
     const [modalSaving, setModalSaving] = useState(false);
+    const [completionTime, setCompletionTime] = useState(nowDt());
 
     const load = useCallback(async () => {
         try {
@@ -498,6 +516,7 @@ export default function JobTrackerPage({ params }) {
         setActualPlates(task.plate_count > 0 ? String(task.plate_count) : '');
         setDowntimeMinutes('0');
         setDowntimeReason('None');
+        setCompletionTime(nowDt());
     };
 
     const handleSubmitCompletion = async (e) => {
@@ -514,6 +533,7 @@ export default function JobTrackerPage({ params }) {
                     actual_plates_used: parseInt(actualPlates) || 0,
                     downtime_minutes: parseInt(downtimeMinutes) || 0,
                     downtime_reason: downtimeReason,
+                    completed_at: completionTime ? new Date(completionTime).toISOString() : new Date().toISOString(),
                 }),
             });
             const updated = await res.json();
@@ -745,8 +765,8 @@ export default function JobTrackerPage({ params }) {
 
             {/* ── Log & Finish Modal ────────────────────────────────── */}
             {completingTask && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setCompletingTask(null)}>
-                    <div className="bg-neutral-950 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-[0_-12px_40px_rgba(0,0,0,0.5)] text-neutral-100" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setCompletingTask(null)}>
+                    <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.8)] text-neutral-100" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-start">
                             <div>
                                 <h3 className="font-extrabold text-white text-base">Log & Finish</h3>
@@ -757,6 +777,15 @@ export default function JobTrackerPage({ params }) {
                         <div className="bg-white/[0.02] border border-white/[0.06] p-3 rounded-xl text-xs space-y-1">
                             <div className="font-semibold text-neutral-300">{completingTask.name}</div>
                             {completingTask.machine_name && <div className="text-[10px] text-indigo-400 inline-flex items-center gap-0.5"><FiPrinter className="w-3 h-3" /> {completingTask.machine_name}</div>}
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/[0.06] p-3 rounded-xl">
+                            <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">Completed Time</label>
+                            <input
+                                type="datetime-local"
+                                value={completionTime}
+                                onChange={e => setCompletionTime(e.target.value)}
+                                className="w-full px-3 py-2 bg-black border border-white/[0.09] rounded-xl text-xs text-white outline-none focus:border-emerald-500"
+                            />
                         </div>
                         <form onSubmit={handleSubmitCompletion} className="space-y-3">
                             {(completingTask.sheet_count > 0 || completingTask.name.toLowerCase().includes('printing')) && (

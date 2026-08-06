@@ -157,7 +157,7 @@ export async function PUT(req, { params }) {
             quantity, sheet_count, impression_count,
             actual_sheets_printed, actual_sheets_wasted, actual_plates_used,
             downtime_minutes, downtime_reason,
-            helper_name, completed_by_helper
+            helper_name, completed_by_helper, started_at
         } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
@@ -192,7 +192,10 @@ export async function PUT(req, { params }) {
             updates.push('completed_at = ?');
             paramsList.push(toMySQL(new Date().toISOString()));
         }
-        if (setStartedAt) {
+        if (started_at !== undefined) {
+            updates.push('started_at = ?');
+            paramsList.push(toMySQL(started_at));
+        } else if (setStartedAt) {
             updates.push('started_at = ?');
             paramsList.push(toMySQL(new Date().toISOString()));
         }

@@ -3,8 +3,11 @@ import pool from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req) {
     try {
+        const { searchParams } = new URL(req.url);
+        const dateParam = searchParams.get('date'); // Optional: YYYY-MM-DD
+
         // 1. Fetch all active employees with ZKTeco mapping
         const [employees] = await pool.execute(`
             SELECT e.id, e.employee_id as erp_code, e.name, e.job_title, e.department, e.shift, e.status, 
@@ -16,13 +19,25 @@ export async function GET() {
             ORDER BY e.name ASC
         `);
 
-        // 2. Fetch all attendance logs from today (including states 0, 1, 4, 5)
-        const [logs] = await pool.execute(`
-            SELECT device_user_id, timestamp, state, verification_type
-            FROM zkteco_attendance_logs
-            WHERE timestamp >= CONCAT(DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')), ' 00:00:00') AND state IN (0, 1, 4, 5)
-            ORDER BY timestamp ASC
-        `);
+        // 2. Fetch attendance logs for the target date (default: today IST)
+        let dateFilter;
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            dateFilter = dateParam;
+        }
+
+        const [logs] = dateFilter
+            ? await pool.execute(`
+                SELECT device_user_id, timestamp, state, verification_type
+                FROM zkteco_attendance_logs
+                WHERE timestamp >= CONCAT(?, ' 00:00:00') AND timestamp < CONCAT(DATE_ADD(?, INTERVAL 1 DAY), ' 00:00:00') AND state IN (0, 1, 4, 5)
+                ORDER BY timestamp ASC
+            `, [dateFilter, dateFilter])
+            : await pool.execute(`
+                SELECT device_user_id, timestamp, state, verification_type
+                FROM zkteco_attendance_logs
+                WHERE timestamp >= CONCAT(DATE(CONVERT_TZ(NOW(), '+00:00', '+05:30')), ' 00:00:00') AND state IN (0, 1, 4, 5)
+                ORDER BY timestamp ASC
+            `);
 
         // 3. Map latest daily log and group logs for each device user
         const latestLogsMap = {};
