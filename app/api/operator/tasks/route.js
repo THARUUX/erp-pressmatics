@@ -137,11 +137,54 @@ async function enrichTasks(tasks) {
     return tasks;
 }
 
+const matchesFinishing = (taskName, finName) => {
+    if (!taskName || !finName) return false;
+    const tNorm = taskName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    const fNorm = finName.toLowerCase().trim().replace(/gethering/g, 'gathering');
+    return tNorm.startsWith(fNorm) || tNorm.includes(fNorm) || fNorm.includes(tNorm);
+};
+
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const machineId = searchParams.get('machineId');
+        const finishingId = searchParams.get('finishingId');
+        const dateParam = searchParams.get('date'); // YYYY-MM-DD
         const search = searchParams.get('search'); // For QR scans/searches (SO code, SO id, or task id)
+
+        // Handle finishing-based task query
+        if (finishingId) {
+            const [finRows] = await pool.execute('SELECT id, name FROM finishings WHERE id = ?', [finishingId]);
+            if (!finRows.length) {
+                return NextResponse.json({ error: 'Finishing process not found' }, { status: 404 });
+            }
+            const finishing = finRows[0];
+
+            let finQuery = `
+                SELECT jt.*, 
+                       so.code AS order_code, 
+                       so.customer_name, 
+                       so.status AS order_status, 
+                       so.delivery_date
+                FROM job_tasks jt
+                LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
+                WHERE jt.machine_id IS NULL
+                  AND (so.status IS NULL OR so.status NOT IN ('Delivered', 'Cancelled'))
+            `;
+            const finParams = [];
+
+            if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+                finQuery += ` AND jt.scheduled_date = ?`;
+                finParams.push(dateParam);
+            }
+
+            finQuery += ` ORDER BY jt.machine_position ASC, jt.scheduled_date ASC, jt.display_order ASC, jt.id ASC`;
+
+            const [finTasks] = await pool.execute(finQuery, finParams);
+            const filtered = finTasks.filter(t => matchesFinishing(t.name, finishing.name));
+
+            return NextResponse.json({ tasks: filtered });
+        }
 
         let query = `
             SELECT jt.*, 
@@ -177,8 +220,14 @@ export async function GET(req) {
         } else if (machineId) {
             query += ` AND jt.machine_id = ?`;
             params.push(parseInt(machineId));
+
+            // Add date filter if provided
+            if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+                query += ` AND jt.scheduled_date = ?`;
+                params.push(dateParam);
+            }
         } else {
-            return NextResponse.json({ error: 'Either machineId or search parameter is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Either machineId, finishingId, or search parameter is required' }, { status: 400 });
         }
 
         query += ` ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`;

@@ -237,7 +237,7 @@ async function generateJobTasks(id) {
         const grouped = {};
         for (const detail of offsetDetails) {
             const machine = detail.machine_name;
-            const specificPrintConfig = configs.find(c => 
+            const specificPrintConfig = configs.find(c =>
                 (detail.machine_id && c.task_key === `machine_${detail.machine_id}`) ||
                 (machine && c.name.toLowerCase() === machine.toLowerCase())
             );
@@ -394,7 +394,7 @@ async function generateJobTasks(id) {
         const grouped = {};
         for (const detail of digitalDetails) {
             const machine = detail.machine_name;
-            const specificPrintConfig = configs.find(c => 
+            const specificPrintConfig = configs.find(c =>
                 (detail.machine_id && c.task_key === `machine_${detail.machine_id}`) ||
                 (machine && c.name.toLowerCase() === machine.toLowerCase())
             );
@@ -524,7 +524,7 @@ async function generateJobTasks(id) {
         // Group all finishings by taskNameBase
         const grouped = {};
         for (const f of finishings) {
-            const specificFinishingConfig = configs.find(c => 
+            const specificFinishingConfig = configs.find(c =>
                 (c.task_key.startsWith('finishing_') && f.name && c.name.toLowerCase() === f.name.toLowerCase()) ||
                 (f.machine_name && c.name.toLowerCase() === f.machine_name.toLowerCase()) ||
                 (f.machine_id && c.task_key === `machine_${f.machine_id}`)
@@ -559,8 +559,8 @@ async function generateJobTasks(id) {
                 for (const g of group.items) {
                     const f = g.finishing;
                     const matchingDetail = item.details?.find(d => d.id === f.quotation_item_detail_id);
-                    const compName = matchingDetail ? (matchingDetail.component_name || '') : '';
-                    
+                    const compName = (matchingDetail?.component_name || f.component_name || 'Finishings').trim();
+
                     const speedUnit = f.speed_unit || f.machine_speed_unit || f.cost_unit || '';
                     const su = speedUnit.toLowerCase().trim();
                     const itemQty = parseFloat(item.quantity) || 0;
@@ -595,9 +595,7 @@ async function generateJobTasks(id) {
                     }
                     const finalMins = finConfig.estimated_minutes !== null ? finConfig.estimated_minutes : estMins;
 
-                    const finalName = compName 
-                        ? `${taskNameBase} — ${compName} — ${itemName}`
-                        : `${taskNameBase} — ${itemName}`;
+                    const finalName = `${taskNameBase} — ${compName} — ${itemName}`;
 
                     taskList.push({
                         name: finalName,
@@ -661,12 +659,15 @@ async function generateJobTasks(id) {
                     }
                 }
 
-                const finalMins = finConfig.estimated_minutes !== null 
-                    ? finConfig.estimated_minutes 
+                const finalMins = finConfig.estimated_minutes !== null
+                    ? finConfig.estimated_minutes
                     : (hasCalculatedEstMins ? combinedEstMins : null);
 
+                const matchingDetail = item.details?.find(d => d.id === firstFinishing.quotation_item_detail_id);
+                const compName = (matchingDetail?.component_name || firstFinishing.component_name || 'Finishings').trim();
+
                 taskList.push({
-                    name: `${taskNameBase} — ${itemName}`,
+                    name: `${taskNameBase} — ${compName} — ${itemName}`,
                     description: firstFinishing.machine_name ? `Machine: ${firstFinishing.machine_name}` : null,
                     machine_id: firstFinishing.machine_id || finConfig.machine_id || null,
                     machine_name: firstFinishing.machine_name || (finConfig.machine_id ? machineMap.get(finConfig.machine_id) : null) || null,
