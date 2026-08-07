@@ -127,3 +127,54 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Failed to insert log record: ' + err.message }, { status: 500 });
     }
 }
+
+// ── PUT /api/attendance ───────────────────────────────────────────────────────
+export async function PUT(req) {
+    try {
+        const body = await req.json();
+        const { id, timestamp, state } = body;
+
+        if (!id || !timestamp || state === undefined) {
+            return NextResponse.json({ error: 'Missing log id, timestamp, or state' }, { status: 400 });
+        }
+
+        // Update the log in zkteco_attendance_logs
+        // verification_type = 9 indicates manual adjustment
+        await pool.execute(
+            `UPDATE zkteco_attendance_logs 
+             SET timestamp = ?, state = ?, verification_type = 9 
+             WHERE id = ?`,
+            [timestamp, state, id]
+        );
+
+        return NextResponse.json({ success: true, message: 'Log record updated successfully' });
+    } catch (err) {
+        console.error('[attendance PUT]', err);
+        if (err.code === 'ER_DUP_ENTRY') {
+            return NextResponse.json({ error: 'A log record already exists at this timestamp for this user' }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Failed to update log record: ' + err.message }, { status: 500 });
+    }
+}
+
+// ── DELETE /api/attendance ────────────────────────────────────────────────────
+export async function DELETE(req) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+
+        if (!id) {
+            return NextResponse.json({ error: 'Missing log id' }, { status: 400 });
+        }
+
+        await pool.execute(
+            'DELETE FROM zkteco_attendance_logs WHERE id = ?',
+            [id]
+        );
+
+        return NextResponse.json({ success: true, message: 'Log record deleted successfully' });
+    } catch (err) {
+        console.error('[attendance DELETE]', err);
+        return NextResponse.json({ error: 'Failed to delete log record: ' + err.message }, { status: 500 });
+    }
+}

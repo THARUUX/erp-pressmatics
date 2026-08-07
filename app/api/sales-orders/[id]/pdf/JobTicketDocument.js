@@ -220,20 +220,25 @@ function formatFinishingVolume(f, matchingDetail, itemQuantity) {
     if (su.includes('unit')) {
         qty = qtyVal;
     } else if (matchingDetail) {
-        const pagesVal = parseInt(matchingDetail.pages) || 1;
-        const upsVal = parseInt(matchingDetail.ups) || 1;
-        const sidesVal = parseInt(matchingDetail.sides) || 1;
-        const divisor = upsVal * sidesVal;
-        let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
-        if (divisor > 0 && qtyVal > 0) {
-            netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
-        }
-        const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+        const isBB = parseInt(matchingDetail.is_bb) === 1;
+        if (isBB && su.includes('form')) {
+            qty = qtyVal;
+        } else {
+            const pagesVal = parseInt(matchingDetail.pages) || 1;
+            const upsVal = parseInt(matchingDetail.ups) || 1;
+            const sidesVal = parseInt(matchingDetail.sides) || 1;
+            const divisor = upsVal * sidesVal;
+            let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+            if (divisor > 0 && qtyVal > 0) {
+                netCutSheets = Math.ceil((pagesVal * qtyVal) / divisor);
+            }
+            const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
 
-        if (su.includes('print')) {
-            qty = totalCutSheets * sidesVal;
-        } else if (su.includes('sheet')) {
-            qty = totalCutSheets;
+            if (su.includes('print')) {
+                qty = totalCutSheets * sidesVal;
+            } else if (su.includes('sheet')) {
+                qty = totalCutSheets;
+            }
         }
     }
 

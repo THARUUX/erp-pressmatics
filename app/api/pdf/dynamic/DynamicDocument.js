@@ -160,8 +160,10 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                         displayVal = '—';
                                     }
 
-                                    // Status colors
+                                    // Status and late arrival colors
                                     let cellColor = '#374151';
+                                    let isBold = col.key === 'name' || col.key === 'code' || col.key === 'item_code' || col.key === 'employee_code' || col.key === 'employee_name';
+
                                     if (col.key === 'status') {
                                         const statusStr = String(val).toLowerCase();
                                         if (['paid', 'done', 'converted', 'present', 'active', 'approved'].includes(statusStr)) cellColor = '#15803d';
@@ -169,11 +171,14 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                         else if (['cancelled', 'absent', 'rejected'].includes(statusStr)) cellColor = '#b91c1c';
                                     } else if (['amount_due', 'balance', 'outstanding'].includes(col.key) && parseFloat(val || 0) > 0) {
                                         cellColor = '#b45309';
+                                    } else if (col.key === 'check_in' && String(val).includes('(Late)')) {
+                                        cellColor = '#dc2626';
+                                        isBold = true;
                                     }
 
                                     return (
                                         <Text key={col.key} style={[
-                                            col.key === 'name' || col.key === 'code' || col.key === 'item_code' || col.key === 'employee_code' || col.key === 'employee_name' ? s.tableCellBold : s.tableCell,
+                                            isBold ? s.tableCellBold : s.tableCell,
                                             { 
                                                 width: getColWidth(col.key), 
                                                 textAlign: isRight ? 'right' : 'left',

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
-import { 
-    FiUsers, FiCalendar, FiClock, FiPlus, FiSearch, 
+import {
+    FiUsers, FiCalendar, FiClock, FiPlus, FiSearch,
     FiFilter, FiX, FiCheckCircle, FiActivity, FiArrowRight, FiTrash2,
-    FiGrid, FiList, FiChevronUp, FiChevronDown, FiDownload
+    FiGrid, FiList, FiChevronUp, FiChevronDown, FiDownload, FiAlertTriangle, FiEdit
 } from 'react-icons/fi';
 import {
     useReactTable,
@@ -39,14 +39,21 @@ const avatarColor = (name) => {
 
 const parseLocalTime = (isoString) => {
     if (!isoString) return null;
-    const cleanStr = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
-    return new Date(cleanStr);
+    if (isoString instanceof Date) return isNaN(isoString.getTime()) ? null : isoString;
+    const str = String(isoString).trim().replace(' ', 'T');
+    const cleanStr = str.endsWith('Z') ? str.slice(0, -1) : str;
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
 };
 
 const getTimelineSegments = (todayLogs, currentStatus) => {
     if (!todayLogs || todayLogs.length === 0) return [];
 
-    const sortedLogs = [...todayLogs].sort((a, b) => parseLocalTime(a.timestamp) - parseLocalTime(b.timestamp));
+    const sortedLogs = [...todayLogs].sort((a, b) => {
+        const da = parseLocalTime(a.timestamp);
+        const db = parseLocalTime(b.timestamp);
+        return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+    });
 
     const START_MINS = 8 * 60;   // 8:00 AM
     const END_MINS = 18 * 60;     // 6:00 PM
@@ -54,12 +61,14 @@ const getTimelineSegments = (todayLogs, currentStatus) => {
 
     const getPercent = (timeStr) => {
         const d = parseLocalTime(timeStr);
+        if (!d) return 0;
         const mins = d.getHours() * 60 + d.getMinutes();
         return Math.max(0, Math.min(100, ((mins - START_MINS) / TOTAL_MINS) * 100));
     };
 
     const formatTimeLabel = (timeStr) => {
-        return parseLocalTime(timeStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const d = parseLocalTime(timeStr);
+        return d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
     };
 
     const segments = [];
@@ -124,17 +133,48 @@ const getTimelineSegments = (todayLogs, currentStatus) => {
 };
 
 function ColumnFilter({ column }) {
-    const val = column.getFilterValue() ?? '';
+    const columnFilterValue = column.getFilterValue() ?? '';
+    const headerTitle = typeof column.columnDef.header === 'string' ? column.columnDef.header : (column.id || '');
     return (
-        <input 
-            value={val} 
-            onChange={e => column.setFilterValue(e.target.value)} 
-            placeholder="Filter…"
-            onClick={e => e.stopPropagation()}
-            className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30" 
-        />
+        <div className="relative mt-1">
+            <input
+                type="text"
+                value={columnFilterValue}
+                onChange={e => column.setFilterValue(e.target.value)}
+                placeholder={`Filter ${headerTitle}...`}
+                onClick={e => e.stopPropagation()}
+                className="w-full bg-black/60 border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-gray-200 placeholder-zinc-500 outline-none focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+            />
+            {columnFilterValue && (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        column.setFilterValue('');
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5"
+                    title="Clear filter"
+                >
+                    <FiX className="w-3 h-3" />
+                </button>
+            )}
+        </div>
     );
 }
+
+const ALL_REPORT_COLUMNS = [
+    { id: 'erp_code', key: 'erp_code', header: 'ID / Code' },
+    { id: 'name', key: 'name', header: 'Employee' },
+    { id: 'department', key: 'department', header: 'Department' },
+    { id: 'shift', key: 'shift', header: 'Shift' },
+    { id: 'shift_start', key: 'shift_start', header: 'Shift Start' },
+    { id: 'device_user_id', key: 'device_user_id', header: 'Biometric ID' },
+    { id: 'check_in', key: 'check_in', header: 'Check In' },
+    { id: 'check_out', key: 'check_out', header: 'Check Out' },
+    { id: 'break_time', key: 'break_time', header: 'Break' },
+    { id: 'work_hours', key: 'work_hours', header: 'Work Hours' },
+    { id: 'status', key: 'status', header: 'Status' },
+];
 
 export default function AttendancePage() {
     const [tab, setTab] = useState('status'); // 'status' or 'logs'
@@ -148,7 +188,13 @@ export default function AttendancePage() {
     const [exportingPdf, setExportingPdf] = useState(false);
     const [exportingDailySheet, setExportingDailySheet] = useState(false);
     const [showDailySheetModal, setShowDailySheetModal] = useState(false);
+    const [statusDate, setStatusDate] = useState(new Date().toISOString().slice(0, 10));
     const [dailySheetDate, setDailySheetDate] = useState(new Date().toISOString().slice(0, 10));
+    const [shiftStartTime, setShiftStartTime] = useState('08:00');
+    const [highlightLate, setHighlightLate] = useState(true);
+    const [selectedColumns, setSelectedColumns] = useState([
+        'erp_code', 'name', 'department', 'shift', 'shift_start', 'device_user_id', 'check_in', 'check_out', 'break_time', 'work_hours', 'status'
+    ]);
 
     const handleExportPDF = async () => {
         setExportingPdf(true);
@@ -160,7 +206,7 @@ export default function AttendancePage() {
                     header: typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
                 }));
 
-            const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
+            const sortedRows = table.getSortedRowModel().rows.map(row => row.original);
 
             const res = await fetch('/api/pdf/dynamic', {
                 method: 'POST',
@@ -169,7 +215,7 @@ export default function AttendancePage() {
                     title: 'Biometric Attendance Report',
                     subtitle: `Live Status - ${new Date().toLocaleDateString('en-GB')}`,
                     columns: visibleCols,
-                    rows: filteredRows
+                    rows: sortedRows
                 })
             });
 
@@ -200,39 +246,120 @@ export default function AttendancePage() {
     const handleExportDailySheet = async (targetDate) => {
         setExportingDailySheet(true);
         try {
-            // Fetch attendance data for the selected date
-            const statusRes = await fetch(`/api/attendance/current-status?date=${targetDate}`);
-            const dateStatusData = await statusRes.json();
-            if (!statusRes.ok) {
-                toast.error('Failed to load attendance data for selected date');
+            if (!selectedColumns || selectedColumns.length === 0) {
+                toast.error('Please select at least one column to include in the report');
+                setExportingDailySheet(false);
                 return;
             }
 
-            const employees = dateStatusData.employees || [];
+            let employees = [];
+            let dateStatusData = { summary: {} };
+
+            if (targetDate === statusDate) {
+                employees = table.getSortedRowModel().rows.map(row => row.original).filter(emp => !(emp.name || '').includes('PT'));
+                dateStatusData = statusData;
+            } else {
+                const statusRes = await fetch(`/api/attendance/current-status?date=${targetDate}`);
+                dateStatusData = await statusRes.json();
+                if (!statusRes.ok) {
+                    toast.error('Failed to load attendance data for selected date');
+                    setExportingDailySheet(false);
+                    return;
+                }
+
+                employees = (dateStatusData.employees || []).filter(emp => !(emp.name || '').includes('PT'));
+
+                if (statusSearch || statusFilter) {
+                    employees = employees.filter(emp => {
+                        const matchesSearch = !statusSearch ||
+                            (emp.name || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
+                            (emp.job_title || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
+                            (emp.department || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
+                            (emp.erp_code || '').toLowerCase().includes(statusSearch.toLowerCase());
+                        const matchesStatus = !statusFilter || emp.status === statusFilter;
+                        return matchesSearch && matchesStatus;
+                    });
+                }
+
+                if (columnFilters && columnFilters.length > 0) {
+                    columnFilters.forEach(cf => {
+                        if (!cf.value) return;
+                        const valStr = String(cf.value).toLowerCase();
+                        employees = employees.filter(emp => {
+                            let fieldVal = '';
+                            if (cf.id === 'name') fieldVal = emp.name || '';
+                            else if (cf.id === 'erp_code') fieldVal = emp.erp_code || '';
+                            else if (cf.id === 'department') fieldVal = emp.department || emp.job_title || '';
+                            else if (cf.id === 'shift') fieldVal = emp.shift || 'Day';
+                            else if (cf.id === 'device_user_id') fieldVal = emp.device_user_id ? String(emp.device_user_id) : 'Unmapped';
+                            else if (cf.id === 'status') fieldVal = emp.status || '';
+                            return fieldVal.toLowerCase().includes(valStr);
+                        });
+                    });
+                }
+            }
+
             const dateObj = new Date(targetDate + 'T00:00:00');
             const dateLabel = dateObj.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
 
-            const columns = [
-                { key: 'name', header: 'Employee' },
-                { key: 'department', header: 'Department' },
-                { key: 'check_in', header: 'Check In' },
-                { key: 'check_out', header: 'Check Out' },
-                { key: 'break_time', header: 'Break' },
-                { key: 'work_hours', header: 'Work Hours' },
-                { key: 'status', header: 'Status' },
-            ];
+            const columns = ALL_REPORT_COLUMNS
+                .filter(c => selectedColumns.includes(c.id))
+                .map(c => ({ key: c.key, header: c.header }));
+
+            // Parse shift start time into minutes from midnight
+            const [sh, sm] = (shiftStartTime || '08:00').split(':').map(Number);
+            const shiftStartMins = (sh || 0) * 60 + (sm || 0);
+
+            const formatShiftStartLabel = (timeStr) => {
+                if (!timeStr) return '08:00 AM';
+                const [h, m] = (timeStr || '08:00').split(':').map(Number);
+                const d = new Date();
+                d.setHours(h || 0, m || 0, 0, 0);
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            };
+            const shiftStartDisplay = formatShiftStartLabel(shiftStartTime);
+
+            let lateArrivalsCount = 0;
 
             const rows = employees.map(emp => {
-                const logs = (emp.todayLogs || []).sort((a, b) => parseLocalTime(a.timestamp) - parseLocalTime(b.timestamp));
-                const fmtTime = (ts) => {
-                    if (!ts) return '\u2014';
-                    const d = parseLocalTime(ts);
-                    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                };
+                const logs = (emp.todayLogs || []).sort((a, b) => {
+                    const da = parseLocalTime(a.timestamp);
+                    const db = parseLocalTime(b.timestamp);
+                    return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+                });
 
                 const firstCheckIn = logs.find(l => l.state === 0 || l.state === 5);
                 const checkOuts = logs.filter(l => l.state === 1);
-                const lastCheckOut = checkOuts.length > 0 ? checkOuts[checkOuts.length - 1] : null;
+                let lastCheckOut = checkOuts.length > 0 ? checkOuts[checkOuts.length - 1] : null;
+
+                if (firstCheckIn && lastCheckOut) {
+                    const checkInTime = parseLocalTime(firstCheckIn.timestamp);
+                    const checkOutTime = parseLocalTime(lastCheckOut.timestamp);
+                    if (checkInTime && checkOutTime && checkOutTime.getTime() < checkInTime.getTime()) {
+                        lastCheckOut = null;
+                    }
+                }
+
+                let checkInDisplay = '—';
+                if (firstCheckIn && firstCheckIn.timestamp) {
+                    const d = parseLocalTime(firstCheckIn.timestamp);
+                    if (d) {
+                        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const checkInMins = d.getHours() * 60 + d.getMinutes();
+                        const isLate = checkInMins > shiftStartMins;
+                        if (isLate) lateArrivalsCount++;
+                        const dayTag = firstCheckIn.isNextDay ? ' (+1d)' : '';
+                        checkInDisplay = (highlightLate && isLate) ? `${timeStr}${dayTag} (Late)` : `${timeStr}${dayTag}`;
+                    }
+                }
+
+                const fmtTime = (log) => {
+                    if (!log || !log.timestamp) return '—';
+                    const d = parseLocalTime(log.timestamp);
+                    if (!d) return '—';
+                    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return log.isNextDay ? `${timeStr} (+1d)` : timeStr;
+                };
 
                 let breakMins = 0;
                 let breakStart = null;
@@ -257,25 +384,39 @@ export default function AttendancePage() {
                 }
 
                 const fmtDuration = (mins) => {
-                    if (!mins || mins <= 0) return '\u2014';
+                    if (!mins || mins <= 0) return '—';
                     const h = Math.floor(mins / 60);
                     const m = Math.round(mins % 60);
                     return h > 0 ? `${h}h ${m}m` : `${m}m`;
                 };
 
                 return {
-                    name: emp.name,
-                    department: emp.department || emp.job_title || '\u2014',
-                    check_in: fmtTime(firstCheckIn?.timestamp),
-                    check_out: fmtTime(lastCheckOut?.timestamp),
+                    erp_code: emp.erp_code || '—',
+                    name: emp.name || '—',
+                    department: emp.department || emp.job_title || '—',
+                    shift: emp.shift || 'Day',
+                    shift_start: shiftStartDisplay,
+                    device_user_id: emp.device_user_id ? String(emp.device_user_id) : 'Unmapped',
+                    check_in: checkInDisplay,
+                    check_out: fmtTime(lastCheckOut),
                     break_time: fmtDuration(breakMins),
                     work_hours: fmtDuration(workMins),
-                    status: emp.status,
+                    status: emp.status || 'Absent',
                 };
             });
 
-            const statusOrder = { 'Checked In': 0, 'On Break': 1, 'Checked Out': 2, 'Absent': 3 };
-            rows.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || a.name.localeCompare(b.name));
+            if (sorting && sorting.length > 0) {
+                const { id: sortId, desc } = sorting[0];
+                rows.sort((a, b) => {
+                    let valA = a[sortId] ?? '';
+                    let valB = b[sortId] ?? '';
+                    const comp = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+                    return desc ? -comp : comp;
+                });
+            } else if (targetDate !== statusDate) {
+                const statusOrder = { 'Checked In': 0, 'On Break': 1, 'Checked Out': 2, 'Absent': 3 };
+                rows.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || (a.name || '').localeCompare(b.name || ''));
+            }
 
             const summary = dateStatusData.summary || {};
             const stats = [
@@ -286,12 +427,20 @@ export default function AttendancePage() {
                 { label: 'Absent', value: summary.absent || 0 },
             ];
 
+            if (highlightLate) {
+                stats.push({ label: 'Late Arrivals', value: lateArrivalsCount });
+            }
+
+            const subtitleText = (statusSearch || statusFilter)
+                ? `${dateLabel} (Filtered Report - ${rows.length} Employees)`
+                : dateLabel;
+
             const res = await fetch('/api/pdf/dynamic', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: 'Daily Attendance Sheet',
-                    subtitle: dateLabel,
+                    subtitle: subtitleText,
                     columns,
                     rows,
                     stats,
@@ -321,7 +470,7 @@ export default function AttendancePage() {
             setExportingDailySheet(false);
         }
     };
-    
+
     // Status filters
     const [statusSearch, setStatusSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
@@ -343,6 +492,16 @@ export default function AttendancePage() {
     });
     const [savingLog, setSavingLog] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // Edit Log Modal state
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editForm, setEditForm] = useState({
+        id: null,
+        employeeName: '',
+        timestamp: '',
+        state: '0'
+    });
+    const [updatingLog, setUpdatingLog] = useState(false);
 
     // Report Modal state
     const [showReportModal, setShowReportModal] = useState(false);
@@ -643,9 +802,10 @@ export default function AttendancePage() {
         }
     };
 
-    const loadStatus = async () => {
+    const loadStatus = async (targetDate = statusDate) => {
         try {
-            const res = await fetch('/api/attendance/current-status');
+            const query = targetDate ? `?date=${targetDate}` : '';
+            const res = await fetch(`/api/attendance/current-status${query}`);
             const data = await res.json();
             if (res.ok) {
                 setStatusData(data);
@@ -712,7 +872,7 @@ export default function AttendancePage() {
 
     useEffect(() => {
         loadAll();
-    }, [tab, logsPage]);
+    }, [tab, logsPage, statusDate]);
 
     // Refetch logs when filters change (with debounce logic if wanted, but direct works fine here)
     const handleLogsSearch = (e) => {
@@ -769,28 +929,99 @@ export default function AttendancePage() {
         }
     };
 
-    // Filter status list in client
-    const filteredStatusEmployees = (statusData.employees || []).filter(emp => {
-        const matchesSearch = emp.name.toLowerCase().includes(statusSearch.toLowerCase()) || 
-                             (emp.job_title || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
-                             (emp.erp_code || '').toLowerCase().includes(statusSearch.toLowerCase());
-        const matchesStatus = !statusFilter || emp.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const openEditLog = (log) => {
+        const d = parseLocalTime(log.timestamp);
+        let formattedTime = '';
+        if (d) {
+            const pad = (num) => String(num).padStart(2, '0');
+            formattedTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        
+        setEditForm({
+            id: log.id,
+            employeeName: log.employee_name || 'Unmapped User',
+            timestamp: formattedTime,
+            state: String(log.state)
+        });
+        setShowEditModal(true);
+    };
+
+    const saveEditLog = async (e) => {
+        e.preventDefault();
+        setUpdatingLog(true);
+        try {
+            const res = await fetch('/api/attendance', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editForm.id,
+                    timestamp: editForm.timestamp.replace('T', ' ') + ':00',
+                    state: parseInt(editForm.state, 10)
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Swipe log record updated successfully');
+                setShowEditModal(false);
+                loadLogs();
+                if (tab === 'status') loadStatus();
+            } else {
+                toast.error(data.error || 'Failed to update swipe log');
+            }
+        } catch {
+            toast.error('Error updating swipe log');
+        } finally {
+            setUpdatingLog(false);
+        }
+    };
+
+    const deleteLog = async (id) => {
+        if (!confirm('Are you sure you want to delete this swipe log record? This action cannot be undone.')) return;
+        try {
+            const res = await fetch(`/api/attendance?id=${id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Swipe log record deleted successfully');
+                loadLogs();
+                if (tab === 'status') loadStatus();
+            } else {
+                toast.error(data.error || 'Failed to delete swipe log');
+            }
+        } catch {
+            toast.error('Error deleting swipe log');
+        }
+    };
+
+    // Filter status list in client (memoized to prevent table reference thrashing)
+    const filteredStatusEmployees = useMemo(() => {
+        return (statusData.employees || []).filter(emp => {
+            if ((emp.name || '').includes('PT')) return false; // Exclude PT employees (case-sensitive)
+            const matchesSearch = !statusSearch ||
+                (emp.name || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
+                (emp.job_title || '').toLowerCase().includes(statusSearch.toLowerCase()) ||
+                (emp.erp_code || '').toLowerCase().includes(statusSearch.toLowerCase());
+            const matchesStatus = !statusFilter || emp.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [statusData.employees, statusSearch, statusFilter]);
 
     const columns = useMemo(() => [
         {
             accessorKey: 'name',
             header: 'Employee',
+            enableSorting: true,
+            enableColumnFilter: true,
             cell: ({ row }) => {
                 const emp = row.original;
                 return (
                     <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${avatarColor(emp.name)} to-black/50 flex items-center justify-center text-white font-bold text-xs`}>
-                            {emp.name.charAt(0).toUpperCase()}
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${avatarColor(emp.name || '')} to-black/50 flex items-center justify-center text-white font-bold text-xs shrink-0`}>
+                            {(emp.name || '?').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <p className="font-semibold text-white text-xs leading-none">{emp.name}</p>
+                            <p className="font-semibold text-white text-xs leading-none">{emp.name || '—'}</p>
                             <p className="text-zinc-500 text-[10px] mt-1">{emp.job_title || '—'}</p>
                         </div>
                     </div>
@@ -800,26 +1031,72 @@ export default function AttendancePage() {
         {
             accessorKey: 'erp_code',
             header: 'ERP Code',
+            enableSorting: true,
+            enableColumnFilter: true,
             cell: ({ row }) => <span className="font-mono text-zinc-400 text-xs">{row.original.erp_code || '—'}</span>
         },
         {
-            accessorKey: 'department',
+            id: 'department',
+            accessorFn: row => row.department || row.job_title || '—',
             header: 'Department',
-            cell: ({ row }) => <span className="text-zinc-400 text-xs">{row.original.department || '—'}</span>
+            enableSorting: true,
+            enableColumnFilter: true,
+            cell: ({ row }) => <span className="text-zinc-400 text-xs">{row.original.department || row.original.job_title || '—'}</span>
         },
         {
             accessorKey: 'shift',
             header: 'Shift',
+            enableSorting: true,
+            enableColumnFilter: true,
             cell: ({ row }) => <span className="text-zinc-400 text-xs">{row.original.shift || 'Day'}</span>
         },
         {
-            accessorKey: 'device_user_id',
+            id: 'check_in',
+            header: 'Check In',
+            enableSorting: true,
+            enableColumnFilter: false,
+            cell: ({ row }) => {
+                const emp = row.original;
+                const logs = emp.todayLogs || [];
+                const firstCheckIn = logs.find(l => l.state === 0 || l.state === 5);
+                if (!firstCheckIn) return <span className="text-zinc-600 text-xs">—</span>;
+
+                const d = parseLocalTime(firstCheckIn.timestamp);
+                if (!d) return <span className="text-zinc-600 text-xs">—</span>;
+                const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                const [h, m] = (shiftStartTime || '08:00').split(':').map(Number);
+                const shiftStartMins = (h || 0) * 60 + (m || 0);
+                const checkInMins = d.getHours() * 60 + d.getMinutes();
+                const isLate = highlightLate && checkInMins > shiftStartMins;
+
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <span className={`font-mono text-xs ${isLate ? 'text-rose-400 font-bold' : 'text-zinc-300'}`}>
+                            {timeStr}
+                        </span>
+                        {isLate && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[9px] font-bold uppercase tracking-wider">
+                                Late
+                            </span>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            id: 'device_user_id',
+            accessorFn: row => row.device_user_id ? String(row.device_user_id) : 'Unmapped',
             header: 'Biometric ID',
+            enableSorting: true,
+            enableColumnFilter: true,
             cell: ({ row }) => <span className="font-mono text-zinc-400 text-xs">{row.original.device_user_id || 'Unmapped'}</span>
         },
         {
             accessorKey: 'status',
             header: 'Status',
+            enableSorting: true,
+            enableColumnFilter: true,
             cell: ({ row }) => {
                 const emp = row.original;
                 return (
@@ -833,6 +1110,8 @@ export default function AttendancePage() {
         {
             id: 'timeline',
             header: 'Today\'s Progress',
+            enableSorting: false,
+            enableColumnFilter: false,
             cell: ({ row }) => {
                 const emp = row.original;
                 if (!emp.device_user_id) {
@@ -843,14 +1122,13 @@ export default function AttendancePage() {
                     <div className="w-48 space-y-1">
                         <div className="w-full h-2.5 bg-zinc-900/60 rounded-full overflow-hidden flex border border-white/5 relative">
                             {segments.map((seg, idx) => (
-                                <div 
-                                    key={idx} 
-                                    style={{ width: `${seg.width}%` }} 
-                                    className={`h-full ${
-                                        seg.type === 'working' ? 'bg-emerald-500' :
+                                <div
+                                    key={idx}
+                                    style={{ width: `${seg.width}%` }}
+                                    className={`h-full ${seg.type === 'working' ? 'bg-emerald-500' :
                                         seg.type === 'break' ? 'bg-amber-400' :
-                                        'bg-zinc-800/10'
-                                    }`}
+                                            'bg-zinc-800/10'
+                                        }`}
                                     title={`${seg.type === 'working' ? 'Working' : seg.type === 'break' ? 'On Break' : 'Away'}: ${seg.startLabel} - ${seg.endLabel}`}
                                 />
                             ))}
@@ -862,6 +1140,8 @@ export default function AttendancePage() {
         {
             id: 'actions',
             header: 'Action',
+            enableSorting: false,
+            enableColumnFilter: false,
             cell: ({ row }) => (
                 <button
                     onClick={() => openReport(row.original)}
@@ -907,49 +1187,44 @@ export default function AttendancePage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="flex gap-1 bg-black/30 border border-white/10 p-1 rounded-xl overflow-x-auto">
-                        <button 
-                            onClick={() => setTab('status')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
-                                tab === 'status' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                            }`}
+                        <button
+                            onClick={() => setTab('status')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${tab === 'status' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             Live Status
                         </button>
-                        <button 
-                            onClick={() => setTab('logs')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
-                                tab === 'logs' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                            }`}
+                        <button
+                            onClick={() => setTab('logs')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${tab === 'logs' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             Swipe History
                         </button>
-                        <button 
-                            onClick={() => setTab('mapping')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
-                                tab === 'mapping' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                            }`}
+                        <button
+                            onClick={() => setTab('mapping')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${tab === 'mapping' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             Device Mapping
                         </button>
-                        <button 
-                            onClick={() => setTab('leaves')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
-                                tab === 'leaves' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                            }`}
+                        <button
+                            onClick={() => setTab('leaves')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${tab === 'leaves' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             Leaves
                         </button>
-                        <button 
-                            onClick={() => setTab('holidays')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${
-                                tab === 'holidays' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                            }`}
+                        <button
+                            onClick={() => setTab('holidays')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all whitespace-nowrap ${tab === 'holidays' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             Holidays
                         </button>
                     </div>
                     {tab === 'leaves' ? (
-                        <button 
+                        <button
                             onClick={() => {
                                 setLeaveForm({ employee_id: '', start_date: '', end_date: '', leave_type: 'casual', reason: '' });
                                 setShowLeaveModal(true);
@@ -960,14 +1235,14 @@ export default function AttendancePage() {
                         </button>
                     ) : tab === 'holidays' ? (
                         <div className="flex gap-2 shrink-0">
-                            <button 
+                            <button
                                 onClick={handleAutoFetchHolidays}
                                 disabled={fetchingHolidays}
                                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
                             >
                                 {fetchingHolidays ? 'Fetching...' : 'Auto-Fetch Holidays'}
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     setHolidayForm({ date: '', name: '' });
                                     setShowHolidayModal(true);
@@ -977,8 +1252,17 @@ export default function AttendancePage() {
                                 <FiPlus className="w-4 h-4" /> Add Holiday
                             </button>
                         </div>
+                    ) : tab === 'status' ? (
+                        <div className="flex gap-2 shrink-0">
+                            <button
+                                onClick={openManualLog}
+                                className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                            >
+                                <FiPlus className="w-4 h-4" /> Add Manual Log
+                            </button>
+                        </div>
                     ) : (
-                        <button 
+                        <button
                             onClick={openManualLog}
                             className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors cursor-pointer shrink-0"
                         >
@@ -1010,17 +1294,55 @@ export default function AttendancePage() {
                     {/* Filter bar */}
                     <div className="flex flex-wrap gap-3">
                         <div className="relative flex-1 min-w-[240px]">
-                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4"/>
-                            <input 
-                                value={statusSearch} 
-                                onChange={e => setStatusSearch(e.target.value)} 
-                                placeholder="Search by name, ID or role..." 
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                            <input
+                                value={statusSearch}
+                                onChange={e => setStatusSearch(e.target.value)}
+                                placeholder="Search by name, ID or role..."
                                 className="w-full pl-9 pr-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 outline-none focus:border-white/30"
                             />
                         </div>
-                        <select 
-                            value={statusFilter} 
-                            onChange={e => setStatusFilter(e.target.value)} 
+                        <div className="flex items-center gap-2 px-3 py-2 bg-black/30 border border-white/10 rounded-xl">
+                            <FiCalendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="text-xs font-semibold text-gray-400 hidden sm:inline">Date:</span>
+                            <input
+                                type="date"
+                                value={statusDate}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setStatusDate(val);
+                                    setDailySheetDate(val);
+                                }}
+                                max={new Date().toISOString().slice(0, 10)}
+                                className="bg-transparent text-sm font-semibold text-white outline-none [color-scheme:dark] cursor-pointer"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3 py-2 bg-black/30 border border-white/10 rounded-xl" title="Set Shift Start Time">
+                            <FiClock className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span className="text-xs font-semibold text-gray-400 hidden sm:inline">Start:</span>
+                            <input
+                                type="time"
+                                value={shiftStartTime}
+                                onChange={e => setShiftStartTime(e.target.value)}
+                                className="bg-transparent text-xs font-semibold text-white outline-none [color-scheme:dark] cursor-pointer"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setHighlightLate(prev => !prev)}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                highlightLate 
+                                    ? 'bg-rose-500/15 border-rose-500/40 text-rose-300' 
+                                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-gray-200'
+                            }`}
+                            title="Toggle Highlighting Late Arrivals"
+                        >
+                            <FiAlertTriangle className={`w-3.5 h-3.5 ${highlightLate ? 'text-rose-400' : 'text-gray-500'}`} />
+                            <span>Late Comers</span>
+                        </button>
+                        <select
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
                             className="px-4 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none [color-scheme:dark]"
                         >
                             <option value="">All Statuses</option>
@@ -1029,45 +1351,43 @@ export default function AttendancePage() {
                             <option value="Checked Out">Checked Out</option>
                             <option value="Absent">Absent / Off</option>
                         </select>
-                        <button 
-                            onClick={loadStatus}
+                        <button
+                            onClick={() => loadStatus(statusDate)}
                             className="px-4 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl text-sm transition-all flex items-center gap-2 cursor-pointer ml-auto sm:ml-0"
                         >
                             <FiActivity className="w-4 h-4 text-emerald-400" /> Refresh Board
                         </button>
                         {viewMode === 'list' && <ColumnToggle table={table} />}
-                        <button
+                        {/* <button
                             onClick={handleExportPDF}
                             disabled={exportingPdf}
                             className="px-4 py-2.5 bg-black/30 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         >
                             <FiDownload className="w-4 h-4" /> {exportingPdf ? 'Exporting...' : 'Export PDF'}
-                        </button>
+                        </button> */}
                         <button
-                            onClick={() => { setDailySheetDate(new Date().toISOString().slice(0, 10)); setShowDailySheetModal(true); }}
-                            className="px-4 py-2.5 bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 rounded-xl text-sm font-semibold hover:bg-emerald-600/30 hover:border-emerald-500/50 hover:text-emerald-200 transition-colors cursor-pointer flex items-center gap-2"
+                            onClick={() => { setDailySheetDate(statusDate); setShowDailySheetModal(true); }}
+                            className="px-4 py-2.5 bg-black/30 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:border-white/20 hover:text-white transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         >
-                            <FiDownload className="w-4 h-4" /> Daily Sheet
+                            <FiDownload className="w-4 h-4" /> Export PDF
                         </button>
-                        
+
                         {/* View Mode Toggle */}
                         <div className="flex gap-0.5 bg-black/30 border border-white/10 p-1 rounded-xl">
-                            <button 
+                            <button
                                 type="button"
-                                onClick={() => setViewMode('card')} 
-                                className={`p-1.5 rounded-lg text-sm transition-all flex items-center justify-center gap-1 ${
-                                    viewMode === 'card' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                                }`}
+                                onClick={() => setViewMode('card')}
+                                className={`p-1.5 rounded-lg text-sm transition-all flex items-center justify-center gap-1 ${viewMode === 'card' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                    }`}
                                 title="Card View"
                             >
                                 <FiGrid className="w-4 h-4" />
                             </button>
-                            <button 
+                            <button
                                 type="button"
-                                onClick={() => setViewMode('list')} 
-                                className={`p-1.5 rounded-lg text-sm transition-all flex items-center justify-center gap-1 ${
-                                    viewMode === 'list' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
-                                }`}
+                                onClick={() => setViewMode('list')}
+                                className={`p-1.5 rounded-lg text-sm transition-all flex items-center justify-center gap-1 ${viewMode === 'list' ? 'bg-white text-black' : 'text-gray-400 hover:text-white'
+                                    }`}
                                 title="List View"
                             >
                                 <FiList className="w-4 h-4" />
@@ -1080,7 +1400,7 @@ export default function AttendancePage() {
                         <div className="text-center py-16 text-gray-500">Loading live status board...</div>
                     ) : filteredStatusEmployees.length === 0 ? (
                         <div className="text-center py-16 text-zinc-500 bg-black/20 border border-white/5 rounded-2xl">
-                            <FiUsers className="w-10 h-10 mx-auto mb-3 opacity-30"/>
+                            <FiUsers className="w-10 h-10 mx-auto mb-3 opacity-30" />
                             <p className="font-semibold">No employees match filters</p>
                         </div>
                     ) : viewMode === 'card' ? (
@@ -1130,14 +1450,13 @@ export default function AttendancePage() {
                                                 </div>
                                                 <div className="w-full h-2.5 bg-zinc-900/60 rounded-full overflow-hidden flex border border-white/5 relative">
                                                     {getTimelineSegments(emp.todayLogs, emp.status).map((seg, idx) => (
-                                                        <div 
-                                                            key={idx} 
-                                                            style={{ width: `${seg.width}%` }} 
-                                                            className={`h-full transition-all ${
-                                                                seg.type === 'working' ? 'bg-emerald-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]' :
+                                                        <div
+                                                            key={idx}
+                                                            style={{ width: `${seg.width}%` }}
+                                                            className={`h-full transition-all ${seg.type === 'working' ? 'bg-emerald-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]' :
                                                                 seg.type === 'break' ? 'bg-amber-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]' :
-                                                                'bg-zinc-800/10'
-                                                            }`}
+                                                                    'bg-zinc-800/10'
+                                                                }`}
                                                             title={`${seg.type === 'working' ? 'Working' : seg.type === 'break' ? 'On Break' : 'Away'}: ${seg.startLabel} - ${seg.endLabel}`}
                                                         />
                                                     ))}
@@ -1180,24 +1499,37 @@ export default function AttendancePage() {
                                             <tr key={headerGroup.id} className="border-b border-white/10 bg-white/[0.02]">
                                                 {headerGroup.headers.map(header => {
                                                     const isSortable = header.column.getCanSort();
+                                                    const isSorted = header.column.getIsSorted();
                                                     return (
-                                                        <th 
-                                                            key={header.id} 
-                                                            onClick={header.column.getToggleSortingHandler()}
-                                                            className={`p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 select-none ${
-                                                                isSortable ? 'cursor-pointer hover:text-white' : ''
-                                                            }`}
+                                                        <th
+                                                            key={header.id}
+                                                            className="p-3 text-xs font-bold uppercase tracking-wider text-zinc-400 select-none border-r border-white/5 last:border-r-0 align-top"
                                                         >
-                                                            <div className="flex items-center gap-1">
-                                                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                                            <div
+                                                                onClick={isSortable ? header.column.getToggleSortingHandler() : undefined}
+                                                                className={`flex items-center justify-between gap-1.5 p-1 rounded-lg transition-colors ${
+                                                                    isSortable ? 'cursor-pointer hover:bg-white/5 hover:text-white' : ''
+                                                                }`}
+                                                                title={isSortable ? `Click to sort by ${typeof header.column.columnDef.header === 'string' ? header.column.columnDef.header : header.id}` : undefined}
+                                                            >
+                                                                <span className={isSorted ? 'text-emerald-400 font-bold' : ''}>
+                                                                    {flexRender(header.column.columnDef.header, header.getContext())}
+                                                                </span>
                                                                 {isSortable && (
-                                                                    {
-                                                                        asc: <FiChevronUp className="w-3.5 h-3.5 text-zinc-400" />,
-                                                                        desc: <FiChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-                                                                    }[header.column.getIsSorted()] || null
+                                                                    <span className="shrink-0">
+                                                                        {isSorted === 'asc' && <FiChevronUp className="w-4 h-4 text-emerald-400" />}
+                                                                        {isSorted === 'desc' && <FiChevronDown className="w-4 h-4 text-emerald-400" />}
+                                                                        {!isSorted && (
+                                                                            <svg className="w-3.5 h-3.5 text-zinc-600 hover:text-zinc-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </span>
                                                                 )}
                                                             </div>
-                                                            {header.column.getCanFilter() && <ColumnFilter column={header.column} />}
+                                                            {header.column.getCanFilter() && (
+                                                                <ColumnFilter column={header.column} />
+                                                            )}
                                                         </th>
                                                     );
                                                 })}
@@ -1226,14 +1558,14 @@ export default function AttendancePage() {
                                         <span className="text-white font-medium">{table.getPageCount()}</span>
                                     </p>
                                     <div className="flex items-center gap-2">
-                                        <button 
+                                        <button
                                             disabled={!table.getCanPreviousPage()}
                                             onClick={() => table.previousPage()}
                                             className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
                                         >
                                             Previous
                                         </button>
-                                        <button 
+                                        <button
                                             disabled={!table.getCanNextPage()}
                                             onClick={() => table.nextPage()}
                                             className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
@@ -1257,20 +1589,20 @@ export default function AttendancePage() {
                             <div>
                                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Search Employee</label>
                                 <div className="relative">
-                                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4"/>
-                                    <input 
-                                        value={logsSearch} 
-                                        onChange={handleLogsSearch} 
-                                        placeholder="Search name, ERP code, Device ID..." 
+                                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                                    <input
+                                        value={logsSearch}
+                                        onChange={handleLogsSearch}
+                                        placeholder="Search name, ERP code, Device ID..."
                                         className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
                                     />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">State</label>
-                                <select 
-                                    value={logsState} 
-                                    onChange={e => { setLogsState(e.target.value); setLogsPage(1); }} 
+                                <select
+                                    value={logsState}
+                                    onChange={e => { setLogsState(e.target.value); setLogsPage(1); }}
                                     className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white outline-none [color-scheme:dark]"
                                 >
                                     <option value="">All Actions</option>
@@ -1282,25 +1614,25 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Start Date</label>
-                                <input 
+                                <input
                                     type="date"
-                                    value={logsStartDate} 
-                                    onChange={e => { setLogsStartDate(e.target.value); setLogsPage(1); }} 
+                                    value={logsStartDate}
+                                    onChange={e => { setLogsStartDate(e.target.value); setLogsPage(1); }}
                                     className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">End Date</label>
-                                <input 
+                                <input
                                     type="date"
-                                    value={logsEndDate} 
-                                    onChange={e => { setLogsEndDate(e.target.value); setLogsPage(1); }} 
+                                    value={logsEndDate}
+                                    onChange={e => { setLogsEndDate(e.target.value); setLogsPage(1); }}
                                     className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
                                 />
                             </div>
                         </div>
                         <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
-                            <button 
+                            <button
                                 onClick={() => {
                                     setLogsSearch('');
                                     setLogsState('');
@@ -1312,7 +1644,7 @@ export default function AttendancePage() {
                             >
                                 Clear Filters
                             </button>
-                            <button 
+                            <button
                                 onClick={applyLogsFilters}
                                 className="px-5 py-2 text-xs font-semibold bg-white text-black hover:bg-zinc-200 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                             >
@@ -1334,16 +1666,17 @@ export default function AttendancePage() {
                                         <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Department</th>
                                         <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Action</th>
                                         <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Verification</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wider text-zinc-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={7} className="p-8 text-center text-zinc-500">Loading logs...</td>
+                                            <td colSpan={8} className="p-8 text-center text-zinc-500">Loading logs...</td>
                                         </tr>
                                     ) : !logsData.data || logsData.data.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="p-8 text-center text-zinc-500">No swipe history records found matching current criteria.</td>
+                                            <td colSpan={8} className="p-8 text-center text-zinc-500">No swipe history records found matching current criteria.</td>
                                         </tr>
                                     ) : (
                                         logsData.data.map(log => (
@@ -1361,15 +1694,14 @@ export default function AttendancePage() {
                                                 <td className="p-4 font-mono text-zinc-400">{log.device_user_id}</td>
                                                 <td className="p-4 text-zinc-400">{log.department || '—'}</td>
                                                 <td className="p-4">
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                                        log.state === 0 
-                                                            ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' 
-                                                            : log.state === 4
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${log.state === 0
+                                                        ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                                                        : log.state === 4
                                                             ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
                                                             : log.state === 5
-                                                            ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
-                                                            : 'text-zinc-400 bg-zinc-500/10 border border-zinc-500/20'
-                                                    }`}>
+                                                                ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
+                                                                : 'text-zinc-400 bg-zinc-500/10 border border-zinc-500/20'
+                                                        }`}>
                                                         {log.state === 0 ? 'Check In' : log.state === 4 ? 'Break Out' : log.state === 5 ? 'Break In' : 'Check Out'}
                                                     </span>
                                                 </td>
@@ -1385,6 +1717,24 @@ export default function AttendancePage() {
                                                             'Fingerprint'
                                                         )}
                                                     </span>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => openEditLog(log)}
+                                                            className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-lg text-xs cursor-pointer transition-colors"
+                                                            title="Edit Swipe Record"
+                                                        >
+                                                            <FiEdit className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteLog(log.id)}
+                                                            className="p-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 hover:border-rose-500/30 text-rose-400 rounded-lg text-xs cursor-pointer transition-colors"
+                                                            title="Delete Swipe Record"
+                                                        >
+                                                            <FiTrash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1404,7 +1754,7 @@ export default function AttendancePage() {
                                     <span className="text-white font-medium">{logsData.pagination.total}</span> records
                                 </p>
                                 <div className="flex items-center gap-2">
-                                    <button 
+                                    <button
                                         disabled={logsPage === 1}
                                         onClick={() => setLogsPage(p => Math.max(1, p - 1))}
                                         className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -1414,7 +1764,7 @@ export default function AttendancePage() {
                                     <span className="text-xs text-zinc-400">
                                         Page <span className="text-white font-medium">{logsPage}</span> of {logsData.pagination.totalPages}
                                     </span>
-                                    <button 
+                                    <button
                                         disabled={logsPage === logsData.pagination.totalPages}
                                         onClick={() => setLogsPage(p => Math.min(logsData.pagination.totalPages, p + 1))}
                                         className="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -1433,15 +1783,15 @@ export default function AttendancePage() {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center bg-black/30 border border-white/10 p-4 rounded-2xl">
                         <div className="relative flex-1 max-w-md">
-                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4"/>
-                            <input 
-                                value={mappingSearch} 
-                                onChange={e => setMappingSearch(e.target.value)} 
-                                placeholder="Search by name, ERP code, role..." 
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                            <input
+                                value={mappingSearch}
+                                onChange={e => setMappingSearch(e.target.value)}
+                                placeholder="Search by name, ERP code, role..."
                                 className="w-full pl-9 pr-4 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
                             />
                         </div>
-                        <button 
+                        <button
                             onClick={saveMappings}
                             disabled={savingLog || Object.keys(mappingChanges).length === 0}
                             className="bg-white text-black px-5 py-2 rounded-xl text-xs font-bold hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 transition-all"
@@ -1469,8 +1819,8 @@ export default function AttendancePage() {
                                         <tr>
                                             <td colSpan={6} className="p-8 text-center text-zinc-500">Loading mappings...</td>
                                         </tr>
-                                    ) : mappings.filter(m => 
-                                        m.name.toLowerCase().includes(mappingSearch.toLowerCase()) || 
+                                    ) : mappings.filter(m =>
+                                        m.name.toLowerCase().includes(mappingSearch.toLowerCase()) ||
                                         (m.erp_code || '').toLowerCase().includes(mappingSearch.toLowerCase()) ||
                                         (m.job_title || '').toLowerCase().includes(mappingSearch.toLowerCase())
                                     ).length === 0 ? (
@@ -1479,8 +1829,8 @@ export default function AttendancePage() {
                                         </tr>
                                     ) : (
                                         mappings
-                                            .filter(m => 
-                                                m.name.toLowerCase().includes(mappingSearch.toLowerCase()) || 
+                                            .filter(m =>
+                                                m.name.toLowerCase().includes(mappingSearch.toLowerCase()) ||
                                                 (m.erp_code || '').toLowerCase().includes(mappingSearch.toLowerCase()) ||
                                                 (m.job_title || '').toLowerCase().includes(mappingSearch.toLowerCase())
                                             )
@@ -1497,7 +1847,7 @@ export default function AttendancePage() {
                                                         <td className="p-4 text-zinc-400">{mapItem.job_title || '—'}</td>
                                                         <td className="p-2">
                                                             <div className="flex items-center gap-2">
-                                                                <input 
+                                                                <input
                                                                     type="text"
                                                                     value={deviceUserId}
                                                                     placeholder="e.g. 1045"
@@ -1586,16 +1936,14 @@ export default function AttendancePage() {
                                                     {leave.reason || '—'}
                                                 </td>
                                                 <td className="p-4">
-                                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                                                        leave.status === 'approved' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' :
+                                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${leave.status === 'approved' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' :
                                                         leave.status === 'rejected' ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' :
-                                                        'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                                                    }`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${
-                                                            leave.status === 'approved' ? 'bg-emerald-400' :
+                                                            'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                                                        }`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${leave.status === 'approved' ? 'bg-emerald-400' :
                                                             leave.status === 'rejected' ? 'bg-rose-400' :
-                                                            'bg-amber-400'
-                                                        }`} />
+                                                                'bg-amber-400'
+                                                            }`} />
                                                         {leave.status}
                                                     </span>
                                                 </td>
@@ -1603,13 +1951,13 @@ export default function AttendancePage() {
                                                     <div className="flex justify-end gap-1.5">
                                                         {leave.status === 'pending' && (
                                                             <>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleUpdateLeaveStatus(leave.id, 'approved')}
                                                                     className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
                                                                 >
                                                                     Approve
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleUpdateLeaveStatus(leave.id, 'rejected')}
                                                                     className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[10px] font-semibold rounded-lg transition-all cursor-pointer"
                                                                 >
@@ -1617,7 +1965,7 @@ export default function AttendancePage() {
                                                                 </button>
                                                             </>
                                                         )}
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDeleteLeave(leave.id)}
                                                             className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
                                                             title="Delete Leave Application"
@@ -1642,8 +1990,8 @@ export default function AttendancePage() {
                     <div className="flex justify-between items-center bg-black/30 border border-white/10 p-4 rounded-2xl">
                         <div className="flex items-center gap-3">
                             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Year Filter</label>
-                            <select 
-                                value={holidayYear} 
+                            <select
+                                value={holidayYear}
                                 onChange={e => handleHolidayYearChange(parseInt(e.target.value, 10))}
                                 className="px-3 py-1.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none [color-scheme:dark]"
                             >
@@ -1692,7 +2040,7 @@ export default function AttendancePage() {
                                                         {holiday.name}
                                                     </td>
                                                     <td className="p-4 text-right">
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDeleteHoliday(holiday.id)}
                                                             className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
                                                             title="Delete Holiday"
@@ -1722,7 +2070,7 @@ export default function AttendancePage() {
                         <form onSubmit={handleSaveLeave} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select Employee *</label>
-                                <select 
+                                <select
                                     required
                                     value={leaveForm.employee_id}
                                     onChange={e => setLeaveForm(p => ({ ...p, employee_id: e.target.value }))}
@@ -1737,7 +2085,7 @@ export default function AttendancePage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Start Date *</label>
-                                    <input 
+                                    <input
                                         required
                                         type="date"
                                         value={leaveForm.start_date}
@@ -1747,7 +2095,7 @@ export default function AttendancePage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">End Date *</label>
-                                    <input 
+                                    <input
                                         required
                                         type="date"
                                         value={leaveForm.end_date}
@@ -1758,7 +2106,7 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Leave Type *</label>
-                                <select 
+                                <select
                                     required
                                     value={leaveForm.leave_type}
                                     onChange={e => setLeaveForm(p => ({ ...p, leave_type: e.target.value }))}
@@ -1772,7 +2120,7 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Reason / Description</label>
-                                <textarea 
+                                <textarea
                                     value={leaveForm.reason}
                                     onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
                                     rows={3}
@@ -1803,7 +2151,7 @@ export default function AttendancePage() {
                         <form onSubmit={handleSaveHoliday} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Date *</label>
-                                <input 
+                                <input
                                     required
                                     type="date"
                                     value={holidayForm.date}
@@ -1813,7 +2161,7 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Holiday Name *</label>
-                                <input 
+                                <input
                                     required
                                     type="text"
                                     placeholder="e.g. Sinhala & Tamil New Year"
@@ -1837,14 +2185,16 @@ export default function AttendancePage() {
             {/* DAILY SHEET DATE PICKER MODAL */}
             {showDailySheetModal && (
                 <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowDailySheetModal(false)}>
-                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden">
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.07]">
-                            <h3 className="text-lg font-bold text-white">Daily Attendance Sheet</h3>
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <FiDownload className="w-5 h-5 text-emerald-400" /> Export Attendance PDF
+                            </h3>
                             <button onClick={() => setShowDailySheetModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
-                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Select Date</label>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Select Target Date</label>
                                 <input
                                     type="date"
                                     value={dailySheetDate}
@@ -1853,10 +2203,90 @@ export default function AttendancePage() {
                                     className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-sm text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
                                 />
                             </div>
-                            <p className="text-[11px] text-gray-500">
-                                Report will include check-in/out times, breaks, and work hours for all employees on the selected date.
-                            </p>
-                            <div className="flex gap-3">
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Shift Start Time</label>
+                                    <input
+                                        type="time"
+                                        value={shiftStartTime}
+                                        onChange={e => setShiftStartTime(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 bg-black border border-white/10 rounded-xl text-xs text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
+                                    />
+                                </div>
+                                <div className="flex items-end">
+                                    <label className="flex items-center gap-2 p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-gray-300 font-medium cursor-pointer hover:bg-white/10 transition-colors w-full">
+                                        <input
+                                            type="checkbox"
+                                            checked={highlightLate}
+                                            onChange={e => setHighlightLate(e.target.checked)}
+                                            className="rounded border-white/20 bg-black text-rose-500 focus:ring-0 cursor-pointer"
+                                        />
+                                        <span className="text-rose-300 font-semibold">Highlight Late</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {(statusSearch || statusFilter) && (
+                                <div className="flex items-center gap-2.5 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-300">
+                                    <FiFilter className="w-4 h-4 shrink-0 text-emerald-400" />
+                                    <span>
+                                        Active filters applied: Only matching employees ({filteredStatusEmployees.length} items) will be included in the report.
+                                    </span>
+                                </div>
+                            )}
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Customize Columns</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectedColumns.length === ALL_REPORT_COLUMNS.length) {
+                                                setSelectedColumns(['name', 'status']);
+                                            } else {
+                                                setSelectedColumns(ALL_REPORT_COLUMNS.map(c => c.id));
+                                            }
+                                        }}
+                                        className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                                    >
+                                        {selectedColumns.length === ALL_REPORT_COLUMNS.length ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 bg-black/40 border border-white/10 p-3 rounded-xl">
+                                    {ALL_REPORT_COLUMNS.map(col => {
+                                        const isChecked = selectedColumns.includes(col.id);
+                                        return (
+                                            <label
+                                                key={col.id}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                                                    isChecked ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        if (isChecked) {
+                                                            if (selectedColumns.length <= 1) {
+                                                                toast.error('Select at least one column');
+                                                                return;
+                                                            }
+                                                            setSelectedColumns(selectedColumns.filter(id => id !== col.id));
+                                                        } else {
+                                                            setSelectedColumns([...selectedColumns, col.id]);
+                                                        }
+                                                    }}
+                                                    className="rounded border-white/20 bg-black text-emerald-500 focus:ring-0 cursor-pointer"
+                                                />
+                                                <span>{col.header}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowDailySheetModal(false)}
@@ -1867,10 +2297,10 @@ export default function AttendancePage() {
                                 <button
                                     type="button"
                                     onClick={() => handleExportDailySheet(dailySheetDate)}
-                                    disabled={exportingDailySheet || !dailySheetDate}
+                                    disabled={exportingDailySheet || !dailySheetDate || selectedColumns.length === 0}
                                     className="flex-1 py-2.5 bg-emerald-600 border border-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    <FiDownload className="w-4 h-4" /> {exportingDailySheet ? 'Generating…' : 'Download'}
+                                    <FiDownload className="w-4 h-4" /> {exportingDailySheet ? 'Generating…' : 'Download PDF'}
                                 </button>
                             </div>
                         </div>
@@ -1889,7 +2319,7 @@ export default function AttendancePage() {
                         <form onSubmit={saveManualLog} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select Employee *</label>
-                                <select 
+                                <select
                                     required
                                     value={manualForm.employee_id}
                                     onChange={e => setManualForm(p => ({ ...p, employee_id: e.target.value }))}
@@ -1903,7 +2333,7 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Punch State *</label>
-                                <select 
+                                <select
                                     required
                                     value={manualForm.state}
                                     onChange={e => setManualForm(p => ({ ...p, state: e.target.value }))}
@@ -1917,7 +2347,7 @@ export default function AttendancePage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Date & Time *</label>
-                                <input 
+                                <input
                                     required
                                     type="datetime-local"
                                     value={manualForm.timestamp}
@@ -1931,6 +2361,58 @@ export default function AttendancePage() {
                                 <button type="submit" disabled={savingLog} className="flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 disabled:opacity-50 cursor-pointer">
                                     {savingLog && <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
                                     Save Punch
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* EDIT SWIPE RECORD MODAL */}
+            {showEditModal && (
+                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowEditModal(false)}>
+                    <div className="bg-[#0c0c0c] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.07]">
+                            <h3 className="text-lg font-bold text-white">Edit Swipe Log Record</h3>
+                            <button onClick={() => setShowEditModal(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 cursor-pointer"><FiX /></button>
+                        </div>
+                        <form onSubmit={saveEditLog} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Employee</label>
+                                <div className="w-full px-3 py-2.5 bg-white/5 border border-white/5 rounded-xl text-sm text-zinc-400 select-none">
+                                    {editForm.employeeName}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Punch Action (State) *</label>
+                                <select
+                                    required
+                                    value={editForm.state}
+                                    onChange={e => setEditForm(p => ({ ...p, state: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none [color-scheme:dark]"
+                                >
+                                    <option value="0">Check In</option>
+                                    <option value="1">Check Out</option>
+                                    <option value="4">Break Out</option>
+                                    <option value="5">Break In</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Date & Time *</label>
+                                <input
+                                    required
+                                    type="datetime-local"
+                                    value={editForm.timestamp}
+                                    onChange={e => setEditForm(p => ({ ...p, timestamp: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-black/30 border border-white/10 rounded-xl text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+                                />
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-4 border-t border-white/5">
+                                <button type="button" onClick={() => setShowEditModal(false)} className="px-5 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-semibold hover:bg-white/5 cursor-pointer">Cancel</button>
+                                <button type="submit" disabled={updatingLog} className="flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 disabled:opacity-50 cursor-pointer">
+                                    {updatingLog && <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />}
+                                    Save Changes
                                 </button>
                             </div>
                         </form>
@@ -1959,8 +2441,8 @@ export default function AttendancePage() {
                             <div className="flex items-center gap-3">
                                 <div>
                                     <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Year</label>
-                                    <select 
-                                        value={reportYear} 
+                                    <select
+                                        value={reportYear}
                                         onChange={e => handleReportPeriodChange(parseInt(e.target.value, 10), reportMonth)}
                                         className="px-3 py-1.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none [color-scheme:dark]"
                                     >
@@ -1970,8 +2452,8 @@ export default function AttendancePage() {
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Month</label>
-                                    <select 
-                                        value={reportMonth} 
+                                    <select
+                                        value={reportMonth}
                                         onChange={e => handleReportPeriodChange(reportYear, parseInt(e.target.value, 10))}
                                         className="px-3 py-1.5 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none [color-scheme:dark]"
                                     >
@@ -2032,15 +2514,14 @@ export default function AttendancePage() {
                                                     </td>
                                                     <td className="p-3 text-center font-mono text-zinc-300">{day.overtimeHours.toFixed(2)} hrs</td>
                                                     <td className="p-3 text-right">
-                                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                                            day.status === 'Present' 
-                                                                ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-                                                                : day.status === 'Incomplete'
+                                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${day.status === 'Present'
+                                                            ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                                                            : day.status === 'Incomplete'
                                                                 ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
                                                                 : day.status === 'Weekly Off'
-                                                                ? 'text-zinc-500 bg-zinc-500/5 border border-zinc-500/10'
-                                                                : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
-                                                        }`}>
+                                                                    ? 'text-zinc-500 bg-zinc-500/5 border border-zinc-500/10'
+                                                                    : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
+                                                            }`}>
                                                             {day.status}
                                                         </span>
                                                     </td>

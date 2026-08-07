@@ -57,13 +57,16 @@ export async function GET(req, { params }) {
         }
 
         if (deviceIds.length > 0) {
+            const endDayObj = new Date(year, month - 1, daysInMonth + 1);
+            const endStrPlusOne = `${endDayObj.getFullYear()}-${pad(endDayObj.getMonth() + 1)}-${pad(endDayObj.getDate())} 23:59:59`;
+
             // Fetch logs for this employee (ignoring states 4 & 5)
             const [logs] = await pool.execute(`
                 SELECT timestamp, state
                 FROM zkteco_attendance_logs
                 WHERE device_user_id IN (${deviceIds.map(() => '?').join(',')}) AND timestamp >= ? AND timestamp <= ? AND state IN (0, 1)
                 ORDER BY timestamp ASC
-            `, [...deviceIds, startStr, endStr]);
+            `, [...deviceIds, startStr, endStrPlusOne]);
 
             // Group logs by date
             const logsByDate = {};
@@ -75,8 +78,8 @@ export async function GET(req, { params }) {
 
             // Process each day
             for (const item of dailyReport) {
-                const dayLogs = logsByDate[item.date];
-                if (!dayLogs || dayLogs.length === 0) continue;
+                const dayLogs = logsByDate[item.date] || [];
+                if (dayLogs.length === 0) continue;
 
                 let checkInTime = null;
                 let checkOutTime = null;
@@ -87,10 +90,41 @@ export async function GET(req, { params }) {
                 const checkIns = dayLogs.filter(l => l.state === 0);
                 const checkOuts = dayLogs.filter(l => l.state === 1);
 
-                if (checkIns.length > 0) {
-                    checkInTime = new Date(checkIns[0].timestamp);
+                let firstCheckIn = checkIns.length > 0 ? checkIns[0] : null;
+                let lastCheckOut = checkOuts.length > 0 ? checkOuts[checkOuts.length - 1] : null;
+
+                if (firstCheckIn) {
+                    checkInTime = new Date(firstCheckIn.timestamp);
                 }
-                if (checkOuts.length > 0) {
+
+                const hasCheckOutOnTargetDate = lastCheckOut && firstCheckIn && (new Date(lastCheckOut.timestamp).getTime() > new Date(firstCheckIn.timestamp).getTime());
+
+                // If checked in today but NO valid check-out today, check next day logs
+                if (firstCheckIn && !hasCheckOutOnTargetDate) {
+                    const dObj = new Date(item.date);
+                    const nextDayObj = new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate() + 1);
+                    const nextDayStr = `${nextDayObj.getFullYear()}-${pad(nextDayObj.getMonth() + 1)}-${pad(nextDayObj.getDate())}`;
+
+                    const nextDayLogs = logsByDate[nextDayStr] || [];
+                    const nextDayFirstCheckIn = nextDayLogs.find(l => l.state === 0);
+
+                    // Find a Check Out on next day that occurs BEFORE the first Check In of next day
+                    const overnightCheckOut = nextDayLogs.find(l => {
+                        if (l.state !== 1) return false;
+                        if (nextDayFirstCheckIn) {
+                            return new Date(l.timestamp).getTime() < new Date(nextDayFirstCheckIn.timestamp).getTime();
+                        }
+                        return true;
+                    });
+
+                    if (overnightCheckOut) {
+                        lastCheckOut = overnightCheckOut;
+                    }
+                }
+
+                if (lastCheckOut) {
+                    checkOutTime = new Date(lastCheckOut.timestamp);
+                } else if (checkOuts.length > 0 && !checkOutTime) {
                     checkOutTime = new Date(checkOuts[checkOuts.length - 1].timestamp);
                 }
 
@@ -103,6 +137,7 @@ export async function GET(req, { params }) {
                         // Out before in, count as incomplete
                         incomplete = true;
                         item.status = 'Incomplete';
+                        checkOutTime = null; // Neglect check-out time since it is before check-in time
                     }
                 } else if (checkInTime || checkOutTime) {
                     incomplete = true;

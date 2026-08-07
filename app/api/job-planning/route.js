@@ -366,21 +366,26 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                         task.quantity = finishing.item_qty || 0;
                     }
                 } else if (matchingDetail) {
-                    const pagesVal = parseInt(matchingDetail.pages) || 1;
-                    const upsVal = parseInt(matchingDetail.ups) || 1;
-                    const sidesVal = parseInt(matchingDetail.sides) || 1;
-                    const divisor = upsVal * sidesVal;
-                    let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
-                    if (divisor > 0 && finishing.item_qty > 0) {
-                        netCutSheets = Math.ceil((pagesVal * finishing.item_qty) / divisor);
-                    }
-                    const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
-
+                    const isBB = parseInt(matchingDetail.is_bb) === 1;
                     if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
-                        if (su.includes('print')) {
-                            task.quantity = totalCutSheets * sidesVal;
-                        } else if (su.includes('sheet')) {
-                            task.quantity = totalCutSheets;
+                        if (isBB && su.includes('form')) {
+                            task.quantity = finishing.item_qty || 0;
+                        } else {
+                            const pagesVal = parseInt(matchingDetail.pages) || 1;
+                            const upsVal = parseInt(matchingDetail.ups) || 1;
+                            const sidesVal = parseInt(matchingDetail.sides) || 1;
+                            const divisor = upsVal * sidesVal;
+                            let netCutSheets = parseFloat(matchingDetail.printed_sheets) || 0;
+                            if (divisor > 0 && finishing.item_qty > 0) {
+                                netCutSheets = Math.ceil((pagesVal * finishing.item_qty) / divisor);
+                            }
+                            const totalCutSheets = netCutSheets + (parseFloat(matchingDetail.wastage_sheets) || 0);
+
+                            if (su.includes('print')) {
+                                task.quantity = totalCutSheets * sidesVal;
+                            } else if (su.includes('sheet')) {
+                                task.quantity = totalCutSheets;
+                            }
                         }
                     }
                 }
