@@ -57,6 +57,10 @@ export async function GET(req, { params }) {
         }
 
         if (deviceIds.length > 0) {
+            const firstDayObj = new Date(year, month - 1, 1);
+            const prevDayObj = new Date(firstDayObj.getTime() - 24 * 60 * 60 * 1000);
+            const fetchStartStr = `${prevDayObj.getFullYear()}-${pad(prevDayObj.getMonth() + 1)}-${pad(prevDayObj.getDate())} 00:00:00`;
+
             const endDayObj = new Date(year, month - 1, daysInMonth + 1);
             const endStrPlusOne = `${endDayObj.getFullYear()}-${pad(endDayObj.getMonth() + 1)}-${pad(endDayObj.getDate())} 23:59:59`;
 
@@ -66,7 +70,7 @@ export async function GET(req, { params }) {
                 FROM zkteco_attendance_logs
                 WHERE device_user_id IN (${deviceIds.map(() => '?').join(',')}) AND timestamp >= ? AND timestamp <= ? AND state IN (0, 1)
                 ORDER BY timestamp ASC
-            `, [...deviceIds, startStr, endStrPlusOne]);
+            `, [...deviceIds, fetchStartStr, endStrPlusOne]);
 
             // Group logs by date
             const logsByDate = {};
@@ -76,10 +80,70 @@ export async function GET(req, { params }) {
                 logsByDate[datePart].push(log);
             }
 
+            // Fetch all approved leaves for this employee that overlap with the range
+            const [leaves] = await pool.execute(`
+                SELECT start_date, end_date
+                FROM leaves
+                WHERE employee_id = ? AND status = 'approved' AND start_date <= ? AND end_date >= ?
+            `, [id, endStrPlusOne.slice(0, 10), fetchStartStr.slice(0, 10)]);
+
+            const leaveDates = new Set();
+            for (const leave of leaves) {
+                const start = new Date(leave.start_date + 'T00:00:00Z');
+                const end = new Date(leave.end_date + 'T00:00:00Z');
+                for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+                    leaveDates.add(d.toISOString().slice(0, 10));
+                }
+            }
+
+            const getOffsetDateStr = (dateStr, offsetDays) => {
+                const d = new Date(dateStr + 'T00:00:00Z');
+                d.setUTCDate(d.getUTCDate() + offsetDays);
+                return d.toISOString().slice(0, 10);
+            };
+
             // Process each day
             for (const item of dailyReport) {
-                const dayLogs = logsByDate[item.date] || [];
-                if (dayLogs.length === 0) continue;
+                const dayLogs = [...(logsByDate[item.date] || [])];
+
+                // Overnight shift check for the previous day (d-1):
+                // If the employee checked in on d-1, but had no check-out on d-1,
+                // then any check-out today (d) before today's first check-in belongs to d-1.
+                const prevDateStr = getOffsetDateStr(item.date, -1);
+                const prevDayLogs = logsByDate[prevDateStr] || [];
+                const prevFirstCheckIn = prevDayLogs.find(l => l.state === 0);
+                const prevCheckOuts = prevDayLogs.filter(l => l.state === 1);
+                const prevHasCheckOut = prevCheckOuts.length > 0 &&
+                    (prevFirstCheckIn ? new Date(prevCheckOuts[prevCheckOuts.length - 1].timestamp).getTime() > new Date(prevFirstCheckIn.timestamp).getTime() : false);
+
+                let todayHadOvernightCheckOut = false;
+
+                if (prevFirstCheckIn && !prevHasCheckOut) {
+                    const todayFirstCheckIn = dayLogs.find(l => l.state === 0);
+                    // Filter out any check-outs (state 1) on today that occur before today's first check-in
+                    // If no check-in today, filter out all check-outs on today
+                    for (let i = dayLogs.length - 1; i >= 0; i--) {
+                        const l = dayLogs[i];
+                        if (l.state === 1) {
+                            const isOvernightCheckOut = todayFirstCheckIn
+                                ? new Date(l.timestamp).getTime() < new Date(todayFirstCheckIn.timestamp).getTime()
+                                : true;
+                            if (isOvernightCheckOut) {
+                                todayHadOvernightCheckOut = true;
+                                dayLogs.splice(i, 1);
+                            }
+                        }
+                    }
+                }
+
+                if (dayLogs.length === 0) {
+                    if (leaveDates.has(item.date)) {
+                        item.status = 'Leave';
+                    } else if (todayHadOvernightCheckOut) {
+                        item.status = 'Off';
+                    }
+                    continue;
+                }
 
                 let checkInTime = null;
                 let checkOutTime = null;
@@ -101,10 +165,7 @@ export async function GET(req, { params }) {
 
                 // If checked in today but NO valid check-out today, check next day logs
                 if (firstCheckIn && !hasCheckOutOnTargetDate) {
-                    const dObj = new Date(item.date);
-                    const nextDayObj = new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate() + 1);
-                    const nextDayStr = `${nextDayObj.getFullYear()}-${pad(nextDayObj.getMonth() + 1)}-${pad(nextDayObj.getDate())}`;
-
+                    const nextDayStr = getOffsetDateStr(item.date, 1);
                     const nextDayLogs = logsByDate[nextDayStr] || [];
                     const nextDayFirstCheckIn = nextDayLogs.find(l => l.state === 0);
 
@@ -144,6 +205,10 @@ export async function GET(req, { params }) {
                     item.status = 'Incomplete';
                 }
 
+                if (item.status === 'Absent' && leaveDates.has(item.date)) {
+                    item.status = 'Leave';
+                }
+
                 let overtime = 0;
                 if (dailyHours > stdHours) {
                     overtime = dailyHours - stdHours;
@@ -159,7 +224,8 @@ export async function GET(req, { params }) {
 
         // Summary calculations
         const totalPresent = dailyReport.filter(r => r.status === 'Present').length;
-        const totalAbsent = dailyReport.filter(r => r.status === 'Absent').length;
+        const totalAbsent = dailyReport.filter(r => r.status === 'Off').length;
+        const totalLeave = dailyReport.filter(r => r.status === 'Leave').length;
         const totalIncomplete = dailyReport.filter(r => r.incomplete).length;
         const totalHoursWorked = dailyReport.reduce((sum, r) => sum + r.totalHours, 0);
         const totalOvertimeWorked = dailyReport.reduce((sum, r) => sum + r.overtimeHours, 0);
@@ -176,6 +242,7 @@ export async function GET(req, { params }) {
             summary: {
                 present: totalPresent,
                 absent: totalAbsent,
+                leave: totalLeave,
                 incomplete: totalIncomplete,
                 totalHours: parseFloat(totalHoursWorked.toFixed(2)),
                 totalOvertime: parseFloat(totalOvertimeWorked.toFixed(2))

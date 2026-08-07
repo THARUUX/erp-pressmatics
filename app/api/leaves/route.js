@@ -9,7 +9,7 @@ export async function GET(req) {
         const status = searchParams.get('status');
 
         let query = `
-            SELECT l.*, e.name as employee_name, e.employee_id as erp_code, e.department, e.job_title
+            SELECT l.*, e.name as employee_name, e.employee_id as erp_code, e.department, e.job_title, e.leave_limit, e.remaining_leaves
             FROM leaves l
             JOIN employees e ON l.employee_id = e.id
         `;
@@ -48,13 +48,54 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const [result] = await pool.execute(
-            `INSERT INTO leaves (employee_id, start_date, end_date, leave_type, status, reason)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [employee_id, start_date, end_date, leave_type, status, reason || null]
-        );
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+        const diffTime = Math.abs(end - start);
+        const days = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-        return NextResponse.json({ success: true, id: result.insertId });
+        if (status === 'approved') {
+            const conn = await pool.getConnection();
+            try {
+                await conn.beginTransaction();
+
+                const [empRows] = await conn.execute('SELECT remaining_leaves FROM employees WHERE id = ? FOR UPDATE', [employee_id]);
+                if (empRows.length === 0) {
+                    await conn.rollback();
+                    return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+                }
+
+                const remaining = empRows[0].remaining_leaves;
+                if (remaining < days) {
+                    await conn.rollback();
+                    return NextResponse.json({ error: `Insufficient leave balance. Remaining: ${remaining} days, Requested: ${days} days.` }, { status: 400 });
+                }
+
+                // Deduct remaining leaves
+                await conn.execute('UPDATE employees SET remaining_leaves = remaining_leaves - ? WHERE id = ?', [days, employee_id]);
+
+                // Insert leave
+                const [result] = await conn.execute(
+                    `INSERT INTO leaves (employee_id, start_date, end_date, leave_type, status, reason)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [employee_id, start_date, end_date, leave_type, status, reason || null]
+                );
+
+                await conn.commit();
+                return NextResponse.json({ success: true, id: result.insertId });
+            } catch (txErr) {
+                await conn.rollback();
+                throw txErr;
+            } finally {
+                conn.release();
+            }
+        } else {
+            const [result] = await pool.execute(
+                `INSERT INTO leaves (employee_id, start_date, end_date, leave_type, status, reason)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [employee_id, start_date, end_date, leave_type, status, reason || null]
+            );
+            return NextResponse.json({ success: true, id: result.insertId });
+        }
     } catch (err) {
         console.error('[leaves POST]', err);
         return NextResponse.json({ error: 'Failed to create leave application' }, { status: 500 });

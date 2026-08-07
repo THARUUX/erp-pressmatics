@@ -21,6 +21,9 @@ const statusDotColor = (status) => {
     if (status === 'Checked In') return 'bg-emerald-400 border-emerald-500/30 text-emerald-400';
     if (status === 'On Break') return 'bg-amber-400 border-amber-500/30 text-amber-400';
     if (status === 'Checked Out') return 'bg-zinc-400 border-zinc-500/30 text-zinc-400';
+    if (status === 'Leave' || status === 'On Leave') return 'bg-sky-400 border-sky-500/30 text-sky-400';
+    if (status === 'Off') return 'bg-zinc-500 border-zinc-600/30 text-zinc-400';
+    if (status === 'Absent') return 'bg-rose-400 border-rose-500/30 text-rose-400';
     return 'bg-zinc-600 border-zinc-700/30 text-zinc-400';
 };
 
@@ -28,6 +31,9 @@ const statusBadgeColor = (status) => {
     if (status === 'Checked In') return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
     if (status === 'On Break') return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
     if (status === 'Checked Out') return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20';
+    if (status === 'Leave' || status === 'On Leave') return 'text-sky-400 bg-sky-500/10 border-sky-500/20';
+    if (status === 'Off') return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20';
+    if (status === 'Absent') return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
     return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20';
 };
 
@@ -401,7 +407,7 @@ export default function AttendancePage() {
                     check_out: fmtTime(lastCheckOut),
                     break_time: fmtDuration(breakMins),
                     work_hours: fmtDuration(workMins),
-                    status: emp.status || 'Absent',
+                    status: emp.status || 'Off',
                 };
             });
 
@@ -414,7 +420,7 @@ export default function AttendancePage() {
                     return desc ? -comp : comp;
                 });
             } else if (targetDate !== statusDate) {
-                const statusOrder = { 'Checked In': 0, 'On Break': 1, 'Checked Out': 2, 'Absent': 3 };
+                const statusOrder = { 'Checked In': 0, 'On Break': 1, 'Checked Out': 2, 'Off': 3, 'Absent': 3 };
                 rows.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || (a.name || '').localeCompare(b.name || ''));
             }
 
@@ -424,7 +430,8 @@ export default function AttendancePage() {
                 { label: 'Checked In', value: summary.checkedIn || 0 },
                 { label: 'On Break', value: summary.onBreak || 0 },
                 { label: 'Checked Out', value: summary.checkedOut || 0 },
-                { label: 'Absent', value: summary.absent || 0 },
+                { label: 'Leave', value: summary.leave || 0 },
+                { label: 'Off', value: summary.absent || 0 },
             ];
 
             if (highlightLate) {
@@ -758,6 +765,7 @@ export default function AttendancePage() {
                 setShowLeaveModal(false);
                 setLeaveForm({ employee_id: '', start_date: '', end_date: '', leave_type: 'casual', reason: '' });
                 loadLeaves();
+                loadEmployees();
             } else {
                 const data = await res.json();
                 toast.error(data.error || 'Failed to save leave form');
@@ -777,8 +785,10 @@ export default function AttendancePage() {
             if (res.ok) {
                 toast.success(`Leave ${status} successfully`);
                 loadLeaves();
+                loadEmployees();
             } else {
-                toast.error('Failed to update leave status');
+                const data = await res.json();
+                toast.error(data.error || 'Failed to update leave status');
             }
         } catch {
             toast.error('Error updating leave status');
@@ -794,6 +804,7 @@ export default function AttendancePage() {
             if (res.ok) {
                 toast.success('Leave application deleted successfully');
                 loadLeaves();
+                loadEmployees();
             } else {
                 toast.error('Failed to delete leave application');
             }
@@ -1276,13 +1287,15 @@ export default function AttendancePage() {
             {tab === 'status' && (
                 <div className="space-y-5">
                     {/* Status Stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
                         {[
                             ['Total Active', statusData.summary?.totalActive || 0, 'text-white'],
                             ['Checked In', statusData.summary?.checkedIn || 0, 'text-emerald-400'],
                             ['On Break', statusData.summary?.onBreak || 0, 'text-amber-400'],
                             ['Checked Out', statusData.summary?.checkedOut || 0, 'text-zinc-400'],
-                            ['Absent / Off', statusData.summary?.absent || 0, 'text-zinc-500']
+                            ['Leave', statusData.summary?.leave || 0, 'text-sky-400'],
+                            ['Off', statusData.summary?.off || 0, 'text-zinc-500'],
+                            ['Absent', statusData.summary?.absent || 0, 'text-rose-400']
                         ].map(([l, v, c]) => (
                             <div key={l} className="bg-black/40 border border-white/10 rounded-xl p-4 backdrop-blur-sm">
                                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-1">{l}</p>
@@ -1349,7 +1362,8 @@ export default function AttendancePage() {
                             <option value="Checked In">Checked In</option>
                             <option value="On Break">On Break</option>
                             <option value="Checked Out">Checked Out</option>
-                            <option value="Absent">Absent / Off</option>
+                            <option value="Leave">Leave</option>
+                            <option value="Off">Off</option>
                         </select>
                         <button
                             onClick={() => loadStatus(statusDate)}
@@ -1920,6 +1934,9 @@ export default function AttendancePage() {
                                                     <div>
                                                         <p className="font-semibold text-white text-xs">{leave.employee_name}</p>
                                                         <p className="text-zinc-500 text-[10px] mt-0.5">{leave.job_title} ({leave.erp_code})</p>
+                                                        <p className="text-[10px] text-zinc-400 mt-1">
+                                                            Remaining Leaves: <span className="text-emerald-400 font-semibold">{leave.remaining_leaves !== null && leave.remaining_leaves !== undefined ? leave.remaining_leaves : '—'}</span> / {leave.leave_limit || 21}
+                                                        </p>
                                                     </div>
                                                 </td>
                                                 <td className="p-4 capitalize">
@@ -2081,6 +2098,17 @@ export default function AttendancePage() {
                                         <option key={emp.id} value={emp.id}>{emp.name} ({emp.employee_id})</option>
                                     ))}
                                 </select>
+                                {leaveForm.employee_id && (() => {
+                                    const selectedEmp = employeesList.find(e => e.id.toString() === leaveForm.employee_id.toString());
+                                    if (selectedEmp) {
+                                        return (
+                                            <p className="mt-1.5 text-xs text-zinc-400">
+                                                Leave Balance: <span className="text-emerald-400 font-semibold">{selectedEmp.remaining_leaves !== null && selectedEmp.remaining_leaves !== undefined ? selectedEmp.remaining_leaves : 21}</span> / {selectedEmp.leave_limit || 21} days remaining
+                                            </p>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -2465,10 +2493,12 @@ export default function AttendancePage() {
                             </div>
 
                             {reportData && (
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {[
                                         ['Present', reportData.summary.present, 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'],
                                         ['Absent', reportData.summary.absent, 'text-rose-400 bg-rose-500/10 border-rose-500/20'],
+                                        ['Off', reportData.summary.off || 0, 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20'],
+                                        ['Leave', reportData.summary.leave || 0, 'text-sky-400 bg-sky-500/10 border-sky-500/20'],
                                         ['Incomplete', reportData.summary.incomplete, 'text-amber-400 bg-amber-500/10 border-amber-500/20'],
                                         ['Total Hours', `${reportData.summary.totalHours.toFixed(1)}h`, 'text-white bg-white/5 border-white/10'],
                                         ['OT Hours', `${reportData.summary.totalOvertime.toFixed(1)}h`, 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20']
@@ -2520,7 +2550,11 @@ export default function AttendancePage() {
                                                                 ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
                                                                 : day.status === 'Weekly Off'
                                                                     ? 'text-zinc-500 bg-zinc-500/5 border border-zinc-500/10'
-                                                                    : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
+                                                                    : day.status === 'Leave'
+                                                                        ? 'text-sky-400 bg-sky-500/10 border border-sky-500/20'
+                                                                        : day.status === 'Off'
+                                                                            ? 'text-zinc-400 bg-zinc-500/10 border border-zinc-500/20'
+                                                                            : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
                                                             }`}>
                                                             {day.status}
                                                         </span>

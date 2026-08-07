@@ -34,12 +34,18 @@ export async function PUT(req, { params }) {
             pay_type, base_salary, hourly_rate, allowances, deductions,
             ot_rate_multiplier, standard_working_hours,
             employment_type, working_days, no_pay_type, no_pay_value,
-            ot_rate, double_ot_rate, late_deduction_rate
+            ot_rate, double_ot_rate, late_deduction_rate,
+            leave_limit, remaining_leaves
         } = await req.json();
 
         if (!name?.trim()) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
         }
+
+        // Fetch current values to preserve leave values if not specified
+        const [[curEmp]] = await pool.execute('SELECT leave_limit, remaining_leaves FROM employees WHERE id = ?', [id]);
+        const finalLeaveLimit = leave_limit !== undefined ? leave_limit : (curEmp ? curEmp.leave_limit : 21);
+        const finalRemainingLeaves = remaining_leaves !== undefined ? remaining_leaves : (curEmp ? curEmp.remaining_leaves : 21);
 
         await pool.execute(
             `UPDATE employees SET
@@ -48,7 +54,8 @@ export async function PUT(req, { params }) {
                pay_type=?, base_salary=?, hourly_rate=?, allowances=?, deductions=?,
                ot_rate_multiplier=?, standard_working_hours=?,
                employment_type=?, working_days=?, no_pay_type=?, no_pay_value=?,
-               ot_rate=?, double_ot_rate=?, late_deduction_rate=?
+               ot_rate=?, double_ot_rate=?, late_deduction_rate=?,
+               leave_limit=?, remaining_leaves=?
              WHERE id=?`,
             [
                 name.trim(),
@@ -75,6 +82,8 @@ export async function PUT(req, { params }) {
                 ot_rate || 0,
                 double_ot_rate || 0,
                 late_deduction_rate || 0,
+                finalLeaveLimit,
+                finalRemainingLeaves,
                 id
             ]
         );

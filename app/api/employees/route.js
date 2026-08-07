@@ -38,7 +38,9 @@ export async function POST(req) {
             no_pay_value = 0,
             ot_rate = 0,
             double_ot_rate = 0,
-            late_deduction_rate = 0
+            late_deduction_rate = 0,
+            leave_limit = 21,
+            remaining_leaves = 21
         } = body;
 
         if (!name?.trim()) {
@@ -58,8 +60,8 @@ export async function POST(req) {
               pay_type, base_salary, hourly_rate, allowances, deductions,
               ot_rate_multiplier, standard_working_hours,
               employment_type, working_days, no_pay_type, no_pay_value,
-              ot_rate, double_ot_rate, late_deduction_rate)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              ot_rate, double_ot_rate, late_deduction_rate, leave_limit, remaining_leaves)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 employeeId,
                 name.trim(),
@@ -85,7 +87,9 @@ export async function POST(req) {
                 no_pay_value,
                 ot_rate,
                 double_ot_rate,
-                late_deduction_rate
+                late_deduction_rate,
+                leave_limit,
+                remaining_leaves
             ]
         );
 

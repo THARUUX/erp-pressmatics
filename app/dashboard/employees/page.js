@@ -14,7 +14,7 @@ const STATUSES = ['active', 'on_leave', 'inactive'];
 const DEPT_OPTIONS = ['Prepress', 'Offset Press', 'Digital Press', 'Finishing', 'Packaging', 'Admin'];
 const TEAM_COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#14b8a6'];
 
-const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', date_of_birth:'', date_joined:'', shift:'Day', status:'active', notes:'', pay_type:'monthly', base_salary:0, hourly_rate:0, allowances:0, deductions:0, ot_rate_multiplier:1.5, standard_working_hours:8, employment_type:'permanent', working_days:'Monday,Tuesday,Wednesday,Thursday,Friday', no_pay_type:'percentage', no_pay_value:0, ot_rate:0, double_ot_rate:0, late_deduction_rate:0 };
+const EMPTY_EMP = { name:'', job_title:'', department:'', phone:'', email:'', date_of_birth:'', date_joined:'', shift:'Day', status:'active', notes:'', pay_type:'monthly', base_salary:0, hourly_rate:0, allowances:0, deductions:0, ot_rate_multiplier:1.5, standard_working_hours:8, employment_type:'permanent', working_days:'Monday,Tuesday,Wednesday,Thursday,Friday', no_pay_type:'percentage', no_pay_value:0, ot_rate:0, double_ot_rate:0, late_deduction_rate:0, leave_limit:21, remaining_leaves:21 };
 const EMPTY_TEAM = { name:'', description:'', color:'#6366f1', member_ids:[] };
 
 const statusColor = s => s==='active'?'text-emerald-400 bg-emerald-500/10 border-emerald-500/20':s==='on_leave'?'text-amber-400 bg-amber-500/10 border-amber-500/20':'text-gray-400 bg-gray-500/10 border-gray-500/20';
@@ -350,7 +350,9 @@ export default function EmployeesPage() {
       no_pay_value: e.no_pay_value || 0,
       ot_rate: e.ot_rate || 0,
       double_ot_rate: e.double_ot_rate || 0,
-      late_deduction_rate: e.late_deduction_rate || 0
+      late_deduction_rate: e.late_deduction_rate || 0,
+      leave_limit: e.leave_limit !== undefined ? e.leave_limit : 21,
+      remaining_leaves: e.remaining_leaves !== undefined ? e.remaining_leaves : 21
     });
     setShowModal(true);
   };
@@ -371,6 +373,8 @@ export default function EmployeesPage() {
         ot_rate: parseFloat(empForm.ot_rate) || 0,
         double_ot_rate: parseFloat(empForm.double_ot_rate) || 0,
         late_deduction_rate: parseFloat(empForm.late_deduction_rate) || 0,
+        leave_limit: parseInt(empForm.leave_limit, 10) !== undefined ? parseInt(empForm.leave_limit, 10) : 21,
+        remaining_leaves: parseInt(empForm.remaining_leaves, 10) !== undefined ? parseInt(empForm.remaining_leaves, 10) : 21,
       };
       const res = await fetch(url, { method: editEmp?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const d = await res.json();
@@ -915,6 +919,14 @@ export default function EmployeesPage() {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/[0.07] pt-4">
+                <h4 className="text-sm font-bold text-white mb-4">Leave Settings</h4>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {fld('Leave Limit (Days)', 'leave_limit', 'number')}
+                  {fld('Remaining Leaves (Days)', 'remaining_leaves', 'number')}
                 </div>
               </div>
 

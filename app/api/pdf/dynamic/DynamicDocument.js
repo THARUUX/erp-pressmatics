@@ -169,6 +169,7 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                         if (['paid', 'done', 'converted', 'present', 'active', 'approved'].includes(statusStr)) cellColor = '#15803d';
                                         else if (['pending', 'draft', 'late', 'warning'].includes(statusStr)) cellColor = '#b45309';
                                         else if (['cancelled', 'absent', 'rejected'].includes(statusStr)) cellColor = '#b91c1c';
+                                        else if (['leave', 'on leave'].includes(statusStr)) cellColor = '#0284c7';
                                     } else if (['amount_due', 'balance', 'outstanding'].includes(col.key) && parseFloat(val || 0) > 0) {
                                         cellColor = '#b45309';
                                     } else if (col.key === 'check_in' && String(val).includes('(Late)')) {
