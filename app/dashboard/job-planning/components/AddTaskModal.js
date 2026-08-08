@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { FiX, FiPlusCircle, FiCheck, FiLayers, FiCpu, FiChevronDown } from 'react-icons/fi';
+import EstimatedTimeInput, { evaluateTimeExpression } from '@/app/components/EstimatedTimeInput';
 
 // Premium Searchable Dropdown (Combobox) component
 function SearchableSelect({ value, onChange, options, placeholder, clearLabel }) {
@@ -176,12 +177,15 @@ export default function AddTaskModal({
             const orderCode = chosenOrder ? (chosenOrder.code || 'SO') : 'GENERAL';
             const finalTaskName = `${categoryName} — ${taskName.trim()} — ${orderCode}`;
 
+            const evalMins = evaluateTimeExpression(estimatedMinutes);
+            const finalEstMins = evalMins !== null ? evalMins : (estimatedMinutes ? parseInt(estimatedMinutes) : null);
+
             const payload = {
                 name: finalTaskName,
                 description: description.trim() || null,
                 machine_id: isFinishing ? null : (selectedMachineId ? parseInt(selectedMachineId) : null),
                 machine_name: isFinishing ? null : machineName,
-                estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
+                estimated_minutes: finalEstMins,
                 quantity: quantity ? parseFloat(quantity) : null,
                 assigned_to: initialValues?.assigned_to || null,
                 scheduled_date: initialValues?.scheduled_date || null,
@@ -303,33 +307,27 @@ export default function AddTaskModal({
                     </div>
 
                     {/* Quantity & Estimated Time */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                Quantity (Units / Sheets)
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                placeholder="e.g. 5000"
-                                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                                value={quantity}
-                                onChange={e => setQuantity(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                Est. Minutes
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                placeholder="e.g. 45"
-                                className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                                value={estimatedMinutes}
-                                onChange={e => setEstimatedMinutes(e.target.value)}
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                            Quantity (Units / Sheets)
+                        </label>
+                        <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 5000"
+                            className="w-full bg-black border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                            value={quantity}
+                            onChange={e => setQuantity(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Estimated Time Calculation & Converter */}
+                    <div>
+                        <EstimatedTimeInput
+                            value={estimatedMinutes}
+                            onChange={setEstimatedMinutes}
+                            label="Estimated Time"
+                        />
                     </div>
 
                     {/* Additional Notes */}

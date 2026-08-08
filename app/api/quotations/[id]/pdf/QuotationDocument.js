@@ -35,6 +35,7 @@ const s = StyleSheet.create({
     
     // Columns
     colDesc: { width: '45%' },
+    colDescNoTax: { width: '60%' },
     colQty: { width: '10%', textAlign: 'center' },
     colPrice: { width: '15%', textAlign: 'right' },
     colTax: { width: '15%', textAlign: 'right' },
@@ -72,6 +73,7 @@ export default function QuotationDocument({ quote, settings }) {
     const subtotal = quote.items ? quote.items.reduce((acc, i) => acc + parseFloat(i.subtotal_amount || i.total_amount || 0), 0) : 0;
     const totalTax = quote.items ? quote.items.reduce((acc, i) => acc + parseFloat(i.tax_amount || 0), 0) : 0;
     const finalTotal = parseFloat(quote.total_amount || 0);
+    const hasTax = totalTax !== 0;
 
     return (
         <Document title={`Quotation-${quote.code || quote.id}`} author="Pressmatics ERP">
@@ -117,10 +119,10 @@ export default function QuotationDocument({ quote, settings }) {
                 {/* Items Table */}
                 <View style={s.table}>
                     <View style={s.tableHeader}>
-                        <Text style={[s.tableHeaderText, s.colDesc]}>Description</Text>
+                        <Text style={[s.tableHeaderText, hasTax ? s.colDesc : s.colDescNoTax]}>Description</Text>
                         <Text style={[s.tableHeaderText, s.colQty]}>Qty</Text>
                         <Text style={[s.tableHeaderText, s.colPrice]}>Unit Price</Text>
-                        <Text style={[s.tableHeaderText, s.colTax]}>Tax</Text>
+                        {hasTax && <Text style={[s.tableHeaderText, s.colTax]}>Tax</Text>}
                         <Text style={[s.tableHeaderText, s.colTotal]}>Net Total</Text>
                     </View>
 
@@ -133,7 +135,7 @@ export default function QuotationDocument({ quote, settings }) {
 
                         return (
                             <View key={item.id || idx} style={s.tableRow}>
-                                <View style={s.colDesc}>
+                                <View style={hasTax ? s.colDesc : s.colDescNoTax}>
                                     <Text style={s.tableCellBold}>{item.estimation_name || 'Estimation Item'}</Text>
                                     {item.job_description && (
                                         <Text style={[s.tableCell, { color: '#6b7280', marginTop: 3 }]}>
@@ -145,9 +147,11 @@ export default function QuotationDocument({ quote, settings }) {
                                 <Text style={[s.tableCell, s.colPrice]}>
                                     {unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Text>
-                                <Text style={[s.tableCell, s.colTax]}>
-                                    {taxVal !== 0 ? taxVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                                </Text>
+                                {hasTax && (
+                                    <Text style={[s.tableCell, s.colTax]}>
+                                        {taxVal !== 0 ? taxVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                    </Text>
+                                )}
                                 <Text style={[s.tableCell, s.colTotal]}>
                                     {rawTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </Text>
@@ -159,10 +163,12 @@ export default function QuotationDocument({ quote, settings }) {
                 {/* Totals */}
                 <View style={s.summaryRow}>
                     <View style={s.summaryGrid}>
-                        <View style={s.summaryCell}>
-                            <Text style={s.summaryLabel}>Subtotal</Text>
-                            <Text style={s.summaryVal}>{fmt(subtotal, currency)}</Text>
-                        </View>
+                        {hasTax && (
+                            <View style={s.summaryCell}>
+                                <Text style={s.summaryLabel}>Subtotal</Text>
+                                <Text style={s.summaryVal}>{fmt(subtotal, currency)}</Text>
+                            </View>
+                        )}
                         {totalTax !== 0 && (
                             <View style={s.summaryCell}>
                                 <Text style={s.summaryLabel}>Tax Adjustment</Text>

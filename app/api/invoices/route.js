@@ -5,14 +5,23 @@ import pool from '@/lib/db';
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
-        const page   = parseInt(searchParams.get('page')   || '1');
-        const limit  = parseInt(searchParams.get('limit')  || '20');
-        const status = searchParams.get('status') || '';
-        const search = searchParams.get('search') || '';
+        const page       = parseInt(searchParams.get('page')   || '1');
+        const limit      = parseInt(searchParams.get('limit')  || '500');
+        const status     = searchParams.get('status') || '';
+        const search     = searchParams.get('search') || '';
+        const service_id = searchParams.get('service_id') || '';
+        const exclude_services = searchParams.get('exclude_services') || '';
         const offset = (page - 1) * limit;
 
-        let where = 'WHERE i.service_id IS NULL';
+        let where = 'WHERE 1=1';
         const params = [];
+
+        if (service_id) {
+            where += ' AND (i.service_id = ? OR q.service_id = ?)';
+            params.push(service_id, service_id);
+        } else if (exclude_services === 'true' || exclude_services === '1') {
+            where += ' AND i.service_id IS NULL';
+        }
 
         if (status && status !== 'all') {
             where += ' AND i.status = ?';
@@ -37,19 +46,29 @@ export async function GET(req) {
         `, params);
 
         const [[{ total }]] = await pool.execute(
-            `SELECT COUNT(*) AS total FROM invoices i ${where}`,
+            `SELECT COUNT(*) AS total FROM invoices i LEFT JOIN quotations q ON i.quotation_id = q.id ${where}`,
             params
         );
 
         // Stats
+        let statsWhere = 'WHERE 1=1';
+        const statsParams = [];
+        if (service_id) {
+            statsWhere += ' AND (i.service_id = ? OR q.service_id = ?)';
+            statsParams.push(service_id, service_id);
+        } else if (exclude_services === 'true' || exclude_services === '1') {
+            statsWhere += ' AND i.service_id IS NULL';
+        }
+
         const [[stats]] = await pool.execute(`
             SELECT
-                SUM(CASE WHEN status IN ('sent','partial') THEN amount_due - amount_paid ELSE 0 END) AS outstanding,
-                SUM(CASE WHEN status = 'overdue'           THEN amount_due - amount_paid ELSE 0 END) AS overdue,
-                SUM(CASE WHEN MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE()) THEN amount_paid ELSE 0 END) AS collected_month
-            FROM invoices
-            WHERE service_id IS NULL
-        `);
+                SUM(CASE WHEN i.status IN ('sent','partial') THEN i.amount_due - i.amount_paid ELSE 0 END) AS outstanding,
+                SUM(CASE WHEN i.status = 'overdue'           THEN i.amount_due - i.amount_paid ELSE 0 END) AS overdue,
+                SUM(CASE WHEN MONTH(i.created_at) = MONTH(CURDATE()) AND YEAR(i.created_at) = YEAR(CURDATE()) THEN i.amount_paid ELSE 0 END) AS collected_month
+            FROM invoices i
+            LEFT JOIN quotations q ON i.quotation_id = q.id
+            ${statsWhere}
+        `, statsParams);
 
         return NextResponse.json({ invoices: rows, total, stats });
     } catch (err) {

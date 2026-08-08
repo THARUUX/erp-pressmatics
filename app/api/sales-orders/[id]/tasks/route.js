@@ -112,20 +112,24 @@ async function generateJobTasks(id) {
     const serviceConfig = configs.find(c => c.task_key === 'service');
     if (serviceConfig && serviceConfig.is_enabled) {
         for (const item of lineItems) {
+            const itemQty = parseFloat(item.quantity) || 1;
             const itemServices = item.services || [];
             for (const s of itemServices) {
                 let estMins = null;
+                const multiplyBy = parseFloat(s.multiply_by) || 1;
+                const totalTaskQty = multiplyBy * itemQty;
                 if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
-                    estMins = Math.round((parseFloat(s.multiply_by) || 0) * 60);
+                    estMins = Math.round(multiplyBy * itemQty * 60);
                 }
                 taskList.push({
                     name: s.employee_name ? `${serviceConfig.name}: ${s.service_name} — ${s.employee_name}` : `${serviceConfig.name}: ${s.service_name}`,
-                    description: `Unit: ${s.rate_unit} · Rate: ${s.rate} · Mult: ${s.multiply_by} · Note: ${s.note || ''}`.trim(),
+                    description: `Unit: ${s.rate_unit} · Rate: ${s.rate} · Mult: ${multiplyBy} · Item Qty: ${itemQty} · Note: ${s.note || ''}`.trim(),
                     assigned_to: s.employee_name || null,
                     machine_id: serviceConfig.machine_id || null,
                     machine_name: serviceConfig.machine_id ? machineMap.get(serviceConfig.machine_id) : null,
                     display_order: serviceConfig.display_order,
-                    estimated_minutes: serviceConfig.estimated_minutes !== null ? serviceConfig.estimated_minutes : estMins
+                    estimated_minutes: serviceConfig.estimated_minutes !== null ? Math.round(serviceConfig.estimated_minutes * itemQty) : estMins,
+                    quantity: totalTaskQty
                 });
             }
         }

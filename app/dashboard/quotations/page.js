@@ -111,6 +111,8 @@ export default function QuotationsPage() {
     const [stockShortages, setStockShortages] = useState(null);
     const [convertingId, setConvertingId] = useState(null);
     const [autoDeduct, setAutoDeduct] = useState(false);
+    const [splitTasks, setSplitTasks] = useState(false);
+    const [hasMultiQtyItems, setHasMultiQtyItems] = useState(false);
     const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
     const [convertingProgress, setConvertingProgress] = useState(0);
     const [convertingLabel, setConvertingLabel] = useState('');
@@ -234,9 +236,22 @@ export default function QuotationsPage() {
         } catch { toast.error('Error duplicating quotation'); }
     };
 
-    const handleConvert = (id) => {
+    const handleConvert = async (id) => {
         setConvertingId(id);
         setAutoDeduct(false);
+        setSplitTasks(false);
+        setHasMultiQtyItems(false);
+        try {
+            const res = await fetch(`/api/quotations/${id}`);
+            if (res.ok) {
+                const qData = await res.json();
+                const items = qData.items || [];
+                const hasMulti = items.some(i => (parseFloat(i.quantity) || 1) > 1);
+                setHasMultiQtyItems(hasMulti);
+            }
+        } catch (e) {
+            console.error('Error fetching quotation details:', e);
+        }
     };
 
     const submitConvert = async () => {
@@ -269,7 +284,7 @@ export default function QuotationsPage() {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct }),
+                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct, split_tasks: splitTasks }),
             });
             const d = await res.json();
             clearInterval(tick);
@@ -506,6 +521,32 @@ export default function QuotationsPage() {
                                     <span className="block text-xs text-gray-400 mt-0.5">Deduct all required materials from inventory right now. Fails if there is insufficient stock.</span>
                                 </div>
                             </label>
+
+                            {hasMultiQtyItems && (
+                                <div className="pt-3 border-t border-white/10 space-y-2">
+                                    <label className="block text-xs font-bold text-gray-300">
+                                        Multi-Unit Items Task Handling
+                                    </label>
+                                    <p className="text-xs text-gray-500">Some items have quantity &gt; 1. Choose task generation mode:</p>
+                                    <div className="grid grid-cols-2 gap-3 pt-1">
+                                        <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${!splitTasks ? 'bg-emerald-500/10 border-emerald-500/40 text-white' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:bg-white/[0.04]'}`}>
+                                            <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                                <input type="radio" name="splitTasks" checked={!splitTasks} onChange={() => setSplitTasks(false)} className="accent-emerald-500" />
+                                                Merge Tasks
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 leading-tight">Keep 1 task for total item quantity</span>
+                                        </label>
+
+                                        <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${splitTasks ? 'bg-emerald-500/10 border-emerald-500/40 text-white' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:bg-white/[0.04]'}`}>
+                                            <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                                <input type="radio" name="splitTasks" checked={splitTasks} onChange={() => setSplitTasks(true)} className="accent-emerald-500" />
+                                                Separate Tasks
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 leading-tight">Multiply tasks by unit count</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-end gap-3 mt-6">

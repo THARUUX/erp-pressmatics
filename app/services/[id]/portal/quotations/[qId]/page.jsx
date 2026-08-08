@@ -143,7 +143,21 @@ export default function ServiceQuotationView({ params }) {
         finally { setSavingTerms(false); }
     };
 
+    const [convertModalOpen, setConvertModalOpen] = useState(false);
+    const [splitTasks, setSplitTasks] = useState(false);
+
+    const onConvertButtonClick = () => {
+        setSplitTasks(false);
+        const hasMulti = quote?.items?.some(i => (parseFloat(i.quantity) || 1) > 1);
+        if (hasMulti) {
+            setConvertModalOpen(true);
+        } else {
+            handleConvertToSO();
+        }
+    };
+
     const handleConvertToSO = async () => {
+        setConvertModalOpen(false);
         setConverting(true);
         setProgress({ visible: true, pct: 10, label: 'Initializing…' });
         const steps = [
@@ -159,7 +173,7 @@ export default function ServiceQuotationView({ params }) {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: quote.id, auto_deduct_stock: false }),
+                body: JSON.stringify({ quotation_id: quote.id, auto_deduct_stock: false, split_tasks: splitTasks }),
             });
             const d = await res.json();
             clearInterval(tick);
@@ -228,6 +242,7 @@ export default function ServiceQuotationView({ params }) {
     const subtotal = quote.items ? quote.items.reduce((acc, i) => acc + parseFloat(i.subtotal_amount || i.total_amount || 0), 0) : 0;
     const totalTax = quote.items ? quote.items.reduce((acc, i) => acc + parseFloat(i.tax_amount || 0), 0) : 0;
     const finalTotal = parseFloat(quote.total_amount || 0);
+    const hasTax = totalTax !== 0;
 
     const showSummary = quote.show_grand_total !== 0 && quote.show_grand_total !== false && quote.show_grand_total !== 'false';
     const showSignature = quote.show_signature !== 0 && quote.show_signature !== false && quote.show_signature !== 'false';
@@ -306,7 +321,7 @@ export default function ServiceQuotationView({ params }) {
                         <FiPrinter className="w-3.5 h-3.5" /> Print
                     </button>
                     {quote.status !== 'converted' ? (
-                        <button onClick={handleConvertToSO} disabled={converting}
+                        <button onClick={onConvertButtonClick} disabled={converting}
                             className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-white hover:bg-zinc-200 text-black text-sm font-bold transition-all cursor-pointer disabled:opacity-50">
                             <FiShoppingCart className="w-3.5 h-3.5" /> Convert to SO
                         </button>
@@ -317,6 +332,55 @@ export default function ServiceQuotationView({ params }) {
                     )}
                 </div>
             </div>
+
+            {/* ── Convert Modal ── */}
+            {convertModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm print:hidden">
+                    <div className="bg-[#0e0e11] border border-zinc-800 rounded-2xl p-7 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700">
+                                <FiShoppingCart className="w-5 h-5 text-zinc-200" />
+                            </div>
+                            <div>
+                                <h2 className="text-base font-bold text-white">Convert to Sales Order</h2>
+                                <p className="text-xs text-zinc-400 mt-0.5">{quote.code} · {quote.customer_name}</p>
+                            </div>
+                        </div>
+                        <p className="text-xs text-zinc-400 mb-4">Creates a Sales Order without deducting stock automatically.</p>
+
+                        <div className="mb-6 pt-3 border-t border-zinc-800 space-y-2 text-left">
+                            <label className="block text-xs font-bold text-zinc-300">
+                                Multi-Unit Items Task Handling
+                            </label>
+                            <p className="text-xs text-zinc-400">Some items have quantity &gt; 1. Choose task generation mode:</p>
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${!splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                    <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                        <input type="radio" name="splitTasks" checked={!splitTasks} onChange={() => setSplitTasks(false)} className="accent-white" />
+                                        Merge Tasks
+                                    </div>
+                                    <span className="text-[10px] text-zinc-400 leading-tight">Keep 1 task for total item quantity</span>
+                                </label>
+
+                                <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                    <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                        <input type="radio" name="splitTasks" checked={splitTasks} onChange={() => setSplitTasks(true)} className="accent-white" />
+                                        Separate Tasks
+                                    </div>
+                                    <span className="text-[10px] text-zinc-400 leading-tight">Multiply tasks by unit count</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setConvertModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button onClick={handleConvertToSO} disabled={converting} className="px-4 py-2 text-sm font-semibold text-black bg-white hover:bg-zinc-200 rounded-xl disabled:opacity-50 cursor-pointer">
+                                {converting ? 'Converting…' : 'Convert'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Printable Document Area — Matches Main Quotation View Layout */}
             <div className="quotation-print-container max-w-[210mm] mx-auto bg-white text-black p-12 rounded-xl shadow-2xl print:shadow-none print:rounded-none print:w-full min-h-[297mm] flex flex-col relative print:p-8"
@@ -380,7 +444,7 @@ export default function ServiceQuotationView({ params }) {
                                 <th className="py-3 pr-4">Description</th>
                                 <th className="py-3 px-4 text-center">Qty</th>
                                 <th className="py-3 px-4 text-right">Unit Price ({currency})</th>
-                                {!showSummary ? (
+                                {!showSummary && hasTax ? (
                                     <>
                                         <th className="py-3 px-4 text-right">Amount (Excl. Tax)</th>
                                         <th className="py-3 px-4 text-right">Tax</th>
@@ -414,7 +478,7 @@ export default function ServiceQuotationView({ params }) {
                                         <td className="py-4 px-4 text-right font-mono text-gray-500">
                                             {unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
-                                        {!showSummary ? (
+                                        {!showSummary && hasTax ? (
                                             <>
                                                 <td className="py-4 px-4 text-right font-mono font-medium text-gray-700">
                                                     {itemSubtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

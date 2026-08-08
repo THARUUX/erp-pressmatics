@@ -94,7 +94,7 @@ export async function POST(req) {
     const conn = await pool.getConnection();
     try {
         const body = await req.json();
-        const { quotation_id, auto_deduct_stock = false } = body;
+        const { quotation_id, auto_deduct_stock = false, split_tasks = false } = body;
 
         if (!quotation_id) {
             conn.release();
@@ -302,18 +302,77 @@ export async function POST(req) {
         );
 
         for (const qi of qItemsRows) {
+            const itemQty = Math.max(1, Math.round(parseFloat(qi.quantity) || 1));
             const itemName = qi.estimation_name || qi.item_name || 'Service Task';
-            const taskName = q.service_id
-                ? `Service: ${serviceName || 'Service'} — ${itemName}`
-                : itemName;
-            
-            const taskDesc = qi.job_description || `Unit: per job · Rate: ${qi.unit_price || 0} · Mult: ${qi.quantity || 1} · Note: ${itemName}`;
 
-            await conn.execute(
-                `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, 999, NOW(), NOW())`,
-                [soId, q.service_id || null, q.customer_name || 'Customer', taskName, taskDesc, qi.quantity || 1]
+            // Check if there are quotation_item_services linked to this quotation item
+            const [svcRows] = await conn.execute(
+                'SELECT * FROM quotation_item_services WHERE quotation_item_id = ? ORDER BY id ASC',
+                [qi.id]
             );
+
+            if (svcRows.length > 0) {
+                for (const s of svcRows) {
+                    const multiplyBy = parseFloat(s.multiply_by) || 1;
+                    const svcTaskName = s.employee_name ? `${s.service_name || itemName} — ${s.employee_name}` : (s.service_name || itemName);
+
+                    if (split_tasks && itemQty > 1) {
+                        for (let k = 1; k <= itemQty; k++) {
+                            const taskQtyForUnit = multiplyBy;
+                            let estMins = null;
+                            if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
+                                estMins = Math.round(multiplyBy * 60);
+                            }
+                            const unitTaskName = `${svcTaskName} (#${k}/${itemQty})`;
+                            const taskDesc = `Unit ${k} of ${itemQty} · Rate Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Note: ${s.note || itemName}`.trim();
+
+                            await conn.execute(
+                                `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 999, NOW(), NOW())`,
+                                [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc, s.employee_name || null, estMins, taskQtyForUnit]
+                            );
+                        }
+                    } else {
+                        const finalTaskQty = multiplyBy * itemQty;
+                        let estMins = null;
+                        if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
+                            estMins = Math.round(multiplyBy * itemQty * 60);
+                        }
+                        const taskDesc = `Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Mult: ${multiplyBy} · Item Qty: ${itemQty} · Note: ${s.note || itemName}`.trim();
+
+                        await conn.execute(
+                            `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 999, NOW(), NOW())`,
+                            [soId, q.service_id || null, q.customer_name || 'Customer', svcTaskName, taskDesc, s.employee_name || null, estMins, finalTaskQty]
+                        );
+                    }
+                }
+            } else {
+                const taskName = q.service_id
+                    ? `Service: ${serviceName || 'Service'} — ${itemName}`
+                    : itemName;
+
+                if (split_tasks && itemQty > 1) {
+                    for (let k = 1; k <= itemQty; k++) {
+                        const unitTaskName = `${taskName} (#${k}/${itemQty})`;
+                        const taskDesc = qi.job_description ? `${qi.job_description} (Unit ${k}/${itemQty})` : `Unit ${k} of ${itemQty} · Rate: ${qi.unit_price || 0} · Note: ${itemName}`;
+
+                        await conn.execute(
+                            `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, 1, 999, NOW(), NOW())`,
+                            [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc]
+                        );
+                    }
+                } else {
+                    const taskDesc = qi.job_description || `Unit: per job · Rate: ${qi.unit_price || 0} · Qty: ${itemQty} · Note: ${itemName}`;
+
+                    await conn.execute(
+                        `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, 999, NOW(), NOW())`,
+                        [soId, q.service_id || null, q.customer_name || 'Customer', taskName, taskDesc, itemQty]
+                    );
+                }
+            }
         }
 
         // ── INSERT BOM ITEMS AND OPTIONAL STOCK DEDUCTION ───────────────────

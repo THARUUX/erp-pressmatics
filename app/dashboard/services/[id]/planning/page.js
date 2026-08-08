@@ -20,6 +20,8 @@ import {
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import ManageEmployeesModal from '@/app/services/[id]/portal/components/ManageEmployeesModal';
+import EstimatedTimeInput, { evaluateTimeExpression } from '@/app/components/EstimatedTimeInput';
+
 
 
 const theme = {
@@ -525,6 +527,9 @@ export default function ServicePlanningPage({ params }) {
     const [tasks, setTasks] = useState([]);
     const [quotations, setQuotations] = useState([]);
     const [invoices, setInvoices] = useState([]);
+    const [salesOrders, setSalesOrders] = useState([]);
+    const [loadingSOs, setLoadingSOs] = useState(false);
+    const [deleteSOModal, setDeleteSOModal] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [tab, setTab] = useState('kanban');
@@ -601,6 +606,13 @@ export default function ServicePlanningPage({ params }) {
             setTasks(data.tasks || []);
             setQuotations(data.quotations || []);
             setInvoices(data.invoices || []);
+
+            // Also load linked sales orders
+            const soRes = await fetch(`/api/services/${id}/sales-orders`);
+            if (soRes.ok) {
+                const soData = await soRes.json();
+                setSalesOrders(soData.salesOrders || []);
+            }
         } catch (e) {
             console.error(e);
             if (isInitial) setError(e.message);
@@ -728,11 +740,13 @@ export default function ServicePlanningPage({ params }) {
         const { task, value } = estimateModal;
         if (!task) return;
         try {
+            const evalMins = evaluateTimeExpression(value);
+            const finalVal = evalMins !== null ? evalMins : (parseInt(value) || 0);
             const orderId = task.sales_order_id || 'manual';
             const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}/work-log`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'update_estimate', estimated_minutes: value }),
+                body: JSON.stringify({ action: 'update_estimate', estimated_minutes: finalVal }),
             });
             if (!res.ok) throw new Error('Failed to set estimate');
             toast.success('Estimated time updated!');
@@ -793,12 +807,15 @@ export default function ServicePlanningPage({ params }) {
     const handleAddTask = async (e) => {
         e.preventDefault();
         try {
+            const evalMins = evaluateTimeExpression(taskForm.estimated_minutes);
+            const finalMins = evalMins !== null ? evalMins : (parseInt(taskForm.estimated_minutes) || null);
             const res = await fetch(`/api/services/${id}/planning`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'create_task',
-                    ...taskForm
+                    ...taskForm,
+                    estimated_minutes: finalMins
                 })
             });
             const data = await res.json();
@@ -884,6 +901,36 @@ export default function ServicePlanningPage({ params }) {
             clearInterval(interval);
             setConvertingProgress({ visible: false, pct: 0, label: '' });
             toast.error('Error converting quotation to Sales Order');
+        }
+    };
+
+    const handleDeleteSalesOrder = (so) => {
+        setDeleteSOModal(so);
+    };
+
+    const confirmDeleteSalesOrder = async () => {
+        if (!deleteSOModal) return;
+        const so = deleteSOModal;
+        setLoadingSOs(true);
+        try {
+            const res = await fetch(`/api/services/${id}/sales-orders`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ soId: so.id }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`Deleted ${so.code} and ${data.deletedTasks || 0} linked tasks.`);
+                setSalesOrders(prev => prev.filter(s => s.id !== so.id));
+                setDeleteSOModal(null);
+                loadData(false);
+            } else {
+                toast.error(data.error || 'Failed to delete sales order');
+            }
+        } catch {
+            toast.error('Error deleting sales order');
+        } finally {
+            setLoadingSOs(false);
         }
     };
 
@@ -1133,7 +1180,27 @@ export default function ServicePlanningPage({ params }) {
                     className={`pb-3 transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${tab === 'reports' ? theme.activeTab : 'border-transparent text-white/40 hover:text-white/70'
                         }`}
                 >
-                    <FiBarChart2 /> Multi-Employee Time Analysis &amp; Reports
+                    <FiBarChart2 /> Reports
+                </button>
+                <button
+                    onClick={() => setTab('orders')}
+                    className={`pb-3 transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${tab === 'orders' ? theme.activeTab : 'border-transparent text-white/40 hover:text-white/70'
+                        }`}
+                >
+                    <FiShoppingCart /> Sales Orders
+                    {salesOrders.length > 0 && (
+                        <span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] font-bold rounded-md">{salesOrders.length}</span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setTab('invoices')}
+                    className={`pb-3 transition-colors border-b-2 flex items-center gap-2 cursor-pointer ${tab === 'invoices' ? theme.activeTab : 'border-transparent text-white/40 hover:text-white/70'
+                        }`}
+                >
+                    <FiDollarSign /> Invoices
+                    {invoices.length > 0 && (
+                        <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-md">{invoices.length}</span>
+                    )}
                 </button>
             </div>
 
@@ -1447,6 +1514,164 @@ export default function ServicePlanningPage({ params }) {
                         </div>
                     </div>
                 )}
+
+                {/* ─── TAB: SALES ORDERS ─── */}
+                {tab === 'orders' && (
+                    <div className="bg-white/[0.01] border border-rose-500/20 rounded-2xl backdrop-blur-xl p-6">
+                        <div className="flex justify-between items-center mb-5">
+                            <div>
+                                <h3 className="text-lg font-bold flex items-center gap-2">
+                                    <FiShoppingCart className="text-rose-400" />
+                                    Linked Sales Orders
+                                </h3>
+                                <p className="text-xs text-white/40 mt-1">Sales orders created from this service's quotations. You can delete them here.</p>
+                            </div>
+                            {loadingSOs && (
+                                <span className="text-xs text-white/40 animate-pulse">Updating…</span>
+                            )}
+                        </div>
+
+                        {salesOrders.length === 0 ? (
+                            <div className="py-16 text-center text-white/20 text-sm italic">No sales orders linked to this service.</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-white/[0.06] text-white/40 text-[11px] uppercase tracking-wider">
+                                            <th className="py-2.5 px-4">SO Code</th>
+                                            <th className="py-2.5 px-4">Customer</th>
+                                            <th className="py-2.5 px-4 text-center">Status</th>
+                                            <th className="py-2.5 px-4 text-center">Tasks</th>
+                                            <th className="py-2.5 px-4 text-right">Amount</th>
+                                            <th className="py-2.5 px-4 text-center">Date</th>
+                                            <th className="py-2.5 px-4 text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04]">
+                                        {salesOrders.map(so => (
+                                            <tr key={so.id} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="py-3 px-4 font-mono font-bold text-white">
+                                                    <Link href={`/services/${id}/portal/sales-orders/${so.id}`} className="text-indigo-400 hover:underline">
+                                                        {so.code || `#${so.id}`}
+                                                    </Link>
+                                                </td>
+                                                <td className="py-3 px-4 text-white/70">{so.customer_name}</td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
+                                                        so.status === 'Completed' || so.status === 'Delivered' ? 'bg-emerald-500/20 text-emerald-300'
+                                                        : so.status === 'Cancelled' ? 'bg-red-500/20 text-red-300'
+                                                        : so.status === 'Ready' ? 'bg-blue-500/20 text-blue-300'
+                                                        : 'bg-amber-500/20 text-amber-300'
+                                                    }`}>
+                                                        {so.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-center text-white/60 font-mono text-xs">{so.task_count || 0}</td>
+                                                <td className="py-3 px-4 text-right font-mono text-emerald-400 font-bold text-xs">
+                                                    {so.total_amount ? `LKR ${parseFloat(so.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}
+                                                </td>
+                                                <td className="py-3 px-4 text-center text-xs text-white/40">
+                                                    {new Date(so.created_at).toLocaleDateString('en-GB')}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <button
+                                                        onClick={() => handleDeleteSalesOrder(so)}
+                                                        disabled={loadingSOs}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/25 border border-red-500/30 text-red-400 hover:text-red-300 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        <FiTrash2 className="w-3 h-3" /> Delete
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ─── TAB 4: INVOICES ─── */}
+                {tab === 'invoices' && (
+                    <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
+                        <div className="flex justify-between items-center mb-5">
+                            <div>
+                                <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                                    <FiDollarSign className="text-indigo-400" />
+                                    Service Invoices
+                                </h3>
+                                <p className="text-xs text-white/40 mt-1">Invoices issued for jobs and quotations belonging to this service.</p>
+                            </div>
+                            <Link
+                                href={`/services/${id}/portal/invoices`}
+                                className="px-3 py-1.5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/40 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+                            >
+                                <FiExternalLink size={13} /> Full Portal View
+                            </Link>
+                        </div>
+
+                        {invoices.length === 0 ? (
+                            <div className="py-16 text-center text-white/20 text-sm italic">No invoices linked to this service.</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-white/[0.06] text-white/40 text-[11px] uppercase tracking-wider">
+                                            <th className="py-2.5 px-4">Invoice Code</th>
+                                            <th className="py-2.5 px-4">Customer</th>
+                                            <th className="py-2.5 px-4 text-center">Status</th>
+                                            <th className="py-2.5 px-4 text-right">Amount Due</th>
+                                            <th className="py-2.5 px-4 text-right">Amount Paid</th>
+                                            <th className="py-2.5 px-4 text-right">Balance</th>
+                                            <th className="py-2.5 px-4 text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04]">
+                                        {invoices.map(inv => (
+                                            <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
+                                                <td className="py-3 px-4 font-mono font-bold text-white">
+                                                    <Link href={`/dashboard/invoices/${inv.id}`} className="text-indigo-400 hover:underline">
+                                                        {inv.code || `#${inv.id}`}
+                                                    </Link>
+                                                </td>
+                                                <td className="py-3 px-4 text-white/70">{inv.customer_name}</td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
+                                                        inv.status === 'paid' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                        inv.status === 'partial' ? 'bg-amber-500/20 text-amber-300' :
+                                                        inv.status === 'sent' ? 'bg-blue-500/20 text-blue-300' :
+                                                        inv.status === 'overdue' ? 'bg-rose-500/20 text-rose-300' :
+                                                        'bg-gray-500/20 text-gray-400'
+                                                    }`}>
+                                                        {inv.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono font-semibold text-white">
+                                                    LKR {Number(inv.amount_due || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono text-emerald-400">
+                                                    LKR {Number(inv.amount_paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono font-bold text-amber-300">
+                                                    LKR {Number(inv.balance || (inv.amount_due - inv.amount_paid) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <Link
+                                                        href={`/dashboard/invoices/${inv.id}`}
+                                                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors inline-flex"
+                                                        title="View Invoice Details"
+                                                    >
+                                                        <FiEye size={13} />
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ─── ESTIMATE TIME MODAL ─── */}
@@ -1470,32 +1695,11 @@ export default function ServicePlanningPage({ params }) {
                             Task: <span className="text-white font-bold">{estimateModal.task?.name}</span>
                         </p>
 
-                        <div>
-                            <label className="block text-xs text-gray-400 mb-1.5 font-semibold">Estimated Time (Minutes)</label>
-                            <input
-                                type="number"
-                                required
-                                min="1"
-                                value={estimateModal.value}
-                                onChange={e => setEstimateModal(prev => ({ ...prev, value: e.target.value }))}
-                                placeholder="e.g. 45"
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-purple-500"
-                            />
-                        </div>
-
-                        {/* Presets */}
-                        <div className="flex gap-2 text-xs">
-                            {[15, 30, 45, 60, 120].map(m => (
-                                <button
-                                    key={m}
-                                    type="button"
-                                    onClick={() => setEstimateModal(prev => ({ ...prev, value: String(m) }))}
-                                    className="flex-1 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/70 text-center font-mono cursor-pointer"
-                                >
-                                    {m}m
-                                </button>
-                            ))}
-                        </div>
+                        <EstimatedTimeInput
+                            value={estimateModal.value}
+                            onChange={val => setEstimateModal(prev => ({ ...prev, value: val }))}
+                            label="Estimated Time"
+                        />
 
                         <div className="flex justify-end gap-2 pt-2">
                             <button
@@ -1638,13 +1842,10 @@ export default function ServicePlanningPage({ params }) {
                             </div>
 
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1.5 font-semibold">Estimated Minutes</label>
-                                <input
-                                    type="number"
+                                <EstimatedTimeInput
                                     value={taskForm.estimated_minutes}
-                                    onChange={e => setTaskForm(prev => ({ ...prev, estimated_minutes: e.target.value }))}
-                                    placeholder="e.g. 45"
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-white/30"
+                                    onChange={val => setTaskForm(prev => ({ ...prev, estimated_minutes: val }))}
+                                    label="Estimated Time"
                                 />
                             </div>
                         </div>
@@ -1701,6 +1902,48 @@ export default function ServicePlanningPage({ params }) {
                         <p className="text-xs text-amber-200 whitespace-pre-wrap leading-relaxed bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
                             {noteModal.note}
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {/* DELETE SALES ORDER MODAL */}
+            {deleteSOModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+                    <div className="bg-[#0c0c16] border border-rose-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 text-rose-400">
+                                <FiTrash2 size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-white">Delete Sales Order</h3>
+                                <p className="text-xs text-white/50 font-mono mt-0.5">{deleteSOModal.code || `#${deleteSOModal.id}`}</p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-white/70 leading-relaxed bg-white/[0.03] p-4 rounded-xl border border-white/5">
+                            Are you sure you want to delete <strong className="text-white">{deleteSOModal.code || `#${deleteSOModal.id}`}</strong>?
+                            <br /><br />
+                            <span className="text-rose-400 font-semibold">Warning:</span> This will permanently remove the Sales Order and all <strong className="text-white">{deleteSOModal.task_count || 0} linked tasks</strong> and work logs. This action cannot be undone.
+                        </p>
+
+                        <div className="flex justify-end gap-2.5 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteSOModal(null)}
+                                disabled={loadingSOs}
+                                className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-semibold text-white/70 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteSalesOrder}
+                                disabled={loadingSOs}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white shadow-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {loadingSOs ? 'Deleting…' : 'Yes, Delete Order'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -7,6 +7,7 @@ import {
     FiArrowDown, FiPlusCircle, FiList, FiAlertCircle, FiRefreshCw, FiClock
 } from 'react-icons/fi';
 import AddTaskModal from './AddTaskModal';
+import EstimatedTimeInput, { evaluateTimeExpression } from '@/app/components/EstimatedTimeInput';
 
 const G = {
     bg: '#000000',
@@ -48,10 +49,12 @@ function EditTaskModal({ task, order, onClose, onSave }) {
         e.preventDefault();
         setSubmitting(true);
         try {
+            const evalMins = evaluateTimeExpression(estimatedMinutes);
+            const finalEstMins = evalMins !== null ? evalMins : (estimatedMinutes ? parseInt(estimatedMinutes) : null);
             await onSave(order.id, task.id, {
                 name: name.trim(),
                 description: description.trim() || null,
-                estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
+                estimated_minutes: finalEstMins,
                 quantity: quantity ? parseFloat(quantity) : null,
                 status
             });
@@ -100,27 +103,22 @@ function EditTaskModal({ task, order, onClose, onSave }) {
                             onChange={e => setDescription(e.target.value)}
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Est. Minutes</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                                value={estimatedMinutes}
-                                onChange={e => setEstimatedMinutes(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Quantity</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                                value={quantity}
-                                onChange={e => setQuantity(e.target.value)}
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Quantity</label>
+                        <input
+                            type="number"
+                            min="0"
+                            className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                            value={quantity}
+                            onChange={e => setQuantity(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <EstimatedTimeInput
+                            value={estimatedMinutes}
+                            onChange={setEstimatedMinutes}
+                            label="Estimated Time"
+                        />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Task Status</label>

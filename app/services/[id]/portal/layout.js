@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
     FiGrid, FiFileText, FiShoppingCart, FiCheckSquare,
     FiArrowLeft, FiBriefcase, FiChevronRight, FiUsers, FiActivity,
-    FiBarChart2
+    FiBarChart2, FiDollarSign
 } from 'react-icons/fi';
 
 function NavItem({ href, icon: Icon, label, active }) {
@@ -49,6 +49,7 @@ export default function ServicePortalLayout({ children, params }) {
         { href: `/services/${id}/portal/analytics`, label: 'Analytics & Charts', icon: FiBarChart2 },
         { href: `/services/${id}/portal/quotations`, label: 'Quotations', icon: FiFileText },
         { href: `/services/${id}/portal/sales-orders`, label: 'Sales Orders', icon: FiShoppingCart },
+        { href: `/services/${id}/portal/invoices`, label: 'Invoices', icon: FiDollarSign },
         { href: `/services/${id}/portal/tasks`, label: 'Task Timers', icon: FiCheckSquare },
     ];
 

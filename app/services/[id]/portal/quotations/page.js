@@ -40,6 +40,7 @@ export default function PortalQuotationsPage({ params }) {
     const [deleting, setDeleting] = useState(false);
     const [convertModal, setConvertModal] = useState(null);
     const [converting, setConverting] = useState(false);
+    const [splitTasks, setSplitTasks] = useState(false);
     const [duplicatingId, setDuplicatingId] = useState(null);
 
     const handleDuplicateQuotation = async (q) => {
@@ -173,6 +174,21 @@ export default function PortalQuotationsPage({ params }) {
         finally { setDeleting(false); }
     };
 
+    const handleOpenConvertModal = async (q) => {
+        setSplitTasks(false);
+        let hasMulti = false;
+        try {
+            const res = await fetch(`/api/services/${id}/quotations/${q.id}`);
+            if (res.ok) {
+                const qData = await res.json();
+                hasMulti = (qData.items || []).some(i => (parseFloat(i.quantity) || 1) > 1);
+            }
+        } catch (e) {
+            console.error('Error fetching quotation details:', e);
+        }
+        setConvertModal({ ...q, hasMultiQtyItems: hasMulti });
+    };
+
     const handleConvert = async () => {
         if (!convertModal) return;
         setConverting(true);
@@ -180,7 +196,7 @@ export default function PortalQuotationsPage({ params }) {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: convertModal.id, auto_deduct_stock: false }),
+                body: JSON.stringify({ quotation_id: convertModal.id, auto_deduct_stock: false, split_tasks: splitTasks }),
             });
             const d = await res.json();
             if (!res.ok) throw new Error(d.error || 'Failed');
@@ -268,7 +284,7 @@ export default function PortalQuotationsPage({ params }) {
                             <FiFileText size={13} />
                         </a>
                         {q.status !== 'converted' && (
-                            <button onClick={() => setConvertModal(q)}
+                            <button onClick={() => handleOpenConvertModal(q)}
                                 className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer" title="Convert to SO">
                                 <FiShoppingCart size={13} />
                             </button>
@@ -423,7 +439,7 @@ export default function PortalQuotationsPage({ params }) {
             {/* ── Convert to SO Confirm ── */}
             {convertModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-                    <div className="bg-[#0e0e11] border border-zinc-800 rounded-2xl p-7 w-full max-w-sm shadow-2xl">
+                    <div className="bg-[#0e0e11] border border-zinc-800 rounded-2xl p-7 w-full max-w-md shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700">
                                 <FiShoppingCart className="w-5 h-5 text-zinc-200" />
@@ -433,7 +449,34 @@ export default function PortalQuotationsPage({ params }) {
                                 <p className="text-xs text-zinc-400 mt-0.5">{convertModal.code} · {convertModal.customer_name}</p>
                             </div>
                         </div>
-                        <p className="text-sm text-zinc-400 mb-6">Creates a Sales Order without deducting stock automatically.</p>
+                        <p className="text-xs text-zinc-400 mb-4">Creates a Sales Order without deducting stock automatically.</p>
+
+                        {convertModal.hasMultiQtyItems && (
+                            <div className="mb-6 pt-3 border-t border-zinc-800 space-y-2 text-left">
+                                <label className="block text-xs font-bold text-zinc-300">
+                                    Multi-Unit Items Task Handling
+                                </label>
+                                <p className="text-xs text-zinc-400">Some items have quantity &gt; 1. Choose task generation mode:</p>
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                    <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${!splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                        <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                            <input type="radio" name="splitTasks" checked={!splitTasks} onChange={() => setSplitTasks(false)} className="accent-white" />
+                                            Merge Tasks
+                                        </div>
+                                        <span className="text-[10px] text-zinc-400 leading-tight">Keep 1 task for total item quantity</span>
+                                    </label>
+
+                                    <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                        <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
+                                            <input type="radio" name="splitTasks" checked={splitTasks} onChange={() => setSplitTasks(true)} className="accent-white" />
+                                            Separate Tasks
+                                        </div>
+                                        <span className="text-[10px] text-zinc-400 leading-tight">Multiply tasks by unit count</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex gap-3 justify-end">
                             <button onClick={() => setConvertModal(null)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
                             <button onClick={handleConvert} disabled={converting} className="px-4 py-2 text-sm font-semibold text-black bg-white hover:bg-zinc-200 rounded-xl disabled:opacity-50 cursor-pointer">

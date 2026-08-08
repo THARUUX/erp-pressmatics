@@ -6,7 +6,7 @@ import {
     useReactTable, getCoreRowModel, getSortedRowModel,
     getFilteredRowModel, getPaginationRowModel, flexRender,
 } from '@tanstack/react-table';
-import { FiSearch, FiChevronUp, FiChevronDown, FiChevronLeft, FiChevronRight, FiExternalLink } from 'react-icons/fi';
+import { FiSearch, FiChevronUp, FiChevronDown, FiChevronLeft, FiChevronRight, FiEye, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const SO_STATUS = {
@@ -50,11 +50,13 @@ export default function PortalSalesOrdersPage({ params }) {
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState([{ id: 'created_at', desc: true }]);
     const [statusTab, setStatusTab] = useState('All');
+    const [deleteConfirmSO, setDeleteConfirmSO] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/sales-orders?service_id=${id}&limit=200&page=1`);
+            const res = await fetch(`/api/services/${id}/sales-orders`);
             const d = await res.json();
             const all = Array.isArray(d.salesOrders) ? d.salesOrders : (Array.isArray(d.orders) ? d.orders : (Array.isArray(d) ? d : []));
             setOrders(all);
@@ -66,6 +68,35 @@ export default function PortalSalesOrdersPage({ params }) {
     const handleStatusUpdate = useCallback((soId, newStatus) => {
         setOrders(prev => prev.map(o => o.id === soId ? { ...o, status: newStatus } : o));
     }, []);
+
+    const handleDelete = useCallback((so) => {
+        setDeleteConfirmSO(so);
+    }, []);
+
+    const confirmDelete = async () => {
+        if (!deleteConfirmSO) return;
+        const so = deleteConfirmSO;
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`/api/services/${id}/sales-orders`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ soId: so.id }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`Deleted ${so.code || '#' + so.id}`);
+                setOrders(prev => prev.filter(o => o.id !== so.id));
+                setDeleteConfirmSO(null);
+            } else {
+                toast.error(data.error || 'Failed to delete sales order');
+            }
+        } catch {
+            toast.error('Error deleting sales order');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const filtered = useMemo(() => {
         if (statusTab === 'All') return orders;
@@ -81,7 +112,14 @@ export default function PortalSalesOrdersPage({ params }) {
         {
             accessorKey: 'code',
             header: 'SO Code',
-            cell: ({ getValue }) => <span className="font-mono text-xs font-bold text-zinc-200">{getValue()}</span>,
+            cell: ({ getValue, row }) => (
+                <Link
+                    href={`/services/${id}/portal/sales-orders/${row.original.id}`}
+                    className="font-mono text-xs font-bold text-indigo-400 hover:underline"
+                >
+                    {getValue()}
+                </Link>
+            ),
         },
         {
             accessorKey: 'customer_name',
@@ -113,17 +151,28 @@ export default function PortalSalesOrdersPage({ params }) {
         },
         {
             id: 'actions',
-            header: '',
+            header: 'Actions',
             enableSorting: false,
             cell: ({ row }) => (
-                <Link href={`/dashboard/sales-orders/${row.original.id}`}
-                    target="_blank"
-                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors inline-flex" title="Open in ERP">
-                    <FiExternalLink size={13} />
-                </Link>
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={`/services/${id}/portal/sales-orders/${row.original.id}`}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors inline-flex"
+                        title="View Sales Order Details"
+                    >
+                        <FiEye size={13} />
+                    </Link>
+                    <button
+                        onClick={() => handleDelete(row.original)}
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 hover:text-rose-300 transition-colors inline-flex cursor-pointer"
+                        title="Delete Sales Order"
+                    >
+                        <FiTrash2 size={13} />
+                    </button>
+                </div>
             ),
         },
-    ], [handleStatusUpdate]);
+    ], [id, handleStatusUpdate, handleDelete]);
 
     const table = useReactTable({
         data: filtered,
@@ -238,6 +287,48 @@ export default function PortalSalesOrdersPage({ params }) {
                     <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 disabled:opacity-30 cursor-pointer"><FiChevronRight size={14} /></button>
                 </div>
             </div>
+
+            {/* Custom Modal Confirmation */}
+            {deleteConfirmSO && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+                    <div className="bg-[#0e0e11] border border-rose-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                        <div className="flex items-center gap-3 text-rose-400">
+                            <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                                <FiTrash2 size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-white">Delete Sales Order</h3>
+                                <p className="text-xs text-zinc-400 font-mono mt-0.5">{deleteConfirmSO.code || `#${deleteConfirmSO.id}`}</p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/80">
+                            Are you sure you want to delete <strong className="text-white">{deleteConfirmSO.code || `#${deleteConfirmSO.id}`}</strong>?
+                            <br /><br />
+                            <span className="text-rose-400 font-semibold">Warning:</span> This will permanently remove the Sales Order and all linked job tasks and work logs. This action cannot be undone.
+                        </p>
+
+                        <div className="flex justify-end gap-2.5 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteConfirmSO(null)}
+                                disabled={isDeleting}
+                                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDelete}
+                                disabled={isDeleting}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white shadow-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isDeleting ? 'Deleting…' : 'Yes, Delete Order'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

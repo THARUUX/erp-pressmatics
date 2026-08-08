@@ -121,7 +121,8 @@ const formatTimeDisplay = (mins) => {
 };
 
 const parseTimeInput = (val) => {
-    const clean = val.toLowerCase().trim();
+    if (!val) return 0;
+    const clean = String(val).toLowerCase().trim();
     if (!clean) return 0;
 
     // Check for hour patterns (e.g. h, hr, hrs, hour, hours)
@@ -137,6 +138,17 @@ const parseTimeInput = (val) => {
         const mins = parseFloat(minMatch[1]);
         return isNaN(mins) ? 0 : Math.round(mins);
     }
+
+    // Math calculation expression support (e.g. 1.5*60, 2*60+15, 90/2)
+    try {
+        const mathClean = clean.replace(/[^0-9+\-*/().\s]/g, '').trim();
+        if (mathClean) {
+            const res = new Function(`"use strict"; return (${mathClean});`)();
+            if (typeof res === 'number' && !isNaN(res) && isFinite(res) && res >= 0) {
+                return Math.round(res);
+            }
+        }
+    } catch {}
 
     // Fallback: raw number is treated as minutes
     const num = parseFloat(clean);

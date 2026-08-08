@@ -242,10 +242,18 @@ export async function DELETE(req, { params }) {
     try {
         const { id } = await params;
 
-        // Optional: Reset quotation status when SO is deleted
+        // Reset quotation status when SO is deleted so Convert to Sales Order is enabled again
         const [salesOrders] = await pool.execute('SELECT quotation_id FROM sales_orders WHERE id = ?', [id]);
         if (salesOrders.length > 0 && salesOrders[0].quotation_id) {
-            await pool.execute("UPDATE quotations SET status = 'draft' WHERE id = ?", [salesOrders[0].quotation_id]);
+            await pool.execute("UPDATE quotations SET status = 'approved' WHERE id = ?", [salesOrders[0].quotation_id]);
+        }
+
+        // Clean up tasks and work logs linked to this SO
+        const [soTasks] = await pool.execute(`SELECT id FROM job_tasks WHERE sales_order_id = ?`, [id]);
+        const taskIds = soTasks.map(t => t.id);
+        if (taskIds.length > 0) {
+            await pool.execute(`DELETE FROM job_task_work_logs WHERE task_id IN (${taskIds.map(() => '?').join(',')})`, taskIds);
+            await pool.execute(`DELETE FROM job_tasks WHERE id IN (${taskIds.map(() => '?').join(',')})`, taskIds);
         }
 
         await pool.execute('DELETE FROM sales_orders WHERE id = ?', [id]);
