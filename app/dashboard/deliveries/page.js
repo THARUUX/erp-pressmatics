@@ -39,6 +39,11 @@ export default function DeliveriesPage() {
     const [notes, setNotes] = useState('');
     const [isSubmittingDispatch, setIsSubmittingDispatch] = useState(false);
 
+    // Edit Address Modal States
+    const [addressModalDelivery, setAddressModalDelivery] = useState(null);
+    const [deliveryAddress, setDeliveryAddress] = useState('');
+    const [isSubmittingAddress, setIsSubmittingAddress] = useState(false);
+
     // Expanded Accordion State
     const [expandedDeliveryId, setExpandedDeliveryId] = useState(null);
 
@@ -164,6 +169,39 @@ export default function DeliveriesPage() {
             toast.error('An error occurred while logging dispatch');
         } finally {
             setIsSubmittingDispatch(false);
+        }
+    };
+
+    const openAddressModal = (delivery) => {
+        setAddressModalDelivery(delivery);
+        setDeliveryAddress(delivery.delivery_address || '');
+    };
+
+    const handleSaveAddress = async (e) => {
+        e.preventDefault();
+        if (!addressModalDelivery) return;
+
+        setIsSubmittingAddress(true);
+        try {
+            const res = await fetch(`/api/deliveries/${addressModalDelivery.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ delivery_address: deliveryAddress })
+            });
+
+            if (res.ok) {
+                toast.success('Delivery address updated successfully');
+                setAddressModalDelivery(null);
+                fetchDeliveries();
+            } else {
+                const data = await res.json();
+                toast.error(data.error || 'Failed to update delivery address');
+            }
+        } catch (error) {
+            console.error('Update address error:', error);
+            toast.error('An error occurred while updating delivery address');
+        } finally {
+            setIsSubmittingAddress(false);
         }
     };
 
@@ -305,8 +343,21 @@ export default function DeliveriesPage() {
                                                         {d.sales_order_code}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-4 font-semibold text-white">
-                                                    {d.customer_name}
+                                                <td className="px-5 py-4">
+                                                    <div className="font-semibold text-white">
+                                                        {d.customer_name}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                                                        <span className="truncate max-w-[200px]" title={d.delivery_address || 'No custom address set (falls back to default customer address)'}>
+                                                            {d.delivery_address || 'Default Customer Address'}
+                                                        </span>
+                                                        <button 
+                                                            onClick={() => openAddressModal(d)}
+                                                            className="text-blue-400 hover:text-blue-300 font-bold hover:underline cursor-pointer"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td className="px-5 py-4 text-white/80">
                                                     {d.estimation_name}
@@ -546,6 +597,66 @@ export default function DeliveriesPage() {
                                     className="px-5 py-2 bg-white text-black font-bold rounded-xl text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
                                 >
                                     {isSubmittingDispatch ? 'Saving...' : 'Submit Shipment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* Edit Address Modal */}
+            {addressModalDelivery && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-[#0a0a0a] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
+                                    <FiTruck className="w-4 h-4 text-white/60" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-white text-sm">Edit Delivery Address</h3>
+                                    <p className="text-xs text-white/30">{addressModalDelivery.sales_order_code} · {addressModalDelivery.customer_name}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setAddressModalDelivery(null)}
+                                className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <FiX />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSaveAddress} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Delivery Address</label>
+                                <textarea
+                                    value={deliveryAddress}
+                                    onChange={e => setDeliveryAddress(e.target.value)}
+                                    placeholder="Enter custom delivery address for this job..."
+                                    rows={4}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-white/30 resize-none font-sans"
+                                />
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    If left blank, this will fall back to the customer's default address.
+                                </p>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex justify-end gap-3 pt-3 border-t border-white/[0.06]">
+                                <button
+                                    type="button"
+                                    onClick={() => setAddressModalDelivery(null)}
+                                    className="px-4 py-2 border border-white/10 hover:bg-white/5 rounded-xl text-xs text-white/70 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingAddress}
+                                    className="px-5 py-2 bg-white text-black font-bold rounded-xl text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+                                >
+                                    {isSubmittingAddress ? 'Saving...' : 'Save Address'}
                                 </button>
                             </div>
                         </form>

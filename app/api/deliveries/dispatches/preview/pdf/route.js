@@ -92,7 +92,7 @@ export async function GET(req) {
                 salesOrder,
                 customer: {
                     name: salesOrder?.customer_name || delivery.customer_name,
-                    address: customerAddress,
+                    address: delivery.delivery_address || customerAddress,
                     phone: customerPhone,
                     email: customerEmail
                 },

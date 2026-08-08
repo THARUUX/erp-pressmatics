@@ -157,7 +157,7 @@ export async function PUT(req, { params }) {
             quantity, sheet_count, impression_count,
             actual_sheets_printed, actual_sheets_wasted, actual_plates_used,
             downtime_minutes, downtime_reason,
-            helper_name, completed_by_helper, started_at
+            helper_name, completed_by_helper, started_at, is_manual
         } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
@@ -245,26 +245,32 @@ export async function PUT(req, { params }) {
             updates.push('custom_speed_unit = ?');
             paramsList.push(custom_speed_unit || null);
         }
+        if (is_manual !== undefined) {
+            updates.push('is_manual = ?');
+            paramsList.push(is_manual ? 1 : 0);
+        }
         if (quantity !== undefined) {
             updates.push('quantity = ?');
             paramsList.push(quantity !== null ? parseFloat(quantity) : null);
-            if (quantity !== null && parseFloat(quantity) > 0) {
-                updates.push('is_manual = 1');
-            } else {
-                updates.push('is_manual = 0');
+            if (is_manual === undefined) {
+                if (quantity !== null && parseFloat(quantity) > 0) {
+                    updates.push('is_manual = 1');
+                } else {
+                    updates.push('is_manual = 0');
+                }
             }
         }
         if (sheet_count !== undefined) {
             updates.push('sheet_count = ?');
             paramsList.push(sheet_count !== null ? parseFloat(sheet_count) : null);
-            if (sheet_count !== null && parseFloat(sheet_count) > 0) {
+            if (is_manual === undefined && sheet_count !== null && parseFloat(sheet_count) > 0) {
                 updates.push('is_manual = 1');
             }
         }
         if (impression_count !== undefined) {
             updates.push('impression_count = ?');
             paramsList.push(impression_count !== null ? parseFloat(impression_count) : null);
-            if (impression_count !== null && parseFloat(impression_count) > 0) {
+            if (is_manual === undefined && impression_count !== null && parseFloat(impression_count) > 0) {
                 updates.push('is_manual = 1');
             }
         }

@@ -219,8 +219,9 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
     for (const task of tasks) {
         const isOffset = task.name.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
         const isDigital = task.name.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
+        const isPrepress = (task.machine_type || '').toLowerCase() === 'prepress' || task.name.toLowerCase().includes('plate making') || task.name.toLowerCase().includes('pre-press');
 
-        if (isOffset || isDigital) {
+        if (isOffset || isDigital || isPrepress) {
             const parts = task.name.split(' — ');
             const compName = parts.length >= 3 ? parts[1]?.trim() : '';
 
@@ -249,7 +250,7 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                 }
 
                 // Check type match
-                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
+                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital') || (isPrepress && d.type === 'offset');
                 if (typeMatch) {
                     score += 1;
                 }
@@ -292,7 +293,12 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                 task.net_sheet_count = Math.ceil(cutSheets);
                 task.wastage_sheets = wastage;
                 task.sides = sidesVal;
-                if (task.quantity == null || task.quantity === 0) {
+                if (isPrepress) {
+                    if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
+                        task.quantity = computedPlateCount;
+                    }
+                    task.is_finishing = false;
+                } else if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;
                     task.quantity = resolveRunQty(speedUnit, {
@@ -302,10 +308,12 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                         itemQty: detail.item_qty || 0
                     });
                 }
-                task.rate = parseFloat(detail.impression_cost_unit) || 0;
-                task.rate_unit = 'per 1000 impressions';
-                task.revenue = parseFloat(detail.final_printing_cost) || 0;
-                task.is_finishing = false;
+                if (!isPrepress) {
+                    task.rate = parseFloat(detail.impression_cost_unit) || 0;
+                    task.rate_unit = 'per 1000 impressions';
+                    task.revenue = parseFloat(detail.final_printing_cost) || 0;
+                    task.is_finishing = false;
+                }
             }
         } else {
             // Match finishing

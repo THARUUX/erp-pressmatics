@@ -71,7 +71,12 @@ export async function PATCH(req, { params }) {
 
         if (show_grand_total !== undefined) {
             updates.push('show_grand_total = ?');
-            values.push(show_grand_total);
+            values.push(show_grand_total ? 1 : 0);
+        }
+
+        if (show_signature !== undefined) {
+            updates.push('show_signature = ?');
+            values.push(show_signature ? 1 : 0);
         }
 
         if (status !== undefined) {

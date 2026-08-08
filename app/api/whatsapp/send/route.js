@@ -46,12 +46,3 @@ export async function POST(req) {
 
 export const dynamic = 'force-dynamic';
 
-// Raise the body size limit — base64 PDF payloads can exceed the default 1 MB
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '10mb',
-        },
-    },
-};
-

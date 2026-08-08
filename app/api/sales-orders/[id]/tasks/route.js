@@ -845,8 +845,9 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
         const taskName = task.name || '';
         const isOffset = taskName.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';
         const isDigital = taskName.toLowerCase().includes('digital print') || (task.machine_type || '').toLowerCase() === 'digital';
+        const isPrepress = (task.machine_type || '').toLowerCase() === 'prepress' || taskName.toLowerCase().includes('plate making') || taskName.toLowerCase().includes('pre-press');
 
-        if (isOffset || isDigital) {
+        if (isOffset || isDigital || isPrepress) {
             const parts = taskName.split(' — ');
             const compName = (parts.length >= 3 ? parts[1] : '') || '';
 
@@ -875,7 +876,7 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
                 }
 
                 // Check type match
-                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital');
+                const typeMatch = (isOffset && d.type === 'offset') || (isDigital && d.type === 'digital') || (isPrepress && d.type === 'offset');
                 if (typeMatch) {
                     score += 1;
                 }
@@ -918,7 +919,11 @@ async function enrichTasksWithEstimationDetailsForGet(tasks, orderIds) {
                 task.net_sheet_count = Math.ceil(cutSheets);
                 task.wastage_sheets = wastage;
                 task.sides = sidesVal;
-                if (task.quantity == null || task.quantity === 0) {
+                if (isPrepress) {
+                    if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
+                        task.quantity = computedPlateCount;
+                    }
+                } else if (task.quantity == null || task.quantity === 0) {
                     const speedUnit = task.custom_speed_unit || detail.machine_speed_unit || 'Sheets/Hr';
                     const sidesVal = parseInt(detail.sides) || 1;
                     task.quantity = resolveRunQty(speedUnit, {

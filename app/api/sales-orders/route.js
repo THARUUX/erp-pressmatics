@@ -9,6 +9,9 @@ export async function GET(req) {
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
 
+        const service_id = searchParams.get('service_id') || '';
+        const exclude_services = searchParams.get('exclude_services') || '';
+
         let query = `SELECT so.*,
             (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
              FROM quotation_items qi
@@ -17,6 +20,13 @@ export async function GET(req) {
             (SELECT COUNT(*) FROM job_tasks jt WHERE jt.sales_order_id = so.id) AS task_count
         FROM sales_orders so WHERE 1=1`;
         const params = [];
+
+        if (service_id) {
+            query += ' AND so.service_id = ?';
+            params.push(service_id);
+        } else if (exclude_services === 'true' || exclude_services === '1') {
+            query += ' AND so.service_id IS NULL';
+        }
 
         if (search) {
             query += ' AND (so.code LIKE ? OR so.customer_name LIKE ?)';
@@ -36,6 +46,13 @@ export async function GET(req) {
         // Get total count for pagination
         let countQuery = 'SELECT COUNT(*) as total FROM sales_orders WHERE 1=1';
         const countParams = [];
+        if (service_id) {
+            countQuery += ' AND service_id = ?';
+            countParams.push(service_id);
+        } else if (exclude_services === 'true' || exclude_services === '1') {
+            countQuery += ' AND service_id IS NULL';
+        }
+
         if (search) {
             countQuery += ' AND (code LIKE ? OR customer_name LIKE ?)';
             countParams.push(`%${search}%`, `%${search}%`);
@@ -48,14 +65,23 @@ export async function GET(req) {
         const [countResult] = await pool.execute(countQuery, countParams);
         const total = countResult[0].total;
 
-        // Query global stats for sales orders
-        const [[stats]] = await pool.execute(`
+        // Query stats for sales orders (scoped by service_id or exclude_services if provided)
+        let statsQuery = `
             SELECT
                 COUNT(CASE WHEN status = 'Pending' THEN 1 END) AS pending_count,
                 SUM(CASE WHEN status IN ('In Production') THEN 1 END) AS production_count,
                 SUM(CASE WHEN status = 'Pending' THEN total_amount ELSE 0 END) AS pending_total
-            FROM sales_orders
-        `);
+            FROM sales_orders WHERE 1=1
+        `;
+        const statsParams = [];
+        if (service_id) {
+            statsQuery += ' AND service_id = ?';
+            statsParams.push(service_id);
+        } else if (exclude_services === 'true' || exclude_services === '1') {
+            statsQuery += ' AND service_id IS NULL';
+        }
+
+        const [[stats]] = await pool.execute(statsQuery, statsParams);
 
         return NextResponse.json({ salesOrders: rows, total, stats });
     } catch (error) {
@@ -241,9 +267,9 @@ export async function POST(req) {
 
         // Insert into Sales Orders (auto-including job_description as job_notes)
         const [result] = await conn.execute(
-            `INSERT INTO sales_orders (code, quotation_id, customer_id, customer_name, order_date, status, total_amount, auto_deduct_stock, job_notes) 
-             VALUES (?, ?, ?, ?, NOW(), 'Pending', ?, ?, ?)`,
-            [code, q.id, q.customer_id, q.customer_name, q.total_amount, auto_deduct_stock ? 1 : 0, resolvedJobNotes || null]
+            `INSERT INTO sales_orders (code, quotation_id, customer_id, customer_name, order_date, status, total_amount, auto_deduct_stock, job_notes, service_id) 
+             VALUES (?, ?, ?, ?, NOW(), 'Pending', ?, ?, ?, ?)`,
+            [code, q.id, q.customer_id, q.customer_name, q.total_amount, auto_deduct_stock ? 1 : 0, resolvedJobNotes || null, q.service_id || null]
         );
 
         const soId = result.insertId;
@@ -259,6 +285,36 @@ export async function POST(req) {
             "INSERT INTO settings (setting_key, setting_value) VALUES ('so_id_seq', ?) ON DUPLICATE KEY UPDATE setting_value = ?",
             [String(seq + 1), String(seq + 1)]
         );
+
+        // ── AUTO-CREATE JOB TASKS IN PENDING QUEUE FROM QUOTATION ITEMS ─────
+        let serviceName = '';
+        if (q.service_id) {
+            const [srv] = await conn.execute('SELECT name FROM services WHERE id = ?', [q.service_id]);
+            if (srv.length > 0) serviceName = srv[0].name;
+        }
+
+        const [qItemsRows] = await conn.execute(
+            `SELECT qi.* 
+             FROM quotation_items qi
+             JOIN quotation_line_items qli ON qli.quotation_item_id = qi.id
+             WHERE qli.quotation_id = ?`,
+            [quotation_id]
+        );
+
+        for (const qi of qItemsRows) {
+            const itemName = qi.estimation_name || qi.item_name || 'Service Task';
+            const taskName = q.service_id
+                ? `Service: ${serviceName || 'Service'} — ${itemName}`
+                : itemName;
+            
+            const taskDesc = qi.job_description || `Unit: per job · Rate: ${qi.unit_price || 0} · Mult: ${qi.quantity || 1} · Note: ${itemName}`;
+
+            await conn.execute(
+                `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, 999, NOW(), NOW())`,
+                [soId, q.service_id || null, q.customer_name || 'Customer', taskName, taskDesc, qi.quantity || 1]
+            );
+        }
 
         // ── INSERT BOM ITEMS AND OPTIONAL STOCK DEDUCTION ───────────────────
         for (const item of bomItems) {

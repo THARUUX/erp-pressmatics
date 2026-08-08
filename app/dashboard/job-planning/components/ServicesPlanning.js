@@ -326,7 +326,7 @@ export default function ServicesPlanning() {
                         <select
                             onChange={e => {
                                 if (e.target.value) {
-                                    window.location.href = `/dashboard/services/${e.target.value}/planning`;
+                                    window.location.href = `/services/${e.target.value}/portal`;
                                 }
                             }}
                             style={{

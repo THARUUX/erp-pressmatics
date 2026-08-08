@@ -9,7 +9,7 @@ export async function GET(req) {
         const offset = (page - 1) * limit;
 
         // Get total count for pagination metadata
-        const [countResult] = await pool.execute('SELECT COUNT(*) as total FROM quotations');
+        const [countResult] = await pool.execute('SELECT COUNT(*) as total FROM quotations WHERE service_id IS NULL');
         const total = countResult[0].total;
 
         const [rows] = await pool.execute(`
@@ -22,6 +22,7 @@ export async function GET(req) {
                  ORDER BY qli.display_order ASC
                  LIMIT 1) AS first_item_name
             FROM quotations q
+            WHERE q.service_id IS NULL
             ORDER BY q.created_at DESC
             LIMIT ${limit} OFFSET ${offset}
         `);

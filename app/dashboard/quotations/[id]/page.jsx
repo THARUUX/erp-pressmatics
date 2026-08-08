@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import { FiPrinter, FiArrowLeft, FiDollarSign, FiShoppingCart, FiAlertTriangle, FiPackage, FiMessageCircle, FiLink, FiFileText, FiX, FiSend, FiWifi } from 'react-icons/fi';
+import { FiPrinter, FiArrowLeft, FiDollarSign, FiShoppingCart, FiAlertTriangle, FiPackage, FiMessageCircle, FiLink, FiFileText, FiX, FiSend, FiWifi, FiCopy } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -270,6 +270,27 @@ export default function QuotationViewPage({ params }) {
             }
         } catch {
             toast.error('Error updating status');
+        }
+    };
+
+    const handleDuplicate = async () => {
+        const confirmDup = window.confirm('Are you sure you want to duplicate this quotation?');
+        if (!confirmDup) return;
+
+        toast.loading('Duplicating quotation...', { id: 'dup-toast' });
+        try {
+            const res = await fetch(`/api/quotations/${id}/duplicate`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('Quotation duplicated successfully!', { id: 'dup-toast' });
+                router.push(`/dashboard/quotations/${data.newId}`);
+            } else {
+                throw new Error(data.error || 'Failed to duplicate');
+            }
+        } catch (e) {
+            toast.error(e.message || 'Error duplicating quotation', { id: 'dup-toast' });
         }
     };
 
@@ -636,13 +657,22 @@ export default function QuotationViewPage({ params }) {
 
                     <div className="h-6 w-px bg-white/10 mx-1" />
 
-                    {/* WhatsApp */}
+                     {/* WhatsApp */}
                     <button
                         onClick={openWaModal}
                         className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-[#128c7e]/20 hover:bg-[#128c7e]/40 border border-[#25d366]/25 text-[#25d366] hover:text-[#2edb6f] text-sm font-semibold transition-all"
                     >
                         <FiMessageCircle className="w-3.5 h-3.5" />
                         Send via WhatsApp
+                    </button>
+
+                    {/* Duplicate */}
+                    <button
+                        onClick={handleDuplicate}
+                        className="h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-gray-400 hover:text-white text-sm font-medium transition-all cursor-pointer"
+                    >
+                        <FiCopy className="w-3.5 h-3.5" />
+                        Duplicate
                     </button>
 
                     {/* Print */}
@@ -825,17 +855,18 @@ export default function QuotationViewPage({ params }) {
                     </div>
                 )}
 
-                {/* Footer: Terms & Signature */}
-                <div className="grid grid-cols-3 gap-12 border-t border-gray-100 pt-8 break-inside-avoid">
-                    <div className='col-span-2'>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Terms & Conditions</h4>
-                        <div className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed">
-                            {quote.terms_and_conditions || settings.default_terms || 'No specific terms.'}
-                        </div>
+                {/* Terms & Conditions */}
+                <div className="border-t border-gray-150 pt-6 mb-6 break-inside-avoid">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Terms &amp; Conditions</h4>
+                    <div className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed max-w-2xl">
+                        {quote.terms_and_conditions || settings.default_terms || 'No specific terms.'}
                     </div>
                 </div>
-                <div className="flex w-full" />
-                <div className="flex flex-col items-end justify-end text-center mt-10">
+
+                <div className="mt-auto" />
+
+                {/* Signature */}
+                <div className="flex flex-col items-end justify-end text-center pt-6 break-inside-avoid">
                     <div className="flex flex-col items-center">
                         {settings.company_signature && (
                             <img src={settings.company_signature} alt="Signature" className="h-15 mb-[-10px] object-contain" />

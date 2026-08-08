@@ -11,7 +11,7 @@ export async function GET(req) {
         const search = searchParams.get('search') || '';
         const offset = (page - 1) * limit;
 
-        let where = 'WHERE 1=1';
+        let where = 'WHERE i.service_id IS NULL';
         const params = [];
 
         if (status && status !== 'all') {
@@ -48,6 +48,7 @@ export async function GET(req) {
                 SUM(CASE WHEN status = 'overdue'           THEN amount_due - amount_paid ELSE 0 END) AS overdue,
                 SUM(CASE WHEN MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE()) THEN amount_paid ELSE 0 END) AS collected_month
             FROM invoices
+            WHERE service_id IS NULL
         `);
 
         return NextResponse.json({ invoices: rows, total, stats });

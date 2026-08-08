@@ -503,6 +503,7 @@ function TaskCard({
 
 function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh, onViewJobTicket, employees = [] }) {
     const isOffset = (machine?.type || '').toLowerCase() === 'offset';
+    const isPrepress = (machine?.type || '').toLowerCase() === 'prepress';
     const plateSetup = isOffset ? (parseInt(task.plate_count || 0) * parseFloat(machine?.setup_minutes_per_plate || 0)) : 0;
     const defaultSetup = (machine?.make_ready_minutes || 0) + plateSetup;
     const defaultSpeed = machine?.speed || 0;
@@ -527,6 +528,9 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
 
     const initialUnit = task.custom_speed_unit || defaultUnit;
     const getResolvedQty = (u, withWastage) => {
+        if (isPrepress) {
+            return task.plate_count || task.quantity || 0;
+        }
         if (isOffset) {
             const sides = parseInt(task.sides || 1) || 1;
             const totalSheets = (task.net_sheet_count || 0) + (task.wastage_sheets || 0);
@@ -709,16 +713,21 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
         if (calcQty !== '') {
             const numQty = parseFloat(calcQty);
             payload.quantity = numQty;
-            const lowerUnit = (unit || '').toLowerCase();
-            const sides = parseInt(task.sides || 1) || 1;
-            if (lowerUnit === 'sheets/hr') {
-                payload.sheet_count = numQty;
-            } else if (lowerUnit === 'prints/hr') {
-                payload.sheet_count = Math.ceil(numQty / sides);
-            } else if (lowerUnit === 'impressions/hr') {
-                payload.impression_count = numQty;
+            if (isPrepress) {
+                payload.sheet_count = 0;
+                payload.impression_count = 0;
             } else {
-                payload.sheet_count = numQty;
+                const lowerUnit = (unit || '').toLowerCase();
+                const sides = parseInt(task.sides || 1) || 1;
+                if (lowerUnit === 'sheets/hr') {
+                    payload.sheet_count = numQty;
+                } else if (lowerUnit === 'prints/hr') {
+                    payload.sheet_count = Math.ceil(numQty / sides);
+                } else if (lowerUnit === 'impressions/hr') {
+                    payload.impression_count = numQty;
+                } else {
+                    payload.sheet_count = numQty;
+                }
             }
         }
         await onSave(task.id, order?.id, payload);
@@ -740,6 +749,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
             quantity: task.quantity,
             sheet_count: task.sheet_count,
             impression_count: task.impression_count,
+            is_manual: 0,
         });
         setSaving(false);
         onClose();

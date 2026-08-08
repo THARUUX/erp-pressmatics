@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiPlus, FiEdit2, FiTrash2, FiUsers, FiClock, FiDollarSign, FiPercent, FiX, FiBriefcase, FiActivity } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiUsers, FiClock, FiDollarSign, FiPercent, FiX, FiBriefcase, FiActivity, FiGrid } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
@@ -174,55 +174,37 @@ export default function ServicesPage() {
                     {services.map(service => (
                         <div
                             key={service.id}
-                            className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 flex flex-col justify-between hover:border-white/20 transition-all group"
+                            className="bg-black/40 backdrop-blur-xl border border-white/10 hover:border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all group shadow-xl"
                         >
                             <div>
                                 <div className="flex justify-between items-start gap-4 mb-2">
-                                    <h3 className="text-lg font-bold text-white tracking-tight">{service.name}</h3>
+                                    <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors">{service.name}</h3>
                                     <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={() => openEditModal(service)}
                                             title="Edit Service"
-                                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer"
                                         >
                                             <FiEdit2 size={14} />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteService(service)}
                                             title="Delete Service"
-                                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                                         >
                                             <FiTrash2 size={14} />
                                         </button>
                                     </div>
                                 </div>
-                                <p className="text-gray-400 text-xs line-clamp-2 mb-4 h-8">{service.description || 'No description provided.'}</p>
+                                <p className="text-gray-400 text-xs leading-relaxed mb-6 min-h-[40px]">{service.description || 'No description provided.'}</p>
                             </div>
 
-                            <div className="border-t border-white/[0.06] pt-4 mt-2">
-                                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">
-                                    <FiUsers className="w-3.5 h-3.5" /> Assigned Employees
-                                </div>
-                                {service.employees.length === 0 ? (
-                                    <p className="text-gray-600 text-xs italic mb-4">No employees assigned</p>
-                                ) : (
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-4">
-                                        {service.employees.map(emp => (
-                                            <div key={emp.id} className="flex justify-between items-center text-xs bg-white/[0.02] border border-white/[0.04] rounded-lg p-2">
-                                                <span className="font-medium text-gray-300">{emp.employee_name}</span>
-                                                <span className="text-white/80 font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded-md">
-                                                    {currency} {emp.rate.toFixed(2)} <span className="text-gray-500 text-[10px]">/{emp.default_rate_unit === 'per hour' ? 'hr' : emp.default_rate_unit === 'per job' ? 'job' : 'unit'}</span>
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                
+                            <div className="border-t border-white/[0.06] pt-4">
                                 <Link
-                                    href={`/dashboard/services/${service.id}/planning`}
-                                    className="w-full flex items-center justify-center gap-2 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white text-xs font-semibold py-2.5 rounded-xl transition-all"
+                                    href={`/services/${service.id}/portal`}
+                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold py-3 rounded-xl shadow-lg transition-all"
                                 >
-                                    <FiActivity className="w-3.5 h-3.5 text-white/60" /> Planning &amp; Reports
+                                    <FiGrid className="w-4 h-4" /> Open Service Portal ↗
                                 </Link>
                             </div>
                         </div>

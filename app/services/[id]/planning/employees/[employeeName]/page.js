@@ -12,7 +12,9 @@ import {
     FiActivity,
     FiInfo,
     FiClock,
-    FiChevronLeft
+    FiChevronLeft,
+    FiPlay,
+    FiSquare
 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -48,6 +50,17 @@ function formatDuration(start, end) {
     return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
+function formatSeconds(secs) {
+    if (!secs || secs <= 0) return '0s';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (m === 0) return `${s}s`;
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h}h ${remM}m`;
+}
+
 function StatCard({ label, value, accent, icon: Icon }) {
     return (
         <div className="flex-1 min-w-[200px] bg-white/[0.02] border border-white/[0.08] backdrop-blur-xl rounded-2xl p-5 flex items-center justify-between shadow-lg">
@@ -62,6 +75,17 @@ function StatCard({ label, value, accent, icon: Icon }) {
     );
 }
 
+const theme = {
+    bg: 'bg-[#09090b]',
+    glow1: 'bg-indigo-500/5',
+    glow2: 'bg-purple-500/5',
+    accentText: 'text-indigo-400',
+    accentBorder: 'border-indigo-500/20',
+    accentColorHex: '#6366f1',
+    btnSecondary: 'bg-[#0e0e12] border border-zinc-800 text-white hover:bg-zinc-850',
+    badge: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+};
+
 export default function EmployeeWorkspacePage({ params }) {
     const { id, employeeName: rawEmployeeName } = use(params);
     const employeeName = decodeURIComponent(rawEmployeeName);
@@ -73,7 +97,6 @@ export default function EmployeeWorkspacePage({ params }) {
     const [error, setError] = useState(null);
     const [noteModal, setNoteModal] = useState(null);
     const [greeting, setGreeting] = useState('Hello');
-
     // Get time-based greeting
     useEffect(() => {
         const hr = new Date().getHours();
@@ -90,7 +113,7 @@ export default function EmployeeWorkspacePage({ params }) {
             if (!res.ok) throw new Error('Failed to load planning data');
             const data = await res.json();
             setService(data.service);
-            
+
             // Filter tasks assigned to this employee
             const empTasks = (data.tasks || []).filter(t => t.assigned_to === employeeName);
             setTasks(empTasks);
@@ -105,6 +128,38 @@ export default function EmployeeWorkspacePage({ params }) {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    const handleStartTimer = async (task) => {
+        try {
+            const orderId = task.sales_order_id || 'manual';
+            const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}/work-log`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'start', employee_name: employeeName }),
+            });
+            if (!res.ok) throw new Error('Failed to start timer');
+            toast.success('Work timer started!');
+            loadData();
+        } catch (e) {
+            toast.error(e.message || 'Error starting timer');
+        }
+    };
+
+    const handleStopTimer = async (task) => {
+        try {
+            const orderId = task.sales_order_id || 'manual';
+            const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}/work-log`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'stop' }),
+            });
+            if (!res.ok) throw new Error('Failed to stop timer');
+            toast.success('Work timer stopped!');
+            loadData();
+        } catch (e) {
+            toast.error(e.message || 'Error stopping timer');
+        }
+    };
 
     const handleStatusChange = async (task, newStatus) => {
         // Optimistic update
@@ -189,16 +244,18 @@ export default function EmployeeWorkspacePage({ params }) {
         if (details.total_cost) totalEarned += details.total_cost;
     });
 
+
+
     return (
-        <div className="min-h-screen bg-[#07070f] text-white p-6 md:p-12 font-sans relative overflow-x-hidden">
+        <div className={`min-h-screen ${theme.bg} text-white p-6 md:p-12 font-sans relative overflow-x-hidden`}>
             {/* Ambient Background Glows */}
-            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className={`absolute top-[-10%] left-[-10%] w-[500px] h-[500px] ${theme.glow1} rounded-full blur-[120px] pointer-events-none`} />
+            <div className={`absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] ${theme.glow2} rounded-full blur-[120px] pointer-events-none`} />
 
             <div className="max-w-6xl mx-auto space-y-8 relative z-10">
                 {/* Back Link */}
                 <Link
-                    href={`/dashboard/services/${id}/planning`}
+                    href={`/services/${id}/portal`}
                     className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.05] rounded-xl text-xs text-white/70 transition-colors"
                 >
                     <FiArrowLeft className="w-4 h-4" /> Back to Planning Board
@@ -227,13 +284,13 @@ export default function EmployeeWorkspacePage({ params }) {
                 <div className="flex flex-wrap gap-6">
                     <StatCard label="Active Tasks" value={activeTasksList.length} accent="#3b82f6" icon={FiLayers} />
                     <StatCard label="Completed Tasks" value={completedTasksList.length} accent="#10b981" icon={FiCheckCircle} />
-                    <StatCard label="Total Cost Accumulated" value={`LKR ${totalEarned.toLocaleString()}`} accent="#a78bfa" icon={FiDollarSign} />
+                    <StatCard label="Total Cost Accumulated" value={`LKR ${totalEarned.toLocaleString()}`} accent={theme.accentColorHex} icon={FiDollarSign} />
                 </div>
 
                 {/* Active Service Tickets */}
                 <section className="bg-white/[0.02] border border-white/[0.08] rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-lg">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                        <FiActivity className="text-blue-400" /> Active Service Tickets
+                        <FiActivity className={theme.accentText} /> Active Service Tickets
                     </h3>
                     {activeTasksList.length === 0 ? (
                         <div className="py-12 text-center text-white/30 text-sm italic">
@@ -247,6 +304,7 @@ export default function EmployeeWorkspacePage({ params }) {
                                         <th className="py-3 pl-2">Sales Order</th>
                                         <th className="py-3">Client</th>
                                         <th className="py-3">Note</th>
+                                        <th className="py-3 text-center">Work Timer</th>
                                         <th className="py-3 text-center">Status</th>
                                         <th className="py-3 text-right pr-2">Action</th>
                                     </tr>
@@ -254,11 +312,17 @@ export default function EmployeeWorkspacePage({ params }) {
                                 <tbody className="divide-y divide-white/[0.04]">
                                     {activeTasksList.map(t => {
                                         const details = parseDescription(t.description);
+                                        const estMinutes = parseInt(t.estimated_minutes || 0);
+                                        const actSeconds = parseInt(t.actual_seconds || 0);
+
                                         return (
                                             <tr key={t.id} className="hover:bg-white/[0.01] transition-colors">
                                                 <td className="py-4 pl-2 font-bold">
-                                                    <span className="hover:underline text-white/90">
+                                                    <span className="hover:underline text-white/90 block">
                                                         SO #{t.order_code || t.sales_order_id}
+                                                    </span>
+                                                    <span className="text-[10px] text-amber-300 font-mono">
+                                                        {estMinutes > 0 ? `Est: ${estMinutes}m` : 'Est: Not set'}
                                                     </span>
                                                 </td>
                                                 <td className="py-4 text-white/60">{t.customer_name}</td>
@@ -266,13 +330,20 @@ export default function EmployeeWorkspacePage({ params }) {
                                                     {details.note ? (
                                                         <button
                                                             onClick={() => setNoteModal({ task: t, note: details.note })}
-                                                            className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-bold"
+                                                            className={`flex items-center gap-1 text-[11px] font-bold ${theme.accentText}`}
                                                         >
                                                             <FiInfo className="shrink-0" /> View Note
                                                         </button>
                                                     ) : (
                                                         <span className="text-white/20 italic text-[11px]">—</span>
                                                     )}
+                                                </td>
+                                                <td className="py-4 text-center">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="font-mono text-[11px] font-bold   px-2 py-0.5 rounded-lg">
+                                                            {formatSeconds(actSeconds)}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="py-4 text-center">
                                                     <select
@@ -287,13 +358,24 @@ export default function EmployeeWorkspacePage({ params }) {
                                                         <option value="done">● Completed</option>
                                                     </select>
                                                 </td>
-                                                <td className="py-4 text-right pr-2">
-                                                    <button
-                                                        onClick={() => handleUnassign(t)}
-                                                        className="text-xs text-red-400 hover:text-red-300 font-bold"
-                                                    >
-                                                        Unassign
-                                                    </button>
+                                                <td className="py-4 text-right flex justify-end items-end pr-2">
+                                                    <div className='w-full flex justify-end items-end'>
+                                                        {t.is_running ? (
+                                                            <button
+                                                                onClick={() => handleStopTimer(t)}
+                                                                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm animate-pulse"
+                                                            >
+                                                                <FiSquare size={12} /> Stop
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleStartTimer(t)}
+                                                                className={`px-3 py-1.5 ${theme.btnSecondary} text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm`}
+                                                            >
+                                                                <FiPlay size={12} /> Start
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );

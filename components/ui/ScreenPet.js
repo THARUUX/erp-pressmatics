@@ -406,8 +406,8 @@ export default function ScreenPet() {
         if (savedX && savedY) {
             position.current = { x: parseFloat(savedX), y: parseFloat(savedY) };
         } else {
-            // Default bottom right area
-            position.current = { x: 85, y: 80 };
+            // Default bottom right corner
+            position.current = { x: 86, y: 82 };
         }
         updateElementPosition();
 

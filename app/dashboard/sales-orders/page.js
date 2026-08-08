@@ -80,7 +80,7 @@ export default function SalesOrdersPage() {
     /* fetch all — TanStack handles pagination/sort/filter client-side */
     const fetchAll = useCallback(() => {
         setLoading(true);
-        let url = '/api/sales-orders?limit=500&offset=0';
+        let url = '/api/sales-orders?limit=500&offset=0&exclude_services=true';
         if (statusFilter !== 'All') url += `&status=${encodeURIComponent(statusFilter)}`;
         fetch(url)
             .then(r => r.json())
