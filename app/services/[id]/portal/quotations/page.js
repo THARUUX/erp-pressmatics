@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import CustomerSuggestInput from '@/components/CustomerSuggestInput';
 import {
     useReactTable, getCoreRowModel, getSortedRowModel,
     getFilteredRowModel, getPaginationRowModel, flexRender,
@@ -503,8 +504,24 @@ export default function PortalQuotationsPage({ params }) {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2">
                                         <label className="block text-xs text-zinc-400 mb-1.5">Client / Company Name *</label>
-                                        <input required value={editForm.customer_name} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))}
-                                            className="w-full bg-zinc-900/80 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-500" />
+                                        <CustomerSuggestInput
+                                            required
+                                            value={editForm.customer_name}
+                                            customerPhone={editForm.customer_phone}
+                                            customerEmail={editForm.customer_email}
+                                            customerAddress={editForm.customer_address}
+                                            onChange={({ name, id, phone, email, address }) => {
+                                                setEditForm(p => ({
+                                                    ...p,
+                                                    customer_name: name,
+                                                    customer_id: id,
+                                                    customer_phone: phone || p.customer_phone,
+                                                    customer_email: email || p.customer_email,
+                                                    customer_address: address || p.customer_address
+                                                }));
+                                            }}
+                                            placeholder="Search or enter customer name..."
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-zinc-400 mb-1.5">Phone</label>
@@ -629,9 +646,24 @@ export default function PortalQuotationsPage({ params }) {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2">
                                         <label className="block text-xs text-zinc-400 mb-1.5">Client / Company Name *</label>
-                                        <input required value={quoteForm.customer_name} onChange={e => setQuoteForm(p => ({ ...p, customer_name: e.target.value }))}
-                                            placeholder="Acme Corporation"
-                                            className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-500" />
+                                        <CustomerSuggestInput
+                                            required
+                                            value={quoteForm.customer_name}
+                                            customerPhone={quoteForm.customer_phone}
+                                            customerEmail={quoteForm.customer_email}
+                                            customerAddress={quoteForm.customer_address}
+                                            onChange={({ name, id, phone, email, address }) => {
+                                                setQuoteForm(p => ({
+                                                    ...p,
+                                                    customer_name: name,
+                                                    customer_id: id,
+                                                    customer_phone: phone || p.customer_phone,
+                                                    customer_email: email || p.customer_email,
+                                                    customer_address: address || p.customer_address
+                                                }));
+                                            }}
+                                            placeholder="Search or enter customer name..."
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-zinc-400 mb-1.5">Phone</label>

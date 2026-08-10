@@ -79,7 +79,7 @@ export default function EstimationComponentForm({
             fetch('/api/services')
                 .then(r => r.ok ? r.json() : [])
                 .then(d => setAllServices(d))
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [isServicesComponent]);
 
@@ -343,7 +343,7 @@ export default function EstimationComponentForm({
         if (name === 'sides' && parseInt(value) === 2 && !parseInt(params.colorsBack)) {
             newParams.colorsBack = params.colorsFront ?? 4;
         }
-        if(name === 'sides' && parseInt(value) === 1){
+        if (name === 'sides' && parseInt(value) === 1) {
             newParams.colorsBack = 0
         }
         if (name === 'paperWidthCm' || name === 'paperHeightCm') {
@@ -653,324 +653,323 @@ export default function EstimationComponentForm({
                         <>
                             {type === 'offset' && !data.name?.toLowerCase().includes('finishing') && (
                                 <>
-                                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                        <label className="block text-sm text-gray-400 mb-1">Machine</label>
-                                        <select
-                                            name="machineId"
-                                            value={params.machineId}
-                                            onChange={(e) => {
-                                                const mId = e.target.value;
-                                                const machine = machines.find(m => m.id == mId);
-                                                const paperW = parseFloat(params.paperWidthCm) || 0;
-                                                const paperH = parseFloat(params.paperHeightCm) || 0;
-                                                const factor = machine ? parseFloat(machine.sheet_factor) : null;
-                                                const cutDims = getCutSheetDimensions(paperW, paperH, factor);
+                                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+                                        <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                            <label className="block text-sm text-gray-400 mb-1">Machine</label>
+                                            <select
+                                                name="machineId"
+                                                value={params.machineId}
+                                                onChange={(e) => {
+                                                    const mId = e.target.value;
+                                                    const machine = machines.find(m => m.id == mId);
+                                                    const paperW = parseFloat(params.paperWidthCm) || 0;
+                                                    const paperH = parseFloat(params.paperHeightCm) || 0;
+                                                    const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                                                    const cutDims = getCutSheetDimensions(paperW, paperH, factor);
 
-                                                // Update both params in one go to avoid race conditions with closure state
-                                                onChange(index, 'params', {
-                                                    ...params,
-                                                    machineId: mId,
-                                                    plateCostPerUnit: machine ? machine.plate_cost : params.plateCostPerUnit,
-                                                    cutWidthCm: cutDims.width,
-                                                    cutHeightCm: cutDims.height
-                                                });
-                                            }}
-                                            className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                        >
-                                            <option value="">Select Machine</option>
-                                            {machines.filter(m => m.type === 'offset').map(m => (
-                                                <option key={m.id} value={m.id}>{m.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                        <label className="block text-sm text-gray-400 mb-1">Sides</label>
-                                        <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                            <option value="1">One Side</option>
-                                            <option value="2">Both Sides</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                        <select name="size" value={params.size} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                            <option value="A1">A1</option>
-                                            <option value="A2">A2</option>
-                                            <option value="A3">A3</option>
-                                            <option value="A4">A4</option>
-                                            <option value="A5">A5</option>
-                                            <option value="A6">A6</option>
-                                            <option value="Custom">Custom</option>
-                                        </select>
-                                    </div>
-                                    <div className={!data.name?.toLowerCase().includes('cover') ? "" : 'opacity-40 pointer-events-none'}>
-                                        <label className="block text-sm text-gray-400 mb-1">
-                                            Pages 
-                                            <span className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') && !isBB && !data.name?.toLowerCase().includes('main')) ? 'text-xs text-red-600' : 'hidden'} >
-                                                {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
-                                            </span>
-                                        </label>
-                                        <Input  type="number" name="pages" value={params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">
-                                            Ups
-                                        </label>
-                                        <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
-                                    </div>
-                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                        <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
-                                        <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
-                                    </div>
-                                    <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'}>
-                                        <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
-                                        <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
-                                    </div>
-                                    <div><label className="block text-sm text-gray-400 mb-1">Wastage Cut Sheets</label><Input type="number" name="wastagePercent" value={params.wastagePercent} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Sets / Wastage Sheets</label>
-                                        <Input
-                                            type="number"
-                                            name="customWastageSheets"
-                                            value={params.customWastageSheets != null ? params.customWastageSheets : ''}
-                                            onChange={handleChange}
-                                            className="bg-secondary border-white/10"
-                                            placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
-                                        />
+                                                    // Update both params in one go to avoid race conditions with closure state
+                                                    onChange(index, 'params', {
+                                                        ...params,
+                                                        machineId: mId,
+                                                        plateCostPerUnit: machine ? machine.plate_cost : params.plateCostPerUnit,
+                                                        cutWidthCm: cutDims.width,
+                                                        cutHeightCm: cutDims.height
+                                                    });
+                                                }}
+                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                            >
+                                                <option value="">Select Machine</option>
+                                                {machines.filter(m => m.type === 'offset').map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                            <label className="block text-sm text-gray-400 mb-1">Sides</label>
+                                            <select name="sides" value={params.sides} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                                <option value="1">One Side</option>
+                                                <option value="2">Both Sides</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
+                                            <select name="size" value={params.size} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
+                                                <option value="A1">A1</option>
+                                                <option value="A2">A2</option>
+                                                <option value="A3">A3</option>
+                                                <option value="A4">A4</option>
+                                                <option value="A5">A5</option>
+                                                <option value="A6">A6</option>
+                                                <option value="Custom">Custom</option>
+                                            </select>
+                                        </div>
+                                        <div className={!data.name?.toLowerCase().includes('cover') ? "" : 'opacity-40 pointer-events-none'}>
+                                            <label className="block text-sm text-gray-400 mb-1">
+                                                Pages
+                                                <span className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') && !isBB && !data.name?.toLowerCase().includes('main')) ? 'text-xs text-red-600' : 'hidden'} >
+                                                    {params.pages % (params.sides * params.ups) != 0 ? 'You may need B&B' : ''}
+                                                </span>
+                                            </label>
+                                            <Input type="number" name="pages" value={params.pages} onChange={handleChange} className="bg-secondary border-white/10" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">
+                                                Ups
+                                            </label>
+                                            <Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" />
+                                        </div>
+                                        <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                            <label className="block text-sm text-gray-400 mb-1">Front Colours</label>
+                                            <Input type="number" name="colorsFront" value={params.colorsFront ?? 4} onChange={handleChange} className="bg-secondary border-white/10" min="0" />
+                                        </div>
+                                        <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? (parseInt(params.sides) === 2 ? '' : 'opacity-40 pointer-events-none') : 'hidden'}>
+                                            <label className="block text-sm text-gray-400 mb-1">Back Colours {parseInt(params.sides) !== 2 && <span className="text-xs text-gray-600">(single-sided)</span>}</label>
+                                            <Input type="number" name="colorsBack" value={params.colorsBack ?? 0} onChange={handleChange} className="bg-secondary border-white/10" min="0" disabled={parseInt(params.sides) !== 2} />
+                                        </div>
+                                        <div><label className="block text-sm text-gray-400 mb-1">Wastage Cut Sheets</label><Input type="number" name="wastagePercent" value={params.wastagePercent} onChange={handleChange} className="bg-secondary border-white/10" /></div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Sets / Wastage Sheets</label>
+                                            <Input
+                                                type="number"
+                                                name="customWastageSheets"
+                                                value={params.customWastageSheets != null ? params.customWastageSheets : ''}
+                                                onChange={handleChange}
+                                                className="bg-secondary border-white/10"
+                                                placeholder={calculationResult ? String(calculationResult.wastageSheets) : 'Auto-calculated'}
+                                            />
+                                        </div>
+
+                                        {/* Advanced Overrides toggle */}
+                                        {(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) && (
+                                            <div className="md:col-span-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAdvancedOffset(v => !v)}
+                                                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/25 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg px-3 py-1.5 transition-all"
+                                                >
+                                                    <span className={`transition-transform duration-200 ${showAdvancedOffset ? 'rotate-90' : ''}`}>▶</span>
+                                                    {showAdvancedOffset ? 'Hide' : 'Show'} Advanced / Overrides
+                                                    {!showAdvancedOffset && (params.customSheetFactor || params.customImpressions || (params.customPlateCount != null && params.customPlateCount !== '')) && (
+                                                        <span className="text-[10px] text-amber-400 font-mono">
+                                                            {params.customSheetFactor && `Ups:${params.customSheetFactor}`}
+                                                            {params.customImpressions && ` Impr:${params.customImpressions}`}
+                                                            {params.customPlateCount !== '' && params.customPlateCount != null && ` Plates:${params.customPlateCount}`}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {showAdvancedOffset && (
+                                            <>
+                                                <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                                    <label className="block text-sm text-gray-400 mb-1">
+                                                        Press Ups
+                                                        {params.customSheetFactor && (
+                                                            <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
+                                                        )}
+                                                    </label>
+                                                    <Input
+                                                        type="number"
+                                                        name="customSheetFactor"
+                                                        value={data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main') ? params.customSheetFactor : null}
+                                                        onChange={handleChange}
+                                                        className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                                        placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
+                                                        min="1"
+                                                        step="1"
+                                                    />
+                                                </div>
+                                                <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                                    <label className="block text-sm text-gray-400 mb-1">Impressions</label>
+                                                    <Input
+                                                        type="number"
+                                                        name="customImpressions"
+                                                        value={params.customImpressions || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10"
+                                                        placeholder={calculationResult ? String(calculationResult.TotalImpressions) : 'Auto-calculated'}
+                                                    />
+                                                </div>
+                                                <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
+                                                    <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
+                                                    <Input
+                                                        type="number"
+                                                        name="customPlateCount"
+                                                        value={params.customPlateCount != null ? params.customPlateCount : ''}
+                                                        onChange={handleChange}
+                                                        className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
+                                                        placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {(data.name?.includes('Inner') || data.name?.includes('Main')) && (
+                                            <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2 h-full justify-center rounded-2xl border border-white/10 flex flex-col shadow-2xl">
+                                                <div className="flex justify-between items-center w-full">
+                                                    <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
+                                                    </p>
+                                                    <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
+                                                        <RiPagesLine className="text-lg" />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Advanced Overrides toggle */}
-                                    {(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) && (
-                                        <div className="md:col-span-3">
+
+                                    {/* B&B toggle — only for Inner components */}
+                                    {(data.name?.includes('Inner') || data.name?.includes('Cover') || data.name?.includes('Main')) && (
+                                        <div className="flex items-center gap-3 mt-2">
                                             <button
                                                 type="button"
-                                                onClick={() => setShowAdvancedOffset(v => !v)}
+                                                onClick={handleIsBBToggle}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${isBB
+                                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
+                                                    }`}
+                                            >
+                                                <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isBB ? 'bg-amber-500 border-amber-500 text-black' : 'border-white/30'}`}>
+                                                    {isBB ? '✓' : ''}
+                                                </span>
+                                                B&amp;B
+                                            </button>
+                                            <span className="text-xs text-gray-500">
+                                                {isBB ? 'Plate count locked to 1 (Back-to-Back)' : 'Enable for Back-to-Back printing'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* ── Materials (Offset) ── */}
+                                    <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials</h3>
+                                    <div className="grid md:grid-cols-2 gap-4 mb-6">
+                                        {/* Paper Search */}
+                                        <div className="md:col-span-2 relative">
+                                            <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
+                                            <div className="relative">
+                                                <Input
+                                                    value={paperSearch}
+                                                    onChange={(e) => {
+                                                        setPaperSearch(e.target.value);
+                                                        setShowPaperSuggestions(true);
+                                                    }}
+                                                    onFocus={() => setShowPaperSuggestions(true)}
+                                                    onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
+                                                    placeholder="Type to search offset paper..."
+                                                    className="bg-secondary border-white/10"
+                                                />
+                                                {showPaperSuggestions && (
+                                                    <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
+                                                        {papers.filter(p => {
+                                                            const pType = (p.type || '').toUpperCase();
+                                                            return pType !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
+                                                        }).map(p => {
+                                                            const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
+                                                            return (
+                                                                <li key={p.id} onClick={() => {
+                                                                    const machine = machines.find(m => m.id == params.machineId);
+                                                                    const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                                                                    const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
+                                                                    onChange(index, 'params', {
+                                                                        ...params,
+                                                                        paperCostPerSheet: p.unit_cost,
+                                                                        paperId: p.id,
+                                                                        paperName: p.name,
+                                                                        paperWidthCm: p.width_cm || 0,
+                                                                        paperHeightCm: p.height_cm || 0,
+                                                                        cutWidthCm: cutDims.width,
+                                                                        cutHeightCm: cutDims.height,
+                                                                    });
+                                                                    setPaperSearch(p.name);
+                                                                    setShowPaperSuggestions(false);
+                                                                }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
+                                                                    <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}×${p.height_cm}cm)` : ''}</span>
+                                                                    <span className="group-hover:opacity-0 transition-opacity text-gray-400">{currency}{parseFloat(p.unit_cost).toFixed(4)}/sheet</span>
+                                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
+                                                                        <span className="text-gray-400 text-[10px]">Stock:</span>
+                                                                        <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
+                                                                        {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
+                                                                    </div>
+                                                                </li>
+                                                            );
+                                                        })}
+                                                        {papers.filter(p => (p.type || '').toUpperCase() !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase())).length === 0 && (
+                                                            <li className="px-4 py-3 text-gray-500 text-sm italic">No offset papers found</li>
+                                                        )}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Paper Cost / Sheet ({currency})</label>
+                                            <Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Impression Cost / Unit ({currency})</label>
+                                            <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.impressionCostPerUnit || parseFloat(params.impressionCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-400 mb-1">Plate Cost / Unit ({currency})</label>
+                                            <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.plateCostPerUnit || parseFloat(params.plateCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
+                                        </div>
+
+                                        {/* Dimensions toggle */}
+                                        <div className="md:col-span-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowDimensions(v => !v)}
                                                 className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/25 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg px-3 py-1.5 transition-all"
                                             >
-                                                <span className={`transition-transform duration-200 ${showAdvancedOffset ? 'rotate-90' : ''}`}>▶</span>
-                                                {showAdvancedOffset ? 'Hide' : 'Show'} Advanced / Overrides
-                                                {!showAdvancedOffset && (params.customSheetFactor || params.customImpressions || (params.customPlateCount != null && params.customPlateCount !== '')) && (
-                                                    <span className="text-[10px] text-amber-400 font-mono">
-                                                        {params.customSheetFactor && `Ups:${params.customSheetFactor}`}
-                                                        {params.customImpressions && ` Impr:${params.customImpressions}`}
-                                                        {params.customPlateCount !== '' && params.customPlateCount != null && ` Plates:${params.customPlateCount}`}
+                                                <span className={`transition-transform duration-200 ${showDimensions ? 'rotate-90' : ''}`}>▶</span>
+                                                {showDimensions ? 'Hide' : 'Show'} Dimensions
+                                                {(params.paperWidthCm || params.cutWidthCm || params.compWidthCm) && !showDimensions && (
+                                                    <span className="ml-1 text-[10px] text-amber-400 font-mono">
+                                                        {params.paperWidthCm && `${params.paperWidthCm}×${params.paperHeightCm}cm`}
+                                                        {params.cutWidthCm && ` · cut ${params.cutWidthCm}×${params.cutHeightCm}cm`}
                                                     </span>
                                                 )}
                                             </button>
                                         </div>
-                                    )}
 
-                                    {showAdvancedOffset && (
-                                        <>
-                                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                                <label className="block text-sm text-gray-400 mb-1">
-                                                    Press Ups
-                                                    {params.customSheetFactor && (
-                                                        <button type="button" onClick={() => updateParam('customSheetFactor', '')} className="ml-2 text-[10px] text-amber-400 hover:text-amber-300">↩ auto</button>
-                                                    )}
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    name="customSheetFactor"
-                                                    value={data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main') ? params.customSheetFactor : null}
-                                                    onChange={handleChange}
-                                                    className={`bg-secondary border-white/10 ${params.customSheetFactor ? 'border-amber-500/50 text-amber-300' : ''}`}
-                                                    placeholder={String(machines.find(m => m.id == params.machineId)?.sheet_factor || 'Auto')}
-                                                    min="1"
-                                                    step="1"
-                                                />
-                                            </div>
-                                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                                <label className="block text-sm text-gray-400 mb-1">Impressions</label>
-                                                <Input
-                                                    type="number"
-                                                    name="customImpressions"
-                                                    value={params.customImpressions || ''}
-                                                    onChange={handleChange}
-                                                    className="bg-secondary border-white/10"
-                                                    placeholder={calculationResult ? String(calculationResult.printedSheets) : 'Auto-calculated'}
-                                                />
-                                            </div>
-                                            <div className={(data.name?.toLowerCase().includes('cover') || data.name?.toLowerCase().includes('inner') || data.name?.toLowerCase().includes('main')) ? '' : 'hidden'}>
-                                                <label className="block text-sm text-gray-400 mb-1">Plate Count</label>
-                                                <Input
-                                                    type="number"
-                                                    name="customPlateCount"
-                                                    value={params.customPlateCount != null ? params.customPlateCount : ''}
-                                                    onChange={handleChange}
-                                                    className={`bg-secondary border-white/10 ${params.customPlateCount != null && params.customPlateCount !== '' ? 'border-amber-500/50 text-amber-300' : ''}`}
-                                                    placeholder={calculationResult ? String(calculationResult.plateCount) : 'Auto-calculated'}
-                                                />
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {(data.name?.includes('Inner') || data.name?.includes('Main')) && (
-                                        <div className="bg-gradient-to-b from-white/[0.07] to-transparent backdrop-blur-lg px-5 py-2 h-full justify-center rounded-2xl border border-white/10 flex flex-col shadow-2xl">
-                                            <div className="flex justify-between items-center w-full">
-                                                <p className="text-[xs] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> {isBB ? '1' : Math.ceil(params.pages / (params.sides * params.ups))} Forms
-                                                </p>
-                                                <div className="p-1.5 rounded-md bg-white/5 text-gray-300">
-                                                    <RiPagesLine className="text-lg" />
+                                        {showDimensions && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Paper Width (cm)</label>
+                                                    <Input type="number" name="paperWidthCm" value={params.paperWidthCm} onChange={handleChange} className="bg-secondary border-white/10" />
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <span className="text-[11px] font-medium text-gray-400 tracking-wide">Total Volume</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-
-                                {/* B&B toggle — only for Inner components */}
-                                {(data.name?.includes('Inner') || data.name?.includes('Cover') || data.name?.includes('Main')) && (
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <button
-                                            type="button"
-                                            onClick={handleIsBBToggle}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                                                isBB
-                                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
-                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
-                                            }`}
-                                        >
-                                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${isBB ? 'bg-amber-500 border-amber-500 text-black' : 'border-white/30'}`}>
-                                                {isBB ? '✓' : ''}
-                                            </span>
-                                            B&amp;B
-                                        </button>
-                                        <span className="text-xs text-gray-500">
-                                            {isBB ? 'Plate count locked to 1 (Back-to-Back)' : 'Enable for Back-to-Back printing'}
-                                        </span>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Paper Height (cm)</label>
+                                                    <Input type="number" name="paperHeightCm" value={params.paperHeightCm} onChange={handleChange} className="bg-secondary border-white/10" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Cut Sheet Width (cm)</label>
+                                                    <Input type="number" name="cutWidthCm" value={params.cutWidthCm} onChange={handleChange} className="bg-secondary border-amber-500/20" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Cut Sheet Height (cm)</label>
+                                                    <Input type="number" name="cutHeightCm" value={params.cutHeightCm} onChange={handleChange} className="bg-secondary border-amber-500/20" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label>
+                                                    <Input type="number" name="compWidthCm" value={params.compWidthCm} onChange={handleChange} className="bg-secondary border-white/10" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label>
+                                                    <Input type="number" name="compHeightCm" value={params.compHeightCm} onChange={handleChange} className="bg-secondary border-white/10" />
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                )}
-
-                                {/* ── Materials (Offset) ── */}
-                                <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials</h3>
-                                <div className="grid md:grid-cols-2 gap-4 mb-6">
-                                    {/* Paper Search */}
-                                    <div className="md:col-span-2 relative">
-                                        <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
-                                        <div className="relative">
-                                            <Input
-                                                value={paperSearch}
-                                                onChange={(e) => {
-                                                    setPaperSearch(e.target.value);
-                                                    setShowPaperSuggestions(true);
-                                                }}
-                                                onFocus={() => setShowPaperSuggestions(true)}
-                                                onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
-                                                placeholder="Type to search offset paper..."
-                                                className="bg-secondary border-white/10"
-                                            />
-                                            {showPaperSuggestions && (
-                                                <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                    {papers.filter(p => {
-                                                        const pType = (p.type || '').toUpperCase();
-                                                        return pType !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                    }).map(p => {
-                                                        const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
-                                                        return (
-                                                            <li key={p.id} onClick={() => {
-                                                                const machine = machines.find(m => m.id == params.machineId);
-                                                                const factor = machine ? parseFloat(machine.sheet_factor) : null;
-                                                                const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
-                                                                onChange(index, 'params', {
-                                                                    ...params,
-                                                                    paperCostPerSheet: p.unit_cost,
-                                                                    paperId: p.id,
-                                                                    paperName: p.name,
-                                                                    paperWidthCm: p.width_cm || 0,
-                                                                    paperHeightCm: p.height_cm || 0,
-                                                                    cutWidthCm: cutDims.width,
-                                                                    cutHeightCm: cutDims.height,
-                                                                });
-                                                                setPaperSearch(p.name);
-                                                                setShowPaperSuggestions(false);
-                                                            }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
-                                                                <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}×${p.height_cm}cm)` : ''}</span>
-                                                                <span className="group-hover:opacity-0 transition-opacity text-gray-400">{currency}{parseFloat(p.unit_cost).toFixed(4)}/sheet</span>
-                                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
-                                                                    <span className="text-gray-400 text-[10px]">Stock:</span>
-                                                                    <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
-                                                                    {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
-                                                                </div>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                    {papers.filter(p => (p.type || '').toUpperCase() !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase())).length === 0 && (
-                                                        <li className="px-4 py-3 text-gray-500 text-sm italic">No offset papers found</li>
-                                                    )}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Paper Cost / Sheet ({currency})</label>
-                                        <Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Impression Cost / Unit ({currency})</label>
-                                        <Input type="number" name="impressionCostPerUnit" value={params.impressionCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.impressionCostPerUnit || parseFloat(params.impressionCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1">Plate Cost / Unit ({currency})</label>
-                                        <Input type="number" name="plateCostPerUnit" value={params.plateCostPerUnit} onChange={handleChange} className={`bg-secondary ${!params.plateCostPerUnit || parseFloat(params.plateCostPerUnit) === 0 ? 'border-amber-500/60' : 'border-white/10'}`} />
-                                    </div>
-
-                                    {/* Dimensions toggle */}
-                                    <div className="md:col-span-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDimensions(v => !v)}
-                                            className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/25 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg px-3 py-1.5 transition-all"
-                                        >
-                                            <span className={`transition-transform duration-200 ${showDimensions ? 'rotate-90' : ''}`}>▶</span>
-                                            {showDimensions ? 'Hide' : 'Show'} Dimensions
-                                            {(params.paperWidthCm || params.cutWidthCm || params.compWidthCm) && !showDimensions && (
-                                                <span className="ml-1 text-[10px] text-amber-400 font-mono">
-                                                    {params.paperWidthCm && `${params.paperWidthCm}×${params.paperHeightCm}cm`}
-                                                    {params.cutWidthCm && ` · cut ${params.cutWidthCm}×${params.cutHeightCm}cm`}
-                                                </span>
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {showDimensions && (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Paper Width (cm)</label>
-                                                <Input type="number" name="paperWidthCm" value={params.paperWidthCm} onChange={handleChange} className="bg-secondary border-white/10" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Paper Height (cm)</label>
-                                                <Input type="number" name="paperHeightCm" value={params.paperHeightCm} onChange={handleChange} className="bg-secondary border-white/10" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Cut Sheet Width (cm)</label>
-                                                <Input type="number" name="cutWidthCm" value={params.cutWidthCm} onChange={handleChange} className="bg-secondary border-amber-500/20" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Cut Sheet Height (cm)</label>
-                                                <Input type="number" name="cutHeightCm" value={params.cutHeightCm} onChange={handleChange} className="bg-secondary border-amber-500/20" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label>
-                                                <Input type="number" name="compWidthCm" value={params.compWidthCm} onChange={handleChange} className="bg-secondary border-white/10" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label>
-                                                <Input type="number" name="compHeightCm" value={params.compHeightCm} onChange={handleChange} className="bg-secondary border-white/10" />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
                                 </>
                             )}
 
-                            {type === 'digital' &&(
+                            {type === 'digital' && (
                                 <>
                                     <div className="grid md:grid-cols-4 gap-4 mb-6">
                                         <div>
@@ -1338,10 +1337,9 @@ export default function EstimationComponentForm({
                                                         {line.item_code && <div className="text-[10px] text-gray-500 font-mono">{line.item_code}</div>}
                                                     </div>
                                                     <div className="col-span-2 text-center">
-                                                        <span className={`text-xs font-mono ${
-                                                            (line.stock_quantity || 0) <= 0 ? 'text-red-400' :
+                                                        <span className={`text-xs font-mono ${(line.stock_quantity || 0) <= 0 ? 'text-red-400' :
                                                             (line.stock_quantity || 0) < (line.quantity || 0) ? 'text-amber-400' : 'text-emerald-400'
-                                                        }`}>{line.stock_quantity ?? '–'} {line.uom}</span>
+                                                            }`}>{line.stock_quantity ?? '–'} {line.uom}</span>
                                                     </div>
                                                     <div className="col-span-2">
                                                         <Input
@@ -1509,14 +1507,14 @@ export default function EstimationComponentForm({
                                         <div className="flex justify-between text-gray-300">
                                             <span>Impressions:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.printedSheets.toLocaleString()}
+                                                {calculationResult.TotalImpressions.toLocaleString()}
                                                 {calculationResult.customImpressions && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount.toLocaleString()}</span></div>
-                                        <div className="flex justify-between text-gray-300"><span>Printed Sheets:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>{String(machines.find(m => m.id == params.machineId)?.sheet_factor) == 1 ? 'Sheets' : 'Cut Sheets'}:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toLocaleString()}</span></div>
                                         <div className="flex justify-between text-gray-300">
                                             <span>Wastage Sheets:</span>
                                             <span className="font-mono text-white text-right">
@@ -1538,7 +1536,7 @@ export default function EstimationComponentForm({
                             )}
                             {type === 'digital' && (
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-gray-400"><span>Papers Used:</span> <span className="font-mono text-white">{calculationResult.printedSheets}</span></div>
+                                    <div className="flex justify-between text-gray-400"><span>Papers Used:</span> <span className="font-mono text-white">{calculationResult.TotalImpressions}</span></div>
                                     <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                     <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                 </div>

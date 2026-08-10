@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import {
     FiArrowLeft, FiSave, FiCheckCircle, FiDownload, FiTrash2,
     FiExternalLink, FiLayers, FiActivity, FiClock, FiFileText,
-    FiUser, FiCalendar, FiDollarSign, FiInfo
+    FiUser, FiCalendar, FiDollarSign, FiInfo, FiX, FiPlusCircle, FiPlus
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import CustomerSuggestInput from '@/components/CustomerSuggestInput';
 
 const STATUS_CONFIG = {
     'Pending':       { color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
@@ -38,6 +39,86 @@ export default function SimpleServiceSalesOrderPage({ params }) {
     // Delete Modal
     const [deleteModal, setDeleteModal] = useState(false);
     const [deleting, setDeleting]       = useState(false);
+
+    // Invoicing state
+    const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+    const [submittingInvoice, setSubmittingInvoice] = useState(false);
+    const [linkedInvoices, setLinkedInvoices] = useState([]);
+    const [invoiceForm, setInvoiceForm] = useState({
+        customer_name: '', customer_id: null, customer_phone: '',
+        customer_email: '', customer_address: '', quotation_id: null,
+        description: '', amount_due: '', amount_paid: '0',
+        due_date: '', notes: '', status: 'sent'
+    });
+
+    const fetchLinkedInvoices = useCallback(async () => {
+        if (!order?.quotation_id) return;
+        try {
+            const res = await fetch(`/api/invoices?service_id=${id}&limit=500`);
+            const data = await res.json();
+            if (Array.isArray(data.invoices)) {
+                const filtered = data.invoices.filter(inv => inv.quotation_id === order.quotation_id);
+                setLinkedInvoices(filtered);
+            }
+        } catch (e) {
+            console.error('Failed to fetch linked invoices:', e);
+        }
+    }, [id, order?.quotation_id]);
+
+    useEffect(() => {
+        if (order) {
+            fetchLinkedInvoices();
+        }
+    }, [order, fetchLinkedInvoices]);
+
+    const invoicedTotal = linkedInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount_due || 0), 0);
+    const remainingBalance = Math.max(0, parseFloat(order?.total_amount || 0) - invoicedTotal);
+
+    const handleOpenInvoiceModal = () => {
+        setInvoiceForm({
+            customer_name: order.customer_name || '',
+            customer_id: order.customer_id || null,
+            customer_phone: order.customer_phone || '',
+            customer_email: order.customer_email || '',
+            customer_address: order.customer_address || '',
+            quotation_id: order.quotation_id || null,
+            description: order.items?.[0]?.item_name || order.job_notes || `Invoice for Sales Order ${order.code}`,
+            amount_due: remainingBalance.toFixed(2),
+            amount_paid: '0',
+            due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            notes: '',
+            status: 'sent'
+        });
+        setInvoiceModalOpen(true);
+    };
+
+    const handleCreateInvoice = async (e) => {
+        e.preventDefault();
+        setSubmittingInvoice(true);
+        try {
+            const res = await fetch(`/api/services/${id}/planning`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'create_invoice',
+                    ...invoiceForm
+                })
+            });
+            const d = await res.json();
+            if (res.ok && d.success) {
+                toast.success(`Invoice ${d.code} created successfully!`);
+                setInvoiceModalOpen(false);
+                fetchLinkedInvoices();
+            } else {
+                toast.error(d.error || 'Failed to create invoice');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Error creating invoice');
+        } finally {
+            setSubmittingInvoice(false);
+        }
+    };
 
     const fetchOrder = useCallback(async () => {
         setLoading(true);
@@ -228,6 +309,12 @@ export default function SimpleServiceSalesOrderPage({ params }) {
 
                 <div className="flex flex-wrap items-center gap-3">
                     <button
+                        onClick={handleOpenInvoiceModal}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    >
+                        <FiPlusCircle size={14} /> Create Invoice
+                    </button>
+                    <button
                         onClick={handleDownloadPdf}
                         disabled={pdfLoading}
                         className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-700/80 hover:border-zinc-500 text-zinc-200 hover:text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
@@ -345,6 +432,78 @@ export default function SimpleServiceSalesOrderPage({ params }) {
                         className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-white placeholder-zinc-600 outline-none focus:border-amber-500/50 resize-y"
                     />
                 </div>
+            </div>
+
+            {/* Linked Invoices Section */}
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl backdrop-blur-sm">
+                <div className="p-5 border-b border-zinc-800/80 flex justify-between items-center">
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <FiFileText className="text-indigo-400" />
+                        Invoices Linked to this Order
+                    </h2>
+                    <button
+                        onClick={handleOpenInvoiceModal}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                    >
+                        <FiPlusCircle size={14} /> Create Invoice
+                    </button>
+                </div>
+
+                {linkedInvoices.length === 0 ? (
+                    <div className="py-8 text-center text-zinc-500 text-xs italic">
+                        No invoices generated for this order yet.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                            <thead>
+                                <tr className="border-b border-zinc-800/80 bg-zinc-950/50 text-zinc-400 uppercase tracking-wider font-semibold">
+                                    <th className="py-3 px-4 text-left">Invoice Code</th>
+                                    <th className="py-3 px-4 text-left">Customer</th>
+                                    <th className="py-3 px-4 text-right">Amount Due</th>
+                                    <th className="py-3 px-4 text-right">Amount Paid</th>
+                                    <th className="py-3 px-4 text-right">Balance</th>
+                                    <th className="py-3 px-4 text-left">Due Date</th>
+                                    <th className="py-3 px-4 text-left">Status</th>
+                                    <th className="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+                                {linkedInvoices.map((inv) => (
+                                    <tr key={inv.id} className="hover:bg-zinc-800/40 transition-colors">
+                                        <td className="py-3 px-4 font-mono font-bold text-indigo-400">{inv.code}</td>
+                                        <td className="py-3 px-4 font-semibold text-white">{inv.customer_name}</td>
+                                        <td className="py-3 px-4 text-right font-mono">LKR {parseFloat(inv.amount_due || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        <td className="py-3 px-4 text-right font-mono text-emerald-400">LKR {parseFloat(inv.amount_paid || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        <td className="py-3 px-4 text-right font-mono text-amber-300">LKR {parseFloat(inv.balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                        <td className="py-3 px-4">
+                                            {inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-GB') : '—'}
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                inv.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                inv.status === 'partial' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                inv.status === 'overdue' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                            }`}>
+                                                {inv.status}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-right">
+                                            <Link
+                                                href={`/dashboard/invoices/${inv.id}`}
+                                                target="_blank"
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 transition-colors"
+                                            >
+                                                <FiExternalLink size={12} /> View
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* Production Tasks & Progress */}
@@ -517,6 +676,170 @@ export default function SimpleServiceSalesOrderPage({ params }) {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Create Invoice Modal */}
+            {invoiceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <form onSubmit={handleCreateInvoice} className="bg-[#0e0e11] border border-zinc-800 rounded-2xl max-w-lg w-full mx-4 shadow-2xl flex flex-col max-h-[90vh]">
+                        <header className="flex justify-between items-center px-6 py-4 border-b border-zinc-800">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                <FiPlusCircle className="text-zinc-400" /> Create Invoice
+                            </h3>
+                            <button type="button" onClick={() => setInvoiceModalOpen(false)} className="p-1 rounded-lg text-zinc-400 hover:text-white cursor-pointer"><FiX /></button>
+                        </header>
+                        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 text-zinc-200 text-xs">
+                            {/* Summary Card */}
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-zinc-400">Sales Order Total:</span>
+                                    <span className="font-mono font-bold text-white">LKR {parseFloat(order.total_amount || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-zinc-400">Invoiced to Date:</span>
+                                    <span className="font-mono font-bold text-amber-400">LKR {invoicedTotal.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between border-t border-zinc-800 pt-2 font-semibold">
+                                    <span className="text-zinc-300">Remaining Balance:</span>
+                                    <span className="font-mono text-emerald-400">LKR {remainingBalance.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            {/* Client Info */}
+                            <div>
+                                <label className="block text-zinc-400 mb-1.5 font-semibold">Customer *</label>
+                                <CustomerSuggestInput
+                                    required
+                                    value={invoiceForm.customer_name}
+                                    customerPhone={invoiceForm.customer_phone}
+                                    customerEmail={invoiceForm.customer_email}
+                                    customerAddress={invoiceForm.customer_address}
+                                    onChange={({ name, id, phone, email, address }) => {
+                                        setInvoiceForm(p => ({
+                                            ...p,
+                                            customer_name: name,
+                                            customer_id: id,
+                                            customer_phone: phone || p.customer_phone,
+                                            customer_email: email || p.customer_email,
+                                            customer_address: address || p.customer_address
+                                        }));
+                                    }}
+                                    placeholder="Search or enter customer name..."
+                                />
+                            </div>
+
+                            {/* Contact Details Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-zinc-400 mb-1">Phone</label>
+                                    <input
+                                        value={invoiceForm.customer_phone || ''}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, customer_phone: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-zinc-400 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={invoiceForm.customer_email || ''}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, customer_email: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-zinc-400 mb-1">Billing Address</label>
+                                    <input
+                                        value={invoiceForm.customer_address || ''}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, customer_address: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Billing Fields */}
+                            <div>
+                                <label className="block text-zinc-400 mb-1 font-semibold">Description / Item Name *</label>
+                                <input
+                                    required
+                                    value={invoiceForm.description}
+                                    onChange={e => setInvoiceForm(p => ({ ...p, description: e.target.value }))}
+                                    placeholder="Description of services or products"
+                                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-zinc-400 mb-1 font-semibold">Amount to Invoice (LKR) *</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0.01"
+                                        step="0.01"
+                                        value={invoiceForm.amount_due}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, amount_due: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs font-mono focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-zinc-400 mb-1 font-semibold">Initial Payment (LKR)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={invoiceForm.amount_paid}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, amount_paid: e.target.value }))}
+                                        placeholder="0.00"
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs font-mono focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-zinc-400 mb-1">Due Date</label>
+                                    <input
+                                        type="date"
+                                        value={invoiceForm.due_date}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, due_date: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-zinc-400 mb-1">Status</label>
+                                    <select
+                                        value={invoiceForm.status}
+                                        onChange={e => setInvoiceForm(p => ({ ...p, status: e.target.value }))}
+                                        className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none"
+                                    >
+                                        <option value="draft">Draft</option>
+                                        <option value="sent">Sent</option>
+                                        <option value="partial">Partial</option>
+                                        <option value="paid">Paid</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-zinc-400 mb-1">Notes</label>
+                                <textarea
+                                    rows={2}
+                                    value={invoiceForm.notes}
+                                    onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))}
+                                    placeholder="Add any extra notes..."
+                                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none resize-none"
+                                />
+                            </div>
+                        </div>
+                        <footer className="px-6 py-3.5 border-t border-zinc-800 flex justify-end gap-2.5">
+                            <button type="button" onClick={() => setInvoiceModalOpen(false)} className="px-4 py-2 text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button type="submit" disabled={submittingInvoice} className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-xl cursor-pointer disabled:opacity-50">
+                                {submittingInvoice ? 'Creating...' : 'Create Invoice'}
+                            </button>
+                        </footer>
+                    </form>
                 </div>
             )}
         </div>

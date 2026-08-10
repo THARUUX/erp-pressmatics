@@ -3,6 +3,7 @@
 import { use, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import CustomerSuggestInput from '@/components/CustomerSuggestInput';
 import {
     FiArrowLeft, FiPrinter, FiFileText, FiShoppingCart, FiEye, FiEyeOff,
     FiEdit2, FiX, FiCheck, FiPlus, FiTrash2, FiPlusCircle, FiCopy
@@ -574,8 +575,24 @@ export default function ServiceQuotationView({ params }) {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2">
                                         <label className="block text-xs text-white/40 mb-1.5">Client / Company Name *</label>
-                                        <input required value={editForm.customer_name} onChange={e => setEditForm(p => ({ ...p, customer_name: e.target.value }))}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500/50" />
+                                        <CustomerSuggestInput
+                                            required
+                                            value={editForm.customer_name}
+                                            customerPhone={editForm.customer_phone}
+                                            customerEmail={editForm.customer_email}
+                                            customerAddress={editForm.customer_address}
+                                            onChange={({ name, id, phone, email, address }) => {
+                                                setEditForm(p => ({
+                                                    ...p,
+                                                    customer_name: name,
+                                                    customer_id: id,
+                                                    customer_phone: phone || p.customer_phone,
+                                                    customer_email: email || p.customer_email,
+                                                    customer_address: address || p.customer_address
+                                                }));
+                                            }}
+                                            placeholder="Search or enter customer name..."
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-white/40 mb-1.5">Phone</label>

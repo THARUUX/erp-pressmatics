@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
+import { generateJobTasks } from '@/lib/task-generator';
 
 export async function GET(req) {
     try {
@@ -287,92 +288,92 @@ export async function POST(req) {
         );
 
         // ── AUTO-CREATE JOB TASKS IN PENDING QUEUE FROM QUOTATION ITEMS ─────
-        let serviceName = '';
         if (q.service_id) {
+            let serviceName = '';
             const [srv] = await conn.execute('SELECT name FROM services WHERE id = ?', [q.service_id]);
             if (srv.length > 0) serviceName = srv[0].name;
-        }
 
-        const [qItemsRows] = await conn.execute(
-            `SELECT qi.* 
-             FROM quotation_items qi
-             JOIN quotation_line_items qli ON qli.quotation_item_id = qi.id
-             WHERE qli.quotation_id = ?`,
-            [quotation_id]
-        );
-
-        for (const qi of qItemsRows) {
-            const itemQty = Math.max(1, Math.round(parseFloat(qi.quantity) || 1));
-            const itemName = qi.estimation_name || qi.item_name || 'Service Task';
-
-            // Check if there are quotation_item_services linked to this quotation item
-            const [svcRows] = await conn.execute(
-                'SELECT * FROM quotation_item_services WHERE quotation_item_id = ? ORDER BY id ASC',
-                [qi.id]
+            const [qItemsRows] = await conn.execute(
+                `SELECT qi.* 
+                 FROM quotation_items qi
+                 JOIN quotation_line_items qli ON qli.quotation_item_id = qi.id
+                 WHERE qli.quotation_id = ?`,
+                [quotation_id]
             );
 
-            if (svcRows.length > 0) {
-                for (const s of svcRows) {
-                    const multiplyBy = parseFloat(s.multiply_by) || 1;
-                    const svcTaskName = s.employee_name ? `${s.service_name || itemName} — ${s.employee_name}` : (s.service_name || itemName);
+            for (const qi of qItemsRows) {
+                const itemQty = Math.max(1, Math.round(parseFloat(qi.quantity) || 1));
+                const itemName = qi.estimation_name || qi.item_name || 'Service Task';
 
-                    if (split_tasks && itemQty > 1) {
-                        for (let k = 1; k <= itemQty; k++) {
-                            const taskQtyForUnit = multiplyBy;
+                const [svcRows] = await conn.execute(
+                    'SELECT * FROM quotation_item_services WHERE quotation_item_id = ? ORDER BY id ASC',
+                    [qi.id]
+                );
+
+                if (svcRows.length > 0) {
+                    for (const s of svcRows) {
+                        const multiplyBy = parseFloat(s.multiply_by) || 1;
+                        const svcTaskName = s.employee_name ? `${s.service_name || itemName} — ${s.employee_name}` : (s.service_name || itemName);
+
+                        if (split_tasks && itemQty > 1) {
+                            for (let k = 1; k <= itemQty; k++) {
+                                const taskQtyForUnit = multiplyBy;
+                                let estMins = null;
+                                if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
+                                    estMins = Math.round(multiplyBy * 60);
+                                }
+                                const unitTaskName = `${svcTaskName} (#${k}/${itemQty})`;
+                                const taskDesc = `Unit ${k} of ${itemQty} · Rate Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Note: ${s.note || itemName}`.trim();
+
+                                await conn.execute(
+                                    `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                                     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 999, NOW(), NOW())`,
+                                    [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc, s.employee_name || null, estMins, taskQtyForUnit]
+                                );
+                            }
+                        } else {
+                            const finalTaskQty = multiplyBy * itemQty;
                             let estMins = null;
                             if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
-                                estMins = Math.round(multiplyBy * 60);
+                                estMins = Math.round(multiplyBy * itemQty * 60);
                             }
-                            const unitTaskName = `${svcTaskName} (#${k}/${itemQty})`;
-                            const taskDesc = `Unit ${k} of ${itemQty} · Rate Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Note: ${s.note || itemName}`.trim();
+                            const taskDesc = `Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Mult: ${multiplyBy} · Item Qty: ${itemQty} · Note: ${s.note || itemName}`.trim();
 
                             await conn.execute(
                                 `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
                                  VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 999, NOW(), NOW())`,
-                                [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc, s.employee_name || null, estMins, taskQtyForUnit]
+                                [soId, q.service_id || null, q.customer_name || 'Customer', svcTaskName, taskDesc, s.employee_name || null, estMins, finalTaskQty]
+                            );
+                        }
+                    }
+                } else {
+                    const taskName = `Service: ${serviceName || 'Service'} — ${itemName}`;
+                    if (split_tasks && itemQty > 1) {
+                        for (let k = 1; k <= itemQty; k++) {
+                            const unitTaskName = `${taskName} (#${k}/${itemQty})`;
+                            const taskDesc = qi.job_description ? `${qi.job_description} (Unit ${k}/${itemQty})` : `Unit ${k} of ${itemQty} · Rate: ${qi.unit_price || 0} · Note: ${itemName}`;
+
+                            await conn.execute(
+                                `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, 1, 999, NOW(), NOW())`,
+                                [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc]
                             );
                         }
                     } else {
-                        const finalTaskQty = multiplyBy * itemQty;
-                        let estMins = null;
-                        if (s.rate_unit && (String(s.rate_unit).toLowerCase().includes('hour') || String(s.rate_unit).toLowerCase().includes('hr'))) {
-                            estMins = Math.round(multiplyBy * itemQty * 60);
-                        }
-                        const taskDesc = `Unit: ${s.rate_unit || 'unit'} · Rate: ${s.rate || 0} · Mult: ${multiplyBy} · Item Qty: ${itemQty} · Note: ${s.note || itemName}`.trim();
+                        const taskDesc = qi.job_description || `Unit: per job · Rate: ${qi.unit_price || 0} · Qty: ${itemQty} · Note: ${itemName}`;
 
                         await conn.execute(
                             `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
-                             VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 999, NOW(), NOW())`,
-                            [soId, q.service_id || null, q.customer_name || 'Customer', svcTaskName, taskDesc, s.employee_name || null, estMins, finalTaskQty]
+                             VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, 999, NOW(), NOW())`,
+                            [soId, q.service_id || null, q.customer_name || 'Customer', taskName, taskDesc, itemQty]
                         );
                     }
-                }
-            } else {
-                const taskName = q.service_id
-                    ? `Service: ${serviceName || 'Service'} — ${itemName}`
-                    : itemName;
-
-                if (split_tasks && itemQty > 1) {
-                    for (let k = 1; k <= itemQty; k++) {
-                        const unitTaskName = `${taskName} (#${k}/${itemQty})`;
-                        const taskDesc = qi.job_description ? `${qi.job_description} (Unit ${k}/${itemQty})` : `Unit ${k} of ${itemQty} · Rate: ${qi.unit_price || 0} · Note: ${itemName}`;
-
-                        await conn.execute(
-                            `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
-                             VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, 1, 999, NOW(), NOW())`,
-                            [soId, q.service_id || null, q.customer_name || 'Customer', unitTaskName, taskDesc]
-                        );
-                    }
-                } else {
-                    const taskDesc = qi.job_description || `Unit: per job · Rate: ${qi.unit_price || 0} · Qty: ${itemQty} · Note: ${itemName}`;
-
-                    await conn.execute(
-                        `INSERT INTO job_tasks (sales_order_id, service_id, customer_name, name, description, status, assigned_to, estimated_minutes, quantity, display_order, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, 'pending', NULL, NULL, ?, 999, NOW(), NOW())`,
-                        [soId, q.service_id || null, q.customer_name || 'Customer', taskName, taskDesc, itemQty]
-                    );
                 }
             }
+        } else {
+            // Main production Sales Order (manufacturing job):
+            // Generate full machine-aware job tasks (pre-press, plate making, printing, finishings, QC, packing, delivery)
+            await generateJobTasks(soId, conn);
         }
 
         // ── INSERT BOM ITEMS AND OPTIONAL STOCK DEDUCTION ───────────────────

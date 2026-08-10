@@ -43,15 +43,16 @@ const defaultWeights = {
     // Invoices / Quotations / Sales Orders
     customer_name: 2.2,
     supplier_name: 2.2,
-    total_amount: 1.5,
-    amount_due: 1.5,
-    amount_paid: 1.5,
-    balance: 1.5,
-    status: 1.0,
-    quotation_date: 1.5,
-    due_date: 1.5,
-    created_at: 1.5,
-    delivery_date: 1.5,
+    total_amount: 1.8,
+    amount_due: 1.6,
+    amount_paid: 1.6,
+    balance: 1.6,
+    status: 1.2,
+    quotation_date: 1.6,
+    due_date: 1.6,
+    created_at: 1.6,
+    order_date: 1.6,
+    delivery_date: 1.6,
 
     // Employees / Attendance / Payroll
     employee_code: 1.0,
@@ -117,13 +118,17 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                     <View style={s.tableHeader}>
                         {columns.map(col => {
                             const isRight = ['total_amount', 'amount_due', 'amount_paid', 'balance', 'outstanding', 'net_salary', 'basic_salary', 'allowances', 'deductions', 'stock_quantity', 'unit_cost', 'min_stock'].includes(col.key);
+                            const isCenter = ['created_at', 'due_date', 'quotation_date', 'delivery_date', 'order_date', 'date'].includes(col.key);
+                            const align = isRight ? 'right' : isCenter ? 'center' : 'left';
                             return (
-                                <Text key={col.key} style={[
-                                    s.tableHeaderText, 
-                                    { width: getColWidth(col.key), textAlign: isRight ? 'right' : 'left' }
-                                ]}>
-                                    {col.header}
-                                </Text>
+                                <View key={col.key} style={{ width: getColWidth(col.key), paddingHorizontal: 6 }}>
+                                    <Text style={[
+                                        s.tableHeaderText, 
+                                        { textAlign: align, width: '100%' }
+                                    ]}>
+                                        {col.header}
+                                    </Text>
+                                </View>
                             );
                         })}
                     </View>
@@ -143,6 +148,8 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                             ]}>
                                 {columns.map(col => {
                                     const isRight = ['total_amount', 'amount_due', 'amount_paid', 'balance', 'outstanding', 'net_salary', 'basic_salary', 'allowances', 'deductions', 'stock_quantity', 'unit_cost', 'min_stock'].includes(col.key);
+                                    const isCenter = ['created_at', 'due_date', 'quotation_date', 'delivery_date', 'order_date', 'date'].includes(col.key);
+                                    const align = isRight ? 'right' : isCenter ? 'center' : 'left';
                                     let val = row[col.key];
 
                                     // Format cells beautifully based on column key
@@ -154,7 +161,7 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                         displayVal = val === 1 ? 'VAT' : 'Non VAT';
                                     } else if (col.key === 'code' && !val) {
                                         displayVal = `#${row.id}`;
-                                    } else if (col.key === 'created_at' || col.key === 'due_date' || col.key === 'quotation_date' || col.key === 'delivery_date') {
+                                    } else if (['created_at', 'due_date', 'quotation_date', 'delivery_date', 'order_date'].includes(col.key)) {
                                         displayVal = val ? new Date(val).toLocaleDateString('en-GB') : '—';
                                     } else if (val === null || val === undefined || val === '') {
                                         displayVal = '—';
@@ -178,16 +185,18 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                     }
 
                                     return (
-                                        <Text key={col.key} style={[
-                                            isBold ? s.tableCellBold : s.tableCell,
-                                            { 
-                                                width: getColWidth(col.key), 
-                                                textAlign: isRight ? 'right' : 'left',
-                                                color: cellColor
-                                            }
-                                        ]}>
-                                            {String(displayVal)}
-                                        </Text>
+                                        <View key={col.key} style={{ width: getColWidth(col.key), paddingHorizontal: 6 }}>
+                                            <Text style={[
+                                                isBold ? s.tableCellBold : s.tableCell,
+                                                { 
+                                                    textAlign: align,
+                                                    color: cellColor,
+                                                    width: '100%'
+                                                }
+                                            ]}>
+                                                {String(displayVal)}
+                                            </Text>
+                                        </View>
                                     );
                                 })}
                             </View>

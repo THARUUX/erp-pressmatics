@@ -284,8 +284,13 @@ export default function RoutingPlanner({ machines = [], finishings = [], orders 
         }
     };
 
-    // Auto-generate default routing tasks
+    // Auto-generate / Regenerate default routing tasks
     const handleAutoGenerateTasks = async (orderId) => {
+        const order = localOrders.find(o => o.id === orderId);
+        const hasTasks = (order?.tasks || []).length > 0;
+        if (hasTasks) {
+            if (!confirm(`Are you sure you want to regenerate tasks for ${order?.code || 'this sales order'}? Existing task sequence and statuses will be reset according to current task configurations.`)) return;
+        }
         setGeneratingTasks(prev => ({ ...prev, [orderId]: true }));
         try {
             const res = await fetch(`/api/sales-orders/${orderId}/tasks`, {
@@ -297,7 +302,7 @@ export default function RoutingPlanner({ machines = [], finishings = [], orders 
             if (onRefresh) await onRefresh();
         } catch (e) {
             console.error('Auto-generate error:', e);
-            alert('Failed to auto-generate default routing tasks: ' + e.message);
+            alert('Failed to regenerate default routing tasks: ' + e.message);
         } finally {
             setGeneratingTasks(prev => ({ ...prev, [orderId]: false }));
         }
@@ -743,7 +748,7 @@ export default function RoutingPlanner({ machines = [], finishings = [], orders 
                                                             className="px-3 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-neutral-300 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
                                                         >
                                                             <FiRefreshCw className="w-3 h-3" />
-                                                            Reset Defaults
+                                                            Regenerate Tasks
                                                         </button>
                                                         <button
                                                             onClick={() => setAddingTaskOrder(order)}

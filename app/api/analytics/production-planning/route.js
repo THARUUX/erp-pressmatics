@@ -192,9 +192,10 @@ export async function GET(req) {
             name = mRows[0].name;
 
             let query = `SELECT jt.*, so.code AS order_code, so.customer_name, m.type AS machine_type,
-                        CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL
-                             THEN TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at)
-                             ELSE NULL END AS actual_minutes
+                        COALESCE(
+                            (SELECT ROUND(SUM(COALESCE(duration_seconds, 0)) / 60) FROM job_task_work_logs WHERE task_id = jt.id HAVING COUNT(*) > 0),
+                            CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at) - COALESCE(jt.downtime_minutes, 0)) ELSE NULL END
+                        ) AS actual_minutes
                   FROM job_tasks jt
                   LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
                   LEFT JOIN machines m ON jt.machine_id = m.id
@@ -222,9 +223,10 @@ export async function GET(req) {
             name = finName;
 
             let query = `SELECT jt.*, so.code AS order_code, so.customer_name, m.type AS machine_type,
-                        CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL
-                             THEN TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at)
-                             ELSE NULL END AS actual_minutes
+                        COALESCE(
+                            (SELECT ROUND(SUM(COALESCE(duration_seconds, 0)) / 60) FROM job_task_work_logs WHERE task_id = jt.id HAVING COUNT(*) > 0),
+                            CASE WHEN jt.started_at IS NOT NULL AND jt.completed_at IS NOT NULL THEN GREATEST(0, TIMESTAMPDIFF(MINUTE, jt.started_at, jt.completed_at) - COALESCE(jt.downtime_minutes, 0)) ELSE NULL END
+                        ) AS actual_minutes
                  FROM job_tasks jt
                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
                  LEFT JOIN machines m ON jt.machine_id = m.id

@@ -4,12 +4,13 @@ import toast from 'react-hot-toast';
 import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu, FiMessageSquare, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiPrinter, FiSave, FiCheckCircle, FiDownload, FiPlus, FiTrash2, FiExternalLink, FiChevronDown, FiChevronUp, FiLayers, FiCpu, FiActivity, FiLink, FiMenu, FiMessageSquare, FiX, FiRefreshCw } from 'react-icons/fi';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Button from '@/components/ui/Button';
 import ImpositionVisualizer from '@/app/dashboard/items/components/ImpositionVisualizer';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 function SortableTaskItem({ task, idx }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
@@ -215,7 +216,15 @@ export default function SalesOrderDetailPage({ params }) {
     };
 
     const handleGenerateTasks = async () => {
+        if (tasks.length > 0) {
+            const confirmed = await confirmDialog(
+                'Regenerate tasks for this Sales Order? Existing tasks will be replaced based on current task configurations.',
+                { confirmLabel: 'Regenerate', danger: true }
+            );
+            if (!confirmed) return;
+        }
         setGeneratingTasks(true);
+        const toastId = toast.loading(tasks.length > 0 ? 'Regenerating tasks...' : 'Generating tasks...');
         try {
             const res = await fetch(`/api/sales-orders/${id}/tasks`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -223,12 +232,17 @@ export default function SalesOrderDetailPage({ params }) {
             });
             if (res.ok) {
                 const data = await res.json();
-                if (Array.isArray(data)) setTasks(data);
+                if (Array.isArray(data)) {
+                    setTasks(data);
+                    toast.success(tasks.length > 0 ? 'Tasks regenerated successfully!' : 'Tasks generated successfully!', { id: toastId });
+                }
             } else {
-                console.error(`Failed to generate tasks: ${res.status}`);
+                const errData = await res.json().catch(() => ({}));
+                toast.error(errData.error || 'Failed to generate tasks', { id: toastId });
             }
         } catch (err) {
             console.error('Error generating tasks:', err);
+            toast.error('Error generating tasks: ' + err.message, { id: toastId });
         } finally {
             setGeneratingTasks(false);
         }
@@ -540,6 +554,15 @@ export default function SalesOrderDetailPage({ params }) {
                             </p>
                         </div>
                         <div className="flex gap-2 items-center">
+                            <button
+                                onClick={handleGenerateTasks}
+                                disabled={generatingTasks}
+                                title="Regenerate tasks based on task configurations"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                <FiRefreshCw className={`text-xs ${generatingTasks ? 'animate-spin' : ''}`} />
+                                {generatingTasks ? 'Generating…' : tasks.length > 0 ? 'Regenerate Tasks' : 'Generate Tasks'}
+                            </button>
                             <a href={`/jobs/${id}`} target="_blank" rel="noreferrer"
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-xs font-semibold hover:bg-indigo-600/30 transition-colors">
                                 <FiExternalLink className="text-xs" /> Live View
@@ -637,12 +660,11 @@ export default function SalesOrderDetailPage({ params }) {
                             className="bg-blue-600 hover:bg-blue-700 text-sm px-4">
                             <FiPlus className="mr-1" /> Add
                         </Button>
-                        {tasks.length === 0 && (
-                            <Button onClick={handleGenerateTasks} disabled={generatingTasks}
-                                className="bg-white/10 hover:bg-white/20 text-sm px-4">
-                                {generatingTasks ? '…' : 'Defaults'}
-                            </Button>
-                        )}
+                        <Button onClick={handleGenerateTasks} disabled={generatingTasks}
+                            className="bg-white/10 hover:bg-white/20 text-sm px-4 flex items-center gap-1.5">
+                            <FiRefreshCw className={`text-xs ${generatingTasks ? 'animate-spin' : ''}`} />
+                            {generatingTasks ? '…' : tasks.length > 0 ? 'Regenerate Tasks' : 'Defaults'}
+                        </Button>
                     </div>
                 </div>
             </div>

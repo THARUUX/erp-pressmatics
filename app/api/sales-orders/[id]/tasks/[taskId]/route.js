@@ -314,6 +314,72 @@ export async function PUT(req, { params }) {
              paramsList
         );
 
+        // Manage work logs based on status transition
+        if (status !== undefined && status !== prevStatus) {
+            const empName = assigned_to || current[0]?.assigned_to || 'Operator';
+            if (status === 'in_progress') {
+                // Stop any running logs first
+                await pool.execute(
+                    `UPDATE job_task_work_logs 
+                     SET stopped_at = NOW(), 
+                         duration_seconds = TIMESTAMPDIFF(SECOND, started_at, NOW())
+                     WHERE task_id = ? AND stopped_at IS NULL`,
+                    [taskId]
+                );
+                // Start a new log
+                const logStart = started_at ? toMySQL(started_at) : toMySQL(new Date().toISOString());
+                await pool.execute(
+                    `INSERT INTO job_task_work_logs (task_id, employee_name, started_at)
+                     VALUES (?, ?, ?)`,
+                    [taskId, empName, logStart]
+                );
+            } else if (status === 'paused') {
+                // Stop active log
+                const stopTime = new Date();
+                const [activeLogs] = await pool.execute(
+                    `SELECT id, started_at FROM job_task_work_logs WHERE task_id = ? AND stopped_at IS NULL`,
+                    [taskId]
+                );
+                for (const log of activeLogs) {
+                    const startMs = new Date(log.started_at).getTime();
+                    const durationSecs = Math.max(0, Math.floor((stopTime.getTime() - startMs) / 1000));
+                    await pool.execute(
+                        `UPDATE job_task_work_logs SET stopped_at = ?, duration_seconds = ? WHERE id = ?`,
+                        [toMySQL(stopTime.toISOString()), durationSecs, log.id]
+                    );
+                }
+            } else if (status === 'done') {
+                // Stop active log
+                const stopTime = completed_at ? new Date(completed_at) : new Date();
+                const [activeLogs] = await pool.execute(
+                    `SELECT id, started_at FROM job_task_work_logs WHERE task_id = ? AND stopped_at IS NULL`,
+                    [taskId]
+                );
+                if (activeLogs.length > 0) {
+                    for (const log of activeLogs) {
+                        const startMs = new Date(log.started_at).getTime();
+                        const durationSecs = Math.max(0, Math.floor((stopTime.getTime() - startMs) / 1000));
+                        await pool.execute(
+                            `UPDATE job_task_work_logs SET stopped_at = ?, duration_seconds = ? WHERE id = ?`,
+                            [toMySQL(stopTime.toISOString()), durationSecs, log.id]
+                        );
+                    }
+                } else if (prevStatus === 'pending') {
+                    // Quick Done: Insert a completed log
+                    const logStart = started_at ? toMySQL(started_at) : (alreadyStarted ? toMySQL(alreadyStarted) : toMySQL(new Date().toISOString()));
+                    const logStop = completed_at ? toMySQL(completed_at) : toMySQL(new Date().toISOString());
+                    const startMs = new Date(logStart).getTime();
+                    const stopMs = new Date(logStop).getTime();
+                    const durationSecs = Math.max(0, Math.floor((stopMs - startMs) / 1000));
+                    await pool.execute(
+                        `INSERT INTO job_task_work_logs (task_id, employee_name, started_at, stopped_at, duration_seconds)
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [taskId, empName, logStart, logStop, durationSecs]
+                    );
+                }
+            }
+        }
+
         // Auto-deduct machine parts when a task is marked done
         if (status === 'done' && prevStatus !== 'done') {
             try {
@@ -323,7 +389,7 @@ export async function PUT(req, { params }) {
                     const runQty = parseFloat(finalTask.actual_sheets_printed || finalTask.impression_count || finalTask.quantity || 0);
                     let runMinutes = 0;
                     if (finalTask.started_at && finalTask.completed_at) {
-                        runMinutes = (new Date(finalTask.completed_at) - new Date(finalTask.started_at)) / (1000 * 60);
+                        runMinutes = Math.max(0, ((new Date(finalTask.completed_at) - new Date(finalTask.started_at)) / (1000 * 60)) - (finalTask.downtime_minutes || 0));
                     } else if (finalTask.estimated_minutes) {
                         runMinutes = finalTask.estimated_minutes;
                     }

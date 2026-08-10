@@ -14,9 +14,10 @@ import {
     FiSearch, FiPrinter, FiTrash2, FiFileText, FiDownload,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiClock, FiCheckCircle, FiDollarSign,
-    FiCpu,
+    FiCpu, FiRefreshCw, FiCalendar, FiFilter,
 } from 'react-icons/fi';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
+import { dateOperatorFilterFn } from '@/lib/dateFilter';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
 const STATUS_COLORS = {
@@ -43,9 +44,18 @@ function SortIcon({ dir }) {
 
 function ColFilter({ column }) {
     const val = column.getFilterValue() ?? '';
+    const isDateCol = column.id === 'order_date' || column.id === 'delivery_date';
+    const isAmountCol = column.id === 'total_amount';
+    const placeholder = isDateCol
+        ? "Date (>=2026-08-01, today, month)..."
+        : isAmountCol
+        ? "Amount (>1000, <=5000)..."
+        : "Filter…";
+
     return (
         <input value={val} onChange={e => column.setFilterValue(e.target.value)}
-            placeholder="Filter…"
+            placeholder={placeholder}
+            title={isDateCol ? "Supports formulas: >=2026-08-01, <2026-08-10, 2026-08-01..2026-08-10, today, this week, month, etc." : undefined}
             onClick={e => e.stopPropagation()}
             className="w-full mt-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30" />
     );
@@ -61,6 +71,7 @@ function PagBtn({ children, onClick, disabled }) {
 }
 
 const STATUS_TABS = ['All', 'Pending', 'In Production', 'Ready', 'Delivered', 'Cancelled'];
+const TIME_PRESETS = ['All Time', 'Today', 'Yesterday', 'This Week', 'This Month', 'Last 30 Days', 'This Quarter', 'This Year', 'Custom Range'];
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function SalesOrdersPage() {
@@ -72,6 +83,9 @@ export default function SalesOrdersPage() {
     const [stats, setStats]           = useState({ pending_count: 0, production_count: 0, pending_total: 0 });
     const [loading, setLoading]       = useState(true);
     const [statusFilter, setStatus]   = useState('All');
+    const [durationFilter, setDuration] = useState('All Time');
+    const [customStartDate, setCustomStart] = useState('');
+    const [customEndDate, setCustomEnd]     = useState('');
     const [globalFilter, setGlobal]   = useState('');
     const [columnVisibility, setColVis] = useState({});
     const [columnFilters, setColumnFilters] = useState([]);
@@ -94,6 +108,71 @@ export default function SalesOrdersPage() {
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
+    /* Filter data by duration preset or custom date range */
+    const durationFilteredData = useMemo(() => {
+        if (!durationFilter || durationFilter === 'All Time') return data;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayTime = today.getTime();
+
+        return data.filter(item => {
+            if (!item.order_date) return false;
+            const d = new Date(item.order_date);
+            if (isNaN(d.getTime())) return false;
+            d.setHours(0, 0, 0, 0);
+            const t = d.getTime();
+
+            if (durationFilter === 'Today') {
+                return t === todayTime;
+            }
+            if (durationFilter === 'Yesterday') {
+                const yest = new Date(today);
+                yest.setDate(yest.getDate() - 1);
+                return t === yest.getTime();
+            }
+            if (durationFilter === 'This Week') {
+                const dayOfWeek = today.getDay();
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 6);
+                return t >= startOfWeek.getTime() && t <= endOfWeek.getTime();
+            }
+            if (durationFilter === 'This Month') {
+                return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+            }
+            if (durationFilter === 'Last 30 Days') {
+                const start = new Date(today);
+                start.setDate(today.getDate() - 30);
+                return t >= start.getTime() && t <= todayTime;
+            }
+            if (durationFilter === 'This Quarter') {
+                const currentQuarter = Math.floor(today.getMonth() / 3);
+                const itemQuarter = Math.floor(d.getMonth() / 3);
+                return d.getFullYear() === today.getFullYear() && itemQuarter === currentQuarter;
+            }
+            if (durationFilter === 'This Year') {
+                return d.getFullYear() === today.getFullYear();
+            }
+            if (durationFilter === 'Custom Range') {
+                let match = true;
+                if (customStartDate) {
+                    const s = new Date(customStartDate);
+                    s.setHours(0, 0, 0, 0);
+                    if (t < s.getTime()) match = false;
+                }
+                if (customEndDate) {
+                    const e = new Date(customEndDate);
+                    e.setHours(23, 59, 59, 999);
+                    if (d.getTime() > e.getTime()) match = false;
+                }
+                return match;
+            }
+            return true;
+        });
+    }, [data, durationFilter, customStartDate, customEndDate]);
+
     const handleDelete = async (e, id) => {
         e.stopPropagation();
         if (!(await confirmDialog('Delete this sales order? This cannot be undone.', { danger: true, confirmLabel: 'Delete' }))) return;
@@ -104,9 +183,14 @@ export default function SalesOrdersPage() {
 
     const handleGenerateTasks = useCallback(async (e, order) => {
         e.stopPropagation();
-        if (!(await confirmDialog(`Generate default tasks for ${order.code}?`, { confirmLabel: 'Generate' }))) return;
+        const hasTasks = Boolean(order.task_count && order.task_count > 0);
+        const promptMsg = hasTasks
+            ? `Regenerate tasks for ${order.code}? Existing tasks will be replaced according to current task configurations.`
+            : `Generate default tasks for ${order.code}?`;
+            
+        if (!(await confirmDialog(promptMsg, { confirmLabel: hasTasks ? 'Regenerate' : 'Generate', danger: hasTasks }))) return;
         
-        const loadingToast = toast.loading('Generating tasks...');
+        const loadingToast = toast.loading(hasTasks ? 'Regenerating tasks...' : 'Generating tasks...');
         try {
             const res = await fetch(`/api/sales-orders/${order.id}/tasks`, {
                 method: 'POST',
@@ -114,7 +198,7 @@ export default function SalesOrdersPage() {
                 body: JSON.stringify({ generateDefaults: true }),
             });
             if (res.ok) {
-                toast.success('Tasks generated successfully', { id: loadingToast });
+                toast.success(hasTasks ? 'Tasks regenerated successfully' : 'Tasks generated successfully', { id: loadingToast });
                 fetchAll();
             } else {
                 const data = await res.json();
@@ -142,6 +226,13 @@ export default function SalesOrdersPage() {
 
             const filteredRows = table.getFilteredRowModel().rows.map(row => row.original);
 
+            const pdfStats = [
+                { label: 'Matching Orders', value: `${filteredStats.total_count}` },
+                { label: 'Pending Orders', value: `${filteredStats.pending_count}` },
+                { label: 'In Production', value: `${filteredStats.production_count}` },
+                { label: 'Filtered Total Value', value: `${currency} ${filteredStats.total_value.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
+            ];
+
             const res = await fetch('/api/pdf/dynamic', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -150,6 +241,7 @@ export default function SalesOrdersPage() {
                     subtitle: 'Exported Sales Orders (Customized & Filtered)',
                     columns: visibleCols,
                     rows: filteredRows,
+                    stats: pdfStats,
                     currency: currency
                 })
             });
@@ -211,13 +303,15 @@ export default function SalesOrdersPage() {
         },
         {
             accessorKey: 'order_date', header: 'Order Date', size: 110,
-            cell: ({ getValue }) => <span className="text-gray-500 text-xs">{fmtDate(getValue())}</span>,
+            filterFn: dateOperatorFilterFn,
+            cell: ({ getValue }) => <div className="text-center"><span className="text-gray-500 text-xs">{fmtDate(getValue())}</span></div>,
         },
         {
             accessorKey: 'delivery_date', header: 'Delivery', size: 110,
-            cell: ({ getValue }) => getValue()
+            filterFn: dateOperatorFilterFn,
+            cell: ({ getValue }) => <div className="text-center">{getValue()
                 ? <span className="text-orange-300 text-xs">{fmtDate(getValue())}</span>
-                : <span className="text-gray-700 text-xs">—</span>,
+                : <span className="text-gray-700 text-xs">—</span>}</div>,
         },
         {
             id: 'actions', header: 'Actions', size: 120,
@@ -231,13 +325,11 @@ export default function SalesOrdersPage() {
                             className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
                             <FiPrinter size={14} />
                         </button>
-                        {!o.task_count ? (
-                            <button onClick={e => handleGenerateTasks(e, o)}
-                                title="Generate Tasks"
-                                className="p-1.5 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors animate-pulse">
-                                <FiCpu size={14} />
-                            </button>
-                        ) : null}
+                        <button onClick={e => handleGenerateTasks(e, o)}
+                            title={o.task_count ? "Regenerate Tasks" : "Generate Tasks"}
+                            className={`p-1.5 rounded-lg transition-colors ${o.task_count ? 'text-gray-400 hover:text-blue-400 hover:bg-white/10' : 'text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 animate-pulse'}`}>
+                            {o.task_count ? <FiRefreshCw size={14} /> : <FiCpu size={14} />}
+                        </button>
                         <button onClick={e => handleDelete(e, o.id)}
                             title="Delete"
                             className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
@@ -251,7 +343,7 @@ export default function SalesOrdersPage() {
 
     /* ── Table instance ─────────────────────────────────────────────────── */
     const table = useReactTable({
-        data, columns,
+        data: durationFilteredData, columns,
         state: { globalFilter, columnVisibility, columnFilters },
         onGlobalFilterChange: setGlobal,
         onColumnVisibilityChange: setColVis,
@@ -265,6 +357,34 @@ export default function SalesOrdersPage() {
 
     const { pageIndex, pageSize } = table.getState().pagination;
     const pageCount = table.getPageCount();
+
+    /* Dynamic stats calculated directly from active filtered table rows */
+    const filteredRows = table.getFilteredRowModel().rows;
+    const filteredStats = useMemo(() => {
+        let pCount = 0;
+        let prodCount = 0;
+        let pTotal = 0;
+        let totalVal = 0;
+
+        for (const row of filteredRows) {
+            const o = row.original;
+            const amt = Number(o.total_amount || 0);
+            totalVal += amt;
+            if (o.status === 'Pending') {
+                pCount++;
+                pTotal += amt;
+            } else if (o.status === 'In Production') {
+                prodCount++;
+            }
+        }
+        return {
+            total_count: filteredRows.length,
+            pending_count: pCount,
+            production_count: prodCount,
+            pending_total: pTotal,
+            total_value: totalVal,
+        };
+    }, [filteredRows]);
 
     return (
         <div className="text-white">
@@ -292,21 +412,62 @@ export default function SalesOrdersPage() {
                 </div>
             </header>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            {/* Dynamic Stats for Filtered Data */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
                 {[
-                    { label: 'Pending Orders', value: Number(stats.pending_count || 0), icon: FiClock, color: 'text-blue-400' },
-                    { label: 'In Production', value: Number(stats.production_count || 0), icon: FiCheckCircle, color: 'text-emerald-400' },
-                    { label: 'Pending Total Value', value: Number(stats.pending_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }), icon: FiDollarSign, color: 'text-indigo-400' },
+                    { label: 'Matching Orders', value: `${filteredStats.total_count} Orders`, sub: 'Active Filtered Total', icon: FiFileText, color: 'text-gray-300' },
+                    { label: 'Pending Orders', value: filteredStats.pending_count, sub: `${currency} ${filteredStats.pending_total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: FiClock, color: 'text-blue-400' },
+                    { label: 'In Production', value: filteredStats.production_count, sub: 'Work in progress', icon: FiCheckCircle, color: 'text-emerald-400' },
+                    { label: 'Filtered Total Value', value: `${currency} ${filteredStats.total_value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, sub: 'Sum of visible orders', icon: FiDollarSign, color: 'text-indigo-400' },
                 ].map(s => (
-                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                    <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center gap-3.5 shadow-xl">
                         <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
                         <div>
-                            <div className="text-xs text-gray-500 mb-0.5">{s.label}</div>
-                            <div className="text-xl font-bold">{s.value}</div>
+                            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mb-0.5">{s.label}</div>
+                            <div className="text-lg font-bold text-white">{s.value}</div>
+                            <div className="text-[10px] text-gray-500">{s.sub}</div>
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* ── Time Duration Filter Bar ───────────────────────────────── */}
+            <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl p-3.5 mb-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-400">
+                        <FiCalendar className="w-4 h-4 text-blue-400" />
+                        <span>Time Duration:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                        {TIME_PRESETS.map(preset => (
+                            <button key={preset} onClick={() => setDuration(preset)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${durationFilter === preset ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-semibold' : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}`}>
+                                {preset}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {durationFilter === 'Custom Range' && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/10 text-xs">
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-400 font-medium">From:</span>
+                            <input type="date" value={customStartDate} onChange={e => setCustomStart(e.target.value)}
+                                className="bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-white outline-none focus:border-blue-500" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-400 font-medium">To:</span>
+                            <input type="date" value={customEndDate} onChange={e => setCustomEnd(e.target.value)}
+                                className="bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-white outline-none focus:border-blue-500" />
+                        </div>
+                        {(customStartDate || customEndDate) && (
+                            <button onClick={() => { setCustomStart(''); setCustomEnd(''); }}
+                                className="text-xs text-red-400 hover:text-red-300 underline ml-2">
+                                Clear dates
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ── Status tabs ───────────────────────────────────────────── */}

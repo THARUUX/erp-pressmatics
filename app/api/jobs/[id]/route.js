@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { generateJobTasks } from '@/lib/task-generator';
 
 // Resolve run quantity based on speed unit
 function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
@@ -182,7 +183,7 @@ export async function GET(req, { params }) {
         }
 
         // Fetch tasks with machine type
-        const [tasks] = await pool.execute(
+        let [tasks] = await pool.execute(
             `SELECT jt.*, m.type AS machine_type, m.name AS machine_name
              FROM job_tasks jt
              LEFT JOIN machines m ON jt.machine_id = m.id
@@ -190,6 +191,23 @@ export async function GET(req, { params }) {
              ORDER BY jt.display_order ASC, jt.id ASC`,
             [id]
         );
+
+        // Auto-heal / auto-generate tasks for main manufacturing orders if missing or only 1 dummy task
+        if (!order.service_id) {
+            const isSingleDummyTask = tasks.length === 1 && tasks[0].display_order === 999 && !tasks[0].machine_id && tasks[0].status === 'pending';
+            if (tasks.length === 0 || isSingleDummyTask) {
+                await generateJobTasks(id);
+                const [refetched] = await pool.execute(
+                    `SELECT jt.*, m.type AS machine_type, m.name AS machine_name
+                     FROM job_tasks jt
+                     LEFT JOIN machines m ON jt.machine_id = m.id
+                     WHERE jt.sales_order_id = ?
+                     ORDER BY jt.display_order ASC, jt.id ASC`,
+                    [id]
+                );
+                tasks = refetched;
+            }
+        }
 
         // Enrich tasks with estimation data
         const enrichedTasks = await enrichTasks(tasks);

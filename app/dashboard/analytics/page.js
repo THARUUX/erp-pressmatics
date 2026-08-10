@@ -34,6 +34,32 @@ function formatVar(est, act) {
     return `${sign > 0 ? '+' : ''}${hrs}h`;
 }
 
+function getStatusBadge(status) {
+    switch (status) {
+        case 'done':
+            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-emerald-500/10 text-emerald-300 border-emerald-500/20">Done</span>;
+        case 'in_progress':
+            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-amber-500/10 text-amber-300 border-amber-500/20">In Progress</span>;
+        case 'paused':
+            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-orange-500/10 text-orange-300 border-orange-500/20">Paused</span>;
+        default:
+            return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-white/5 text-white/50 border-white/10">{status || 'Pending'}</span>;
+    }
+}
+
+function formatDateTime(d) {
+    if (!d) return '—';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '—';
+    return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
 const TT = { backgroundColor: 'rgba(8,8,8,0.95)', borderColor: 'rgba(255,255,255,0.08)', textStyle: { color: '#fff', fontSize: 12 } };
 
 function Skel({ h = 'h-8', w = 'w-full' }) { return <div className={`${h} ${w} rounded-xl bg-white/[0.03] animate-pulse`} />; }
@@ -170,6 +196,29 @@ export default function AnalyticsPage() {
     const [perfCustomStart, setPerfCustomStart] = useState('');
     const [perfCustomEnd, setPerfCustomEnd] = useState('');
 
+    // Task Explorer States
+    const [explorerDate, setExplorerDate] = useState(() => {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    });
+    const [explorerResType, setExplorerResType] = useState('machine');
+    const [explorerResId, setExplorerResId] = useState('');
+    const [explorerResSearchQuery, setExplorerResSearchQuery] = useState('');
+    const [explorerResDropdownOpen, setExplorerResDropdownOpen] = useState(false);
+    const [explorerTasks, setExplorerTasks] = useState([]);
+    const [explorerTasksLoading, setExplorerTasksLoading] = useState(false);
+    const [selectedExplorerTaskId, setSelectedExplorerTaskId] = useState(null);
+    const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
+    const [selectedTaskDetailLoading, setSelectedTaskDetailLoading] = useState(false);
+
+    const activeExplorerResList = explorerResType === 'machine' ? resList.machines : resList.finishings;
+    const filteredExplorerResList = (activeExplorerResList || []).filter(item =>
+        (item.name || '').toLowerCase().includes(explorerResSearchQuery.toLowerCase())
+    );
+
     const activeResList = resType === 'machine' ? resList.machines : resList.finishings;
     const filteredResList = (activeResList || []).filter(item =>
         (item.name || '').toLowerCase().includes(resSearchQuery.toLowerCase())
@@ -206,6 +255,7 @@ export default function AnalyticsPage() {
                     // Select first machine by default if available
                     if (data.machines?.length > 0) {
                         setSelectedResId(data.machines[0].id.toString());
+                        setExplorerResId(data.machines[0].id.toString());
                     }
                 }
             } catch (err) {
@@ -264,6 +314,167 @@ export default function AnalyticsPage() {
         }
         setPlanSearch('');
     };
+
+    const loadExplorerTasks = useCallback(async (date, type, resourceId) => {
+        if (!date || !type || !resourceId) return;
+        setExplorerTasksLoading(true);
+        try {
+            const res = await fetch(`/api/analytics/task-explorer?date=${date}&type=${type}&resourceId=${resourceId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setExplorerTasks(data.tasks || []);
+            } else {
+                setExplorerTasks([]);
+            }
+        } catch (err) {
+            console.error('Failed to load explorer tasks:', err);
+            setExplorerTasks([]);
+        } finally {
+            setExplorerTasksLoading(false);
+        }
+    }, []);
+
+    const loadSelectedTaskDetail = useCallback(async (taskId) => {
+        if (!taskId) {
+            setSelectedTaskDetail(null);
+            return;
+        }
+        setSelectedTaskDetailLoading(true);
+        try {
+            const res = await fetch(`/api/analytics/task-explorer?taskId=${taskId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedTaskDetail(data);
+            } else {
+                setSelectedTaskDetail(null);
+            }
+        } catch (err) {
+            console.error('Failed to load task details:', err);
+            setSelectedTaskDetail(null);
+        } finally {
+            setSelectedTaskDetailLoading(false);
+        }
+    }, []);
+
+    // Fetch tasks when filters change
+    useEffect(() => {
+        if (tab === 'production' && prodTab === 'task-details' && explorerResId) {
+            loadExplorerTasks(explorerDate, explorerResType, explorerResId);
+            setSelectedExplorerTaskId(null);
+            setSelectedTaskDetail(null);
+        }
+    }, [tab, prodTab, explorerDate, explorerResType, explorerResId, loadExplorerTasks]);
+
+    // Fetch task details when selected task changes
+    useEffect(() => {
+        if (selectedExplorerTaskId) {
+            loadSelectedTaskDetail(selectedExplorerTaskId);
+        } else {
+            setSelectedTaskDetail(null);
+        }
+    }, [selectedExplorerTaskId, loadSelectedTaskDetail]);
+
+    useEffect(() => {
+        const activeList = explorerResType === 'machine' ? resList.machines : resList.finishings;
+        const currentRes = (activeList || []).find(r => r.id.toString() === explorerResId.toString());
+        if (currentRes) {
+            setExplorerResSearchQuery(currentRes.name);
+        } else {
+            setExplorerResSearchQuery('');
+        }
+    }, [explorerResId, explorerResType, resList]);
+
+    const handleExplorerResTypeChange = (newType) => {
+        setExplorerResType(newType);
+        const list = newType === 'machine' ? resList.machines : resList.finishings;
+        if (list && list.length > 0) {
+            setExplorerResId(list[0].id.toString());
+        } else {
+            setExplorerResId('');
+        }
+        setSelectedExplorerTaskId(null);
+        setSelectedTaskDetail(null);
+    };
+
+    // ── Service Explorer States ─────────────────────────────────────────────────
+    const [svcDate, setSvcDate] = useState(() => {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    });
+    const [svcServiceName, setSvcServiceName] = useState('');
+    const [svcServiceTypes, setSvcServiceTypes] = useState([]);
+    const [svcTasks, setSvcTasks] = useState([]);
+    const [svcTasksLoading, setSvcTasksLoading] = useState(false);
+    const [selectedSvcTaskId, setSelectedSvcTaskId] = useState(null);
+    const [selectedSvcDetail, setSelectedSvcDetail] = useState(null);
+    const [selectedSvcDetailLoading, setSelectedSvcDetailLoading] = useState(false);
+
+    // Fetch available service types
+    useEffect(() => {
+        if (tab === 'production' && prodTab === 'task-details') {
+            fetch('/api/analytics/service-explorer?listTypes=1')
+                .then(r => r.ok ? r.json() : { types: [] })
+                .then(data => setSvcServiceTypes(data.types || []))
+                .catch(() => {});
+        }
+    }, [tab, prodTab]);
+
+    const loadSvcTasks = useCallback(async (date, serviceName) => {
+        if (!date) return;
+        setSvcTasksLoading(true);
+        try {
+            let url = `/api/analytics/service-explorer?date=${date}`;
+            if (serviceName) url += `&serviceName=${encodeURIComponent(serviceName)}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                setSvcTasks(data.tasks || []);
+            } else {
+                setSvcTasks([]);
+            }
+        } catch {
+            setSvcTasks([]);
+        } finally {
+            setSvcTasksLoading(false);
+        }
+    }, []);
+
+    const loadSvcTaskDetail = useCallback(async (taskId) => {
+        if (!taskId) { setSelectedSvcDetail(null); return; }
+        setSelectedSvcDetailLoading(true);
+        try {
+            const res = await fetch(`/api/analytics/service-explorer?taskId=${taskId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSelectedSvcDetail(data);
+            } else {
+                setSelectedSvcDetail(null);
+            }
+        } catch {
+            setSelectedSvcDetail(null);
+        } finally {
+            setSelectedSvcDetailLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (tab === 'production' && prodTab === 'task-details') {
+            loadSvcTasks(svcDate, svcServiceName);
+            setSelectedSvcTaskId(null);
+            setSelectedSvcDetail(null);
+        }
+    }, [tab, prodTab, svcDate, svcServiceName, loadSvcTasks]);
+
+    useEffect(() => {
+        if (selectedSvcTaskId) {
+            loadSvcTaskDetail(selectedSvcTaskId);
+        } else {
+            setSelectedSvcDetail(null);
+        }
+    }, [selectedSvcTaskId, loadSvcTaskDetail]);
 
     const chartRef = useRef(null);
     const chartInst = useRef(null);
@@ -811,6 +1022,39 @@ export default function AnalyticsPage() {
         </div>
     );
 
+    // Compute timeline elements if selectedTaskDetail is loaded
+    const timelineElements = [];
+    if (selectedTaskDetail && selectedTaskDetail.logs) {
+        selectedTaskDetail.logs.forEach((log, idx) => {
+            timelineElements.push({
+                type: 'work',
+                log,
+                started_at: log.started_at,
+                stopped_at: log.stopped_at,
+                employee_name: log.employee_name,
+                duration_seconds: log.duration_seconds
+            });
+
+            if (idx < selectedTaskDetail.logs.length - 1) {
+                const nextLog = selectedTaskDetail.logs[idx + 1];
+                if (log.stopped_at && nextLog.started_at) {
+                    const pauseStart = new Date(log.stopped_at);
+                    const pauseEnd = new Date(nextLog.started_at);
+                    const pauseMs = pauseEnd.getTime() - pauseStart.getTime();
+                    if (pauseMs > 30000) { // greater than 30 seconds
+                        const pauseMins = Math.round(pauseMs / 60000);
+                        timelineElements.push({
+                            type: 'pause',
+                            started_at: log.stopped_at,
+                            stopped_at: nextLog.started_at,
+                            duration_minutes: pauseMins
+                        });
+                    }
+                }
+            }
+        });
+    }
+
     return (
         <div className={`space-y-6 max-w-7xl mx-auto analytics-zoom analytics-container-${fontSize}`}>
             <style dangerouslySetInnerHTML={{ __html: `
@@ -1058,6 +1302,12 @@ export default function AnalyticsPage() {
                         className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${prodTab === 'performance' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
                     >
                         Machine Performance Overview
+                    </button>
+                    <button
+                        onClick={() => setProdTab('task-details')}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${prodTab === 'task-details' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
+                    >
+                        Detailed Task Explorer
                     </button>
                 </div>
 
@@ -1846,6 +2096,677 @@ export default function AnalyticsPage() {
                         </div>
                     </SectionCard>
                 )}
+
+                {prodTab === 'task-details' && (
+                    <SectionCard title="Detailed Task Explorer" sub="Query daily machine or finishing tasks and explore execution logs, output metrics, and operator histories.">
+                        <div className="p-5 space-y-6">
+                            {/* Selector Controls */}
+                            <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 flex-wrap">
+                                    {/* Date Selector */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Date:</span>
+                                        <input
+                                            type="date"
+                                            value={explorerDate}
+                                            onChange={e => setExplorerDate(e.target.value)}
+                                            className="bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white outline-none focus:border-white/30"
+                                        />
+                                    </div>
+
+                                    {/* Resource Type */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Resource:</span>
+                                        <div className="flex gap-1 bg-white/[0.03] border border-white/[0.06] rounded-xl p-1">
+                                            <button
+                                                onClick={() => handleExplorerResTypeChange('machine')}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${explorerResType === 'machine' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
+                                            >
+                                                <FiCpu className="w-3.5 h-3.5" /> Machines
+                                            </button>
+                                            <button
+                                                onClick={() => handleExplorerResTypeChange('finishing')}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${explorerResType === 'finishing' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
+                                            >
+                                                <FiLayers className="w-3.5 h-3.5" /> Finishings
+                                            </button>
+                                        </div>
+
+                                        {/* Dropdown Input Selector */}
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Type to filter..."
+                                                value={explorerResSearchQuery}
+                                                onFocus={() => {
+                                                    setExplorerResDropdownOpen(true);
+                                                    setExplorerResSearchQuery('');
+                                                }}
+                                                onChange={e => setExplorerResSearchQuery(e.target.value)}
+                                                className="bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white outline-none focus:border-white/30 cursor-pointer min-w-[200px]"
+                                            />
+
+                                            {explorerResDropdownOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-20" onClick={() => {
+                                                        setExplorerResDropdownOpen(false);
+                                                        const activeList = explorerResType === 'machine' ? resList.machines : resList.finishings;
+                                                        const currentRes = (activeList || []).find(r => r.id.toString() === explorerResId.toString());
+                                                        setExplorerResSearchQuery(currentRes ? currentRes.name : '');
+                                                    }} />
+
+                                                    <div className="absolute left-0 mt-1 max-h-60 overflow-y-auto bg-neutral-900 border border-white/10 rounded-xl shadow-xl z-30 divide-y divide-white/[0.04] min-w-[200px] w-full">
+                                                        {filteredExplorerResList.length === 0 ? (
+                                                            <div className="px-3.5 py-2.5 text-xs text-white/40 italic">
+                                                                No matches found
+                                                            </div>
+                                                        ) : (
+                                                            filteredExplorerResList.map(item => (
+                                                                <button
+                                                                    key={item.id}
+                                                                    onClick={() => {
+                                                                        setExplorerResId(item.id.toString());
+                                                                        setExplorerResSearchQuery(item.name);
+                                                                        setExplorerResDropdownOpen(false);
+                                                                    }}
+                                                                    className={`w-full text-left px-3.5 py-2.5 text-xs transition-colors hover:bg-white/[0.05] ${item.id.toString() === explorerResId.toString() ? 'text-white font-bold bg-white/[0.03]' : 'text-white/70'}`}
+                                                                >
+                                                                    {item.name}
+                                                                </button>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-white/45 flex items-center gap-1.5">
+                                    <FiActivity className="w-4 h-4 text-indigo-400" />
+                                    <span>Task Count: <strong className="text-white">{explorerTasks.length}</strong></span>
+                                </div>
+                            </div>
+
+                            {/* Explorer Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Left column: Tasks List */}
+                                <div className="lg:col-span-1 space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider px-1">Tasks List</p>
+
+                                    {explorerTasksLoading ? (
+                                        <div className="space-y-2">
+                                            {Array(4).fill(0).map((_, i) => (
+                                                <div key={i} className="bg-white/[0.01] border border-white/[0.05] rounded-xl p-3 space-y-2">
+                                                    <Skel h="h-3" w="w-16" />
+                                                    <Skel h="h-4" />
+                                                    <Skel h="h-3.5" w="w-24" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : explorerTasks.length === 0 ? (
+                                        <div className="text-center py-12 px-4 border border-dashed border-white/10 rounded-2xl text-white/30 text-xs">
+                                            No tasks scheduled for this day.
+                                        </div>
+                                    ) : (
+                                        explorerTasks.map(t => {
+                                            const parts = t.name.split('—');
+                                            const cleanName = parts[parts.length - 1]?.trim() || t.name;
+                                            const operationDetail = parts.length > 2 ? parts[1]?.trim() : '';
+                                            const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
+
+                                            const isActive = selectedExplorerTaskId === t.id;
+
+                                            return (
+                                                <button
+                                                    key={t.id}
+                                                    onClick={() => setSelectedExplorerTaskId(t.id)}
+                                                    className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer block ${
+                                                        isActive
+                                                            ? 'bg-white/[0.06] border-white/25 text-white'
+                                                            : 'bg-black/20 border-white/[0.05] hover:border-white/15 text-white/70 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                        <span className="font-mono text-xs font-semibold text-indigo-400">{t.order_code || 'Unassigned'}</span>
+                                                        {getStatusBadge(t.status)}
+                                                    </div>
+                                                    <p className="text-xs font-semibold line-clamp-2 mb-1.5">{displayText}</p>
+                                                    <div className="flex items-center justify-between text-[10px] text-white/35">
+                                                        <span className="truncate max-w-[120px]">{t.customer_name || '—'}</span>
+                                                        <span>Est: {formatMins(t.estimated_minutes)}</span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Right column: Selected Task Details */}
+                                <div className="lg:col-span-2 space-y-4">
+                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Task Details Dashboard</p>
+
+                                    {selectedTaskDetailLoading ? (
+                                        <div className="bg-white/[0.01] border border-white/[0.05] rounded-2xl p-6 space-y-5 animate-pulse">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-2"><Skel h="h-4" w="w-32" /><Skel h="h-6" w="w-64" /></div>
+                                                <Skel h="h-6" w="w-20" />
+                                            </div>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3"><Skel h="h-20" /><Skel h="h-20" /><Skel h="h-20" /><Skel h="h-20" /></div>
+                                            <div className="space-y-2"><Skel h="h-4" w="w-40" /><Skel h="h-16" /></div>
+                                        </div>
+                                    ) : !selectedTaskDetail ? (
+                                        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-white/10 rounded-2xl text-white/35 gap-3 bg-white/[0.01]">
+                                            <FiActivity className="w-10 h-10 text-white/15" />
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-semibold text-white/60">No Task Selected</p>
+                                                <p className="text-xs text-white/30 max-w-xs">Select a task from the list on the left to view complete production history and execution metrics.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {/* Header Panel */}
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-5">
+                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                                            <span className="font-mono text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                                                SO: {selectedTaskDetail.task.order_code || 'Unassigned'}
+                                                            </span>
+                                                            <span className="text-xs text-white/50 font-semibold truncate">
+                                                                {selectedTaskDetail.task.customer_name || 'No Customer'}
+                                                            </span>
+                                                        </div>
+                                                        <h4 className="text-base font-bold text-white leading-tight">
+                                                            {selectedTaskDetail.task.name}
+                                                        </h4>
+                                                        {selectedTaskDetail.task.description && (
+                                                            <p className="text-xs text-white/45 mt-2 bg-black/20 p-2.5 rounded-lg border border-white/[0.03]">
+                                                                {selectedTaskDetail.task.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="sm:text-right shrink-0">
+                                                        <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1">Status</p>
+                                                        {getStatusBadge(selectedTaskDetail.task.status)}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Metrics Grid */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                    <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Estimated Time</p>
+                                                    <p className="text-lg font-bold text-white font-mono">{formatMins(selectedTaskDetail.task.estimated_minutes)}</p>
+                                                    <p className="text-[9px] text-white/35 mt-0.5">Planned limit</p>
+                                                </div>
+
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                    <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Logged Duration</p>
+                                                    <p className="text-lg font-bold text-white font-mono">
+                                                        {selectedTaskDetail.task.actual_minutes != null ? formatMins(selectedTaskDetail.task.actual_minutes) : '—'}
+                                                    </p>
+                                                    <p className="text-[9px] text-white/35 mt-0.5">Active timer total</p>
+                                                </div>
+
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                    <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Planned Qty</p>
+                                                    <p className="text-lg font-bold text-white font-mono">
+                                                        {selectedTaskDetail.task.quantity ? fmt(parseFloat(selectedTaskDetail.task.quantity)) : '—'}
+                                                    </p>
+                                                    <p className="text-[9px] text-white/35 mt-0.5">
+                                                        {selectedTaskDetail.task.sheet_count ? `${fmt(selectedTaskDetail.task.sheet_count)} sheets` : 'Sheets: —'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                    <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Actual Output</p>
+                                                    <p className="text-lg font-bold text-emerald-400 font-mono">
+                                                        {selectedTaskDetail.task.actual_sheets_printed ? fmt(parseFloat(selectedTaskDetail.task.actual_sheets_printed)) : '—'}
+                                                    </p>
+                                                    <p className="text-[9px] text-white/35 mt-0.5">
+                                                        {selectedTaskDetail.task.actual_sheets_wasted ? `Wasted: ${fmt(parseFloat(selectedTaskDetail.task.actual_sheets_wasted))}` : 'Wasted: —'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Details & Specifications */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {/* Left details */}
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Resource & Config Details</p>
+                                                    <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                        <span className="text-white/35">Resource Name</span>
+                                                        <span className="text-white font-semibold text-right truncate">
+                                                            {selectedTaskDetail.task.machine_name || (selectedTaskDetail.task.machine_id ? `ID: ${selectedTaskDetail.task.machine_id}` : 'Finishing (Manual)')}
+                                                        </span>
+
+                                                        <span className="text-white/35">Type</span>
+                                                        <span className="text-white font-semibold text-right capitalize">
+                                                            {selectedTaskDetail.task.machine_type || 'Finishing'}
+                                                        </span>
+
+                                                        <span className="text-white/35">Planned Impressions</span>
+                                                        <span className="text-white font-semibold text-right">
+                                                            {selectedTaskDetail.task.impression_count ? Number(selectedTaskDetail.task.impression_count).toLocaleString() : '—'}
+                                                        </span>
+
+                                                        <span className="text-white/35">Speed Configuration</span>
+                                                        <span className="text-white font-semibold text-right">
+                                                            {selectedTaskDetail.task.custom_speed ? `${selectedTaskDetail.task.custom_speed} ${selectedTaskDetail.task.custom_speed_unit || 'sheets/hr'}` : 'Auto'}
+                                                        </span>
+
+                                                        <span className="text-white/35">Plates Used (CTP)</span>
+                                                        <span className="text-white font-semibold text-right">
+                                                            {selectedTaskDetail.task.actual_plates_used || '0'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right details */}
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Operators & Downtime</p>
+                                                    <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                        <span className="text-white/35">Assigned Operator</span>
+                                                        <span className="text-white font-semibold text-right truncate">{selectedTaskDetail.task.assigned_to || 'Unassigned'}</span>
+
+                                                        <span className="text-white/35">Helper Name</span>
+                                                        <span className="text-white font-semibold text-right truncate">{selectedTaskDetail.task.helper_name || 'None'}</span>
+
+                                                        <span className="text-white/35">Completed By</span>
+                                                        <span className="text-white font-semibold text-right truncate">{selectedTaskDetail.task.completed_by || '—'}</span>
+
+                                                        <span className="text-white/35">Completed Helper</span>
+                                                        <span className="text-white font-semibold text-right truncate">{selectedTaskDetail.task.completed_by_helper || '—'}</span>
+
+                                                        <span className="text-white/35">Downtime Minutes</span>
+                                                        <span className={`font-semibold text-right ${selectedTaskDetail.task.downtime_minutes ? 'text-red-400' : 'text-white'}`}>
+                                                            {selectedTaskDetail.task.downtime_minutes || '0'}m
+                                                        </span>
+                                                    </div>
+                                                    {selectedTaskDetail.task.downtime_minutes > 0 && selectedTaskDetail.task.downtime_reason && (
+                                                        <div className="text-[11px] bg-red-500/10 border border-red-500/20 text-red-300 p-2 rounded-lg mt-2">
+                                                            <strong>Reason:</strong> {selectedTaskDetail.task.downtime_reason}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Overall Lifecycle timestamps */}
+                                                <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Overall Lifecycle Timestamps</p>
+                                                    <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                        <span className="text-white/35">Task Started</span>
+                                                        <span className="text-white font-semibold text-right truncate">
+                                                            {formatDateTime(selectedTaskDetail.task.started_at)}
+                                                        </span>
+
+                                                        <span className="text-white/35">Task Completed</span>
+                                                        <span className="text-white font-semibold text-right truncate">
+                                                            {formatDateTime(selectedTaskDetail.task.completed_at)}
+                                                        </span>
+
+                                                        <span className="text-white/35">Created Date</span>
+                                                        <span className="text-white font-semibold text-right truncate">
+                                                            {formatDateTime(selectedTaskDetail.task.created_at)}
+                                                        </span>
+
+                                                        <span className="text-white/35">Scheduled Date</span>
+                                                        <span className="text-white font-semibold text-right truncate">
+                                                            {selectedTaskDetail.task.scheduled_date ? new Date(selectedTaskDetail.task.scheduled_date).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Work Log Timeline */}
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-3">
+                                                <div className="flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                    <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Timer Execution Timeline</p>
+                                                    <span className="text-[10px] text-white/45">{timelineElements.length} segments</span>
+                                                </div>
+
+                                                {timelineElements.length === 0 ? (
+                                                    <div className="text-center py-6 text-xs text-white/35 italic">
+                                                        No active timer logs recorded for this task.
+                                                    </div>
+                                                ) : (
+                                                    <div className="relative pl-4 space-y-4 border-l border-white/10 mt-2">
+                                                        {timelineElements.map((item, idx) => {
+                                                            if (item.type === 'work') {
+                                                                const isRunning = !item.stopped_at;
+                                                                const durMins = item.duration_seconds
+                                                                    ? Math.round(item.duration_seconds / 60)
+                                                                    : isRunning
+                                                                        ? Math.max(0, Math.floor((Date.now() - new Date(item.started_at).getTime()) / 60000))
+                                                                        : 0;
+
+                                                                return (
+                                                                    <div key={`work-${idx}`} className="relative">
+                                                                        {/* Dot */}
+                                                                        <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border ${
+                                                                            isRunning ? 'bg-amber-400 border-neutral-900 animate-pulse' : 'bg-emerald-400 border-neutral-900'
+                                                                        }`} />
+
+                                                                        <div className="flex items-start justify-between gap-4 text-xs">
+                                                                            <div>
+                                                                                <p className="font-semibold text-white">
+                                                                                    {item.employee_name} <span className="text-white/40 font-normal">started timer</span>
+                                                                                </p>
+                                                                                <p className="text-[10px] text-white/35 font-mono mt-0.5">
+                                                                                    {formatDateTime(item.started_at)} – {isRunning ? 'Running Now' : formatDateTime(item.stopped_at)}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="text-right">
+                                                                                <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>
+                                                                                    {durMins}m
+                                                                                </span>
+                                                                                <p className="text-[9px] text-white/20 mt-0.5">{isRunning ? 'Active' : 'Duration'}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                return (
+                                                                    <div key={`pause-${idx}`} className="relative">
+                                                                        {/* Dash indicator */}
+                                                                        <span className="absolute -left-[23px] top-1.5 w-3 h-3 rounded-full border border-orange-500/40 bg-neutral-950 flex items-center justify-center">
+                                                                            <span className="w-1 h-1 rounded-full bg-orange-400 animate-pulse" />
+                                                                        </span>
+
+                                                                        <div className="flex items-start justify-between gap-4 text-xs bg-orange-500/5 border border-orange-500/10 rounded-lg p-2 ml-1">
+                                                                            <div>
+                                                                                <p className="font-semibold text-orange-300">
+                                                                                    Task Paused
+                                                                                </p>
+                                                                                <p className="text-[10px] text-orange-300/60 font-mono mt-0.5">
+                                                                                    {formatDateTime(item.started_at)} – {formatDateTime(item.stopped_at)}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="text-right shrink-0">
+                                                                                <span className="font-mono font-bold text-orange-300">
+                                                                                    {item.duration_minutes}m
+                                                                                </span>
+                                                                                <p className="text-[9px] text-orange-300/45 mt-0.5">Paused Duration</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </SectionCard>
+                )}
+
+                {prodTab === 'task-details' && (() => {
+                    // Build service timeline for selected svc task
+                    const svcLogs = selectedSvcDetail?.logs || [];
+                    const svcWorkLogs = svcLogs.filter(l => l.duration_seconds > 0 || !l.stopped_at);
+                    const svcTimeline = [];
+                    for (let i = 0; i < svcWorkLogs.length; i++) {
+                        svcTimeline.push({ type: 'work', ...svcWorkLogs[i] });
+                        if (i < svcWorkLogs.length - 1) {
+                            const gapStart = new Date(svcWorkLogs[i].stopped_at);
+                            const gapEnd = new Date(svcWorkLogs[i + 1].started_at);
+                            const gapMins = Math.round((gapEnd - gapStart) / 60000);
+                            if (gapMins > 0) svcTimeline.push({ type: 'pause', started_at: svcWorkLogs[i].stopped_at, stopped_at: svcWorkLogs[i + 1].started_at, duration_minutes: gapMins });
+                        }
+                    }
+
+                    return (
+                        <SectionCard title="Service Task Explorer" sub="Query daily pre-press, quality check, packing, delivery and other service tasks with full execution logs.">
+                            <div className="p-5 space-y-6">
+                                {/* Controls */}
+                                <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                                    <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 flex-wrap">
+                                        {/* Date */}
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Date:</span>
+                                            <input
+                                                type="date"
+                                                value={svcDate}
+                                                onChange={e => setSvcDate(e.target.value)}
+                                                className="bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white outline-none focus:border-white/30"
+                                            />
+                                        </div>
+                                        {/* Service Type Filter */}
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Service:</span>
+                                            <select
+                                                value={svcServiceName}
+                                                onChange={e => { setSvcServiceName(e.target.value); setSelectedSvcTaskId(null); }}
+                                                className="bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white outline-none focus:border-white/30 min-w-[180px]"
+                                            >
+                                                <option value="">All Services</option>
+                                                {svcServiceTypes.map((t, i) => (
+                                                    <option key={i} value={t.filter_name}>{t.display_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-white/45 flex items-center gap-1.5">
+                                        <FiZap className="w-4 h-4 text-purple-400" />
+                                        <span>Task Count: <strong className="text-white">{svcTasks.length}</strong></span>
+                                    </div>
+                                </div>
+
+                                {/* Explorer Grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Left: Task List */}
+                                    <div className="lg:col-span-1 space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                                        <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider px-1">Service Tasks</p>
+                                        {svcTasksLoading ? (
+                                            <div className="space-y-2">
+                                                {Array(4).fill(0).map((_, i) => (
+                                                    <div key={i} className="bg-white/[0.01] border border-white/[0.05] rounded-xl p-3 space-y-2">
+                                                        <Skel h="h-3" w="w-16" /><Skel h="h-4" /><Skel h="h-3.5" w="w-24" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : svcTasks.length === 0 ? (
+                                            <div className="text-center py-12 px-4 border border-dashed border-white/10 rounded-2xl text-white/30 text-xs">
+                                                No service tasks found for this day.
+                                            </div>
+                                        ) : (
+                                            svcTasks.map(t => {
+                                                const isActive = selectedSvcTaskId === t.id;
+                                                return (
+                                                    <button
+                                                        key={t.id}
+                                                        onClick={() => setSelectedSvcTaskId(t.id)}
+                                                        className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer block ${isActive ? 'bg-white/[0.06] border-white/25 text-white' : 'bg-black/20 border-white/[0.05] hover:border-purple-500/30 text-white/70 hover:text-white'}`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                            <span className="font-mono text-xs font-semibold text-purple-400">{t.order_code || 'No Order'}</span>
+                                                            {getStatusBadge(t.status)}
+                                                        </div>
+                                                        <p className="text-xs font-semibold line-clamp-2 mb-1.5">{t.name}</p>
+                                                        <div className="flex items-center justify-between text-[10px] text-white/35">
+                                                            <span className="truncate max-w-[120px]">{t.customer_name || '—'}</span>
+                                                            <span>{t.actual_minutes != null ? `${formatMins(t.actual_minutes)} logged` : t.estimated_minutes ? `Est: ${formatMins(t.estimated_minutes)}` : '—'}</span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+
+                                    {/* Right: Detail Panel */}
+                                    <div className="lg:col-span-2 space-y-4">
+                                        <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Service Task Details</p>
+                                        {selectedSvcDetailLoading ? (
+                                            <div className="bg-white/[0.01] border border-white/[0.05] rounded-2xl p-6 space-y-5 animate-pulse">
+                                                <div className="flex items-start justify-between"><div className="space-y-2"><Skel h="h-4" w="w-32" /><Skel h="h-6" w="w-64" /></div><Skel h="h-6" w="w-20" /></div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3"><Skel h="h-20" /><Skel h="h-20" /><Skel h="h-20" /><Skel h="h-20" /></div>
+                                            </div>
+                                        ) : !selectedSvcDetail ? (
+                                            <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-white/10 rounded-2xl text-white/35 gap-3 bg-white/[0.01]">
+                                                <FiZap className="w-10 h-10 text-white/15" />
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold text-white/60">No Task Selected</p>
+                                                    <p className="text-xs text-white/30 max-w-xs">Select a service task from the list to view its execution details and work log timeline.</p>
+                                                </div>
+                                            </div>
+                                        ) : (() => {
+                                            const t = selectedSvcDetail.task;
+                                            return (
+                                                <div className="space-y-4">
+                                                    {/* Header */}
+                                                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-5">
+                                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                                                    <span className="font-mono text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                                                                        {t.order_code || 'No Order'}
+                                                                    </span>
+                                                                    <span className="text-xs text-white/50 font-semibold">{t.customer_name || 'No Customer'}</span>
+                                                                </div>
+                                                                <h4 className="text-base font-bold text-white leading-tight">{t.name}</h4>
+                                                                {t.description && (
+                                                                    <p className="text-xs text-white/45 mt-2 bg-black/20 p-2.5 rounded-lg border border-white/[0.03]">{t.description}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="sm:text-right shrink-0">
+                                                                <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider mb-1">Status</p>
+                                                                {getStatusBadge(t.status)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Metrics */}
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                            <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Estimated Time</p>
+                                                            <p className="text-lg font-bold text-white font-mono">{formatMins(t.estimated_minutes)}</p>
+                                                            <p className="text-[9px] text-white/35 mt-0.5">Planned limit</p>
+                                                        </div>
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                            <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Logged Duration</p>
+                                                            <p className="text-lg font-bold text-white font-mono">{t.actual_minutes != null ? formatMins(t.actual_minutes) : '—'}</p>
+                                                            <p className="text-[9px] text-white/35 mt-0.5">Net active time</p>
+                                                        </div>
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                            <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Variance</p>
+                                                            <p className={`text-lg font-bold font-mono ${t.estimated_minutes && t.actual_minutes ? (t.actual_minutes > t.estimated_minutes ? 'text-red-400' : 'text-emerald-400') : 'text-white'}`}>
+                                                                {formatVar(t.estimated_minutes, t.actual_minutes)}
+                                                            </p>
+                                                            <p className="text-[9px] text-white/35 mt-0.5">vs estimate</p>
+                                                        </div>
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                            <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Work Segments</p>
+                                                            <p className="text-lg font-bold text-white font-mono">{svcLogs.length}</p>
+                                                            <p className="text-[9px] text-white/35 mt-0.5">Log entries</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Details Row */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {/* Operator & Timestamps */}
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Operators & Timestamps</p>
+                                                            <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                                <span className="text-white/35">Assigned To</span>
+                                                                <span className="text-white font-semibold text-right truncate">{t.assigned_to || 'Unassigned'}</span>
+                                                                <span className="text-white/35">Completed By</span>
+                                                                <span className="text-white font-semibold text-right truncate">{t.completed_by || '—'}</span>
+                                                                <span className="text-white/35">Task Started</span>
+                                                                <span className="text-white font-semibold text-right">{formatDateTime(t.started_at)}</span>
+                                                                <span className="text-white/35">Task Completed</span>
+                                                                <span className="text-white font-semibold text-right">{formatDateTime(t.completed_at)}</span>
+                                                                <span className="text-white/35">Created</span>
+                                                                <span className="text-white font-semibold text-right">{formatDateTime(t.created_at)}</span>
+                                                            </div>
+                                                        </div>
+                                                        {/* Downtime */}
+                                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Task Info</p>
+                                                            <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                                <span className="text-white/35">Helper Name</span>
+                                                                <span className="text-white font-semibold text-right truncate">{t.helper_name || 'None'}</span>
+                                                                <span className="text-white/35">Downtime</span>
+                                                                <span className={`font-semibold text-right ${t.downtime_minutes > 0 ? 'text-red-400' : 'text-white'}`}>{t.downtime_minutes || 0}m</span>
+                                                                <span className="text-white/35">Scheduled Date</span>
+                                                                <span className="text-white font-semibold text-right">{t.scheduled_date ? new Date(t.scheduled_date).toLocaleDateString() : '—'}</span>
+                                                                <span className="text-white/35">Description</span>
+                                                                <span className="text-white font-semibold text-right truncate">{t.description || '—'}</span>
+                                                            </div>
+                                                            {t.downtime_minutes > 0 && t.downtime_reason && (
+                                                                <div className="text-[11px] bg-red-500/10 border border-red-500/20 text-red-300 p-2 rounded-lg mt-2">
+                                                                    <strong>Reason:</strong> {t.downtime_reason}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Work Log Timeline */}
+                                                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-3">
+                                                        <div className="flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                            <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Timer Execution Timeline</p>
+                                                            <span className="text-[10px] text-white/45">{svcTimeline.length} segments</span>
+                                                        </div>
+                                                        {svcTimeline.length === 0 ? (
+                                                            <div className="text-center py-6 text-xs text-white/35 italic">No active timer logs recorded for this task.</div>
+                                                        ) : (
+                                                            <div className="relative pl-4 space-y-4 border-l border-white/10 mt-2">
+                                                                {svcTimeline.map((item, idx) => {
+                                                                    if (item.type === 'work') {
+                                                                        const isRunning = !item.stopped_at;
+                                                                        const durMins = item.duration_seconds
+                                                                            ? Math.round(item.duration_seconds / 60)
+                                                                            : isRunning ? Math.max(0, Math.floor((Date.now() - new Date(item.started_at).getTime()) / 60000)) : 0;
+                                                                        return (
+                                                                            <div key={`sw-${idx}`} className="relative">
+                                                                                <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border ${isRunning ? 'bg-amber-400 border-neutral-900 animate-pulse' : 'bg-purple-400 border-neutral-900'}`} />
+                                                                                <div className="flex items-start justify-between gap-4 text-xs">
+                                                                                    <div>
+                                                                                        <p className="font-semibold text-white">{item.employee_name} <span className="text-white/40 font-normal">started timer</span></p>
+                                                                                        <p className="text-[10px] text-white/35 font-mono mt-0.5">{formatDateTime(item.started_at)} – {isRunning ? 'Running Now' : formatDateTime(item.stopped_at)}</p>
+                                                                                    </div>
+                                                                                    <div className="text-right">
+                                                                                        <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>{durMins}m</span>
+                                                                                        <p className="text-[9px] text-white/20 mt-0.5">{isRunning ? 'Active' : 'Duration'}</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    } else {
+                                                                        return (
+                                                                            <div key={`sp-${idx}`} className="relative">
+                                                                                <span className="absolute -left-[23px] top-1.5 w-3 h-3 rounded-full border border-orange-500/40 bg-neutral-950 flex items-center justify-center">
+                                                                                    <span className="w-1 h-1 rounded-full bg-orange-400 animate-pulse" />
+                                                                                </span>
+                                                                                <div className="flex items-start justify-between gap-4 text-xs bg-orange-500/5 border border-orange-500/10 rounded-lg p-2 ml-1">
+                                                                                    <div>
+                                                                                        <p className="font-semibold text-orange-300">Task Paused</p>
+                                                                                        <p className="text-[10px] text-orange-300/60 font-mono mt-0.5">{formatDateTime(item.started_at)} – {formatDateTime(item.stopped_at)}</p>
+                                                                                    </div>
+                                                                                    <div className="text-right shrink-0">
+                                                                                        <span className="font-mono font-bold text-orange-300">{item.duration_minutes}m</span>
+                                                                                        <p className="text-[9px] text-orange-300/45 mt-0.5">Paused Duration</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        </SectionCard>
+                    );
+                })()}
             </>)}
 
             {/* ══ TAB: INVENTORY ═════════════════════════════════════════════════════════ */}

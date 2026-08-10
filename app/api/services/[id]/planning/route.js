@@ -282,7 +282,7 @@ export async function POST(req, { params }) {
         }
 
         if (action === 'create_invoice') {
-            const { customer_name, customer_id, description, amount_due, due_date, notes } = body;
+            const { customer_name, customer_id, description, amount_due, due_date, notes, status, quotation_id, amount_paid } = body;
             if (!customer_name || !amount_due) {
                 return NextResponse.json({ error: 'Customer name and amount are required' }, { status: 400 });
             }
@@ -290,13 +290,34 @@ export async function POST(req, { params }) {
             const [[{ maxId }]] = await pool.execute('SELECT COALESCE(MAX(id),0) AS maxId FROM invoices');
             const code = `INV-${String(maxId + 1).padStart(4, '0')}`;
 
+            const due = parseFloat(amount_due);
+            const paid = parseFloat(amount_paid) || 0;
+            let resolvedStatus = status || 'sent';
+            if (paid >= due) {
+                resolvedStatus = 'paid';
+            } else if (paid > 0) {
+                resolvedStatus = 'partial';
+            } else if (due_date && new Date(due_date) < new Date()) {
+                resolvedStatus = 'overdue';
+            }
+
             const [result] = await pool.execute(
-                `INSERT INTO invoices (code, customer_id, customer_name, description, amount_due, amount_paid, status, due_date, notes, service_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, 0, 'sent', ?, ?, ?, NOW(), NOW())`,
-                [code, customer_id || null, customer_name, description || '', parseFloat(amount_due), due_date || null, notes || '', id]
+                `INSERT INTO invoices (code, quotation_id, customer_id, customer_name, description, amount_due, amount_paid, status, due_date, notes, service_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [code, quotation_id || null, customer_id || null, customer_name, description || '', due, paid, resolvedStatus, due_date || null, notes || '', id]
             );
 
-            return NextResponse.json({ success: true, invoiceId: result.insertId, code });
+            const invoiceId = result.insertId;
+
+            if (paid > 0) {
+                await pool.execute(
+                    `INSERT INTO invoice_payments (invoice_id, amount, method, paid_at, reference, notes)
+                     VALUES (?, ?, 'Cash', NOW(), 'Initial Payment', 'Recorded on invoice creation')`,
+                    [invoiceId, paid]
+                );
+            }
+
+            return NextResponse.json({ success: true, invoiceId, code });
         }
 
         if (action === 'invoice_quotation') {
