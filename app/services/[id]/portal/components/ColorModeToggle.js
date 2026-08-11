@@ -14,7 +14,7 @@ export default function ColorModeToggle({ colorMode = 'mono', onChange }) {
     const activeTheme = colorMode === 'multi' ? 'purple' : colorMode;
 
     return (
-        <div className="inline-flex items-center bg-black/80 border border-white/15 p-1 rounded-xl shrink-0 gap-1 backdrop-blur-md">
+        <div className="inline-flex items-center bg-black/80 border border-white/15 p-1 rounded-md shrink-0 gap-1 backdrop-blur-md">
             {THEMES.map(theme => {
                 const isActive = activeTheme === theme.id;
                 return (
@@ -22,11 +22,10 @@ export default function ColorModeToggle({ colorMode = 'mono', onChange }) {
                         key={theme.id}
                         type="button"
                         onClick={() => onChange(theme.id)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer border ${
-                            isActive
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer border ${isActive
                                 ? theme.activeCls
                                 : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/5 font-medium'
-                        }`}
+                            }`}
                         title={`${theme.label} Theme Mode`}
                     >
                         {theme.id === 'mono' ? (

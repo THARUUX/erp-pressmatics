@@ -13,7 +13,7 @@ function NavItem({ href, icon: Icon, label, active }) {
     return (
         <Link
             href={href}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-150
                 ${active
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
@@ -45,11 +45,11 @@ export default function ServicePortalLayout({ children, params }) {
     const nav = [
         { href: `/services/${id}/portal`, label: 'Dashboard', icon: FiGrid },
         { href: `/services/${id}/portal/planning`, label: 'Planning Workspace', icon: FiActivity },
-        { href: `/services/${id}/portal/employees`, label: 'Employees', icon: FiUsers },
-        { href: `/services/${id}/portal/analytics`, label: 'Analytics & Charts', icon: FiBarChart2 },
         { href: `/services/${id}/portal/quotations`, label: 'Quotations', icon: FiFileText },
         { href: `/services/${id}/portal/sales-orders`, label: 'Sales Orders', icon: FiShoppingCart },
         { href: `/services/${id}/portal/invoices`, label: 'Invoices', icon: FiDollarSign },
+        { href: `/services/${id}/portal/analytics`, label: 'Analytics & Charts', icon: FiBarChart2 },
+        { href: `/services/${id}/portal/employees`, label: 'Employees', icon: FiUsers },
         { href: `/services/${id}/portal/tasks`, label: 'Task Timers', icon: FiCheckSquare },
     ];
 
@@ -65,7 +65,7 @@ export default function ServicePortalLayout({ children, params }) {
                 {/* Brand */}
                 <div className="px-5 py-6 border-b border-zinc-800/80">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-400">
+                        <div className="w-9 h-9 rounded-md bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-400">
                             <FiBriefcase className="w-4.5 h-4.5" />
                         </div>
                         <div className="min-w-0">
@@ -95,14 +95,14 @@ export default function ServicePortalLayout({ children, params }) {
                 <div className="px-3 py-4 border-t border-zinc-800/80 space-y-1">
                     <Link
                         href={`/dashboard/services/${id}/planning`}
-                        className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-all font-medium"
+                        className="flex items-center gap-2.5 px-4 py-2 rounded-md text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-all font-medium"
                     >
                         <FiGrid className="w-3.5 h-3.5 text-indigo-400" />
                         Main Planning Board
                     </Link>
                     <Link
                         href="/dashboard/services"
-                        className="flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-all"
+                        className="flex items-center gap-2.5 px-4 py-2 rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-all"
                     >
                         <FiArrowLeft className="w-3.5 h-3.5" />
                         Back to Services

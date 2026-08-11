@@ -5,6 +5,8 @@ import {
     FiBarChart2, FiTrendingUp, FiDollarSign,
     FiCheckCircle, FiActivity, FiPieChart, FiUsers, FiFilter
 } from 'react-icons/fi';
+import TaskTimeAnalysisTable from '../components/TaskTimeAnalysisTable';
+import EmployeeAnalyticsSection from '../components/EmployeeAnalyticsSection';
 
 const ANALYTICS_THEMES = {
     mono: {
@@ -155,7 +157,7 @@ function RevenueAreaChart({ monthlyRevenue, monthlyQuotations, themeColor = '#63
 
             {hoveredIndex !== null && points[hoveredIndex] && (
                 <div
-                    className="absolute z-20 pointer-events-none bg-zinc-900 border border-zinc-700 text-white text-xs px-3 py-1.5 rounded-xl shadow-2xl -translate-x-1/2 -translate-y-full"
+                    className="absolute z-20 pointer-events-none bg-zinc-900 border border-zinc-700 text-white text-xs px-3 py-1.5 rounded-md shadow-2xl -translate-x-1/2 -translate-y-full"
                     style={{
                         left: `${(points[hoveredIndex].x / viewBoxWidth) * 100}%`,
                         top: `${(points[hoveredIndex].y / height) * 100 - 8}%`
@@ -175,9 +177,11 @@ function RevenueAreaChart({ monthlyRevenue, monthlyQuotations, themeColor = '#63
 export default function DedicatedAnalyticsPage({ params }) {
     const { id } = use(params);
     const [portalData, setPortalData] = useState(null);
+    const [allTasks, setAllTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [timeframe, setTimeframe] = useState('30d');
     const [colorMode, setColorMode] = useState('mono');
+    const [activeTab, setActiveTab] = useState('financial'); // 'financial' | 'tasks' | 'employees'
 
     useEffect(() => {
         const saved = localStorage.getItem('erp_color_mode');
@@ -190,9 +194,14 @@ export default function DedicatedAnalyticsPage({ params }) {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/services/${id}/portal`);
-            const d = await res.json();
+            const [pRes, planRes] = await Promise.all([
+                fetch(`/api/services/${id}/portal`),
+                fetch(`/api/services/${id}/planning`)
+            ]);
+            const d = await pRes.json();
+            const planData = await planRes.json();
             setPortalData(d);
+            setAllTasks(planData.tasks || []);
         } catch (err) {
             console.error('Analytics load error:', err);
         } finally {
@@ -246,7 +255,7 @@ export default function DedicatedAnalyticsPage({ params }) {
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
                 <div>
                     <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-xl ${t.iconBg1}`}>
+                        <div className={`p-2.5 rounded-md ${t.iconBg1}`}>
                             <FiBarChart2 className="w-6 h-6" />
                         </div>
                         <div>
@@ -261,14 +270,13 @@ export default function DedicatedAnalyticsPage({ params }) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <div className="inline-flex items-center bg-zinc-900 border border-zinc-800 p-1 rounded-xl gap-1">
+                    <div className="inline-flex items-center bg-zinc-900 border border-zinc-800 p-1 rounded-md gap-1">
                         {['7d', '30d', '90d', '1y'].map(tf => (
                             <button
                                 key={tf}
                                 onClick={() => setTimeframe(tf)}
-                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    timeframe === tf ? t.activeBtn : 'text-zinc-400 hover:text-white'
-                                }`}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${timeframe === tf ? t.activeBtn : 'text-zinc-400 hover:text-white'
+                                    }`}
                             >
                                 {tf.toUpperCase()}
                             </button>
@@ -277,131 +285,177 @@ export default function DedicatedAnalyticsPage({ params }) {
                 </div>
             </div>
 
-            {/* Top KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className={t.card}>
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Total Collections</span>
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <FiDollarSign className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-white font-mono">
-                        LKR {totalRev.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
-                        <FiTrendingUp className="w-3.5 h-3.5" /> Service revenue generated
-                    </div>
-                </div>
-
-                <div className={t.card}>
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Quotation Pipeline</span>
-                        <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                            <FiPieChart className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-white font-mono">
-                        LKR {totalQuoteVal.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-zinc-400 mt-1">Total estimated quotes</div>
-                </div>
-
-                <div className={t.card}>
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Task Completion Rate</span>
-                        <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                            <FiCheckCircle className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-white font-mono">
-                        {completionRate}%
-                    </div>
-                    <div className="text-xs text-indigo-300 mt-1 font-semibold">
-                        {doneTasks} of {totalTasks} tasks completed
-                    </div>
-                </div>
-
-                <div className={t.card}>
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Active Workload</span>
-                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            <FiActivity className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-white font-mono">
-                        {inProgressTasks + pendingTasks} tasks
-                    </div>
-                    <div className="text-xs text-amber-300 mt-1 font-semibold">
-                        {inProgressTasks} in-progress · {pendingTasks} pending
-                    </div>
-                </div>
+            {/* Analytics Navigation Tabs */}
+            <div className="flex flex-wrap gap-2 border-b border-zinc-800/80 pb-4">
+                <button
+                    onClick={() => setActiveTab('financial')}
+                    className={`px-4 py-2.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'financial'
+                            ? 'bg-indigo-600 text-white shadow-lg font-bold'
+                            : 'bg-zinc-900/80 text-zinc-400 hover:text-white border border-zinc-800'
+                        }`}
+                >
+                    <FiPieChart size={15} /> Financial &amp; Revenue Overview
+                </button>
+                <button
+                    onClick={() => setActiveTab('tasks')}
+                    className={`px-4 py-2.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'tasks'
+                            ? 'bg-indigo-600 text-white shadow-lg font-bold'
+                            : 'bg-zinc-900/80 text-zinc-400 hover:text-white border border-zinc-800'
+                        }`}
+                >
+                    <FiActivity size={15} /> Task Est. vs Actual Time Analysis
+                </button>
+                <button
+                    onClick={() => setActiveTab('employees')}
+                    className={`px-4 py-2.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'employees'
+                            ? 'bg-purple-600 text-white shadow-lg font-bold'
+                            : 'bg-zinc-900/80 text-zinc-400 hover:text-white border border-zinc-800'
+                        }`}
+                >
+                    <FiUsers size={15} /> Employee Labor &amp; Revenue Analytics
+                </button>
             </div>
 
-            {/* Main Bar Chart Panel */}
-            <div className={t.cardHeader}>
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
-                    <div>
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <FiTrendingUp className={t.accentText} /> Monthly Collections vs. Quotations
-                        </h3>
-                        <p className="text-xs text-zinc-400 mt-0.5">
-                            Comparison of revenue collected vs quotation values created over time
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs font-semibold">
-                        <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded ${t.legend1} inline-block`} />
-                            <span className="text-zinc-300">Revenue Collected</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded ${t.legend2} inline-block`} />
-                            <span className="text-zinc-400">Quotations Created</span>
-                        </div>
-                    </div>
-                </div>
-
-                <RevenueAreaChart monthlyRevenue={monthlyRevenue} monthlyQuotations={monthlyQuotations} themeColor="#6366f1" />
-            </div>
-
-            {/* Staff Workload Panel */}
-            <div className={t.card}>
-                <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-4">
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <FiUsers className={t.accentText} /> Staff Workload &amp; Logged Hours
-                    </h3>
-                    <span className="text-xs text-zinc-400">Total logged hours across tasks</span>
-                </div>
-
-                {Object.keys(empHours).length === 0 ? (
-                    <div className="py-10 text-center text-zinc-400 text-xs">
-                        No work log hours recorded yet.
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {Object.entries(empHours).map(([empName, hours]) => {
-                            const pct = Math.round((hours / maxEmpHours) * 100);
-                            return (
-                                <div key={empName} className="space-y-1.5">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="font-bold text-white">@{empName}</span>
-                                        <span className="font-mono text-zinc-300 font-semibold">
-                                            {hours.toFixed(1)} hrs logged
-                                        </span>
-                                    </div>
-                                    <div className="w-full bg-zinc-900 border border-zinc-800 rounded-full h-2.5 overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full bg-gradient-to-r ${t.workloadGrad} transition-all duration-300`}
-                                            style={{ width: `${pct}%` }}
-                                        />
-                                    </div>
+            {/* TAB 1: FINANCIAL OVERVIEW */}
+            {activeTab === 'financial' && (
+                <>
+                    {/* Top KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className={t.card}>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Total Collections</span>
+                                <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    <FiDollarSign className="w-4 h-4" />
                                 </div>
-                            );
-                        })}
+                            </div>
+                            <div className="text-2xl font-bold text-white font-mono">
+                                LKR {totalRev.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
+                                <FiTrendingUp className="w-3.5 h-3.5" /> Service revenue generated
+                            </div>
+                        </div>
+
+                        <div className={t.card}>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Quotation Pipeline</span>
+                                <div className="p-2 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                                    <FiPieChart className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-bold text-white font-mono">
+                                LKR {totalQuoteVal.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-zinc-400 mt-1">Total estimated quotes</div>
+                        </div>
+
+                        <div className={t.card}>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Task Completion Rate</span>
+                                <div className="p-2 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                    <FiCheckCircle className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-bold text-white font-mono">
+                                {completionRate}%
+                            </div>
+                            <div className="text-xs text-indigo-300 mt-1 font-semibold">
+                                {doneTasks} of {totalTasks} tasks completed
+                            </div>
+                        </div>
+
+                        <div className={t.card}>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Active Workload</span>
+                                <div className="p-2 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                    <FiActivity className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-bold text-white font-mono">
+                                {inProgressTasks + pendingTasks} tasks
+                            </div>
+                            <div className="text-xs text-amber-300 mt-1 font-semibold">
+                                {inProgressTasks} in-progress · {pendingTasks} pending
+                            </div>
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    {/* Main Bar Chart Panel */}
+                    <div className={t.cardHeader}>
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                    <FiTrendingUp className={t.accentText} /> Monthly Collections vs. Quotations
+                                </h3>
+                                <p className="text-xs text-zinc-400 mt-0.5">
+                                    Comparison of revenue collected vs quotation values created over time
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs font-semibold">
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-3 h-3 rounded ${t.legend1} inline-block`} />
+                                    <span className="text-zinc-300">Revenue Collected</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-3 h-3 rounded ${t.legend2} inline-block`} />
+                                    <span className="text-zinc-400">Quotations Created</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <RevenueAreaChart monthlyRevenue={monthlyRevenue} monthlyQuotations={monthlyQuotations} themeColor="#6366f1" />
+                    </div>
+
+                    {/* Staff Workload Panel */}
+                    <div className={t.card}>
+                        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-4">
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <FiUsers className={t.accentText} /> Staff Workload &amp; Logged Hours
+                            </h3>
+                            <span className="text-xs text-zinc-400">Total logged hours across tasks</span>
+                        </div>
+
+                        {Object.keys(empHours).length === 0 ? (
+                            <div className="py-10 text-center text-zinc-400 text-xs">
+                                No work log hours recorded yet.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {Object.entries(empHours).map(([empName, hours]) => {
+                                    const pct = Math.round((hours / maxEmpHours) * 100);
+                                    return (
+                                        <div key={empName} className="space-y-1.5">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-bold text-white">@{empName}</span>
+                                                <span className="font-mono text-zinc-300 font-semibold">
+                                                    {hours.toFixed(1)} hrs logged
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-zinc-900 border border-zinc-800 rounded-full h-2.5 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full bg-gradient-to-r ${t.workloadGrad} transition-all duration-300`}
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {/* TAB 2: TASKS PERFORMANCE */}
+            {activeTab === 'tasks' && (
+                <TaskTimeAnalysisTable tasks={allTasks} />
+            )}
+
+            {/* TAB 3: EMPLOYEE ANALYTICS */}
+            {activeTab === 'employees' && (
+                <EmployeeAnalyticsSection serviceId={id} employees={service?.employees || []} tasks={allTasks} />
+            )}
         </div>
     );
 }

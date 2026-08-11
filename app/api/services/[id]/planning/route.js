@@ -26,6 +26,7 @@ export async function GET(req, { params }) {
             ),
             pool.execute(
                 `SELECT jt.*, so.code AS order_code, 
+                        so.total_amount AS order_total_amount,
                         COALESCE(so.customer_name, jt.customer_name) AS customer_name, 
                         so.status AS order_status
                  FROM job_tasks jt

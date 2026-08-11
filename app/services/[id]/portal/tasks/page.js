@@ -1,21 +1,22 @@
 'use client';
 
 import { use, useEffect, useState, useCallback, useMemo } from 'react';
-import { FiList, FiGrid, FiClock, FiUser, FiPlay, FiSquare, FiCheck, FiX, FiInfo } from 'react-icons/fi';
+import { FiList, FiGrid, FiClock, FiUser, FiPlay, FiSquare, FiCheck, FiX, FiInfo, FiBarChart2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import TaskTimeAnalysisTable from '../components/TaskTimeAnalysisTable';
 
 const COLUMNS = [
-    { id: 'pending',     label: 'Pending',     color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-amber-400' },
-    { id: 'in_progress', label: 'In Progress',  color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-blue-400' },
-    { id: 'paused',      label: 'Paused',       color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-orange-400' },
-    { id: 'done',        label: 'Ready / Done', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-emerald-400' },
+    { id: 'pending', label: 'Pending', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-amber-400' },
+    { id: 'in_progress', label: 'In Progress', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-blue-400' },
+    { id: 'paused', label: 'Paused', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-orange-400' },
+    { id: 'done', label: 'Ready / Done', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-emerald-400' },
 ];
 
 const STATUS_COLORS = {
-    pending:     'bg-amber-500/10 text-amber-300 border border-amber-500/20',
+    pending: 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
     in_progress: 'bg-blue-500/10 text-blue-300 border border-blue-500/20 font-medium',
-    paused:      'bg-orange-500/10 text-orange-300 border border-orange-500/20',
-    done:        'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold',
+    paused: 'bg-orange-500/10 text-orange-300 border border-orange-500/20',
+    done: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold',
 };
 
 function formatSeconds(secs) {
@@ -96,7 +97,7 @@ function TaskCard({ task, onRefresh }) {
     const actSeconds = parseInt(task.actual_seconds || 0);
 
     return (
-        <div className="bg-[#09090b] border border-zinc-800 rounded-xl p-4 space-y-3 hover:border-zinc-700 transition-colors">
+        <div className="bg-[#09090b] border border-zinc-800 rounded-md p-4 space-y-3 hover:border-zinc-700 transition-colors">
             <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold text-white leading-tight">{displayName}</p>
                 <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold shrink-0 ${STATUS_COLORS[task.status] || 'bg-zinc-800 text-zinc-400'}`}>
@@ -232,14 +233,15 @@ export default function PortalTasksPage({ params }) {
                     <p className="text-zinc-400 text-sm mt-0.5">{stats.total} total · {stats.pct}% complete</p>
                 </div>
                 {/* View Toggle */}
-                <div className="flex gap-1 bg-[#0e0e11] border border-zinc-800/80 rounded-xl p-1">
-                    <button onClick={() => setView('kanban')} className={`p-2 rounded-lg transition-colors cursor-pointer ${view === 'kanban' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><FiGrid size={14} /></button>
-                    <button onClick={() => setView('list')} className={`p-2 rounded-lg transition-colors cursor-pointer ${view === 'list' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><FiList size={14} /></button>
+                <div className="flex gap-1 bg-[#0e0e11] border border-zinc-800/80 rounded-md p-1 text-xs font-semibold">
+                    <button onClick={() => setView('kanban')} title="Kanban View" className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${view === 'kanban' ? 'bg-white text-black font-bold shadow' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><FiGrid size={14} /> Kanban</button>
+                    <button onClick={() => setView('list')} title="Quick List View" className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${view === 'list' ? 'bg-white text-black font-bold shadow' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><FiList size={14} /> Quick List</button>
+                    <button onClick={() => setView('analysis')} title="Time Analysis Table" className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${view === 'analysis' ? 'bg-purple-600 text-white font-bold shadow' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}><FiBarChart2 size={14} /> Est. vs Actual Analysis</button>
                 </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="bg-[#0e0e11] border border-zinc-800/80 rounded-xl px-5 py-3 flex items-center gap-4">
+            <div className="bg-[#0e0e11] border border-zinc-800/80 rounded-md px-5 py-3 flex items-center gap-4">
                 <div className="flex-1 bg-zinc-900 rounded-full h-2">
                     <div className="h-full bg-white rounded-full transition-all duration-500"
                         style={{ width: `${stats.pct}%` }} />
@@ -253,6 +255,8 @@ export default function PortalTasksPage({ params }) {
 
             {loading ? (
                 <div className="py-16 text-center"><div className="w-7 h-7 border-2 border-zinc-700 border-t-white rounded-full animate-spin mx-auto" /></div>
+            ) : view === 'analysis' ? (
+                <TaskTimeAnalysisTable tasks={tasks} />
             ) : view === 'kanban' ? (
                 /* Kanban */
                 <div className="grid grid-cols-4 gap-4">
@@ -265,7 +269,7 @@ export default function PortalTasksPage({ params }) {
                             </div>
                             <div className="space-y-3">
                                 {(byStatus[col.id] || []).length === 0 ? (
-                                    <div className="py-6 text-center text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-xl">Empty</div>
+                                    <div className="py-6 text-center text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-md">Empty</div>
                                 ) : (byStatus[col.id] || []).map(task => (
                                     <TaskCard key={task.id} task={task} onRefresh={load} />
                                 ))}

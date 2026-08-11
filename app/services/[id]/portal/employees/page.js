@@ -155,7 +155,7 @@ export default function DedicatedEmployeesPage({ params }) {
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
                 <div>
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                        <div className="p-2.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
                             <FiUsers className="w-6 h-6" />
                         </div>
                         <div>
@@ -172,7 +172,7 @@ export default function DedicatedEmployeesPage({ params }) {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setIsAdding(!isAdding)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
                     >
                         <FiPlus size={16} /> Add New Employee
                     </button>
@@ -184,7 +184,7 @@ export default function DedicatedEmployeesPage({ params }) {
                 <div className="bg-[#0e0e12] border border-zinc-800/80 rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Total Service Staff</span>
-                        <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        <div className="p-2 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                             <FiUserCheck className="w-4 h-4" />
                         </div>
                     </div>
@@ -195,7 +195,7 @@ export default function DedicatedEmployeesPage({ params }) {
                 <div className="bg-[#0e0e12] border border-zinc-800/80 rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Hourly Rate Staff</span>
-                        <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        <div className="p-2 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
                             <FiClock className="w-4 h-4" />
                         </div>
                     </div>
@@ -208,7 +208,7 @@ export default function DedicatedEmployeesPage({ params }) {
                 <div className="bg-[#0e0e12] border border-zinc-800/80 rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs uppercase font-bold tracking-wider text-zinc-400">Unit / Job Staff</span>
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <FiTag className="w-4 h-4" />
                         </div>
                     </div>
@@ -250,7 +250,7 @@ export default function DedicatedEmployeesPage({ params }) {
                                             setNewEmp(prev => ({ ...prev, employee_name: e.target.value }));
                                         }
                                     }}
-                                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white mb-2 focus:outline-none cursor-pointer"
+                                    className="w-full bg-zinc-900 border border-zinc-700/80 rounded-md px-3 py-2 text-xs text-white mb-2 focus:outline-none cursor-pointer"
                                 >
                                     <option value="" className="bg-zinc-900">-- Quick select system employee --</option>
                                     {systemEmployees.map(se => (
@@ -266,7 +266,7 @@ export default function DedicatedEmployeesPage({ params }) {
                                 onChange={e => setNewEmp({ ...newEmp, employee_name: e.target.value })}
                                 placeholder="Type or select employee name..."
                                 required
-                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-md px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
                             />
                         </div>
 
@@ -277,7 +277,7 @@ export default function DedicatedEmployeesPage({ params }) {
                             <select
                                 value={newEmp.default_rate_unit}
                                 onChange={e => setNewEmp({ ...newEmp, default_rate_unit: e.target.value })}
-                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-md px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                             >
                                 <option value="per hour" className="bg-zinc-900">per hour</option>
                                 <option value="per form" className="bg-zinc-900">per form</option>
@@ -298,7 +298,7 @@ export default function DedicatedEmployeesPage({ params }) {
                                 value={newEmp.rate}
                                 onChange={e => setNewEmp({ ...newEmp, rate: e.target.value })}
                                 placeholder="e.g. 1500.00"
-                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-zinc-900 border border-zinc-700/80 rounded-md px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
                             />
                         </div>
                     </div>
@@ -307,14 +307,14 @@ export default function DedicatedEmployeesPage({ params }) {
                         <button
                             type="button"
                             onClick={() => setIsAdding(false)}
-                            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs text-zinc-300 font-semibold transition-colors cursor-pointer"
+                            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-xs text-zinc-300 font-semibold transition-colors cursor-pointer"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-md text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                         >
                             {saving ? 'Saving...' : 'Save Employee'}
                         </button>
@@ -338,14 +338,14 @@ export default function DedicatedEmployeesPage({ params }) {
                                 value={filterText}
                                 onChange={e => setFilterText(e.target.value)}
                                 placeholder="Search employees..."
-                                className="pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-700/80 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                                className="pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-700/80 rounded-md text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
                             />
                         </div>
                         {editingIndex !== null && (
                             <button
                                 onClick={handleSaveRow}
                                 disabled={saving}
-                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                             >
                                 <FiCheck size={14} /> Save All Edits
                             </button>
@@ -362,7 +362,7 @@ export default function DedicatedEmployeesPage({ params }) {
                         {!filterText && (
                             <button
                                 onClick={() => setIsAdding(true)}
-                                className="mt-4 px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-2 cursor-pointer"
+                                className="mt-4 px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 rounded-md text-xs font-semibold transition-all inline-flex items-center gap-2 cursor-pointer"
                             >
                                 <FiPlus size={14} /> Add First Employee
                             </button>
@@ -461,7 +461,7 @@ export default function DedicatedEmployeesPage({ params }) {
                                             <td className="px-6 py-4">
                                                 <Link
                                                     href={workspaceUrl}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all"
                                                 >
                                                     Open Workspace <FiExternalLink size={12} />
                                                 </Link>

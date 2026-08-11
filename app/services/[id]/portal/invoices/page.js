@@ -18,11 +18,11 @@ import { ColumnToggle } from '@/components/ui/ColumnToggle';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 const STATUS_CONFIG = {
-    draft:   { label: 'Draft',    color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
-    sent:    { label: 'Sent',     color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-    partial: { label: 'Partial',  color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-    paid:    { label: 'Paid',     color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-    overdue: { label: 'Overdue',  color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+    draft: { label: 'Draft', color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
+    sent: { label: 'Sent', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+    partial: { label: 'Partial', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+    paid: { label: 'Paid', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+    overdue: { label: 'Overdue', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
 };
 
 function StatusBadge({ status }) {
@@ -70,9 +70,9 @@ export default function PortalInvoicesPage({ params }) {
     const router = useRouter();
     const currency = 'LKR';
 
-    const [data, setData]                 = useState([]);
-    const [stats, setStats]               = useState({});
-    const [loading, setLoading]           = useState(true);
+    const [data, setData] = useState([]);
+    const [stats, setStats] = useState({});
+    const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
@@ -80,8 +80,8 @@ export default function PortalInvoicesPage({ params }) {
     const [exportingPdf, setExportingPdf] = useState(false);
 
     // Custom Modal Delete state
-    const [deleteModal, setDeleteModal]   = useState(null);
-    const [deleting, setDeleting]         = useState(false);
+    const [deleteModal, setDeleteModal] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     const loadInvoices = useCallback(async () => {
         setLoading(true);
@@ -297,19 +297,19 @@ export default function PortalInvoicesPage({ params }) {
                             value={globalFilter}
                             onChange={e => setGlobalFilter(e.target.value)}
                             placeholder="Search invoices…"
-                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white w-56 outline-none focus:border-indigo-500 placeholder-zinc-500"
+                            className="bg-zinc-900 border border-zinc-700/80 rounded-md pl-9 pr-4 py-2 text-xs text-white w-56 outline-none focus:border-indigo-500 placeholder-zinc-500"
                         />
                     </div>
                     <ColumnToggle table={table} />
                     <button
                         onClick={handleExportPDF}
                         disabled={exportingPdf}
-                        className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/80 text-zinc-300 px-3.5 py-2 rounded-xl text-xs font-semibold hover:border-zinc-500 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+                        className="flex items-center gap-2 bg-zinc-900 border border-zinc-700/80 text-zinc-300 px-3.5 py-2 rounded-md text-xs font-semibold hover:border-zinc-500 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
                     >
                         <FiDownload className="w-3.5 h-3.5" /> {exportingPdf ? 'Exporting…' : 'Export PDF'}
                     </button>
                     <Link href="/dashboard/invoices/new" target="_blank">
-                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer">
+                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-md text-xs font-bold transition-all shadow-md cursor-pointer">
                             + New Invoice
                         </button>
                     </Link>
@@ -320,11 +320,11 @@ export default function PortalInvoicesPage({ params }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                     { label: 'Total Outstanding', value: fmt(stats.outstanding), icon: FiClock, color: 'text-amber-400', border: 'border-amber-500/20', bg: 'bg-amber-500/10' },
-                    { label: 'Overdue Balance',   value: fmt(stats.overdue),     icon: FiAlertCircle, color: 'text-rose-400', border: 'border-rose-500/20', bg: 'bg-rose-500/10' },
+                    { label: 'Overdue Balance', value: fmt(stats.overdue), icon: FiAlertCircle, color: 'text-rose-400', border: 'border-rose-500/20', bg: 'bg-rose-500/10' },
                     { label: 'Collected (Month)', value: fmt(stats.collected_month), icon: FiCheckCircle, color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/10' },
                 ].map(s => (
                     <div key={s.label} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 flex items-center gap-4 shadow-lg backdrop-blur-sm">
-                        <div className={`p-3 rounded-xl border ${s.bg} ${s.border} ${s.color}`}>
+                        <div className={`p-3 rounded-md border ${s.bg} ${s.border} ${s.color}`}>
                             <s.icon className="w-5 h-5" />
                         </div>
                         <div>
@@ -343,11 +343,10 @@ export default function PortalInvoicesPage({ params }) {
                         <button
                             key={tab}
                             onClick={() => setStatusFilter(tab)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize cursor-pointer ${
-                                statusFilter === tab
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize cursor-pointer ${statusFilter === tab
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
-                            }`}
+                                }`}
                         >
                             {tab}
                         </button>
@@ -435,9 +434,8 @@ export default function PortalInvoicesPage({ params }) {
                                     <button
                                         key={i}
                                         onClick={() => table.setPageIndex(i)}
-                                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                                            i === pageIndex ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                                        }`}
+                                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${i === pageIndex ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                                            }`}
                                     >
                                         {i + 1}
                                     </button>
@@ -454,7 +452,7 @@ export default function PortalInvoicesPage({ params }) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
                     <div className="bg-[#0e0e11] border border-rose-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
                         <div className="flex items-center gap-3 text-rose-400">
-                            <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                            <div className="p-3 bg-rose-500/10 rounded-md border border-rose-500/20">
                                 <FiTrash2 size={22} />
                             </div>
                             <div>
@@ -463,7 +461,7 @@ export default function PortalInvoicesPage({ params }) {
                             </div>
                         </div>
 
-                        <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/80">
+                        <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-900/60 p-4 rounded-md border border-zinc-800/80">
                             Are you sure you want to delete invoice <strong className="text-white">{deleteModal.code || `#${deleteModal.id}`}</strong> for <strong className="text-white">{deleteModal.customer_name}</strong>?
                             <br /><br />
                             <span className="text-rose-400 font-semibold">Warning:</span> This action cannot be undone.
@@ -474,7 +472,7 @@ export default function PortalInvoicesPage({ params }) {
                                 type="button"
                                 onClick={() => setDeleteModal(null)}
                                 disabled={deleting}
-                                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-xs font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
                             >
                                 Cancel
                             </button>
@@ -482,7 +480,7 @@ export default function PortalInvoicesPage({ params }) {
                                 type="button"
                                 onClick={confirmDeleteInvoice}
                                 disabled={deleting}
-                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-xs font-bold text-white shadow-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-md text-xs font-bold text-white shadow-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
                             >
                                 {deleting ? 'Deleting…' : 'Yes, Delete Invoice'}
                             </button>

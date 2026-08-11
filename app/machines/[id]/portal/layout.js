@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiCpu, FiPlayCircle, FiCalendar, FiArrowLeft, FiCheckSquare, FiClock } from 'react-icons/fi';
+import { FiCpu, FiPlayCircle, FiCalendar, FiArrowLeft } from 'react-icons/fi';
 
 export default function StandaloneMachinePortalLayout({ children, params }) {
     const { id } = use(params);
@@ -18,6 +18,7 @@ export default function StandaloneMachinePortalLayout({ children, params }) {
     }, [id]);
 
     const isPlanning = pathname.endsWith('/planning');
+    const isSharedMachine = Boolean(machine?.is_common);
 
     return (
         <div className="min-h-screen bg-[#07080f] text-slate-100 font-sans flex flex-col">
@@ -50,29 +51,31 @@ export default function StandaloneMachinePortalLayout({ children, params }) {
                         </div>
                     </div>
 
-                    {/* Portal Tabs */}
-                    <div className="flex bg-white/5 border border-white/10 p-1 rounded-2xl gap-1">
-                        <Link
-                            href={`/machines/${id}/portal`}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                                !isPlanning
-                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                                    : 'text-gray-400 hover:text-white'
-                            }`}
-                        >
-                            <FiPlayCircle className="w-4 h-4" /> Task Execution
-                        </Link>
-                        <Link
-                            href={`/machines/${id}/portal/planning`}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                                isPlanning
-                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                                    : 'text-gray-400 hover:text-white'
-                            }`}
-                        >
-                            <FiCalendar className="w-4 h-4" /> Daily Planning
-                        </Link>
-                    </div>
+                    {/* Render Planning navigation tabs ONLY for shared machines */}
+                    {isSharedMachine && (
+                        <div className="flex bg-white/5 border border-white/10 p-1 rounded-2xl gap-1">
+                            <Link
+                                href={`/machines/${id}/portal`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                    !isPlanning
+                                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                                        : 'text-gray-400 hover:text-white'
+                                }`}
+                            >
+                                <FiPlayCircle className="w-4 h-4" /> Task Execution
+                            </Link>
+                            <Link
+                                href={`/machines/${id}/portal/planning`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                    isPlanning
+                                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                                        : 'text-gray-400 hover:text-white'
+                                }`}
+                            >
+                                <FiCalendar className="w-4 h-4" /> Shared Machine Planning
+                            </Link>
+                        </div>
+                    )}
                 </div>
             </header>
 

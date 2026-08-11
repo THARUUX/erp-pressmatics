@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FiPlus, FiEdit2, FiTrash2, FiUsers, FiClock, FiDollarSign, FiPercent, FiX, FiBriefcase, FiActivity, FiGrid } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiUsers, FiClock, FiDollarSign, FiPercent, FiX, FiBriefcase, FiActivity, FiGrid, FiLayers } from 'react-icons/fi';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useSettings } from '@/components/SettingsContext';
@@ -152,12 +152,12 @@ export default function ServicesPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link
+                    {/* <Link
                         href="/dashboard/common-portal/services"
                         className="flex items-center gap-2 bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/30 text-indigo-300 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                     >
                         <FiLayers className="w-4 h-4" /> Shared Services Portal
-                    </Link>
+                    </Link> */}
                     <button
                         onClick={openCreateModal}
                         className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors"

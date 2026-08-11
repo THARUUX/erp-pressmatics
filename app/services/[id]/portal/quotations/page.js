@@ -16,9 +16,9 @@ import {
 import toast from 'react-hot-toast';
 
 const STATUS_COLORS = {
-    draft:     'bg-zinc-800/80 text-zinc-300 border-zinc-700/60',
-    sent:      'bg-zinc-800/80 text-zinc-200 border-zinc-700',
-    approved:  'bg-zinc-800 text-white border-zinc-600 font-bold',
+    draft: 'bg-zinc-800/80 text-zinc-300 border-zinc-700/60',
+    sent: 'bg-zinc-800/80 text-zinc-200 border-zinc-700',
+    approved: 'bg-zinc-800 text-white border-zinc-600 font-bold',
     converted: 'bg-white text-black border-white font-bold',
     cancelled: 'bg-zinc-900 text-zinc-500 border-zinc-800',
 };
@@ -336,7 +336,7 @@ export default function PortalQuotationsPage({ params }) {
                     <p className="text-zinc-400 text-sm mt-0.5">{quotations.length} total</p>
                 </div>
                 <button onClick={() => setQuoteModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-zinc-200 rounded-xl text-xs font-bold text-black transition-colors cursor-pointer shadow-sm">
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-zinc-200 rounded-md text-xs font-bold text-black transition-colors cursor-pointer shadow-sm">
                     <FiPlus size={15} /> New Quotation
                 </button>
             </div>
@@ -349,7 +349,7 @@ export default function PortalQuotationsPage({ params }) {
                         value={globalFilter}
                         onChange={e => setGlobalFilter(e.target.value)}
                         placeholder="Search quotations…"
-                        className="w-full pl-9 pr-4 py-2 bg-[#0e0e11] border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+                        className="w-full pl-9 pr-4 py-2 bg-[#0e0e11] border border-zinc-800 rounded-md text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                     />
                 </div>
                 <div className="text-xs text-zinc-400">{table.getFilteredRowModel().rows.length} results</div>
@@ -418,7 +418,7 @@ export default function PortalQuotationsPage({ params }) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
                     <div className="bg-[#0e0e11] border border-zinc-800 rounded-2xl p-7 w-full max-w-sm shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700">
+                            <div className="p-2.5 rounded-md bg-zinc-800 border border-zinc-700">
                                 <FiAlertTriangle className="w-5 h-5 text-zinc-200" />
                             </div>
                             <div>
@@ -428,8 +428,8 @@ export default function PortalQuotationsPage({ params }) {
                         </div>
                         <p className="text-sm text-zinc-400 mb-6">This action cannot be undone. The quotation and its line items will be permanently removed.</p>
                         <div className="flex gap-3 justify-end">
-                            <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
-                            <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm font-semibold text-white bg-zinc-700 hover:bg-zinc-600 rounded-xl disabled:opacity-50 cursor-pointer">
+                            <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-md hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm font-semibold text-white bg-zinc-700 hover:bg-zinc-600 rounded-md disabled:opacity-50 cursor-pointer">
                                 {deleting ? 'Deleting…' : 'Delete'}
                             </button>
                         </div>
@@ -442,7 +442,7 @@ export default function PortalQuotationsPage({ params }) {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
                     <div className="bg-[#0e0e11] border border-zinc-800 rounded-2xl p-7 w-full max-w-md shadow-2xl">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700">
+                            <div className="p-2.5 rounded-md bg-zinc-800 border border-zinc-700">
                                 <FiShoppingCart className="w-5 h-5 text-zinc-200" />
                             </div>
                             <div>
@@ -459,7 +459,7 @@ export default function PortalQuotationsPage({ params }) {
                                 </label>
                                 <p className="text-xs text-zinc-400">Some items have quantity &gt; 1. Choose task generation mode:</p>
                                 <div className="grid grid-cols-2 gap-3 pt-1">
-                                    <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${!splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                    <label className={`flex flex-col p-3 rounded-md border cursor-pointer transition-all ${!splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
                                         <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
                                             <input type="radio" name="splitTasks" checked={!splitTasks} onChange={() => setSplitTasks(false)} className="accent-white" />
                                             Merge Tasks
@@ -467,7 +467,7 @@ export default function PortalQuotationsPage({ params }) {
                                         <span className="text-[10px] text-zinc-400 leading-tight">Keep 1 task for total item quantity</span>
                                     </label>
 
-                                    <label className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
+                                    <label className={`flex flex-col p-3 rounded-md border cursor-pointer transition-all ${splitTasks ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800/50'}`}>
                                         <div className="flex items-center gap-2 mb-1 font-semibold text-xs text-white">
                                             <input type="radio" name="splitTasks" checked={splitTasks} onChange={() => setSplitTasks(true)} className="accent-white" />
                                             Separate Tasks
@@ -479,8 +479,8 @@ export default function PortalQuotationsPage({ params }) {
                         )}
 
                         <div className="flex gap-3 justify-end">
-                            <button onClick={() => setConvertModal(null)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
-                            <button onClick={handleConvert} disabled={converting} className="px-4 py-2 text-sm font-semibold text-black bg-white hover:bg-zinc-200 rounded-xl disabled:opacity-50 cursor-pointer">
+                            <button onClick={() => setConvertModal(null)} className="px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-md hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button onClick={handleConvert} disabled={converting} className="px-4 py-2 text-sm font-semibold text-black bg-white hover:bg-zinc-200 rounded-md disabled:opacity-50 cursor-pointer">
                                 {converting ? 'Converting…' : 'Convert'}
                             </button>
                         </div>
@@ -562,7 +562,7 @@ export default function PortalQuotationsPage({ params }) {
                                     </button>
                                 </div>
                                 {editForm.items.map((item, idx) => (
-                                    <div key={idx} className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
+                                    <div key={idx} className="bg-zinc-900/40 border border-zinc-800 rounded-md p-3 space-y-2">
                                         <div className="grid grid-cols-[1fr_70px_100px_28px] gap-2 items-center">
                                             <input required value={item.item_name} onChange={e => { const it = [...editForm.items]; it[idx].item_name = e.target.value; setEditForm(p => ({ ...p, items: it })); }}
                                                 placeholder="Item Name *"
@@ -612,7 +612,7 @@ export default function PortalQuotationsPage({ params }) {
                             </div>
 
                             {/* Live Total */}
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-3 flex justify-between items-center">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-md px-5 py-3 flex justify-between items-center">
                                 <span className="text-xs text-zinc-400 font-semibold">Grand Total</span>
                                 <span className="font-mono font-bold text-white text-base">
                                     LKR {editTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -620,8 +620,8 @@ export default function PortalQuotationsPage({ params }) {
                             </div>
                         </div>
                         <footer className="px-6 py-3.5 border-t border-zinc-800 flex justify-end gap-2.5">
-                            <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
-                            <button type="submit" disabled={savingEdit} className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-xl cursor-pointer disabled:opacity-50">
+                            <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-md hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button type="submit" disabled={savingEdit} className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-md cursor-pointer disabled:opacity-50">
                                 {savingEdit ? 'Saving…' : 'Save Changes'}
                             </button>
                         </footer>
@@ -696,7 +696,7 @@ export default function PortalQuotationsPage({ params }) {
                                     </button>
                                 </div>
                                 {quoteForm.items.map((item, idx) => (
-                                    <div key={idx} className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
+                                    <div key={idx} className="bg-zinc-900/40 border border-zinc-800 rounded-md p-3 space-y-2">
                                         <div className="grid grid-cols-[1fr_70px_100px_28px] gap-2 items-center">
                                             <input required value={item.item_name} onChange={e => { const it = [...quoteForm.items]; it[idx].item_name = e.target.value; setQuoteForm(p => ({ ...p, items: it })); }}
                                                 placeholder="Item Name *"
@@ -746,7 +746,7 @@ export default function PortalQuotationsPage({ params }) {
                             </div>
 
                             {/* Live Total */}
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-3 flex justify-between items-center">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-md px-5 py-3 flex justify-between items-center">
                                 <span className="text-xs text-zinc-400 font-semibold">Grand Total</span>
                                 <span className="font-mono font-bold text-white text-base">
                                     LKR {quoteTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -754,8 +754,8 @@ export default function PortalQuotationsPage({ params }) {
                             </div>
                         </div>
                         <footer className="px-6 py-3.5 border-t border-zinc-800 flex justify-end gap-2.5">
-                            <button type="button" onClick={() => setQuoteModalOpen(false)} className="px-4 py-2 text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-xl hover:bg-zinc-700 cursor-pointer">Cancel</button>
-                            <button type="submit" className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-xl cursor-pointer">Generate Quotation</button>
+                            <button type="button" onClick={() => setQuoteModalOpen(false)} className="px-4 py-2 text-xs font-semibold text-zinc-300 bg-zinc-800 border border-zinc-700 rounded-md hover:bg-zinc-700 cursor-pointer">Cancel</button>
+                            <button type="submit" className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-md cursor-pointer">Generate Quotation</button>
                         </footer>
                     </form>
                 </div>

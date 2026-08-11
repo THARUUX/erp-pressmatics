@@ -68,7 +68,7 @@ function StatCard({ label, value, accent, icon: Icon }) {
                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold block">{label}</span>
                 <span className="text-xl font-extrabold text-white mt-1 block">{value}</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]" style={{ color: accent }}>
+            <div className="p-3 rounded-md bg-white/[0.03] border border-white/[0.05]" style={{ color: accent }}>
                 <Icon className="w-5 h-5" />
             </div>
         </div>
@@ -221,10 +221,10 @@ export default function EmployeeWorkspacePage({ params }) {
                     <p className="font-semibold">Error loading workspace</p>
                     <p className="text-xs mt-1 text-red-400/80">{error || 'Service details not found'}</p>
                     <div className="flex gap-4 justify-center mt-6">
-                        <Link href={`/dashboard/services/${id}/planning`} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white text-xs font-semibold">
+                        <Link href={`/dashboard/services/${id}/planning`} className="px-4 py-2 bg-white/5 border border-white/10 rounded-md hover:bg-white/10 text-white text-xs font-semibold">
                             Back to Board
                         </Link>
-                        <button onClick={loadData} className="px-4 py-2 bg-white/10 rounded-xl hover:bg-white/20 text-white text-xs font-semibold">
+                        <button onClick={loadData} className="px-4 py-2 bg-white/10 rounded-md hover:bg-white/20 text-white text-xs font-semibold">
                             Retry
                         </button>
                     </div>
@@ -255,7 +255,7 @@ export default function EmployeeWorkspacePage({ params }) {
                 {/* Back Link */}
                 <Link
                     href={`/services/${id}/portal`}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.05] rounded-xl text-xs text-white/70 transition-colors"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.05] rounded-md text-xs text-white/70 transition-colors"
                 >
                     <FiArrowLeft className="w-4 h-4" /> Back to Planning Board
                 </Link>
@@ -348,7 +348,7 @@ export default function EmployeeWorkspacePage({ params }) {
                                                     <select
                                                         value={t.status || 'pending'}
                                                         onChange={e => handleStatusChange(t, e.target.value)}
-                                                        className="bg-black/60 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-white/30"
+                                                        className="bg-black/60 border border-white/10 rounded-md px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-white/30"
                                                         style={{ color: STATUS_CFG[t.status || 'pending'].accent }}
                                                     >
                                                         <option value="pending">● Pending</option>
@@ -362,14 +362,14 @@ export default function EmployeeWorkspacePage({ params }) {
                                                         {t.is_running ? (
                                                             <button
                                                                 onClick={() => handleStopTimer(t)}
-                                                                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm animate-pulse"
+                                                                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-bold rounded-md flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm animate-pulse"
                                                             >
                                                                 <FiSquare size={12} /> Stop
                                                             </button>
                                                         ) : (
                                                             <button
                                                                 onClick={() => handleStartTimer(t)}
-                                                                className={`px-3 py-1.5 ${theme.btnSecondary} text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm`}
+                                                                className={`px-3 py-1.5 ${theme.btnSecondary} text-xs font-bold rounded-md flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-sm`}
                                                             >
                                                                 <FiPlay size={12} /> Start
                                                             </button>
@@ -462,7 +462,7 @@ export default function EmployeeWorkspacePage({ params }) {
                         <footer className="px-6 py-3 border-t border-white/[0.08] bg-white/[0.01] flex justify-end">
                             <button
                                 onClick={() => setNoteModal(null)}
-                                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-xs font-semibold transition-colors"
+                                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md text-white text-xs font-semibold transition-colors"
                             >
                                 Close
                             </button>

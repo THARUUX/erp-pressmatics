@@ -58,7 +58,7 @@ export default function ManageEmployeesModal({
 
     const handleSave = async (e) => {
         e.preventDefault();
-        
+
         const validEmployees = employees.filter(e => e.employee_name && e.employee_name.trim() !== '');
 
         setSaving(true);
@@ -94,7 +94,7 @@ export default function ManageEmployeesModal({
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/30">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200">
+                        <div className="w-9 h-9 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200">
                             <FiUser size={18} />
                         </div>
                         <div>
@@ -104,7 +104,7 @@ export default function ManageEmployeesModal({
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                        className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
                     >
                         <FiX size={18} />
                     </button>
@@ -125,20 +125,20 @@ export default function ManageEmployeesModal({
                                 <button
                                     type="button"
                                     onClick={handleAddEmployee}
-                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                                 >
                                     <FiPlus size={14} /> Add Employee
                                 </button>
                             </div>
 
                             {employees.length === 0 ? (
-                                <div className="text-center py-10 border border-dashed border-zinc-800 rounded-xl bg-zinc-900/20">
+                                <div className="text-center py-10 border border-dashed border-zinc-800 rounded-md bg-zinc-900/20">
                                     <FiUser size={24} className="mx-auto text-zinc-600 mb-2" />
                                     <p className="text-xs text-zinc-400">No employees assigned to this service yet.</p>
                                     <button
                                         type="button"
                                         onClick={handleAddEmployee}
-                                        className="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                        className="mt-3 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 rounded-md text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
                                     >
                                         <FiPlus size={12} /> Add First Employee
                                     </button>
@@ -148,7 +148,7 @@ export default function ManageEmployeesModal({
                                     {employees.map((emp, index) => (
                                         <div
                                             key={index}
-                                            className="grid grid-cols-12 gap-2 items-center bg-zinc-900/60 border border-zinc-800 rounded-xl p-3 hover:border-zinc-700 transition-all"
+                                            className="grid grid-cols-12 gap-2 items-center bg-zinc-900/60 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-all"
                                         >
                                             {/* Employee Name */}
                                             <div className="col-span-5">
@@ -222,7 +222,7 @@ export default function ManageEmployeesModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-md text-xs font-semibold transition-colors cursor-pointer"
                     >
                         Cancel
                     </button>
@@ -230,7 +230,7 @@ export default function ManageEmployeesModal({
                         type="submit"
                         form="manage-employees-form"
                         disabled={saving || loading}
-                        className="px-5 py-2 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-bold rounded-xl text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                        className="px-5 py-2 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-bold rounded-md text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                     >
                         {saving ? (
                             <>

@@ -11,18 +11,18 @@ import ManageEmployeesModal from './components/ManageEmployeesModal';
 import ColorModeToggle from './components/ColorModeToggle';
 
 const STATUS_COLORS = {
-    draft:     'bg-zinc-800/80 text-zinc-300 border-zinc-700/60',
-    sent:      'bg-blue-500/10 text-blue-300 border-blue-500/20 font-medium',
-    approved:  'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 font-semibold',
+    draft: 'bg-zinc-800/80 text-zinc-300 border-zinc-700/60',
+    sent: 'bg-blue-500/10 text-blue-300 border-blue-500/20 font-medium',
+    approved: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20 font-semibold',
     converted: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 font-bold',
     cancelled: 'bg-rose-500/10 text-rose-300 border-rose-500/20',
 };
 
 const TASK_STATUS_COLORS = {
-    pending:     'bg-amber-500/10 text-amber-300 border border-amber-500/20',
+    pending: 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
     in_progress: 'bg-blue-500/10 text-blue-300 border border-blue-500/20 font-medium',
-    paused:      'bg-orange-500/10 text-orange-300 border border-orange-500/20',
-    done:        'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold',
+    paused: 'bg-orange-500/10 text-orange-300 border border-orange-500/20',
+    done: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-semibold',
 };
 
 const THEME_ACCENTS = {
@@ -115,7 +115,7 @@ function KpiCard({ icon: Icon, label, value, sub, accentColor = 'indigo' }) {
     return (
         <div className="relative rounded-2xl p-5 overflow-hidden border border-zinc-800/80 bg-[#0e0e12] transition-all">
             <div className="flex items-start justify-between mb-3">
-                <div className={`p-2.5 rounded-xl border ${iconCls}`}>
+                <div className={`p-2.5 rounded-md border ${iconCls}`}>
                     <Icon className="w-5 h-5" />
                 </div>
             </div>
@@ -176,7 +176,7 @@ function AreaChart({ data, strokeColor = '#6366f1' }) {
         i === 0 ? `M ${p.x},${p.y}` : `${acc} L ${p.x},${p.y}`
     ), '');
 
-    const areaD = points.length > 0 
+    const areaD = points.length > 0
         ? `${pathD} L ${points[points.length - 1].x},${paddingTop + chartHeight} L ${points[0].x},${paddingTop + chartHeight} Z`
         : '';
 
@@ -270,9 +270,9 @@ export default function ServicePortalDashboard({ params }) {
                         <div className="h-4 w-80 bg-zinc-800/60 rounded-md" />
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-28 bg-zinc-800 rounded-xl" />
-                        <div className="h-10 w-32 bg-zinc-800 rounded-xl" />
-                        <div className="h-10 w-36 bg-indigo-600/40 rounded-xl" />
+                        <div className="h-10 w-28 bg-zinc-800 rounded-md" />
+                        <div className="h-10 w-32 bg-zinc-800 rounded-md" />
+                        <div className="h-10 w-36 bg-indigo-600/40 rounded-md" />
                     </div>
                 </div>
 
@@ -280,7 +280,7 @@ export default function ServicePortalDashboard({ params }) {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="p-5 bg-[#0e0e12] border border-zinc-800/80 rounded-2xl space-y-3">
-                            <div className="w-10 h-10 rounded-xl bg-zinc-800" />
+                            <div className="w-10 h-10 rounded-md bg-zinc-800" />
                             <div className="h-7 w-32 bg-zinc-800 rounded" />
                             <div className="h-3 w-24 bg-zinc-800/60 rounded" />
                         </div>
@@ -295,7 +295,7 @@ export default function ServicePortalDashboard({ params }) {
                                 <div className="h-4 w-44 bg-zinc-800 rounded" />
                                 <div className="h-3 w-20 bg-zinc-800/60 rounded" />
                             </div>
-                            <div className="h-32 bg-zinc-900/60 rounded-xl" />
+                            <div className="h-32 bg-zinc-900/60 rounded-md" />
                         </div>
                     ))}
                 </div>
@@ -310,7 +310,7 @@ export default function ServicePortalDashboard({ params }) {
                             </div>
                             <div className="space-y-3">
                                 {[...Array(4)].map((_, j) => (
-                                    <div key={j} className="h-12 bg-zinc-900/60 rounded-xl" />
+                                    <div key={j} className="h-12 bg-zinc-900/60 rounded-md" />
                                 ))}
                             </div>
                         </div>
@@ -328,7 +328,7 @@ export default function ServicePortalDashboard({ params }) {
                     <p className="text-xs text-zinc-400 mb-4">{error}</p>
                     <button
                         onClick={loadData}
-                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-semibold"
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-md text-xs font-semibold"
                     >
                         Retry
                     </button>
@@ -361,7 +361,7 @@ export default function ServicePortalDashboard({ params }) {
 
                     <button
                         onClick={() => setManageEmpOpen(true)}
-                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer ${theme.btnSecondary}`}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-xs font-semibold cursor-pointer ${theme.btnSecondary}`}
                     >
                         <FiUsers className="w-4 h-4 text-indigo-400" />
                         Employees ({employeesCount})
@@ -369,7 +369,7 @@ export default function ServicePortalDashboard({ params }) {
 
                     <Link
                         href={`/services/${id}/portal/quotations/new`}
-                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold ${theme.btnPrimary}`}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-xs font-semibold ${theme.btnPrimary}`}
                     >
                         <FiPlus className="w-4 h-4" />
                         New Quotation
@@ -462,7 +462,7 @@ export default function ServicePortalDashboard({ params }) {
                                 <Link
                                     key={q.id}
                                     href={`/services/${id}/portal/quotations/${q.id}`}
-                                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-all group"
+                                    className="flex items-center justify-between p-3 rounded-md bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-all group"
                                 >
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -506,7 +506,7 @@ export default function ServicePortalDashboard({ params }) {
                             {recentTasks.slice(0, 5).map(t => (
                                 <div
                                     key={t.id}
-                                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80"
+                                    className="flex items-center justify-between p-3 rounded-md bg-zinc-900/60 border border-zinc-800/80"
                                 >
                                     <div className="min-w-0 pr-3">
                                         <div className="flex items-center gap-2">
