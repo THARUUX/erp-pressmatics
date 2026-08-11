@@ -4,7 +4,7 @@ import pool from '@/lib/db';
 export async function GET() {
     try {
         const [rows] = await pool.execute(`
-            SELECT s.id AS service_id, s.name AS service_name, s.description AS service_description,
+            SELECT s.id AS service_id, s.name AS service_name, s.description AS service_description, s.is_common,
                    se.id AS employee_id, se.employee_name, se.default_rate_unit, se.rate
             FROM services s
             LEFT JOIN service_employees se ON s.id = se.service_id
@@ -18,6 +18,7 @@ export async function GET() {
                     id: r.service_id,
                     name: r.service_name,
                     description: r.service_description || '',
+                    is_common: !!r.is_common,
                     employees: []
                 };
             }
@@ -42,7 +43,7 @@ export async function GET() {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { name, description, employees = [] } = body;
+        const { name, description, is_common, employees = [] } = body;
 
         if (!name) {
             return NextResponse.json({ error: 'Service name is required' }, { status: 400 });
@@ -53,8 +54,8 @@ export async function POST(req) {
             await connection.beginTransaction();
 
             const [res] = await connection.execute(
-                'INSERT INTO services (name, description) VALUES (?, ?)',
-                [name, description || null]
+                'INSERT INTO services (name, description, is_common) VALUES (?, ?, ?)',
+                [name, description || null, is_common ? 1 : 0]
             );
             const serviceId = res.insertId;
 

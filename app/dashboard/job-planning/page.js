@@ -95,7 +95,6 @@ function JobPlanningPageInner() {
         { key: 'job_weekly', label: 'Job Weekly Planner',  icon: FiCalendar },
         { key: 'machine',    label: 'Machine Planning',     icon: FiCpu },
         { key: 'finishing',  label: 'Finishing Planning',   icon: FiActivity },
-        { key: 'services',   label: 'Services Planning',    icon: FiLayers },
         { key: 'employee',   label: 'Employee Planning',    icon: FiUsers },
         { key: 'analytics',  label: 'Analytics',            icon: FiTrendingUp },
     ];
@@ -179,13 +178,38 @@ function JobPlanningPageInner() {
 
             {/* ── Content ── */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '80px 0' }}>
-                    <div style={{
-                        width: 40, height: 40, borderRadius: '50%',
-                        border: `2px solid ${G.border}`, borderTop: `2px solid ${G.muted}`,
-                        margin: '0 auto 16px', animation: 'spin 0.9s linear infinite',
-                    }} />
-                    <p style={{ color: G.subtle, fontSize: 13 }}>Loading production data…</p>
+                <div className="space-y-6 animate-pulse">
+                    {/* Stats Pills Skeleton */}
+                    <div className="flex gap-3 flex-wrap">
+                        {[...Array(5)].map((_, i) => (
+                            <div key={i} className="h-16 w-36 bg-white/[0.04] backdrop-blur-md border border-white/[0.07] rounded-xl flex flex-col justify-center items-center space-y-1">
+                                <div className="h-5 w-12 bg-white/10 rounded" />
+                                <div className="h-2.5 w-20 bg-white/5 rounded" />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Kanban Columns Skeleton */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2">
+                        {[...Array(4)].map((_, col) => (
+                            <div key={col} className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 space-y-4 min-h-[380px]">
+                                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                    <div className="h-4 w-28 bg-white/15 rounded" />
+                                    <div className="h-5 w-8 bg-white/10 rounded-full" />
+                                </div>
+                                {[...Array(col % 2 === 0 ? 3 : 2)].map((_, card) => (
+                                    <div key={card} className="p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl space-y-3">
+                                        <div className="h-4 w-4/5 bg-white/15 rounded" />
+                                        <div className="h-3 w-1/2 bg-white/10 rounded" />
+                                        <div className="flex justify-between items-center pt-2">
+                                            <div className="h-3 w-20 bg-white/10 rounded" />
+                                            <div className="h-6 w-16 bg-white/10 rounded-lg" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : error ? (
                 <div style={{
@@ -269,10 +293,7 @@ function JobPlanningPageInner() {
                         </div>
                     )}
 
-                    {/* Services Planning */}
-                    {tab === 'services' && (
-                        <ServicesPlanning />
-                    )}
+
 
                     {/* Employee Planning */}
                     {tab === 'employee' && (

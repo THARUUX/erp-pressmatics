@@ -3,8 +3,9 @@
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel, flexRender } from '@tanstack/react-table';
-import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiActivity, FiClock, FiBarChart2, FiUsers, FiCpu, FiChevronUp, FiChevronDown, FiZap } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSearch, FiEdit2, FiX, FiActivity, FiClock, FiBarChart2, FiUsers, FiCpu, FiChevronUp, FiChevronDown, FiZap, FiExternalLink } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
@@ -59,6 +60,7 @@ export default function MachinesPage() {
         make_ready_minutes: 0,
         setup_minutes_per_plate: 0,
         shift_limit: 8,
+        is_common: false,
     });
 
     useEffect(() => {
@@ -171,6 +173,7 @@ export default function MachinesPage() {
             make_ready_minutes: item.make_ready_minutes || 0,
             setup_minutes_per_plate: item.setup_minutes_per_plate || 0,
             shift_limit: item.shift_limit || 8,
+            is_common: !!item.is_common,
         });
         setShowFormModal(true);
     };
@@ -197,6 +200,7 @@ export default function MachinesPage() {
             make_ready_minutes: 0,
             setup_minutes_per_plate: 0,
             shift_limit: 8,
+            is_common: false,
         });
     };
 
@@ -258,10 +262,16 @@ export default function MachinesPage() {
             header: 'Machine Name',
             cell: ({ row }) => {
                 const item = row.original;
-                const badgeClass = TYPE_BADGES[item.type] || 'bg-white/10 text-white/70 border-white/20';
                 return (
                     <div>
-                        <div className="font-bold text-white text-[14px]">{item.name}</div>
+                        <div className="font-bold text-white text-[14px] flex items-center gap-2">
+                            {item.name}
+                            {item.is_common ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                                    Shared / Common
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
                 );
             }
@@ -390,6 +400,15 @@ export default function MachinesPage() {
                 const item = row.original;
                 return (
                     <div className="flex justify-end gap-1">
+                        <a
+                            href={`/machines/${item.id}/portal`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 text-indigo-400 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-colors flex items-center gap-1"
+                            title="Open Machine Shop-Floor Portal"
+                        >
+                            <FiExternalLink className="w-4 h-4" />
+                        </a>
                         <button onClick={() => openPerf(item)}
                             className="p-2 text-white/40 hover:text-white/80 bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] rounded-lg transition-colors" title="Performance Analytics">
                             <FiBarChart2 className="w-4 h-4" />
@@ -425,12 +444,20 @@ export default function MachinesPage() {
                     <h1 className="text-3xl font-extrabold tracking-tight mb-2">Machines</h1>
                     <p className="text-gray-400 text-sm">Manage press machines, speeds, plate assignments and shifts</p>
                 </div>
-                <button
-                    onClick={() => { resetForm(); setIsEditing(false); setShowFormModal(true); }}
-                    className="flex items-center gap-2 bg-white hover:bg-gray-200 text-black px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
-                >
-                    <FiPlus /> Add Machine
-                </button>
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/dashboard/common-portal/machines"
+                        className="flex items-center gap-2 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
+                    >
+                        <FiCpu /> Shared Machines Portal
+                    </Link>
+                    <button
+                        onClick={() => { resetForm(); setIsEditing(false); setShowFormModal(true); }}
+                        className="flex items-center gap-2 bg-white hover:bg-gray-200 text-black px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
+                    >
+                        <FiPlus /> Add Machine
+                    </button>
+                </div>
             </header>
 
             {/* Filters Row */}
@@ -750,6 +777,21 @@ export default function MachinesPage() {
                                         placeholder="Select Teams..."
                                     />
                                 </div>
+                            </div>
+
+                            <div className="border-t border-white/5 pt-4">
+                                <label className="flex items-center gap-3 cursor-pointer bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl hover:bg-purple-500/15 transition-all">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.is_common}
+                                        onChange={e => setFormData(prev => ({ ...prev, is_common: e.target.checked }))}
+                                        className="w-4 h-4 rounded border-white/20 bg-black/40 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-purple-300">Shared / Common Machine</div>
+                                        <div className="text-[11px] text-gray-400">Available across both Company 1 and Company 2 in the Common Machine Portal</div>
+                                    </div>
+                                </label>
                             </div>
 
                             <div className="border-t border-white/10 pt-4 flex justify-end gap-2">

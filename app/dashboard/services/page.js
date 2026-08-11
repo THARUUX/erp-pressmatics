@@ -19,6 +19,7 @@ export default function ServicesPage() {
     // Form State
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [isCommon, setIsCommon] = useState(false);
     const [employees, setEmployees] = useState([]);
 
     const fetchServices = async () => {
@@ -46,6 +47,7 @@ export default function ServicesPage() {
         setEditingService(null);
         setName('');
         setDescription('');
+        setIsCommon(false);
         setEmployees([{ employee_name: '', default_rate_unit: 'per hour', rate: 0 }]);
         setShowModal(true);
     };
@@ -54,6 +56,7 @@ export default function ServicesPage() {
         setEditingService(service);
         setName(service.name);
         setDescription(service.description);
+        setIsCommon(!!service.is_common);
         setEmployees(service.employees.length > 0 ? [...service.employees] : [{ employee_name: '', default_rate_unit: 'per hour', rate: 0 }]);
         setShowModal(true);
     };
@@ -104,6 +107,7 @@ export default function ServicesPage() {
         const payload = {
             name,
             description,
+            is_common: isCommon,
             employees: validEmployees.map(emp => ({
                 employee_name: emp.employee_name,
                 default_rate_unit: emp.default_rate_unit,
@@ -147,12 +151,20 @@ export default function ServicesPage() {
                         Configure business services and employee billing rates
                     </p>
                 </div>
-                <button
-                    onClick={openCreateModal}
-                    className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors"
-                >
-                    <FiPlus className="w-4 h-4" /> New Service
-                </button>
+                <div className="flex items-center gap-3">
+                    <Link
+                        href="/dashboard/common-portal/services"
+                        className="flex items-center gap-2 bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/30 text-indigo-300 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    >
+                        <FiLayers className="w-4 h-4" /> Shared Services Portal
+                    </Link>
+                    <button
+                        onClick={openCreateModal}
+                        className="flex items-center gap-2 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors"
+                    >
+                        <FiPlus className="w-4 h-4" /> New Service
+                    </button>
+                </div>
             </header>
 
             {/* List */}
@@ -178,7 +190,16 @@ export default function ServicesPage() {
                         >
                             <div>
                                 <div className="flex justify-between items-start gap-4 mb-2">
-                                    <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors">{service.name}</h3>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors flex items-center gap-2">
+                                            {service.name}
+                                            {service.is_common ? (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                                                    Shared / Common
+                                                </span>
+                                            ) : null}
+                                        </h3>
+                                    </div>
                                     <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={() => openEditModal(service)}
@@ -253,6 +274,18 @@ export default function ServicesPage() {
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-white/30 placeholder-gray-600 resize-none"
                                     />
                                 </div>
+                                <label className="flex items-center gap-3 cursor-pointer bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl hover:bg-purple-500/15 transition-all">
+                                    <input
+                                        type="checkbox"
+                                        checked={isCommon}
+                                        onChange={e => setIsCommon(e.target.checked)}
+                                        className="w-4 h-4 rounded border-white/20 bg-black/40 text-purple-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    />
+                                    <div>
+                                        <div className="text-xs font-bold text-purple-300">Shared / Common Service</div>
+                                        <div className="text-[11px] text-gray-400">Available across both Company 1 and Company 2 in the Service Portal</div>
+                                    </div>
+                                </label>
                             </div>
 
                             {/* Employees Rates Setup */}

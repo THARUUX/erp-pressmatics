@@ -32,7 +32,7 @@ export async function PUT(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { name, description, employees = [] } = body;
+        const { name, description, is_common, employees = [] } = body;
 
         if (!name) {
             return NextResponse.json({ error: 'Service name is required' }, { status: 400 });
@@ -43,8 +43,8 @@ export async function PUT(req, { params }) {
             await connection.beginTransaction();
 
             await connection.execute(
-                'UPDATE services SET name = ?, description = ? WHERE id = ?',
-                [name, description || null, id]
+                'UPDATE services SET name = ?, description = ?, is_common = ? WHERE id = ?',
+                [name, description || null, is_common ? 1 : 0, id]
             );
 
             // Sync employees: delete existing ones and re-insert

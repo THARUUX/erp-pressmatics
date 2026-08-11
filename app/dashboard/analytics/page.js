@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
     FiRefreshCw, FiArrowRight, FiTrendingUp, FiDollarSign, FiFileText,
-    FiShoppingCart, FiBarChart2, FiActivity, FiClock, FiX, FiUsers,
+    FiShoppingCart, FiBarChart2, FiActivity, FiClock, FiX, FiUsers, FiUser, FiEye, FiCheckCircle,
     FiPackage, FiAlertTriangle, FiDownload, FiCpu, FiLayers, FiSearch,
     FiPlus, FiTrash2, FiZap
 } from 'react-icons/fi';
@@ -90,7 +90,7 @@ function SectionCard({ title, sub, href, hrefLabel, children }) {
                     <h3 className="text-sm font-semibold text-white">{title}</h3>
                     {sub && <p className="text-xs text-white/30 mt-0.5">{sub}</p>}
                 </div>
-                {href && <Link href={href} className="flex items-center gap-1 text-xs text-white/30 hover:text-white/70 transition-colors">{hrefLabel || 'View all'} <FiArrowRight className="w-3 h-3" /></Link>}
+                {href && <Link href={href} className="flex items-center gap-1 text-xs text-white/30 hover:text-white/70 transition-colors">{hrefLabel || "View all"} <FiArrowRight className="w-3 h-3" /></Link>}
             </div>
             {children}
         </div>
@@ -117,6 +117,13 @@ function getPlanDateRange(type, customStart, customEnd) {
     };
 
     switch (type) {
+        case 'today':
+            return { startDate: format(end), endDate: format(end) };
+        case 'yesterday': {
+            const prev = new Date();
+            prev.setDate(end.getDate() - 1);
+            return { startDate: format(prev), endDate: format(prev) };
+        }
         case 'last_7_days':
             start.setDate(end.getDate() - 7);
             return { startDate: format(start), endDate: format(end) };
@@ -213,6 +220,40 @@ export default function AnalyticsPage() {
     const [selectedExplorerTaskId, setSelectedExplorerTaskId] = useState(null);
     const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
     const [selectedTaskDetailLoading, setSelectedTaskDetailLoading] = useState(false);
+
+    
+    // Employee Performance States
+    const [empPerfDurationType, setEmpPerfDurationType] = useState("last_30_days");
+    const [empPerfCustomStart, setEmpPerfCustomStart] = useState("");
+    const [empPerfCustomEnd, setEmpPerfCustomEnd] = useState("");
+    const [empPerfSearchQuery, setEmpPerfSearchQuery] = useState("");
+    const [empPerfData, setEmpPerfData] = useState(null);
+    const [empPerfLoading, setEmpPerfLoading] = useState(false);
+    const [selectedEmpName, setSelectedEmpName] = useState(null);
+    const [taskModalId, setTaskModalId] = useState(null);
+    const [taskModalData, setTaskModalData] = useState(null);
+    const [taskModalLoading, setTaskModalLoading] = useState(false);
+
+    const openTaskModal = useCallback(async (taskId) => {
+        if (!taskId) return;
+        setTaskModalId(taskId);
+        setTaskModalLoading(true);
+        setTaskModalData(null);
+        try {
+            const res = await fetch(`/api/analytics/task-explorer?taskId=${taskId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setTaskModalData(data);
+            }
+        } catch (e) {
+            console.error("Failed to load task modal details:", e);
+        } finally {
+            setTaskModalLoading(false);
+        }
+    }, []);
+
+    const [empModalData, setEmpModalData] = useState(null);
+    const [empModalLoading, setEmpModalLoading] = useState(false);
 
     const activeExplorerResList = explorerResType === 'machine' ? resList.machines : resList.finishings;
     const filteredExplorerResList = (activeExplorerResList || []).filter(item =>
@@ -508,6 +549,55 @@ export default function AnalyticsPage() {
         setPerfMachine(m);
         setDetailsTab('performance');
     }, []);
+
+    
+    const loadEmployeePerformance = useCallback(async () => {
+        setEmpPerfLoading(true);
+        try {
+            const { startDate, endDate } = getPlanDateRange(empPerfDurationType, empPerfCustomStart, empPerfCustomEnd);
+            const params = new URLSearchParams();
+            if (startDate && endDate) {
+                params.set("startDate", startDate);
+                params.set("endDate", endDate);
+            }
+            const res = await fetch(`/api/analytics/employee-performance?${params.toString()}`);
+            const data = await res.json();
+            setEmpPerfData(data);
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to load employee performance");
+        } finally {
+            setEmpPerfLoading(false);
+        }
+    }, [empPerfDurationType, empPerfCustomStart, empPerfCustomEnd]);
+
+    useEffect(() => {
+        if (tab === "production" && prodTab === "employee-performance") {
+            loadEmployeePerformance();
+        }
+    }, [tab, prodTab, empPerfDurationType, empPerfCustomStart, empPerfCustomEnd, loadEmployeePerformance]);
+
+    const openEmpDetail = async (empName) => {
+        setSelectedEmpName(empName);
+        setEmpModalLoading(true);
+        try {
+            const { startDate, endDate } = getPlanDateRange(empPerfDurationType, empPerfCustomStart, empPerfCustomEnd);
+            const params = new URLSearchParams();
+            params.set("employeeName", empName);
+            if (startDate && endDate) {
+                params.set("startDate", startDate);
+                params.set("endDate", endDate);
+            }
+            const res = await fetch(`/api/analytics/employee-performance?${params.toString()}`);
+            const data = await res.json();
+            setEmpModalData(data.selectedEmployeeDetail);
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to load employee detail");
+        } finally {
+            setEmpModalLoading(false);
+        }
+    };
 
     const refreshPerfData = async (machineId) => {
         try {
@@ -1304,6 +1394,12 @@ export default function AnalyticsPage() {
                         Machine Performance Overview
                     </button>
                     <button
+                        onClick={() => setProdTab('employee-performance')}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${prodTab === 'employee-performance' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
+                    >
+                        Employee Performance Report
+                    </button>
+                    <button
                         onClick={() => setProdTab('task-details')}
                         className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${prodTab === 'task-details' ? 'bg-white/[0.08] text-white border border-white/[0.10]' : 'text-white/35 hover:text-white/60'}`}
                     >
@@ -2064,7 +2160,7 @@ export default function AnalyticsPage() {
                                                     {p ? (<>
                                                         <div className="grid grid-cols-2 gap-2 mb-3">
                                                             <div><p className="text-[9px] font-bold text-white/20 uppercase tracking-wider">Completed</p><p className="text-lg font-bold text-white mt-0.5">{p.completed}</p></div>
-                                                            <div><p className="text-[9px] font-bold text-white/20 uppercase tracking-wider">Avg Time</p><p className="text-lg font-bold text-white mt-0.5">{p.avg_active_mins ? `${p.avg_active_mins}m` : '—'}</p></div>
+                                                            <div><p className="text-[9px] font-bold text-white/20 uppercase tracking-wider">Avg Time</p><p className="text-lg font-bold text-white mt-0.5">{formatMins(p.avg_active_mins)}</p></div>
                                                         </div>
                                                         <div>
                                                             <div className="flex justify-between text-[10px] text-white/25 mb-1"><span>{p.completed}/{p.total_tasks} tasks</span><span>{pct2}%</span></div>
@@ -2092,6 +2188,210 @@ export default function AnalyticsPage() {
                                         )}
                                     </div>
                                 </div> */}
+                            </div>
+                        </div>
+                    </SectionCard>
+                )}
+
+                {prodTab === 'employee-performance' && (
+                    <SectionCard title="Employee Performance Report" sub="Track operator productivity, work session durations, completed tasks, and efficiency metrics across date ranges.">
+                        <div className="p-5 space-y-6">
+                            {/* Filter Controls Header */}
+                            <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Period:</span>
+                                        <select
+                                            value={empPerfDurationType}
+                                            onChange={(e) => setEmpPerfDurationType(e.target.value)}
+                                            className="bg-black/40 border border-white/[0.10] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/30"
+                                        >
+                                            <option value="last_30_days">Last 30 Days</option>
+                                            <option value="last_7_days">Last 7 Days</option>
+                                            <option value="today">Today</option>
+                                            <option value="yesterday">Yesterday</option>
+                                            <option value="this_month">This Month</option>
+                                            <option value="all_time">All Time</option>
+                                            <option value="custom">Custom Range</option>
+                                        </select>
+                                    </div>
+
+                                    {empPerfDurationType === 'custom' && (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="date"
+                                                value={empPerfCustomStart}
+                                                onChange={(e) => setEmpPerfCustomStart(e.target.value)}
+                                                className="bg-black/40 border border-white/[0.10] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                                            />
+                                            <span className="text-xs text-white/30">to</span>
+                                            <input
+                                                type="date"
+                                                value={empPerfCustomEnd}
+                                                onChange={(e) => setEmpPerfCustomEnd(e.target.value)}
+                                                className="bg-black/40 border border-white/[0.10] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <FiSearch className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search operator..."
+                                            value={empPerfSearchQuery}
+                                            onChange={(e) => setEmpPerfSearchQuery(e.target.value)}
+                                            className="bg-black/40 border border-white/[0.10] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-white/20 focus:outline-none w-48"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={loadEmployeePerformance}
+                                        className="p-2 bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.08] rounded-xl text-white/70 hover:text-white transition-all cursor-pointer"
+                                        title="Refresh Employee Data"
+                                    >
+                                        <FiRefreshCw className={`w-3.5 h-3.5 ${empPerfLoading ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Top Summary KPI Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/[0.05] rounded-xl text-white/60"><FiUsers className="w-4 h-4" /></div>
+                                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Active Operators</p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-white tracking-tight">{empPerfData?.stats?.totalActiveOperators || 0}</p>
+                                    <p className="text-[11px] text-white/30 mt-1">Operators with activity</p>
+                                </div>
+
+                                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/[0.05] rounded-xl text-white/60"><FiClock className="w-4 h-4" /></div>
+                                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Total Work Time</p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-white tracking-tight">
+                                        {formatMins((empPerfData?.stats?.totalLoggedSeconds || 0) / 60)}
+                                    </p>
+                                    <p className="text-[11px] text-white/30 mt-1">Logged work sessions</p>
+                                </div>
+
+                                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/[0.05] rounded-xl text-white/60"><FiCheckCircle className="w-4 h-4" /></div>
+                                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Completed Tasks</p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-white tracking-tight">{empPerfData?.stats?.totalCompletedTasks || 0}</p>
+                                    <p className="text-[11px] text-white/30 mt-1">Finished job tasks</p>
+                                </div>
+
+                                <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="p-2 bg-white/[0.05] rounded-xl text-white/60"><FiZap className="w-4 h-4" /></div>
+                                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Team Efficiency</p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-white tracking-tight">
+                                        {empPerfData?.stats?.overallEfficiencyPct != null ? `${empPerfData.stats.overallEfficiencyPct}%` : '—'}
+                                    </p>
+                                    <p className="text-[11px] text-white/30 mt-1">Est. vs Actual time ratio</p>
+                                </div>
+                            </div>
+
+                            {/* Operator Leaderboard Table */}
+                            <div className="bg-black/40 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden">
+                                <div className="px-5 py-4 border-b border-white/[0.06]">
+                                    <h3 className="text-sm font-semibold text-white">Operator Productivity Leaderboard</h3>
+                                    <p className="text-xs text-white/40 mt-0.5">Click "Inspect Logs" on any employee to view their individual work log history.</p>
+                                </div>
+
+                                {empPerfLoading ? (
+                                    <div className="p-8 space-y-3">
+                                        <Skel h="h-10" />
+                                        <Skel h="h-10" />
+                                        <Skel h="h-10" />
+                                    </div>
+                                ) : !empPerfData?.employees?.length ? (
+                                    <div className="text-center py-12 text-white/30 text-xs">
+                                        No employee activity found for the selected reporting period.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-white/[0.03] text-white/30 uppercase tracking-wider font-semibold border-b border-white/[0.06]">
+                                                <tr>
+                                                    <th className="py-3 px-4">Operator Name</th>
+                                                    <th className="py-3 px-4 text-center">Work Logs</th>
+                                                    <th className="py-3 px-4 text-center">Tasks Completed</th>
+                                                    <th className="py-3 px-4 text-center">Active Work Duration</th>
+                                                    <th className="py-3 px-4 text-center">Est. Output vs. Act. Output</th>
+                                                    <th className="py-3 px-4 text-center">Est. Time vs Act. Time</th>
+                                                    <th className="py-3 px-4 text-center">Efficiency Rating</th>
+                                                    <th className="py-3 px-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/[0.04]">
+                                                {empPerfData.employees
+                                                    .filter(e => e.name.toLowerCase().includes(empPerfSearchQuery.toLowerCase()))
+                                                    .map(emp => (
+                                                        <tr key={emp.name} className="hover:bg-white/[0.02] transition-colors">
+                                                            <td className="py-3.5 px-4 font-semibold text-white">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-6 h-6 rounded-full bg-white/[0.08] flex items-center justify-center text-white/60 text-xs">
+                                                                        <FiUser className="w-3 h-3" />
+                                                                    </div>
+                                                                    <span>{emp.name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center text-white/60 font-mono">
+                                                                {emp.logCount} logs
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                <span className="px-2 py-0.5 bg-white/[0.06] border border-white/[0.08] rounded-md font-mono text-white/80">
+                                                                    {emp.completedTasks}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center font-mono text-white">
+                                                                {formatMins(emp.loggedSeconds > 0 ? Math.round(emp.loggedSeconds / 60) : emp.actMinsRound)}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center text-white/70 font-mono">
+                                                                {emp.estOutput > 0 || emp.actOutput > 0 ? `${fmt(emp.estOutput)} / ${fmt(emp.actOutput)}` : "—"}
+                                                                {emp.wastedOutput > 0 && <span className="text-[10px] text-amber-400 block">(${fmt(emp.wastedOutput)} waste)</span>}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center text-white/50 font-mono">
+                                                                {formatMins(emp.estMins)} / {formatMins(emp.actMinsRound)}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                {emp.efficiencyPct != null ? (
+                                                                    <span className={`px-2.5 py-0.5 rounded-full font-mono font-semibold text-[11px] ${
+                                                                        emp.efficiencyPct >= 100
+                                                                            ? 'bg-white/20 text-white border border-white/30'
+                                                                            : emp.efficiencyPct >= 75
+                                                                            ? 'bg-white/10 text-white/80 border border-white/20'
+                                                                            : 'bg-white/[0.05] text-white/50 border border-white/10'
+                                                                    }`}>
+                                                                        {emp.efficiencyPct}%
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-white/20">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-right">
+                                                                <button
+                                                                    onClick={() => openEmpDetail(emp.name)}
+                                                                    className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.10] rounded-xl text-white text-xs transition-all flex items-center gap-1.5 ml-auto cursor-pointer"
+                                                                >
+                                                                    <FiEye className="w-3.5 h-3.5" />
+                                                                    <span>Inspect Logs</span>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </SectionCard>
@@ -2900,7 +3200,7 @@ export default function AnalyticsPage() {
                                         </div>
                                     )}
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                        {[['Total Tasks', s.total_tasks, 'assigned'], ['Completed', s.completed, `${s.total_tasks > 0 ? Math.round(s.completed / s.total_tasks * 100) : 0}% done`], ['Avg Active', s.avg_active_mins ? `${s.avg_active_mins}m` : '—', 'started → done'], ['Total Hours', s.total_active_mins ? `${Math.round(s.total_active_mins / 60)}h` : '—', 'machine hours']].map(([label, value, sub]) => (
+                                        {[['Total Tasks', s.total_tasks, 'assigned'], ['Completed', s.completed, `${s.total_tasks > 0 ? Math.round(s.completed / s.total_tasks * 100) : 0}% done`], ['Avg Active', formatMins(s.avg_active_mins), 'started → done'], ['Total Time', formatMins(s.total_active_mins), 'machine time']].map(([label, value, sub]) => (
                                             <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
                                                 <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-2">{label}</p>
                                                 <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
@@ -2934,7 +3234,7 @@ export default function AnalyticsPage() {
                                                     <div key={t.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                                                         <div className="min-w-0"><p className="text-sm font-medium text-white/70 truncate">{t.name}</p><p className="text-[11px] text-white/25 mt-0.5">{t.order_code} · {t.customer_name}</p></div>
                                                         <div className="text-right shrink-0">
-                                                            {t.active_mins != null ? <p className="text-xs font-mono text-white/50">{t.active_mins}m active</p> : <p className="text-xs text-white/20">—</p>}
+                                                            {t.active_mins != null ? <p className="text-xs font-mono text-white/50">{formatMins(t.active_mins)} active</p> : <p className="text-xs text-white/20">—</p>}
                                                             <p className="text-[10px] text-white/20 mt-0.5">{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ''}</p>
                                                         </div>
                                                     </div>
@@ -2948,6 +3248,255 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Task Detail Inspector Modal */}
+            {taskModalId && (
+                <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                        {/* Modal Header */}
+                        <div className="p-5 border-b border-white/[0.08] flex items-center justify-between">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+                                    <FiActivity className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                            {taskModalData?.task?.order_code ? `SO: ${taskModalData.task.order_code}` : "Unassigned Task"}
+                                        </span>
+                                        {taskModalData?.task?.customer_name && (
+                                            <span className="text-xs text-white/50 truncate font-medium">
+                                                {taskModalData.task.customer_name}
+                                            </span>
+                                        )}
+                                        {taskModalData?.task?.status && getStatusBadge(taskModalData.task.status)}
+                                    </div>
+                                    <h3 className="text-base font-bold text-white mt-1 truncate">
+                                        {taskModalData?.task?.name || "Loading Task Specifications..."}
+                                    </h3>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => { setTaskModalId(null); setTaskModalData(null); }}
+                                className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-white/60 hover:text-white transition-colors cursor-pointer shrink-0 ml-2"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            {taskModalLoading ? (
+                                <div className="space-y-4 py-8">
+                                    <Skel h="h-12" />
+                                    <Skel h="h-12" />
+                                    <Skel h="h-12" />
+                                </div>
+                            ) : taskModalData?.task ? (
+                                <>
+                                    {/* Task Specifications Grid */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Est. vs Act. Time</p>
+                                            <p className="text-sm font-bold text-white font-mono mt-1">
+                                                {formatMins(taskModalData.task.estimated_minutes)} / {taskModalData.task.actual_minutes != null ? formatMins(taskModalData.task.actual_minutes) : "—"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Est. Output vs Act. Produced</p>
+                                            <p className="text-sm font-bold text-white font-mono mt-1">
+                                                {taskModalData.task.sheet_count || taskModalData.task.quantity ? fmt(parseFloat(taskModalData.task.sheet_count || taskModalData.task.quantity)) : "—"} / {taskModalData.task.actual_sheets_printed ? fmt(parseFloat(taskModalData.task.actual_sheets_printed)) : (taskModalData.task.status === "done" ? fmt(parseFloat(taskModalData.task.quantity || 0)) : "—")}
+                                            </p>
+                                            {parseFloat(taskModalData.task.actual_sheets_wasted) > 0 && (
+                                                <p className="text-[10px] text-amber-400 font-mono">Wasted: {fmt(parseFloat(taskModalData.task.actual_sheets_wasted))}</p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Machine / Resource</p>
+                                            <p className="text-sm font-bold text-white truncate mt-1">
+                                                {taskModalData.task.machine_name || "Finishing / Service"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Assigned Operator</p>
+                                            <p className="text-sm font-bold text-white truncate mt-1">
+                                                {taskModalData.task.completed_by || taskModalData.task.assigned_to || "Unassigned"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Task Description */}
+                                    {taskModalData.task.description && (
+                                        <div className="bg-black/30 border border-white/[0.05] rounded-xl p-3.5">
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1">Task Description / Instructions</p>
+                                            <p className="text-xs text-white/80 leading-relaxed">{taskModalData.task.description}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Downtime Flag */}
+                                    {taskModalData.task.downtime_minutes > 0 && (
+                                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 flex items-start gap-3">
+                                            <FiAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-xs font-bold text-amber-300">Recorded Machine Downtime: {taskModalData.task.downtime_minutes}m</p>
+                                                {taskModalData.task.downtime_reason && (
+                                                    <p className="text-xs text-amber-200/70 mt-0.5">{taskModalData.task.downtime_reason}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Work Session Timeline */}
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Work Log Session Timeline</h4>
+                                        {!taskModalData.logs?.length ? (
+                                            <div className="text-center py-6 text-xs text-white/30 italic bg-black/20 border border-white/[0.05] rounded-xl">
+                                                No active timer work logs recorded for this task.
+                                            </div>
+                                        ) : (
+                                            <div className="bg-black/30 border border-white/[0.06] rounded-xl p-4 space-y-3">
+                                                {taskModalData.logs.map((log, idx) => {
+                                                    const durMins = Math.round((log.duration_seconds || 0) / 60);
+                                                    return (
+                                                        <div key={log.id || idx} className="flex items-center justify-between text-xs py-2 border-b border-white/[0.04] last:border-0">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                                                                <div>
+                                                                    <p className="font-semibold text-white">{log.employee_name || "Operator"}</p>
+                                                                    <p className="text-[10px] text-white/35 font-mono">
+                                                                        {log.started_at ? new Date(log.started_at).toLocaleString() : "—"} {log.stopped_at ? `– ${new Date(log.stopped_at).toLocaleTimeString()}` : "(Active Now)"}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <span className="font-mono font-bold text-white">{durMins}m</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="text-center py-8 text-white/30 text-xs">Task details not found.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Employee Performance Work Log Detail Modal */}
+            {selectedEmpName && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-white/[0.08] flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-white/[0.06] rounded-xl text-white">
+                                    <FiUser className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">{selectedEmpName}</h3>
+                                    <p className="text-xs text-white/40">Work Session & Task Execution Log History</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => { setSelectedEmpName(null); setEmpModalData(null); }}
+                                className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-white/60 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            {empModalLoading ? (
+                                <div className="space-y-4 py-8">
+                                    <Skel h="h-12" />
+                                    <Skel h="h-12" />
+                                    <Skel h="h-12" />
+                                </div>
+                            ) : empModalData ? (
+                                <>
+                                    {/* Employee Summary Banner */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Logged Work Logs</p>
+                                            <p className="text-xl font-bold text-white mt-1">{empModalData.summary?.logCount || 0}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Tasks Completed</p>
+                                            <p className="text-xl font-bold text-white mt-1">{empModalData.summary?.completedTasks || 0}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Total Active Time</p>
+                                            <p className="text-xl font-bold text-white mt-1">{formatMins(empModalData.summary?.loggedSeconds > 0 ? Math.round(empModalData.summary.loggedSeconds / 60) : empModalData.summary?.actMinsRound)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Est. Output vs Act. Output</p>
+                                            <p className="text-sm font-bold text-white mt-1 font-mono">
+                                                {empModalData.summary?.estOutput > 0 || empModalData.summary?.actOutput > 0 ? `${fmt(empModalData.summary.estOutput)} / ${fmt(empModalData.summary.actOutput)}` : "—"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Efficiency Rating</p>
+                                            <p className="text-xl font-bold text-white mt-1">
+                                                {empModalData.summary?.efficiencyPct != null ? (empModalData.summary.efficiencyPct + "%") : "—"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Work Sessions Table */}
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Recorded Work Sessions</h4>
+                                        {!empModalData.logs?.length ? (
+                                            <div className="text-center py-8 text-white/30 text-xs">
+                                                No individual work logs recorded for this operator in the selected period.
+                                            </div>
+                                        ) : (
+                                            <div className="bg-black/30 border border-white/[0.06] rounded-xl overflow-hidden">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-white/[0.03] text-white/30 uppercase tracking-wider font-semibold border-b border-white/[0.06]">
+                                                        <tr>
+                                                            <th className="py-2.5 px-3">Date / Start Time</th>
+                                                            <th className="py-2.5 px-3">Order / Customer</th>
+                                                            <th className="py-2.5 px-3">Task Name</th>
+                                                            <th className="py-2.5 px-3">Resource / Machine</th>
+                                                            <th className="py-2.5 px-3 text-right">Session Duration</th>
+                                                            <th className="py-2.5 px-3 text-center">Task Detail</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-white/[0.04]">
+                                                        {empModalData.logs.map(log => (
+                                                            <tr key={log.id} onClick={() => openTaskModal(log.task_id)} className="hover:bg-white/[0.06] transition-colors cursor-pointer group" title="Click to view full task details">
+                                                                <td className="py-2.5 px-3 text-white/70 font-mono">
+                                                                    {log.started_at ? new Date(log.started_at).toLocaleString() : "—"}
+                                                                </td>
+                                                                <td className="py-2.5 px-3">
+                                                                    <p className="font-semibold text-white">{log.order_code || "—"}</p>
+                                                                    <p className="text-[10px] text-white/30">{log.customer_name || "—"}</p>
+                                                                </td>
+                                                                <td className="py-2.5 px-3 text-white/80 font-medium">{log.task_name}</td>
+                                                                <td className="py-2.5 px-3 text-white/50">{log.machine_name || "Finishing / Service"}</td>
+                                                                <td className="py-2.5 px-3 text-right font-mono font-bold text-white">
+                                                                    {formatMins(Math.round(log.duration_seconds / 60))}
+                                                                </td>
+                                                                <td className="py-2.5 px-3 text-center">
+                                                                    <button onClick={(e) => { e.stopPropagation(); openTaskModal(log.task_id); }} className="px-2 py-1 bg-white/[0.06] group-hover:bg-white/[0.12] border border-white/[0.08] rounded text-[11px] text-white/70 group-hover:text-white transition-all">View Task</button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

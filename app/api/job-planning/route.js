@@ -24,16 +24,34 @@ function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpre
 // orders includes tasks with machine_id + machine_name
 export async function GET() {
     try {
-        const [employees] = await pool.execute(`SELECT id, name FROM employees`);
-        const [teams] = await pool.execute(`SELECT id, name FROM teams`);
-        let teamMembers = [];
-        try {
-            const [tmRows] = await pool.execute(`SELECT team_id, employee_id FROM team_members`);
-            teamMembers = tmRows;
-        } catch (e) {
-            teamMembers = [];
-        }
+        // Fetch employees, teams, team_members, machines, finishings, and sales orders concurrently in parallel
+        const [
+            [employees],
+            [teams],
+            teamMembersResult,
+            [machinesRaw],
+            [finishingsRaw],
+            [orders]
+        ] = await Promise.all([
+            pool.execute(`SELECT id, name FROM employees`),
+            pool.execute(`SELECT id, name FROM teams`),
+            pool.execute(`SELECT team_id, employee_id FROM team_members`).catch(() => [[]]),
+            pool.execute(`SELECT * FROM machines ORDER BY name ASC`),
+            pool.execute(`SELECT * FROM finishings WHERE machine_id IS NULL OR is_machine = 0 ORDER BY name ASC`),
+            pool.execute(
+                `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id, so.kanban_position,
+                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
+                         FROM quotation_items qi
+                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
+                 FROM sales_orders so
+                 WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
+                    OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
+                 ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
+            )
+        ]);
 
+        const teamMembers = teamMembersResult[0] || [];
         const empMap = new Map(employees.map(e => [e.id, e.name]));
         const teamMap = new Map(teams.map(t => [t.id, t.name]));
 
@@ -57,7 +75,6 @@ export async function GET() {
                 .filter(e => Boolean(e.name));
         };
 
-        const [machinesRaw] = await pool.execute(`SELECT * FROM machines ORDER BY name ASC`);
         const machines = machinesRaw.map(m => {
             let empIds = []; try { empIds = typeof m.assigned_employee_ids === 'string' ? JSON.parse(m.assigned_employee_ids) : (m.assigned_employee_ids || []); } catch {}
             if (!Array.isArray(empIds) || !empIds.length) { if (m.assigned_employee_id) empIds = [parseInt(m.assigned_employee_id)]; else empIds = []; }
@@ -85,23 +102,6 @@ export async function GET() {
             };
         });
 
-        // Fetch all active sales orders, plus completed ones that have assigned machine tasks
-        const [orders] = await pool.execute(
-            `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id, so.kanban_position,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM sales_orders so
-             WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
-                OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
-             ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
-        );
-
-        // Fetch all finishings that do NOT have a machine assigned
-        const [finishingsRaw] = await pool.execute(
-            `SELECT * FROM finishings WHERE machine_id IS NULL OR is_machine = 0 ORDER BY name ASC`
-        );
         const finishings = finishingsRaw.map(f => {
             let empIds = []; try { empIds = typeof f.assigned_employee_ids === 'string' ? JSON.parse(f.assigned_employee_ids) : (f.assigned_employee_ids || []); } catch {}
             if (!Array.isArray(empIds) || !empIds.length) { if (f.assigned_employee_id) empIds = [parseInt(f.assigned_employee_id)]; else empIds = []; }
@@ -186,21 +186,22 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
     if (!tasks || !tasks.length || !orderIds || !orderIds.length) return tasks;
 
     const placeholders = orderIds.map(() => '?').join(',');
-    const [details] = await pool.execute(
-        `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id,
-                m.setup_minutes_per_plate, m.make_ready_minutes
-         FROM quotation_item_details qid
-         JOIN quotation_items qi ON qid.quotation_item_id = qi.id
-         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-         JOIN sales_orders so ON so.quotation_id = qli.quotation_id
-         LEFT JOIN machines m ON qid.machine_id = m.id
-         WHERE so.id IN (${placeholders})`,
-        orderIds
-    );
-
-    let finishings = [];
-    try {
-        const [finRows] = await pool.execute(
+    const [
+        [details],
+        finishingsResult
+    ] = await Promise.all([
+        pool.execute(
+            `SELECT qid.*, qi.quantity AS item_qty, so.id AS sales_order_id,
+                    m.setup_minutes_per_plate, m.make_ready_minutes
+             FROM quotation_item_details qid
+             JOIN quotation_items qi ON qid.quotation_item_id = qi.id
+             JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+             JOIN sales_orders so ON so.quotation_id = qli.quotation_id
+             LEFT JOIN machines m ON qid.machine_id = m.id
+             WHERE so.id IN (${placeholders})`,
+            orderIds
+        ),
+        pool.execute(
             `SELECT qif.*, qi.quantity AS item_qty, so.id AS sales_order_id,
                     m.speed_unit AS machine_speed_unit, m.type AS machine_type
              FROM quotation_item_finishings qif
@@ -210,11 +211,12 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
              LEFT JOIN machines m ON qif.machine_id = m.id
              WHERE so.id IN (${placeholders})`,
             orderIds
-        );
-        finishings = finRows;
-    } catch (e) {
-        console.error('Error fetching finishings in enrichTasks:', e);
-    }
+        ).catch(e => {
+            console.error('Error fetching finishings in enrichTasks:', e);
+            return [[]];
+        })
+    ]);
+    const finishings = finishingsResult[0] || [];
 
     for (const task of tasks) {
         const isOffset = task.name.toLowerCase().includes('offset printing') || (task.machine_type || '').toLowerCase() === 'offset';

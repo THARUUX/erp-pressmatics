@@ -10,7 +10,7 @@ export async function PUT(req, { params }) {
             digital_price_max, digital_price_medium, digital_price_min,
             assigned_employee_id, assigned_team_id,
             assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
-            make_ready_minutes, setup_minutes_per_plate, shift_limit
+            make_ready_minutes, setup_minutes_per_plate, shift_limit, is_common
         } = body;
 
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function PUT(req, { params }) {
                digital_price_max=?, digital_price_medium=?, digital_price_min=?,
                assigned_employee_id=?, assigned_team_id=?,
                assigned_employee_ids=?, assigned_team_ids=?, assigned_helper_ids=?,
-               make_ready_minutes=?, setup_minutes_per_plate=?, shift_limit=?
+               make_ready_minutes=?, setup_minutes_per_plate=?, shift_limit=?, is_common=?
              WHERE id=?`,
             [
                 name,
@@ -52,6 +52,7 @@ export async function PUT(req, { params }) {
                 parseInt(make_ready_minutes) || 0,
                 parseInt(setup_minutes_per_plate) || 0,
                 shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8,
+                is_common ? 1 : 0,
                 id
             ]
         );

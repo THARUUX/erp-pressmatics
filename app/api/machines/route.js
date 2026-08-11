@@ -95,7 +95,7 @@ export async function POST(req) {
             digital_price_max, digital_price_medium, digital_price_min,
             assigned_employee_id, assigned_team_id,
             assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
-            make_ready_minutes, setup_minutes_per_plate, shift_limit
+            make_ready_minutes, setup_minutes_per_plate, shift_limit, is_common
         } = body;
 
         let empIds = Array.isArray(assigned_employee_ids) ? assigned_employee_ids.map(id => parseInt(id)).filter(Boolean) : [];
@@ -115,8 +115,8 @@ export async function POST(req) {
               digital_price_max, digital_price_medium, digital_price_min,
               assigned_employee_id, assigned_team_id,
               assigned_employee_ids, assigned_team_ids, assigned_helper_ids,
-              make_ready_minutes, setup_minutes_per_plate, shift_limit)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              make_ready_minutes, setup_minutes_per_plate, shift_limit, is_common)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name,
                 type,
@@ -134,7 +134,8 @@ export async function POST(req) {
                 JSON.stringify(helperIds),
                 parseInt(make_ready_minutes) || 0,
                 parseInt(setup_minutes_per_plate) || 0,
-                shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8
+                shift_limit !== undefined && shift_limit !== '' ? parseInt(shift_limit) : 8,
+                is_common ? 1 : 0
             ]
         );
 

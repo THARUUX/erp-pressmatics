@@ -43,8 +43,8 @@ export async function GET(req) {
         // Compute summary statistics
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'done').length;
-        const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-        const totalActualMinutes = tasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
+        const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
+        const totalActualMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.actual_minutes) || 0), 0);
 
         return NextResponse.json({
             date: dateStr,
@@ -54,7 +54,14 @@ export async function GET(req) {
                 totalEstimatedMinutes,
                 totalActualMinutes
             },
-            machines: reportData
+            machines: reportData.map(m => ({
+                ...m,
+                tasks: m.tasks.map(t => ({
+                    ...t,
+                    estimated_minutes: t.estimated_minutes != null ? parseFloat(t.estimated_minutes) : null,
+                    actual_minutes: t.actual_minutes != null ? parseFloat(t.actual_minutes) : null,
+                }))
+            }))
         });
     } catch (err) {
         console.error('Production reports GET error:', err);

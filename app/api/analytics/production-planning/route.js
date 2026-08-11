@@ -203,11 +203,8 @@ export async function GET(req) {
             const paramsList = [id];
 
             if (startDate && endDate) {
-                query += ` AND (
-                    (jt.scheduled_date BETWEEN ? AND ?)
-                    OR (jt.scheduled_date IS NULL AND jt.created_at BETWEEN ? AND ?)
-                )`;
-                paramsList.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+                query += ` AND jt.scheduled_date BETWEEN ? AND ?`;
+                paramsList.push(startDate, endDate);
             }
 
             query += ` ORDER BY jt.scheduled_date ASC, jt.id ASC`;
@@ -234,11 +231,8 @@ export async function GET(req) {
             const paramsList = [];
 
             if (startDate && endDate) {
-                query += ` AND (
-                    (jt.scheduled_date BETWEEN ? AND ?)
-                    OR (jt.scheduled_date IS NULL AND jt.created_at BETWEEN ? AND ?)
-                )`;
-                paramsList.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+                query += ` AND jt.scheduled_date BETWEEN ? AND ?`;
+                paramsList.push(startDate, endDate);
             }
 
             query += ` ORDER BY jt.scheduled_date ASC, jt.id ASC`;
@@ -277,14 +271,14 @@ export async function GET(req) {
         const completedRunQty = tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (parseFloat(t.quantity) || 0), 0);
         const uncompletedRunQty = totalRunQty - completedRunQty;
 
-        const totalEstMinutes = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-        const totalActMinutes = tasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
-        const unplannedDuration = tasks.filter(t => !t.scheduled_date).reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-        const uncompletedDuration = tasks.filter(t => t.status !== 'done').reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
+        const totalEstMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
+        const totalActMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.actual_minutes) || 0), 0);
+        const unplannedDuration = tasks.filter(t => !t.scheduled_date).reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
+        const uncompletedDuration = tasks.filter(t => t.status !== 'done').reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
 
         // Revenue calculations
-        const totalRevenue = tasks.reduce((sum, t) => sum + (t.revenue || 0), 0);
-        const completedRevenue = tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (t.revenue || 0), 0);
+        const totalRevenue = tasks.reduce((sum, t) => sum + (parseFloat(t.revenue) || 0), 0);
+        const completedRevenue = tasks.filter(t => t.status === 'done').reduce((sum, t) => sum + (parseFloat(t.revenue) || 0), 0);
         const pendingRevenue = totalRevenue - completedRevenue;
 
         let finalUnplannedRunQty = unplannedRunQty;
@@ -347,10 +341,10 @@ export async function GET(req) {
             dailyMap[key].runQty += qVal;
             if (t.status === 'done') dailyMap[key].completedRunQty += qVal;
 
-            dailyMap[key].estMinutes += (t.estimated_minutes || 0);
-            dailyMap[key].actMinutes += (t.actual_minutes || 0);
-            dailyMap[key].revenue += (t.revenue || 0);
-            if (t.status === 'done') dailyMap[key].completedRevenue += (t.revenue || 0);
+            dailyMap[key].estMinutes += (parseFloat(t.estimated_minutes) || 0);
+            dailyMap[key].actMinutes += (parseFloat(t.actual_minutes) || 0);
+            dailyMap[key].revenue += (parseFloat(t.revenue) || 0);
+            if (t.status === 'done') dailyMap[key].completedRevenue += (parseFloat(t.revenue) || 0);
         });
 
         const dailySummary = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
@@ -383,15 +377,15 @@ export async function GET(req) {
                 order_code: t.order_code,
                 customer_name: t.customer_name,
                 status: t.status,
-                quantity: t.quantity,
+                quantity: parseFloat(t.quantity) || 0,
                 scheduled_date: t.scheduled_date,
-                estimated_minutes: t.estimated_minutes,
-                actual_minutes: t.actual_minutes,
-                revenue: t.revenue || 0,
-                rate: t.rate || 0,
+                estimated_minutes: t.estimated_minutes != null ? parseFloat(t.estimated_minutes) : null,
+                actual_minutes: t.actual_minutes != null ? parseFloat(t.actual_minutes) : null,
+                revenue: parseFloat(t.revenue) || 0,
+                rate: parseFloat(t.rate) || 0,
                 rate_unit: t.rate_unit || '',
-                printed_sheets: t.printed_sheets || 0,
-                finishing_qty: t.finishing_qty || 0,
+                printed_sheets: parseFloat(t.printed_sheets) || 0,
+                finishing_qty: parseFloat(t.finishing_qty) || 0,
                 is_finishing: t.is_finishing || false,
                 component_name: t.component_name || ''
             }))

@@ -33,11 +33,8 @@ export async function GET(req, { params }) {
         `;
         const summaryParams = [id];
         if (startDate && endDate) {
-            summaryQuery += ` AND (
-                (scheduled_date BETWEEN ? AND ?)
-                OR (scheduled_date IS NULL AND created_at BETWEEN ? AND ?)
-            )`;
-            summaryParams.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            summaryQuery += ` AND scheduled_date BETWEEN ? AND ?`;
+            summaryParams.push(startDate, endDate);
         }
 
         const [summary] = await pool.execute(summaryQuery, summaryParams);
@@ -74,11 +71,8 @@ export async function GET(req, { params }) {
         `;
         const recentParams = [id];
         if (startDate && endDate) {
-            recentQuery += ` AND (
-                (jt.scheduled_date BETWEEN ? AND ?)
-                OR (jt.scheduled_date IS NULL AND jt.created_at BETWEEN ? AND ?)
-            )`;
-            recentParams.push(startDate, endDate, `${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            recentQuery += ` AND jt.scheduled_date BETWEEN ? AND ?`;
+            recentParams.push(startDate, endDate);
         }
         recentQuery += ` ORDER BY jt.completed_at DESC LIMIT 20`;
 
