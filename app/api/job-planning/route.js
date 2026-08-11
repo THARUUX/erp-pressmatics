@@ -375,6 +375,23 @@ async function enrichTasksWithEstimationDetails(tasks, orderIds) {
                     if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
                         task.quantity = finishing.item_qty || 0;
                     }
+                } else if (su.includes('form') || su === 'forms/hr') {
+                    task.job_qty = finishing.item_qty || 0;
+                    if (task.quantity == null || task.quantity === 0 || !task.is_manual) {
+                        const isBB = matchingDetail && parseInt(matchingDetail.is_bb) === 1;
+                        if (isBB) {
+                            task.quantity = finishing.item_qty || 0;
+                        } else {
+                            const formsCount = finishing.forms != null && finishing.forms > 0
+                                ? parseFloat(finishing.forms)
+                                : (matchingDetail
+                                    ? ((parseInt(matchingDetail.ups) * parseInt(matchingDetail.sides)) > 0
+                                        ? Math.ceil((parseInt(matchingDetail.pages) || 1) / ((parseInt(matchingDetail.ups) || 1) * (parseInt(matchingDetail.sides) || 1)))
+                                        : 1)
+                                    : 1);
+                            task.quantity = formsCount * (finishing.item_qty || 0);
+                        }
+                    }
                 } else if (matchingDetail) {
                     const isBB = parseInt(matchingDetail.is_bb) === 1;
                     if (task.quantity == null || task.quantity === 0 || !task.is_manual) {

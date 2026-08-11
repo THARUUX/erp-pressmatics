@@ -470,11 +470,15 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
         if (lowerU === 'impressions/hr') {
             return task.impression_count != null && task.impression_count !== 0
                 ? String(task.impression_count)
-                : (task.quantity != null ? String(task.quantity) : '');
+                : (task.quantity != null && task.quantity !== 0 ? String(task.quantity) : (task.job_qty != null ? String(task.job_qty) : ''));
         } else if (lowerU === 'sheets/hr') {
             return task.sheet_count != null && task.sheet_count !== 0
                 ? String(task.sheet_count)
-                : (task.quantity != null ? String(task.quantity) : '');
+                : (task.quantity != null && task.quantity !== 0 ? String(task.quantity) : (task.job_qty != null ? String(task.job_qty) : ''));
+        } else if (lowerU === 'forms/hr') {
+            return task.quantity != null && task.quantity !== 0
+                ? String(task.quantity)
+                : (task.forms ? String(task.forms * (task.job_qty || 0)) : (task.job_qty != null ? String(task.job_qty) : ''));
         } else {
             return task.quantity != null && task.quantity !== 0
                 ? String(task.quantity)
@@ -901,7 +905,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                                         setCalcQty(getInitialQty(newUnit));
                                     }}
                                 >
-                                    {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
+                                    {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Forms/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
                                         <option key={u} value={u}>{u}</option>
                                     ))}
                                 </select>
@@ -3170,7 +3174,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                     onClose={() => setShowAddTaskModal(false)}
                     onSuccess={() => {
                         setShowAddTaskModal(false);
-                        if (onRefresh) onRefresh();
+                        if (onRefresh) onRefresh(true);
                     }}
                 />
             )}

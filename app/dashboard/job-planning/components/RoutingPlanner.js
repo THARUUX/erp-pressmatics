@@ -787,7 +787,10 @@ export default function RoutingPlanner({ machines = [], finishings = [], orders 
                     initialMachineId={null}
                     initialMachineName=""
                     onClose={() => setAddingTaskOrder(null)}
-                    onSuccess={onRefresh}
+                    onSuccess={() => {
+                        setAddingTaskOrder(null);
+                        if (onRefresh) onRefresh(true);
+                    }}
                 />
             )}
         </div>

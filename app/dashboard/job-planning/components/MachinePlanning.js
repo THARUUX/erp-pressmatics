@@ -552,10 +552,14 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                 return (task.net_sheet_count || task.sheet_count || 0) * sides;
             }
         }
-        const sheetCount = withWastage ? (task.sheet_count || 0) : (task.net_sheet_count || task.sheet_count || 0);
+        const sheetCount = withWastage
+            ? (task.sheet_count || task.quantity || task.job_qty || 0)
+            : (task.net_sheet_count || task.sheet_count || task.quantity || task.job_qty || 0);
         const lowerU = (u || '').toLowerCase();
         if (lowerU === 'sheets/hr') {
             return sheetCount;
+        } else if (lowerU === 'forms/hr') {
+            return task.quantity || (task.forms ? task.forms * (task.job_qty || 0) : task.job_qty || 0);
         } else if (lowerU === 'prints/hr') {
             const sides = parseInt(task.sides || 1) || 1;
             return sheetCount * sides;
@@ -563,10 +567,10 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
             if (withWastage) {
                 return task.impression_count != null && task.impression_count !== 0
                     ? task.impression_count
-                    : (task.quantity || 0);
+                    : (task.quantity || task.job_qty || 0);
             } else {
                 const sides = parseInt(task.sides || 1) || 1;
-                return task.net_sheet_count ? (task.net_sheet_count * sides) : (task.impression_count || task.quantity || 0);
+                return task.net_sheet_count ? (task.net_sheet_count * sides) : (task.impression_count || task.quantity || task.job_qty || 0);
             }
         } else {
             return task.quantity || task.job_qty || 0;
@@ -1086,7 +1090,7 @@ function TaskModal({ task, order, machine, onClose, onSave, onDelete, onRefresh,
                                         setCalcQty(getInitialQty(newUnit, useWastage));
                                     }}
                                 >
-                                    {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
+                                    {['Sheets/Hr', 'Prints/Hr', 'Impressions/Hr', 'Forms/Hr', 'Copies/Hr', 'Pcs/Hr', 'm²/Hr', 'Meters/Hr', 'Units/Hr', 'Min/Job'].map(u => (
                                         <option key={u} value={u}>{u}</option>
                                     ))}
                                 </select>
@@ -3435,7 +3439,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
                     onClose={() => setShowAddTaskModal(false)}
                     onSuccess={() => {
                         setShowAddTaskModal(false);
-                        if (onRefresh) onRefresh();
+                        if (onRefresh) onRefresh(true);
                     }}
                 />
             )}

@@ -689,7 +689,7 @@ export default function EmployeePlanning({ orders = [], employees: initialEmploy
                     onSuccess={async () => {
                         setShowAddTask(false);
                         await loadData();
-                        if (onRefresh) onRefresh();
+                        if (onRefresh) onRefresh(true);
                         toast.success('Task created successfully');
                     }}
                 />

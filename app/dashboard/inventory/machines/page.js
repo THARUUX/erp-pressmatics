@@ -624,6 +624,7 @@ export default function MachinesPage() {
                                     >
                                         <option value="Prints/Hr">Prints/Hr</option>
                                         <option value="Sheets/Hr">Sheets/Hr</option>
+                                        <option value="Forms/Hr">Forms/Hr</option>
                                         <option value="Impressions/Hr">Impressions/Hr</option>
                                         <option value="Units/Hr">Units/Hr</option>
                                         <option value="Copies/Hr">Copies/Hr</option>
