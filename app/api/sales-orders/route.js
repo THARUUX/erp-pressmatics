@@ -313,7 +313,9 @@ export async function POST(req) {
                 if (svcRows.length > 0) {
                     for (const s of svcRows) {
                         const multiplyBy = parseFloat(s.multiply_by) || 1;
-                        const svcTaskName = s.employee_name ? `${s.service_name || itemName} — ${s.employee_name}` : (s.service_name || itemName);
+                        const itemTitle = s.note || itemName;
+                        const sName = s.service_name || serviceName || 'Service';
+                        const svcTaskName = sName.startsWith('Service:') ? `${sName} — ${itemTitle}` : `Service: ${sName} — ${itemTitle}`;
 
                         if (split_tasks && itemQty > 1) {
                             for (let k = 1; k <= itemQty; k++) {

@@ -16,7 +16,7 @@ import {
     FiUserCheck, FiUsers, FiBarChart2, FiCheckCircle,
     FiInfo, FiChevronRight, FiChevronLeft, FiPlay, FiSquare,
     FiFileText, FiTrash2, FiPlusCircle, FiExternalLink, FiCheck, FiShoppingCart,
-    FiEdit3, FiX, FiMove, FiTarget, FiUser
+    FiEdit3, FiX, FiMove, FiTarget, FiUser, FiEye
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import ManageEmployeesModal from '@/app/services/[id]/portal/components/ManageEmployeesModal';
@@ -143,9 +143,18 @@ function DraggableTaskCard({
     };
 
     const isManual = !task.sales_order_id;
-    const taskTitle = isManual
-        ? (details.note ? details.note.split(' - ')[0] : 'Manual Task')
+    let taskTitle = isManual
+        ? (details.note ? details.note.split(' - ')[0] : (task.name ? extractJobName(task.name) : 'Manual Task'))
         : extractJobName(task.name);
+
+    // Fallback if task title ended up matching the assigned employee's name (e.g. legacy corrupted task names)
+    if (task.assigned_to && taskTitle === task.assigned_to) {
+        if (details.note) {
+            taskTitle = details.note.split(' - ')[0];
+        } else if (task.description && !task.description.startsWith('Unit:')) {
+            taskTitle = task.description;
+        }
+    }
 
     const estMinutes = parseInt(task.estimated_minutes || 0);
     const actualSeconds = parseInt(task.actual_seconds || 0);
@@ -599,7 +608,11 @@ export default function ServicePlanningPage({ params }) {
         }
         setError(null);
         try {
-            const res = await fetch(`/api/services/${id}/planning`);
+            const [res, soRes] = await Promise.all([
+                fetch(`/api/services/${id}/planning`),
+                fetch(`/api/services/${id}/sales-orders`)
+            ]);
+
             if (!res.ok) throw new Error('Failed to load planning data');
             const data = await res.json();
             setService(data.service);
@@ -607,8 +620,6 @@ export default function ServicePlanningPage({ params }) {
             setQuotations(data.quotations || []);
             setInvoices(data.invoices || []);
 
-            // Also load linked sales orders
-            const soRes = await fetch(`/api/services/${id}/sales-orders`);
             if (soRes.ok) {
                 const soData = await soRes.json();
                 setSalesOrders(soData.salesOrders || []);
@@ -758,13 +769,9 @@ export default function ServicePlanningPage({ params }) {
     };
 
     const handleReassignEmployee = async (task, targetEmployee) => {
-        const serviceName = service ? service.name : extractServiceName(task.name);
-        const updatedName = targetEmployee ? `Service: ${serviceName} — ${targetEmployee}` : `Service: ${serviceName}`;
-
         setTasks(prev => prev.map(t => t.id === task.id ? {
             ...t,
-            assigned_to: targetEmployee || null,
-            name: updatedName
+            assigned_to: targetEmployee || null
         } : t));
 
         try {
@@ -773,8 +780,7 @@ export default function ServicePlanningPage({ params }) {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    assigned_to: targetEmployee || null,
-                    name: updatedName
+                    assigned_to: targetEmployee || null
                 }),
             });
             if (!res.ok) throw new Error('Failed to update employee assignment');
@@ -1070,8 +1076,59 @@ export default function ServicePlanningPage({ params }) {
     }, [tasks, reportEmployee]);
 
     if (loading) return (
-        <div className="flex items-center justify-center h-screen bg-[#09090b]">
-            <div className={`w-8 h-8 border-2 ${theme.borderAccent} ${theme.spinner} rounded-full animate-spin`} />
+        <div className="min-h-screen bg-[#09090b] text-white p-6 space-y-6 animate-pulse">
+            {/* Header Skeleton */}
+            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-white/[0.08] pb-6">
+                <div className="space-y-2">
+                    <div className="h-7 w-64 bg-white/10 rounded-lg" />
+                    <div className="h-4 w-96 bg-white/5 rounded-md" />
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="h-9 w-24 bg-white/10 rounded-xl" />
+                    <div className="h-9 w-32 bg-white/10 rounded-xl" />
+                    <div className="h-9 w-36 bg-indigo-600/30 rounded-xl" />
+                </div>
+            </div>
+
+            {/* KPI Cards Skeleton */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[...Array(6)].map((_, i) => (
+                    <div key={i} className="p-4 bg-[#0e0e12] border border-white/[0.08] rounded-2xl space-y-3">
+                        <div className="h-3 w-20 bg-white/10 rounded" />
+                        <div className="h-6 w-16 bg-white/20 rounded" />
+                        <div className="h-2.5 w-28 bg-white/5 rounded" />
+                    </div>
+                ))}
+            </div>
+
+            {/* Nav Tabs Skeleton */}
+            <div className="flex items-center gap-2 border-b border-white/[0.08] pb-3">
+                {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-9 w-28 bg-white/10 rounded-xl" />
+                ))}
+            </div>
+
+            {/* Kanban Columns / Board Skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2">
+                {[...Array(4)].map((_, col) => (
+                    <div key={col} className="bg-[#0e0e12] border border-white/[0.08] rounded-2xl p-4 space-y-4 min-h-[350px]">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                            <div className="h-4 w-32 bg-white/15 rounded" />
+                            <div className="h-5 w-8 bg-white/10 rounded-full" />
+                        </div>
+                        {[...Array(col % 2 === 0 ? 3 : 2)].map((_, card) => (
+                            <div key={card} className="p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl space-y-3">
+                                <div className="h-4 w-3/4 bg-white/15 rounded" />
+                                <div className="h-3 w-1/2 bg-white/10 rounded" />
+                                <div className="flex justify-between items-center pt-2">
+                                    <div className="h-3 w-16 bg-white/10 rounded" />
+                                    <div className="h-6 w-14 bg-indigo-500/20 rounded-lg" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 

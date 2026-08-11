@@ -9,7 +9,7 @@ const s = StyleSheet.create({
     headerTitle: { fontSize: 16, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', color: '#0f172a', letterSpacing: 0.5 },
     headerSub: { fontSize: 8, color: '#6b7280', marginTop: 2 },
     headerRange: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#4b5563' },
-    
+
     statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     statCell: { flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', padding: '8 12', borderRadius: 4 },
     statLabel: { fontSize: 7, textTransform: 'uppercase', color: '#6b7280', fontFamily: 'Helvetica-Bold', marginBottom: 2 },
@@ -19,10 +19,10 @@ const s = StyleSheet.create({
     tableHeader: { flexDirection: 'row', backgroundColor: '#f3f4f6', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', padding: '6 8' },
     tableHeaderText: { fontSize: 7, textTransform: 'uppercase', color: '#4b5563', fontFamily: 'Helvetica-Bold' },
     tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb', padding: '6 8', alignItems: 'center' },
-    
+
     tableCell: { fontSize: 7.5, color: '#374151' },
     tableCellBold: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#111827' },
-    
+
     footer: { position: 'absolute', bottom: 14, left: 24, right: 24, borderTopWidth: 0.5, borderTopColor: '#e5e7eb', paddingTop: 4, textAlign: 'center', fontSize: 6.5, color: '#9ca3af' },
 });
 
@@ -118,13 +118,11 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                     <View style={s.tableHeader}>
                         {columns.map(col => {
                             const isRight = ['total_amount', 'amount_due', 'amount_paid', 'balance', 'outstanding', 'net_salary', 'basic_salary', 'allowances', 'deductions', 'stock_quantity', 'unit_cost', 'min_stock'].includes(col.key);
-                            const isCenter = ['created_at', 'due_date', 'quotation_date', 'delivery_date', 'order_date', 'date'].includes(col.key);
-                            const align = isRight ? 'right' : isCenter ? 'center' : 'left';
                             return (
                                 <View key={col.key} style={{ width: getColWidth(col.key), paddingHorizontal: 6 }}>
                                     <Text style={[
-                                        s.tableHeaderText, 
-                                        { textAlign: align, width: '100%' }
+                                        s.tableHeaderText,
+                                        { textAlign: isRight ? 'right' : 'left', width: '100%' }
                                     ]}>
                                         {col.header}
                                     </Text>
@@ -148,8 +146,6 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                             ]}>
                                 {columns.map(col => {
                                     const isRight = ['total_amount', 'amount_due', 'amount_paid', 'balance', 'outstanding', 'net_salary', 'basic_salary', 'allowances', 'deductions', 'stock_quantity', 'unit_cost', 'min_stock'].includes(col.key);
-                                    const isCenter = ['created_at', 'due_date', 'quotation_date', 'delivery_date', 'order_date', 'date'].includes(col.key);
-                                    const align = isRight ? 'right' : isCenter ? 'center' : 'left';
                                     let val = row[col.key];
 
                                     // Format cells beautifully based on column key
@@ -188,8 +184,8 @@ export default function DynamicDocument({ title, subtitle, columns, rows, curren
                                         <View key={col.key} style={{ width: getColWidth(col.key), paddingHorizontal: 6 }}>
                                             <Text style={[
                                                 isBold ? s.tableCellBold : s.tableCell,
-                                                { 
-                                                    textAlign: align,
+                                                {
+                                                    textAlign: isRight ? 'right' : 'left',
                                                     color: cellColor,
                                                     width: '100%'
                                                 }

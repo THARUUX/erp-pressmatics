@@ -189,13 +189,12 @@ export default function EmployeeWorkspacePage({ params }) {
     };
 
     const handleUnassign = async (task) => {
-        const updatedName = `Service: ${service?.name || ''}`;
         setTasks(prev => prev.filter(item => item.id !== task.id));
         try {
             const res = await fetch(`/api/sales-orders/${task.sales_order_id}/tasks/${task.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assigned_to: null, name: updatedName }),
+                body: JSON.stringify({ assigned_to: null }),
             });
             if (!res.ok) throw new Error('Failed to unassign task');
             toast.success('Task moved to Backlog');

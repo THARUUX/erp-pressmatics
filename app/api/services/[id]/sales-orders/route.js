@@ -6,35 +6,18 @@ export async function GET(req, { params }) {
     try {
         const { id } = await params;
 
-        // SOs linked via tasks or direct service_id
-        const [rows] = await pool.execute(
+        // SOs linked via tasks, direct service_id, or converted quotations for this service
+        const [salesOrders] = await pool.execute(
             `SELECT DISTINCT so.id, so.code, so.customer_name, so.status, so.total_amount, so.delivery_date, so.created_at,
                     COUNT(jt.id) AS task_count
              FROM sales_orders so
              LEFT JOIN job_tasks jt ON jt.sales_order_id = so.id
-             WHERE jt.service_id = ? OR so.service_id = ?
+             LEFT JOIN quotations q ON so.quotation_id = q.id
+             WHERE jt.service_id = ? OR so.service_id = ? OR q.service_id = ?
              GROUP BY so.id
              ORDER BY so.created_at DESC`,
-            [id, id]
+            [id, id, id]
         );
-
-        // Also fetch SOs from converted quotations belonging to this service
-        const [fromQuotes] = await pool.execute(
-            `SELECT DISTINCT so.id, so.code, so.customer_name, so.status, so.total_amount, so.delivery_date, so.created_at,
-                    COUNT(jt.id) AS task_count
-             FROM sales_orders so
-             INNER JOIN quotations q ON so.quotation_id = q.id
-             LEFT JOIN job_tasks jt ON jt.sales_order_id = so.id
-             WHERE q.service_id = ?
-             GROUP BY so.id
-             ORDER BY so.created_at DESC`,
-            [id]
-        );
-
-        // Merge, dedup by id
-        const soMap = {};
-        [...rows, ...fromQuotes].forEach(r => { soMap[r.id] = r; });
-        const salesOrders = Object.values(soMap).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         return NextResponse.json({ salesOrders });
     } catch (error) {

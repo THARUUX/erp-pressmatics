@@ -226,14 +226,10 @@ export default function ServicesPlanning() {
     }, []);
 
     const handleEmployeeChange = async (task, newEmployee) => {
-        // Optimistically update employee name in task list
-        const serviceName = extractServiceName(task.name);
-        const updatedName = newEmployee ? `Service: ${serviceName} — ${newEmployee}` : `Service: ${serviceName}`;
-        
+        // Optimistically update assigned employee in task list
         setTasks(prev => prev.map(t => t.id === task.id ? { 
             ...t, 
-            assigned_to: newEmployee || null,
-            name: updatedName
+            assigned_to: newEmployee || null
         } : t));
 
         try {
@@ -241,8 +237,7 @@ export default function ServicesPlanning() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    assigned_to: newEmployee || null,
-                    name: updatedName
+                    assigned_to: newEmployee || null
                 }),
             });
         } catch (e) {

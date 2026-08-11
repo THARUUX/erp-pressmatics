@@ -11,41 +11,42 @@ export async function GET(req, { params }) {
             return NextResponse.json({ error: 'Service not found' }, { status: 404 });
         }
         const service = services[0];
-
-        // Fetch assigned employees
-        const [employees] = await pool.execute(
-            'SELECT * FROM service_employees WHERE service_id = ? ORDER BY employee_name ASC',
-            [id]
-        );
-
-        // Fetch tasks matching this service
         const searchPattern = `Service: ${service.name}%`;
-        const [tasks] = await pool.execute(
-            `SELECT jt.*, so.code AS order_code, 
-                    COALESCE(so.customer_name, jt.customer_name) AS customer_name, 
-                    so.status AS order_status
-             FROM job_tasks jt
-             LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE (jt.name LIKE ? OR jt.service_id = ?) 
-               AND (so.status IS NULL OR so.status NOT IN ('Delivered','Cancelled'))
-             ORDER BY jt.display_order ASC, jt.id ASC`,
-            [searchPattern, id]
-        );
 
-        // Fetch quotations for this service
-        const [quotations] = await pool.execute(
-            `SELECT * FROM quotations WHERE service_id = ? ORDER BY created_at DESC`,
-            [id]
-        );
-
-        // Fetch invoices for this service
-        const [invoices] = await pool.execute(
-            `SELECT i.*, (i.amount_due - i.amount_paid) AS balance 
-             FROM invoices i 
-             WHERE i.service_id = ? 
-             ORDER BY i.created_at DESC`,
-            [id]
-        );
+        // Fetch employees, tasks, quotations, and invoices in parallel
+        const [
+            [employees],
+            [tasks],
+            [quotations],
+            [invoices]
+        ] = await Promise.all([
+            pool.execute(
+                'SELECT * FROM service_employees WHERE service_id = ? ORDER BY employee_name ASC',
+                [id]
+            ),
+            pool.execute(
+                `SELECT jt.*, so.code AS order_code, 
+                        COALESCE(so.customer_name, jt.customer_name) AS customer_name, 
+                        so.status AS order_status
+                 FROM job_tasks jt
+                 LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
+                 WHERE (jt.name LIKE ? OR jt.service_id = ?) 
+                   AND (so.status IS NULL OR so.status NOT IN ('Delivered','Cancelled'))
+                 ORDER BY jt.display_order ASC, jt.id ASC`,
+                [searchPattern, id]
+            ),
+            pool.execute(
+                `SELECT * FROM quotations WHERE service_id = ? ORDER BY created_at DESC`,
+                [id]
+            ),
+            pool.execute(
+                `SELECT i.*, (i.amount_due - i.amount_paid) AS balance 
+                 FROM invoices i 
+                 WHERE i.service_id = ? 
+                 ORDER BY i.created_at DESC`,
+                [id]
+            )
+        ]);
 
         // Fetch work logs for all tasks
         const taskIds = tasks.map(t => t.id);
@@ -129,8 +130,35 @@ export async function POST(req, { params }) {
                 return NextResponse.json({ error: 'Task name and Customer name are required' }, { status: 400 });
             }
 
-            const name = assigned_to ? `Service: ${service.name} — ${assigned_to}` : `Service: ${service.name}`;
-            const description = `Unit: per job · Rate: 0 · Mult: 1 · Note: ${task_name} ${notes ? '- ' + notes : ''}`.trim();
+            const name = `Service: ${service.name} — ${task_name}`;
+            const description = `Unit: per job · Rate: 0 · Mult: 1 · Note: ${notes || task_name}`.trim();
+            const serviceCategory = service?.name || 'Graphic Designing';
+
+            // Auto-create or set category for customer if provided
+            if (customer_name && customer_name.trim()) {
+                const trimmedCust = customer_name.trim();
+                const [existingCust] = await pool.execute('SELECT id, category FROM customers WHERE name = ?', [trimmedCust]);
+                if (existingCust.length > 0) {
+                    if (!existingCust[0].category && serviceCategory) {
+                        await pool.execute('UPDATE customers SET category = ? WHERE id = ?', [serviceCategory, existingCust[0].id]);
+                    }
+                } else {
+                    const [settings] = await pool.execute(
+                        "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('customer_id_template', 'customer_id_seq')"
+                    );
+                    const settingsMap = settings.reduce((acc, row) => ({ ...acc, [row.setting_key]: row.setting_value }), {});
+
+                    let seq = parseInt(settingsMap['customer_id_seq'] || '1');
+                    let template = settingsMap['customer_id_template'] || 'CUST-{000}';
+                    const code = template.replace('{000}', String(seq).padStart(3, '0')).replace('{SEQ}', String(seq));
+
+                    await pool.execute(
+                        'INSERT INTO customers (name, code, category) VALUES (?, ?, ?)',
+                        [trimmedCust, code, serviceCategory]
+                    );
+                    await pool.execute("UPDATE settings SET setting_value = ? WHERE setting_key = 'customer_id_seq'", [String(seq + 1)]);
+                }
+            }
 
             const [result] = await pool.execute(
                 `INSERT INTO job_tasks (name, description, status, assigned_to, estimated_minutes, service_id, customer_name, display_order, created_at, updated_at)
@@ -162,13 +190,17 @@ export async function POST(req, { params }) {
 
             let finalCustomerId = customer_id || null;
             const finalCustomerName = customer_name.trim();
+            const serviceCategory = service?.name || 'Graphic Designing';
 
             // If no customer_id is provided, check if we should create or resolve one
             if (!finalCustomerId && finalCustomerName) {
                 // Try finding customer with exact matching name
-                const [existingCust] = await pool.execute('SELECT id FROM customers WHERE name = ?', [finalCustomerName]);
+                const [existingCust] = await pool.execute('SELECT id, category FROM customers WHERE name = ?', [finalCustomerName]);
                 if (existingCust.length > 0) {
                     finalCustomerId = existingCust[0].id;
+                    if (!existingCust[0].category && serviceCategory) {
+                        await pool.execute('UPDATE customers SET category = ? WHERE id = ?', [serviceCategory, finalCustomerId]);
+                    }
                 } else {
                     // Create new customer
                     const [settings] = await pool.execute(
@@ -181,8 +213,8 @@ export async function POST(req, { params }) {
                     const code = template.replace('{000}', String(seq).padStart(3, '0')).replace('{SEQ}', String(seq));
 
                     const [insertResult] = await pool.execute(
-                        'INSERT INTO customers (name, email, phone, address, code) VALUES (?, ?, ?, ?, ?)',
-                        [finalCustomerName, customer_email || null, customer_phone || null, customer_address || null, code]
+                        'INSERT INTO customers (name, email, phone, address, code, category) VALUES (?, ?, ?, ?, ?, ?)',
+                        [finalCustomerName, customer_email || null, customer_phone || null, customer_address || null, code, serviceCategory]
                     );
                     finalCustomerId = insertResult.insertId;
 
