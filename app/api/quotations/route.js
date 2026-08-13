@@ -9,7 +9,9 @@ export async function GET(req) {
         const offset = (page - 1) * limit;
 
         // Get total count for pagination metadata
-        const [countResult] = await pool.execute('SELECT COUNT(*) as total FROM quotations WHERE service_id IS NULL');
+        const [countResult] = await pool.execute(
+            'SELECT COUNT(*) as total FROM quotations WHERE service_id IS NULL'
+        );
         const total = countResult[0].total;
 
         const [rows] = await pool.execute(`

@@ -51,8 +51,8 @@ export async function GET(req) {
         );
 
         // Stats
-        let statsWhere = 'WHERE 1=1';
-        const statsParams = [];
+        let statsWhere = 'WHERE (i.company_id = ? OR (i.company_id IS NULL AND ? = 1))';
+        const statsParams = [activeCompanyId, activeCompanyId];
         if (service_id) {
             statsWhere += ' AND (i.service_id = ? OR q.service_id = ?)';
             statsParams.push(service_id, service_id);
@@ -80,6 +80,13 @@ export async function GET(req) {
 // POST /api/invoices  — create invoice
 export async function POST(req) {
     try {
+        let activeCompanyId = 1;
+        try {
+            const cookieStore = await cookies();
+            const c = cookieStore.get('company_id');
+            if (c && c.value) activeCompanyId = parseInt(c.value, 10);
+        } catch (e) {}
+
         const body = await req.json();
         const {
             quotation_id, customer_id, customer_name,
@@ -92,8 +99,8 @@ export async function POST(req) {
 
         const [result] = await pool.execute(`
             INSERT INTO invoices
-                (code, quotation_id, customer_id, customer_name, description, amount_due, due_date, notes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (code, quotation_id, customer_id, customer_name, description, amount_due, due_date, notes, status, company_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             code,
             quotation_id || null,
@@ -103,7 +110,8 @@ export async function POST(req) {
             parseFloat(amount_due) || 0,
             due_date     || null,
             notes        || '',
-            status       || 'draft'
+            status       || 'draft',
+            activeCompanyId
         ]);
 
         return NextResponse.json({ id: result.insertId, code }, { status: 201 });

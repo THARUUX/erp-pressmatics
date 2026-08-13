@@ -8,6 +8,7 @@ import {
     FiArrowLeft, FiBriefcase, FiChevronRight, FiUsers, FiActivity,
     FiBarChart2, FiDollarSign
 } from 'react-icons/fi';
+import ScreenPet from '@/components/ui/ScreenPet';
 
 function NavItem({ href, icon: Icon, label, active }) {
     return (
@@ -60,6 +61,7 @@ export default function ServicePortalLayout({ children, params }) {
 
     return (
         <div className="min-h-screen bg-[#09090b] text-zinc-100 flex relative font-sans">
+            <ScreenPet />
             {/* ── Sidebar ────────────────────────────────────────────── */}
             <aside className="w-64 shrink-0 flex flex-col border-r border-zinc-800/80 bg-[#0c0c0f] sticky top-0 h-screen">
                 {/* Brand */}

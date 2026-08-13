@@ -122,19 +122,19 @@ export default function ItemsPage() {
     const { settings } = useSettings();
     const currency = settings.currency || '$';
 
-    const [data, setData]               = useState([]);
-    const [loading, setLoading]         = useState(true);
-    const [filterType, setFilterType]   = useState('all');
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filterType, setFilterType] = useState('all');
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
-    const [sorting, setSorting]         = useState([]);
-    const [viewMode, setViewMode]       = useState('card'); // 'card' | 'table'
+    const [sorting, setSorting] = useState([]);
+    const [viewMode, setViewMode] = useState('card'); // 'card' | 'table'
     const [duplicating, setDuplicating] = useState(false);
     const [dupProgress, setDupProgress] = useState(0);
-    const [dupLabel, setDupLabel]       = useState('');
+    const [dupLabel, setDupLabel] = useState('');
     const [creatingQuotation, setCreatingQuotation] = useState(false);
     const [qProgress, setQProgress] = useState(0);
-    const [qLabel, setQLabel]       = useState('');
+    const [qLabel, setQLabel] = useState('');
     const [quotationShortages, setQuotationShortages] = useState(null);
     const [pendingQuoteItem, setPendingQuoteItem] = useState(null);
 
@@ -143,6 +143,9 @@ export default function ItemsPage() {
         setLoading(true);
         const params = new URLSearchParams({ page: 1, limit: 500 });
         if (filterType === 'favorites') params.append('is_favorite', 'true');
+        else if (filterType === 'offset') params.append('type', 'offset');
+        else if (filterType === 'digital') params.append('type', 'digital');
+
         fetch(`/api/items?${params}`)
             .then(r => r.json())
             .then(res => { setData(Array.isArray(res) ? res : (res.items ?? [])); setLoading(false); })
@@ -209,11 +212,11 @@ export default function ItemsPage() {
 
     const handleCreateQuotation = async (item, ignoreStock = false) => {
         if (!ignoreStock && !(await confirmDialog(`Create a new quotation for "${item.estimation_name || item.customer_name || 'Untitled'}"?`, { confirmLabel: 'Create Quotation' }))) return;
-        
-        setCreatingQuotation(true); 
-        setQProgress(0); 
+
+        setCreatingQuotation(true);
+        setQProgress(0);
         setQLabel('Initializing...');
-        
+
         const stages = [
             { pct: 15, label: 'Connecting to database...' },
             { pct: 40, label: 'Fetching customer details...' },
@@ -221,13 +224,13 @@ export default function ItemsPage() {
             { pct: 85, label: 'Linking item to quotation...' },
             { pct: 95, label: 'Finalising...' }
         ];
-        
+
         let si = 0;
         const tick = setInterval(() => {
-            if (si < stages.length) { 
-                setQProgress(stages[si].pct); 
-                setQLabel(stages[si].label); 
-                si++; 
+            if (si < stages.length) {
+                setQProgress(stages[si].pct);
+                setQLabel(stages[si].label);
+                si++;
             }
         }, 350);
 
@@ -243,10 +246,10 @@ export default function ItemsPage() {
                 })
             });
             const d = await res.json();
-            clearInterval(tick); 
-            
+            clearInterval(tick);
+
             if (res.ok && d.quotationId) {
-                setQProgress(100); 
+                setQProgress(100);
                 setQLabel('Redirecting to quotation...');
                 await new Promise(r => setTimeout(r, 600));
                 router.push(`/dashboard/quotations/${d.quotationId}`);
@@ -255,12 +258,12 @@ export default function ItemsPage() {
                 setQuotationShortages(d.shortages);
                 setPendingQuoteItem(item);
             } else {
-                setCreatingQuotation(false); 
+                setCreatingQuotation(false);
                 toast.error(d.error || 'Failed to create quotation');
             }
         } catch (error) {
-            clearInterval(tick); 
-            setCreatingQuotation(false); 
+            clearInterval(tick);
+            setCreatingQuotation(false);
             toast.error('Error creating quotation');
         }
     };
@@ -296,9 +299,18 @@ export default function ItemsPage() {
         },
         {
             accessorKey: 'type', header: 'Type', size: 100,
-            cell: ({ getValue }) => (
-                <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{getValue()}</span>
-            ),
+            cell: ({ getValue }) => {
+                const val = (getValue() || 'offset').toLowerCase();
+                const isDigital = val === 'digital';
+                return (
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold uppercase tracking-wider border ${isDigital
+                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        }`}>
+                        {val}
+                    </span>
+                );
+            },
         },
         {
             accessorKey: 'quantity', header: 'Qty', size: 80,
@@ -344,7 +356,7 @@ export default function ItemsPage() {
                 );
             },
         },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     ], [currency]);
 
     /* ── Table instance ───────────────────────────────────────────────────────── */
@@ -409,15 +421,14 @@ export default function ItemsPage() {
                                     {quotationShortages.map((s, i) => (
                                         <tr key={i} className={`border-b border-white/[0.04] ${i % 2 === 1 ? 'bg-white/[0.015]' : ''}`}>
                                             <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                                    s.type === 'sfg'
-                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                                        : s.type === 'statics'
+                                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${s.type === 'sfg'
+                                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                                    : s.type === 'statics'
                                                         ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
                                                         : s.type === 'plate'
-                                                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
-                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-                                                }`}>
+                                                            ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
+                                                            : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                                    }`}>
                                                     <FiPackage className="w-2.5 h-2.5" />
                                                     {s.type}
                                                 </span>
@@ -467,13 +478,18 @@ export default function ItemsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {/* Filter: All / Favorites */}
+                    {/* Filter: All / Offset / Digital / Favorites */}
                     <div className="flex bg-black/30 border border-white/10 rounded-xl p-1">
-                        {['all', 'favorites'].map(f => (
-                            <button key={f} onClick={() => setFilterType(f)}
-                                className={`px-4 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-1.5 ${filterType === f ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}>
-                                {f === 'favorites' && <FiStar className={filterType === 'favorites' ? 'fill-white' : ''} size={13} />}
-                                {f === 'all' ? 'All' : 'Templates'}
+                        {[
+                            { id: 'all', label: 'All' },
+                            { id: 'offset', label: 'Offset' },
+                            { id: 'digital', label: 'Digital' },
+                            { id: 'favorites', label: 'Templates', icon: true }
+                        ].map(f => (
+                            <button key={f.id} onClick={() => setFilterType(f.id)}
+                                className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${filterType === f.id ? 'bg-white/10 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}>
+                                {f.icon && <FiStar className={filterType === 'favorites' ? 'fill-yellow-400 text-yellow-400' : ''} size={13} />}
+                                {f.label}
                             </button>
                         ))}
                     </div>
@@ -503,11 +519,18 @@ export default function ItemsPage() {
                         </button>
                     </div>
 
-                    <Link href="/dashboard/items/new">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold text-sm hover:bg-gray-100 transition-colors">
-                            <FiPlus /> New Estimate
-                        </button>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link href="/dashboard/items/new?type=offset">
+                            <button className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl font-semibold text-xs transition-colors">
+                                <FiPlus /> Offset Estimate
+                            </button>
+                        </Link>
+                        <Link href="/dashboard/items/new?type=digital">
+                            <button className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-xl font-semibold text-xs transition-colors">
+                                <FiPlus /> Digital Estimate
+                            </button>
+                        </Link>
+                    </div>
                 </div>
             </header>
 
@@ -527,6 +550,7 @@ export default function ItemsPage() {
                         )}
                         {table.getRowModel().rows.map(row => {
                             const item = row.original;
+                            const isDigitalCard = (item.type || 'offset').toLowerCase() === 'digital';
                             return (
                                 <div key={item.id}
                                     onClick={() => router.push(`/dashboard/items/${item.id}`)}
@@ -545,7 +569,12 @@ export default function ItemsPage() {
                                         <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
                                         <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
                                         <div className="mt-2">
-                                            <span className="text-xs bg-white text-black px-2 py-0.5 rounded uppercase font-bold">{item.type}</span>
+                                            <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold uppercase tracking-wider border ${isDigitalCard
+                                                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                }`}>
+                                                {item.type || 'offset'}
+                                            </span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-6">

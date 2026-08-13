@@ -310,10 +310,11 @@ export default function EditQuotationPage({ params }) {
     const addComponent = (customName = null) => {
         setComponents(prev => {
             const name = customName || `Component ${prev.length + 1}`;
+            const defaultType = prev[0]?.type || 'offset';
             const newComps = [...prev, {
                 id: Date.now() + Math.random(),
                 name: name,
-                type: 'offset',
+                type: defaultType,
                 quantity: quantity,
                 params: {
                     machineId: '',
@@ -477,8 +478,8 @@ export default function EditQuotationPage({ params }) {
                         custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
                         pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
-                        paperWidthCm: selectedPaper ? selectedPaper.width : 0,
-                        paperHeightCm: selectedPaper ? selectedPaper.height : 0,
+                        paperWidthCm: selectedPaper ? (parseFloat(selectedPaper.width_cm || selectedPaper.width) || 0) : (parseFloat(norm.params.paperWidthCm) || 0),
+                        paperHeightCm: selectedPaper ? (parseFloat(selectedPaper.height_cm || selectedPaper.height) || 0) : (parseFloat(norm.params.paperHeightCm) || 0),
                     }
                 };
             });
@@ -2023,6 +2024,7 @@ export default function EditQuotationPage({ params }) {
                             onRemoveFinishing={removeFinishingFromComponent}
                             calculationResult={calculationResults[activeTab]}
                             currency={currency}
+                            allowOffset={components[0]?.type !== 'digital'}
                         />
                     )}
                 </div>
@@ -2311,7 +2313,7 @@ export default function EditQuotationPage({ params }) {
                                 <ImpositionVisualizer ups={comp.params.ups} />
                             </section>
                         ))} */}
-                        {components[activeTab]?.type === 'offset' && !components[activeTab]?.name?.includes("Finishing") && (
+                        {(components[activeTab]?.type === 'offset' || components[activeTab]?.type === 'digital') && !components[activeTab]?.name?.includes("Finishing") && (
                             <section className="bg-black/60 p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>

@@ -3,7 +3,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FiArrowLeft, FiPlus, FiFileText, FiAlertCircle, FiPackage, FiCpu } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -48,6 +48,8 @@ function QuotationProgress({ visible, progress, label }) {
 
 export default function NewQuotationPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const initialType = searchParams?.get('type') === 'digital' ? 'digital' : 'offset';
     const { settings } = useSettings();
     const currency = settings.currency;
     const [loading, setLoading] = useState(false);
@@ -81,7 +83,7 @@ export default function NewQuotationPage() {
         {
             id: Date.now(),
             name: 'Main',
-            type: 'offset',
+            type: initialType,
             quantity: 1000, // Per component quantity (default to global)
             params: {
                  machineId: '',
@@ -217,10 +219,11 @@ export default function NewQuotationPage() {
     const addComponent = (customName = null) => {
         setComponents(prev => {
             const name = customName || `Component ${prev.length + 1}`;
+            const defaultType = prev[0]?.type || initialType;
             const newComps = [...prev, {
                 id: Date.now() + Math.random(),
                 name: name,
-                type: 'offset',
+                type: defaultType,
                 quantity: quantity,
                 params: {
                     machineId: '',
@@ -413,8 +416,8 @@ export default function NewQuotationPage() {
                         custom_make_ready_minutes: norm.params.customMakeReadyMinutes || norm.params.custom_make_ready_minutes || null,
                         impressionCostPerUnit: norm.type === 'digital' ? norm.params.digitalImpressionCost : norm.params.impressionCostPerUnit,
                         pages: norm.name === 'Cover' ? norm.params.sides : norm.params.pages,
-                        paperWidthCm: selectedPaper ? selectedPaper.width : 0,
-                        paperHeightCm: selectedPaper ? selectedPaper.height : 0
+                        paperWidthCm: selectedPaper ? (parseFloat(selectedPaper.width_cm || selectedPaper.width) || 0) : (parseFloat(norm.params.paperWidthCm) || 0),
+                        paperHeightCm: selectedPaper ? (parseFloat(selectedPaper.height_cm || selectedPaper.height) || 0) : (parseFloat(norm.params.paperHeightCm) || 0)
                     }
                 };
             });
@@ -882,6 +885,7 @@ export default function NewQuotationPage() {
                             onRemoveFinishing={removeFinishingFromComponent}
                             calculationResult={calculationResults[activeTab]}
                             currency={currency}
+                            allowOffset={initialType !== 'digital'}
                         />
                     )}
                 </div>
@@ -1144,7 +1148,7 @@ export default function NewQuotationPage() {
                             </div>
                         </section>
 
-                        {components[activeTab]?.type === 'offset'  && !components[activeTab]?.name?.includes("Finishing") && (
+                        {(components[activeTab]?.type === 'offset' || components[activeTab]?.type === 'digital') && !components[activeTab]?.name?.includes("Finishing") && (
                             <section className="bg-black/60 p-6 rounded-xl border border-white/20 shadow-2xl">
                                 <h3 className="text-md font-bold mb-4 text-gray-300 flex justify-between">
                                     <span>Planning: {components[activeTab].name}</span>

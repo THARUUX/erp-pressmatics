@@ -24,12 +24,14 @@ export default function StandaloneSharedMachinePlanningPage({ params }) {
 
             // Format cross-company tasks into the orders structure expected by MachinePlanning
             const orderMap = new Map();
+            console.log(data.tasks);
             (data.tasks || []).forEach(t => {
                 const soId = t.sales_order_id || `manual-${t.id}`;
                 if (!orderMap.has(soId)) {
                     orderMap.set(soId, {
                         id: t.sales_order_id,
                         code: t.order_code || `SO-${t.sales_order_id || 'MANUAL'}`,
+                        estimation_names: t.name?.split('—')[2],
                         customer_name: t.customer_name || 'Walk-in Customer',
                         delivery_date: t.delivery_date,
                         status: t.order_status || 'In Production',

@@ -12,7 +12,7 @@ import {
 import {
     FiUsers, FiDollarSign, FiClock, FiTrendingUp, FiSearch,
     FiChevronLeft, FiChevronRight, FiCalendar, FiBriefcase, FiLayers, FiPrinter,
-    FiX, FiCheckSquare, FiSquare, FiFilter
+    FiX, FiCheckSquare, FiSquare, FiFilter, FiPieChart
 } from 'react-icons/fi';
 
 function getPeriodKey(dateInput, periodType) {
@@ -417,24 +417,24 @@ export default function EmployeeAnalyticsSection({ serviceId, employees = [], ta
                 <div className="inline-flex items-center bg-zinc-900 border border-zinc-700/80 p-1 rounded-lg gap-1 text-xs">
                     <button
                         onClick={() => setValuationMode('labor_cost')}
-                        className={`px-3 py-1 rounded-md transition-all cursor-pointer ${valuationMode === 'labor_cost' ? 'bg-purple-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                        className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${valuationMode === 'labor_cost' ? 'bg-purple-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
                             }`}
                     >
-                        💼 Labor Value (Worked Hr × Rate)
+                        <FiBriefcase className="w-3.5 h-3.5" /> Labor Value (Worked Hr × Rate)
                     </button>
                     <button
                         onClick={() => setValuationMode('so_revenue')}
-                        className={`px-3 py-1 rounded-md transition-all cursor-pointer ${valuationMode === 'so_revenue' ? 'bg-emerald-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                        className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${valuationMode === 'so_revenue' ? 'bg-emerald-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
                             }`}
                     >
-                        💵 Sales Order Revenue
+                        <FiDollarSign className="w-3.5 h-3.5" /> Sales Order Revenue
                     </button>
                     <button
                         onClick={() => setValuationMode('both')}
-                        className={`px-3 py-1 rounded-md transition-all cursor-pointer ${valuationMode === 'both' ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                        className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${valuationMode === 'both' ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
                             }`}
                     >
-                        ⚖️ Both &amp; Net Margin
+                        <FiPieChart className="w-3.5 h-3.5" /> Both &amp; Net Margin
                     </button>
                 </div>
             </div>

@@ -187,7 +187,9 @@ function TaskRow({ task, onRefresh }) {
                         <FiCheck size={12} /> Push Ready
                     </button>
                 ) : (
-                    <span className="text-xs font-bold text-white">✓ Ready</span>
+                    <span className="text-xs font-bold text-emerald-400 inline-flex items-center gap-1">
+                        <FiCheck size={12} /> Ready
+                    </span>
                 )}
             </td>
         </tr>

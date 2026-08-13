@@ -190,24 +190,12 @@ export async function POST(req) {
         const mainType = components.every(c => c.type === components[0].type) ? components[0].type : 'mixed';
 
         const connection = await pool.getConnection();
+        await connection.beginTransaction();
         try {
-            await connection.beginTransaction();
-
-            // Fetch Settings for Code Generation
-            const [settingsRows] = await connection.execute("SELECT * FROM settings WHERE setting_key IN ('item_code_template', 'item_code_seq')");
-            const settingsMap = {};
-            settingsRows.forEach(row => settingsMap[row.setting_key] = row.setting_value);
-
-            let template = settingsMap['item_code_template'] || 'INV-{0000}';
-            let seq = parseInt(settingsMap['item_code_seq'] || '1000');
-
             // Generate Code
-            let code = template.replace('{0000}', String(seq).padStart(4, '0'))
-                .replace('{SEQ}', String(seq));
-
-            // Check uniqueness loop (simple fail-safe)
-            // Ideally DB constraint handles it, but let's increment if collision? 
-            // For now, assume sequential is safe enough with optimistic locking or just simple increment.
+            const [rows] = await connection.execute("SELECT setting_value FROM settings WHERE setting_key = 'item_code_seq'");
+            let seq = parseInt(rows[0]?.setting_value || '1001');
+            const code = `ITEM-${seq}`;
 
             const [itemResult] = await connection.execute(
                 `INSERT INTO quotation_items (customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, code, markup_percent) 

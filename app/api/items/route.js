@@ -16,15 +16,43 @@ export async function GET(request) {
         let query = `
             SELECT id, code, customer_name, customer_id, estimation_name, job_description, type, quantity, total_amount, status, created_at, is_favorite 
             FROM quotation_items 
-            WHERE 1=1
+            WHERE (type IS NULL OR type != 'services') 
+              AND NOT EXISTS (
+                  SELECT 1 FROM quotation_line_items qli 
+                  JOIN quotations q ON qli.quotation_id = q.id 
+                  WHERE qli.quotation_item_id = quotation_items.id 
+                    AND q.service_id IS NOT NULL
+              )
         `;
-        let countQuery = `SELECT COUNT(*) as total FROM quotation_items WHERE 1=1`;
+        let countQuery = `
+            SELECT COUNT(*) as total 
+            FROM quotation_items 
+            WHERE (type IS NULL OR type != 'services') 
+              AND NOT EXISTS (
+                  SELECT 1 FROM quotation_line_items qli 
+                  JOIN quotations q ON qli.quotation_id = q.id 
+                  WHERE qli.quotation_item_id = quotation_items.id 
+                    AND q.service_id IS NOT NULL
+              )
+        `;
 
         const params = [];
         const countParams = [];
 
+        const typeParam = searchParams.get('type');
+
         if (isFavorite === 'true') {
             const condition = ` AND is_favorite = 1`;
+            query += condition;
+            countQuery += condition;
+        }
+
+        if (typeParam === 'digital') {
+            const condition = ` AND (type = 'digital' OR id IN (SELECT quotation_item_id FROM quotation_item_details WHERE type = 'digital'))`;
+            query += condition;
+            countQuery += condition;
+        } else if (typeParam === 'offset') {
+            const condition = ` AND (type = 'offset' OR type IS NULL OR type NOT IN ('digital', 'services'))`;
             query += condition;
             countQuery += condition;
         }

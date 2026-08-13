@@ -8,6 +8,13 @@ export async function GET() {
             SELECT id, estimation_name, job_description, quantity, total_amount, created_at, type
             FROM quotation_items
             WHERE created_at >= NOW() - INTERVAL 30 DAY
+              AND (type IS NULL OR type != 'services')
+              AND NOT EXISTS (
+                  SELECT 1 FROM quotation_line_items qli 
+                  JOIN quotations q ON qli.quotation_id = q.id 
+                  WHERE qli.quotation_item_id = quotation_items.id 
+                    AND q.service_id IS NOT NULL
+              )
             ORDER BY created_at DESC
             LIMIT 100
         `);

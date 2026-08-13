@@ -282,9 +282,9 @@ export default function TaskTimeAnalysisTable({ tasks = [] }) {
                         className="bg-zinc-900 border border-zinc-700/80 rounded-md px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500 cursor-pointer"
                     >
                         <option value="ALL">All Time Variances</option>
-                        <option value="OVER">🔴 Over Estimated Time ({summaryStats.overCount})</option>
-                        <option value="UNDER">🟢 Within Estimate / On Time ({summaryStats.underCount})</option>
-                        <option value="NOT_STARTED">⚪ Not Started ({summaryStats.notStartedCount})</option>
+                        <option value="OVER">Over Estimated Time ({summaryStats.overCount})</option>
+                        <option value="UNDER">Within Estimate / On Time ({summaryStats.underCount})</option>
+                        <option value="NOT_STARTED">Not Started ({summaryStats.notStartedCount})</option>
                     </select>
 
                     {/* Status Filter */}

@@ -45,8 +45,8 @@ export async function GET(req) {
         const [rows] = await pool.execute(query, params);
 
         // Get total count for pagination
-        let countQuery = 'SELECT COUNT(*) as total FROM sales_orders WHERE 1=1';
-        const countParams = [];
+        let countQuery = 'SELECT COUNT(*) as total FROM sales_orders WHERE (company_id = ? OR (company_id IS NULL AND ? = 1))';
+        const countParams = [activeCompanyId, activeCompanyId];
         if (service_id) {
             countQuery += ' AND service_id = ?';
             countParams.push(service_id);
@@ -72,9 +72,9 @@ export async function GET(req) {
                 COUNT(CASE WHEN status = 'Pending' THEN 1 END) AS pending_count,
                 SUM(CASE WHEN status IN ('In Production') THEN 1 END) AS production_count,
                 SUM(CASE WHEN status = 'Pending' THEN total_amount ELSE 0 END) AS pending_total
-            FROM sales_orders WHERE 1=1
+            FROM sales_orders WHERE (company_id = ? OR (company_id IS NULL AND ? = 1))
         `;
-        const statsParams = [];
+        const statsParams = [activeCompanyId, activeCompanyId];
         if (service_id) {
             statsQuery += ' AND service_id = ?';
             statsParams.push(service_id);

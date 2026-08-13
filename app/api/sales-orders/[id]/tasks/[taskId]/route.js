@@ -142,11 +142,11 @@ export async function PUT(req, { params }) {
         const resolvedParams = await params;
         const rawId = resolvedParams?.id;
         const { taskId } = resolvedParams;
-        if (rawId && rawId !== 'unassigned' && rawId !== 'null' && rawId !== 'undefined') {
-            const id = await getSalesOrderId(rawId);
-            if (!id) {
-                return NextResponse.json({ error: 'Sales Order not found' }, { status: 404 });
-            }
+
+        // Fetch current task to verify existence and detect status transitions
+        const [current] = await pool.execute('SELECT status, started_at, sales_order_id, assigned_to, helper_name FROM job_tasks WHERE id = ?', [taskId]);
+        if (!current || current.length === 0) {
+            return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
         const body = await req.json();
@@ -157,13 +157,12 @@ export async function PUT(req, { params }) {
             quantity, sheet_count, impression_count,
             actual_sheets_printed, actual_sheets_wasted, actual_plates_used,
             downtime_minutes, downtime_reason,
-            helper_name, completed_by_helper, started_at, is_manual
+            helper_name, completed_by_helper, started_at, is_manual,
+            machine_position
         } = body;
 
         const hasMachineUpdate = Object.prototype.hasOwnProperty.call(body, 'machine_id');
 
-        // Fetch current task to detect in_progress and done transitions
-        const [current] = await pool.execute('SELECT status, started_at, sales_order_id, assigned_to, helper_name FROM job_tasks WHERE id = ?', [taskId]);
         const prevStatus = current[0]?.status;
         const alreadyStarted = current[0]?.started_at;
         const salesOrderId = current[0]?.sales_order_id;
@@ -279,6 +278,10 @@ export async function PUT(req, { params }) {
             paramsList.push(machine_id ?? null);
             updates.push('machine_name = ?');
             paramsList.push(machine_name || null);
+        }
+        if (machine_position !== undefined) {
+            updates.push('machine_position = ?');
+            paramsList.push(machine_position !== null ? parseInt(machine_position) : null);
         }
 
         // Handle actuals

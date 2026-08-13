@@ -7,7 +7,7 @@ export async function PUT(req, { params }) {
         const {
             name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit,
             assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids,
-            assigned_helper_ids
+            assigned_helper_ids, is_common
         } = await req.json();
 
         if (!name) {
@@ -28,7 +28,7 @@ export async function PUT(req, { params }) {
         await pool.execute(
             `UPDATE finishings SET
                name = ?, unit_cost = ?, is_machine = ?, machine_id = ?, cost_unit = ?, speed = ?, speed_unit = ?,
-               assigned_employee_id = ?, assigned_team_id = ?, assigned_employee_ids = ?, assigned_team_ids = ?, assigned_helper_ids = ?
+               assigned_employee_id = ?, assigned_team_id = ?, assigned_employee_ids = ?, assigned_team_ids = ?, assigned_helper_ids = ?, is_common = ?
              WHERE id = ?`,
             [
                 name,
@@ -43,6 +43,7 @@ export async function PUT(req, { params }) {
                 JSON.stringify(empIds),
                 JSON.stringify(teamIds),
                 JSON.stringify(helperIds),
+                is_common ? 1 : 0,
                 id
             ]
         );

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { FiTrash2, FiCopy, FiSettings, FiPlus, FiX } from 'react-icons/fi';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { RiPrinterFill, RiSideBarLine, RiLayoutGridLine, RiPagesLine, RiSpeedUpLine } from 'react-icons/ri'; // Feel free to map your preferred icon library
+import { RiPrinterFill, RiSideBarLine, RiLayoutGridLine, RiPagesLine, RiSpeedUpLine, RiFilePaperLine } from 'react-icons/ri'; // Feel free to map your preferred icon library
 
 
 function getCutSheetDimensions(W, H, factor) {
@@ -49,6 +49,19 @@ function getCutSheetDimensions(W, H, factor) {
     };
 }
 
+function calculateAutoUps(compW, compH, targetW, targetH) {
+    const cW = parseFloat(compW) || 0;
+    const cH = parseFloat(compH) || 0;
+    const tW = parseFloat(targetW) || 0;
+    const tH = parseFloat(targetH) || 0;
+    if (cW <= 0 || cH <= 0 || tW <= 0 || tH <= 0) return null;
+
+    const normal = Math.floor(tW / cW) * Math.floor(tH / cH);
+    const rotated = Math.floor(tW / cH) * Math.floor(tH / cW);
+    const maxUps = Math.max(normal, rotated);
+    return maxUps > 0 ? maxUps : 1;
+}
+
 export default function EstimationComponentForm({
     index,
     data,
@@ -63,7 +76,8 @@ export default function EstimationComponentForm({
     onAddFinishing, // (index, finishingItem)
     onRemoveFinishing, // (index, finishingId)
     calculationResult, // New prop
-    currency
+    currency,
+    allowOffset = true
 }) {
     const { params, type, finishings: selectedFinishings } = data;
     const sfgLines = data.sfgLines || [];
@@ -197,6 +211,7 @@ export default function EstimationComponentForm({
     ]);
     const [showShortcutModal, setShowShortcutModal] = useState(false);
     const [tempShortcuts, setTempShortcuts] = useState([]);
+    const [printCostExpr, setPrintCostExpr] = useState('');
 
     useEffect(() => {
         const saved = localStorage.getItem('estimation_shortcuts');
@@ -349,14 +364,58 @@ export default function EstimationComponentForm({
         if (name === 'paperWidthCm' || name === 'paperHeightCm') {
             const paperW = parseFloat(name === 'paperWidthCm' ? value : params.paperWidthCm) || 0;
             const paperH = parseFloat(name === 'paperHeightCm' ? value : params.paperHeightCm) || 0;
-            const machine = machines.find(m => m.id == params.machineId);
-            const factor = machine ? parseFloat(machine.sheet_factor) : null;
-            const cutDims = getCutSheetDimensions(paperW, paperH, factor);
-            newParams.cutWidthCm = cutDims.width;
-            newParams.cutHeightCm = cutDims.height;
+            if (type === 'offset') {
+                const machine = machines.find(m => m.id == params.machineId);
+                const factor = machine ? parseFloat(machine.sheet_factor) : null;
+                const cutDims = getCutSheetDimensions(paperW, paperH, factor);
+                newParams.cutWidthCm = cutDims.width;
+                newParams.cutHeightCm = cutDims.height;
+            }
+        }
+        if (name === 'pressSheetSize') {
+            const size = value;
+            if (!size) {
+                setShowDimensions(true);
+            }
+            let w = 0;
+            let h = 0;
+            switch (size) {
+                case 'A1': w = 84.1; h = 59.4; break;
+                case 'A2': w = 59.4; h = 42; break;
+                case 'A3': w = 42; h = 29.7; break;
+                case 'A4': w = 29.7; h = 21; break;
+                case 'A5': w = 21; h = 14.8; break;
+                case '12x18': w = 45.72; h = 30.48; break;
+                case '13x19': w = 48.26; h = 33.02; break;
+                case '18x23': w = 58.42; h = 45.72; break;
+                case '19x25': w = 63.5; h = 48.26; break;
+                case '20x30': w = 76.2; h = 50.8; break;
+                case '23x36': w = 91.44; h = 58.42; break;
+                case '25x36': w = 91.44; h = 63.5; break;
+                case '28x40': w = 101.6; h = 71.12; break;
+                case '30x40': w = 101.6; h = 76.2; break;
+            }
+            newParams.pressSheetSize = size;
+            if (size) {
+                if (type === 'digital') {
+                    newParams.cutWidthCm = w;
+                    newParams.cutHeightCm = h;
+                } else {
+                    newParams.paperWidthCm = w;
+                    newParams.paperHeightCm = h;
+                    const machine = machines.find(m => m.id == params.machineId);
+                    const factor = machine ? parseFloat(machine.sheet_factor) || 1.0 : 1.0;
+                    const cutDims = getCutSheetDimensions(w, h, factor);
+                    newParams.cutWidthCm = cutDims.width;
+                    newParams.cutHeightCm = cutDims.height;
+                }
+            }
         }
         if (name === 'size') {
             const size = value;
+            if (size === 'Custom' || !size) {
+                setShowDimensions(true);
+            }
             switch (size) {
                 case 'A1':
                     newParams.compWidthCm = 84.1;
@@ -382,6 +441,28 @@ export default function EstimationComponentForm({
                     newParams.compWidthCm = 10.5;
                     newParams.compHeightCm = 14.8;
                     break;
+            }
+        }
+
+        if (['size', 'pressSheetSize', 'compWidthCm', 'compHeightCm', 'cutWidthCm', 'cutHeightCm', 'paperWidthCm', 'paperHeightCm'].includes(name)) {
+            const autoUps = calculateAutoUps(newParams.compWidthCm, newParams.compHeightCm, newParams.cutWidthCm, newParams.cutHeightCm);
+            if (autoUps !== null) {
+                newParams.ups = autoUps;
+            }
+
+            const autoPressUps = calculateAutoUps(newParams.cutWidthCm, newParams.cutHeightCm, newParams.paperWidthCm, newParams.paperHeightCm);
+            if (autoPressUps !== null) {
+                newParams.pressUps = autoPressUps;
+            }
+        }
+
+        if (['digitalPricePerSqCm', 'compWidthCm', 'compHeightCm', 'ups'].includes(name)) {
+            const sqCm = parseFloat(name === 'digitalPricePerSqCm' ? value : newParams.digitalPricePerSqCm) || 0;
+            const cW = parseFloat(name === 'compWidthCm' ? value : newParams.compWidthCm) || 0;
+            const cH = parseFloat(name === 'compHeightCm' ? value : newParams.compHeightCm) || 0;
+            const u = parseInt(name === 'ups' ? value : newParams.ups) || 1;
+            if (sqCm > 0 && cW > 0 && cH > 0) {
+                newParams.digitalPricePerUnit = (sqCm * cW * cH * u).toFixed(3);
             }
         }
 
@@ -417,11 +498,13 @@ export default function EstimationComponentForm({
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-md font-semibold text-gray-300">Specifications</h3>
                     <div className="flex bg-black/50 rounded-lg p-1 border border-white/10 gap-1 mr-20">
-                        <button
-                            type="button"
-                            onClick={() => onChange(index, 'type', 'offset')}
-                            className={`px-3 py-1 rounded text-xs transition-all ${type === 'offset' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
-                        >Offset</button>
+                        {allowOffset && (
+                            <button
+                                type="button"
+                                onClick={() => onChange(index, 'type', 'offset')}
+                                className={`px-3 py-1 rounded text-xs transition-all ${type === 'offset' ? 'bg-white text-black font-semibold' : 'text-gray-400 hover:text-white'}`}
+                            >Offset</button>
+                        )}
                         <button
                             type="button"
                             onClick={() => onChange(index, 'type', 'digital')}
@@ -875,16 +958,23 @@ export default function EstimationComponentForm({
                                                                     const machine = machines.find(m => m.id == params.machineId);
                                                                     const factor = machine ? parseFloat(machine.sheet_factor) : null;
                                                                     const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
-                                                                    onChange(index, 'params', {
+                                                                    const paperW = p.width_cm || 0;
+                                                                    const paperH = p.height_cm || 0;
+                                                                    const autoPressUps = calculateAutoUps(cutDims.width, cutDims.height, paperW, paperH);
+                                                                    const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, cutDims.width, cutDims.height);
+                                                                    const newParams = {
                                                                         ...params,
                                                                         paperCostPerSheet: p.unit_cost,
                                                                         paperId: p.id,
                                                                         paperName: p.name,
-                                                                        paperWidthCm: p.width_cm || 0,
-                                                                        paperHeightCm: p.height_cm || 0,
+                                                                        paperWidthCm: paperW,
+                                                                        paperHeightCm: paperH,
                                                                         cutWidthCm: cutDims.width,
                                                                         cutHeightCm: cutDims.height,
-                                                                    });
+                                                                    };
+                                                                    if (autoUps !== null) newParams.ups = autoUps;
+                                                                    if (autoPressUps !== null) newParams.pressUps = autoPressUps;
+                                                                    onChange(index, 'params', newParams);
                                                                     setPaperSearch(p.name);
                                                                     setShowPaperSuggestions(false);
                                                                 }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
@@ -970,189 +1060,421 @@ export default function EstimationComponentForm({
                             )}
 
                             {type === 'digital' && (
-                                <>
-                                    <div className="grid md:grid-cols-4 gap-4 mb-6">
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Machine</label>
-                                            <select
-                                                name="machineId"
-                                                value={params.machineId || ''}
-                                                onChange={(e) => {
-                                                    const mId = e.target.value;
-                                                    const machine = machines.find(m => m.id == mId);
-                                                    let pricePerSqCm = 0;
-                                                    if (machine) {
-                                                        if (params.colorQuality === 'max') pricePerSqCm = machine.digital_price_max;
-                                                        else if (params.colorQuality === 'medium') pricePerSqCm = machine.digital_price_medium;
-                                                        else if (params.colorQuality === 'min') pricePerSqCm = machine.digital_price_min;
-                                                        else {
-                                                            // Default if no quality selected yet
-                                                            pricePerSqCm = machine.digital_price_max;
-                                                            updateParam('colorQuality', 'max');
+                                <div className="space-y-6 mb-6">
+                                    {/* Printing & Machine Settings */}
+                                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+                                        <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                            <RiPrinterFill className="text-amber-400 text-sm" /> Printing & Machine Details
+                                        </h4>
+                                        <div className="grid md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Machine</label>
+                                                <select
+                                                    name="machineId"
+                                                    value={params.machineId || ''}
+                                                    onChange={(e) => {
+                                                        const mId = e.target.value;
+                                                        const machine = machines.find(m => m.id == mId);
+                                                        let pricePerSqCm = 0;
+                                                        if (machine) {
+                                                            const q = params.colorQuality || 'max';
+                                                            if (q === 'max') pricePerSqCm = machine.digital_price_max;
+                                                            else if (q === 'medium') pricePerSqCm = machine.digital_price_medium;
+                                                            else if (q === 'min') pricePerSqCm = machine.digital_price_min;
                                                         }
-                                                    }
-                                                    onChange(index, 'params', {
-                                                        ...params,
-                                                        machineId: mId,
-                                                        digitalPricePerSqCm: pricePerSqCm || 0
-                                                    });
-                                                }}
-                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                            >
-                                                <option value="">Select Machine</option>
-                                                {machines.filter(m => m.type === 'digital').map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
-                                            </select>
+                                                        onChange(index, 'params', {
+                                                            ...params,
+                                                            machineId: mId,
+                                                            colorQuality: params.colorQuality || 'max',
+                                                            digitalPricePerSqCm: pricePerSqCm || 0
+                                                        });
+                                                    }}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                >
+                                                    <option value="">Select Machine</option>
+                                                    {machines.filter(m => m.type === 'digital').map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Color Quality</label>
+                                                <select
+                                                    name="colorQuality"
+                                                    value={params.colorQuality || 'max'}
+                                                    onChange={(e) => {
+                                                        const quality = e.target.value;
+                                                        const machine = machines.find(m => m.id == params.machineId);
+                                                        let pricePerSqCm = params.digitalPricePerSqCm;
+                                                        if (machine) {
+                                                            if (quality === 'max') pricePerSqCm = machine.digital_price_max;
+                                                            else if (quality === 'medium') pricePerSqCm = machine.digital_price_medium;
+                                                            else if (quality === 'min') pricePerSqCm = machine.digital_price_min;
+                                                        }
+                                                        onChange(index, 'params', {
+                                                            ...params,
+                                                            colorQuality: quality,
+                                                            digitalPricePerSqCm: pricePerSqCm || 0
+                                                        });
+                                                    }}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                >
+                                                    <option value="max">Max Quality</option>
+                                                    <option value="medium">Medium Quality</option>
+                                                    <option value="min">Min Quality</option>
+                                                </select>
+                                            </div>
+
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Print Sides</label>
+                                                <select
+                                                    name="sides"
+                                                    value={params.sides || '1'}
+                                                    onChange={handleChange}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                >
+                                                    <option value="1">One Side</option>
+                                                    <option value="2">Both Sides</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Print Cost / Sq cm ({currency})</label>
+                                                <Input
+                                                    type="number"
+                                                    disabled
+                                                    step="0.0001"
+                                                    name="digitalPricePerSqCm"
+                                                    value={params.digitalPricePerSqCm ?? ''}
+                                                    onChange={handleChange}
+                                                    className="bg-secondary font-mono text-gray-500"
+                                                    placeholder="0.0000"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Print Cost / Unit ({currency})</label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={printCostExpr !== '' ? printCostExpr : (
+                                                            params.digitalPricePerUnit !== undefined && params.digitalPricePerUnit !== ''
+                                                                ? String(params.digitalPricePerUnit)
+                                                                : (params.digitalPricePerSqCm && params.compWidthCm && params.compHeightCm)
+                                                                    ? String(((parseFloat(params.digitalPricePerSqCm) || 0) * (parseFloat(params.compWidthCm) || 0) * (parseFloat(params.compHeightCm) || 0) * (parseInt(params.ups) || 1) * (parseInt(params.sides) || 1)).toFixed(4))
+                                                                    : ''
+                                                        )}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setPrintCostExpr(val);
+                                                            // Live-evaluate simple numeric input immediately
+                                                            const num = parseFloat(val);
+                                                            if (!isNaN(num) && String(num) === val.trim()) {
+                                                                updateParam('digitalPricePerUnit', num);
+                                                            }
+                                                        }}
+                                                        onBlur={() => {
+                                                            if (!printCostExpr) return;
+                                                            try {
+                                                                // Safe eval: allow only numbers, operators, spaces, dots, parentheses
+                                                                const sanitized = printCostExpr.replace(/[^0-9+\-*/().\s]/g, '');
+                                                                // eslint-disable-next-line no-new-func
+                                                                const result = new Function('return (' + sanitized + ')')();
+                                                                if (typeof result === 'number' && isFinite(result)) {
+                                                                    const rounded = Math.round(result * 10000) / 10000;
+                                                                    updateParam('digitalPricePerUnit', rounded);
+                                                                    setPrintCostExpr(String(rounded));
+                                                                }
+                                                            } catch {
+                                                                // Invalid expression — leave as-is
+                                                            }
+                                                        }}
+                                                        onFocus={(e) => e.target.select()}
+                                                        placeholder="e.g. 1.5 * 2.1 or 3.15"
+                                                        className="w-full bg-secondary border border-amber-500/30 rounded-lg px-3 py-2 text-amber-500 font-mono text-sm focus:outline-none focus:border-amber-400/60"
+                                                    />
+                                                    {/* Live expression preview */}
+                                                    {printCostExpr && /[+\-*/()]/.test(printCostExpr) && (() => {
+                                                        try {
+                                                            const sanitized = printCostExpr.replace(/[^0-9+\-*/().\s]/g, '');
+                                                            // eslint-disable-next-line no-new-func
+                                                            const result = new Function('return (' + sanitized + ')')();
+                                                            if (typeof result === 'number' && isFinite(result)) {
+                                                                return (
+                                                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-emerald-400 bg-black/60 px-1.5 py-0.5 rounded pointer-events-none">
+                                                                        = {(Math.round(result * 10000) / 10000).toFixed(4)}
+                                                                    </span>
+                                                                );
+                                                            }
+                                                        } catch { /* noop */ }
+                                                        return null;
+                                                    })()}
+                                                </div>
+                                            </div>
+
+                                            <div className={!data.name?.toLowerCase().includes('cover') ? "" : 'opacity-40 pointer-events-none'}>
+                                                <label className="block text-sm text-gray-400 mb-1">Print Pages</label>
+                                                <Input
+                                                    type="number"
+                                                    name="pages"
+                                                    value={params.pages ?? (parseInt(params.sides) === 2 ? 2 : 1)}
+                                                    onChange={handleChange}
+                                                    className="bg-secondary border-white/10"
+                                                    min={parseInt(params.sides) === 2 ? "2" : "1"}
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Color Quality</label>
-                                            <select
-                                                name="colorQuality"
-                                                value={params.colorQuality || 'max'}
-                                                onChange={(e) => {
-                                                    const quality = e.target.value;
-                                                    const machine = machines.find(m => m.id == params.machineId);
-                                                    let pricePerSqCm = params.digitalPricePerSqCm;
-                                                    if (machine) {
-                                                        if (quality === 'max') pricePerSqCm = machine.digital_price_max;
-                                                        else if (quality === 'medium') pricePerSqCm = machine.digital_price_medium;
-                                                        else if (quality === 'min') pricePerSqCm = machine.digital_price_min;
-                                                    }
-                                                    onChange(index, 'params', {
-                                                        ...params,
-                                                        colorQuality: quality,
-                                                        digitalPricePerSqCm: pricePerSqCm || 0
-                                                    });
-                                                }}
-                                                className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                            >
-                                                <option value="max">Max</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="min">Min</option>
-                                            </select>
+                                    </div>
+
+
+                                    {/* Press Sheet Setup */}
+                                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+                                        <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                            <RiSideBarLine className="text-amber-400 text-sm" /> Press Sheet Setup
+                                        </h4>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Press Sheet Size</label>
+                                                <select
+                                                    name="pressSheetSize"
+                                                    value={params.pressSheetSize || ''}
+                                                    onChange={handleChange}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                >
+                                                    <option value="">Custom Size</option>
+                                                    <option value="A3">A3 (42.0 × 29.7 cm)</option>
+                                                    <option value="A4">A4 (29.7 × 21.0 cm)</option>
+                                                    <option value="A5">A5 (21.0 × 14.8 cm)</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">
+                                                    Press Ups <span className="text-[10px] text-gray-500 font-normal">(press sheets/stock sheet)</span>
+                                                </label>
+                                                <Input
+                                                    type="number"
+                                                    name="pressUps"
+                                                    value={params.pressUps ?? 1}
+                                                    onChange={handleChange}
+                                                    className="bg-secondary border-white/10"
+                                                    min="1"
+                                                    placeholder="1"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Sides</label>
-                                            <select name="sides" value={params.sides || '1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                                <option value="1">One Side</option>
-                                                <option value="2">Both Sides</option>
-                                            </select>
+                                    </div>
+                                    {/* Component & Ups */}
+                                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+                                        <h4 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                            <RiLayoutGridLine className="text-blue-400 text-sm" /> Component Specifications & Layout
+                                        </h4>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
+                                                <select
+                                                    name="size"
+                                                    value={params.size || ''}
+                                                    onChange={handleChange}
+                                                    className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
+                                                >
+                                                    <option value="">Custom Size</option>
+                                                    <option value="A3">A3</option>
+                                                    <option value="A4">A4</option>
+                                                    <option value="A5">A5</option>
+                                                    <option value="A6">A6</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">
+                                                    Ups <span className="text-[10px] text-gray-500 font-normal">(ups/press sheet)</span>
+                                                </label>
+                                                <Input
+                                                    type="number"
+                                                    name="ups"
+                                                    value={params.ups || 0}
+                                                    onChange={handleChange}
+                                                    className="bg-secondary border-white/10"
+                                                />
+                                            </div>
                                         </div>
-                                        <div><label className="block text-sm text-gray-400 mb-1">Copies/Ups</label><Input type="number" name="ups" value={params.ups} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
-                                            <select name="size" value={params.size || 'A1'} onChange={handleChange} className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30">
-                                                <option value="">Custom</option>
-                                                <option value="A1">A1</option>
-                                                <option value="A2">A2</option>
-                                                <option value="A3">A3</option>
-                                                <option value="A4">A4</option>
-                                                <option value="A5">A5</option>
-                                                <option value="A6">A6</option>
-                                            </select>
+                                    </div>
+
+                                    {/* Stock Sheet & Materials */}
+                                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+                                        <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                            <RiFilePaperLine className="text-emerald-400 text-sm" /> Stock Sheet & Material Details
+                                        </h4>
+                                        <div className="grid md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-2 relative">
+                                                <label className="block text-sm text-gray-400 mb-1">Stock Sheet (Paper)</label>
+                                                <div className="relative">
+                                                    <Input
+                                                        value={paperSearch}
+                                                        onChange={(e) => {
+                                                            setPaperSearch(e.target.value);
+                                                            setShowPaperSuggestions(true);
+                                                        }}
+                                                        onFocus={() => setShowPaperSuggestions(true)}
+                                                        onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
+                                                        placeholder="Type to search digital paper..."
+                                                        className="bg-secondary border-white/10"
+                                                    />
+                                                    {showPaperSuggestions && (
+                                                        <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
+                                                            {papers.filter(p => {
+                                                                const pType = (p.type || '').toUpperCase();
+                                                                return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
+                                                            }).map(p => {
+                                                                const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
+                                                                return (
+                                                                    <li key={p.id} onClick={() => {
+                                                                        const paperW = p.width_cm || 0;
+                                                                        const paperH = p.height_cm || 0;
+                                                                        const autoPressUps = calculateAutoUps(params.cutWidthCm, params.cutHeightCm, paperW, paperH);
+                                                                        const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, params.cutWidthCm, params.cutHeightCm);
+                                                                        const newParams = {
+                                                                            ...params,
+                                                                            paperCostPerSheet: p.unit_cost,
+                                                                            paperId: p.id,
+                                                                            paperName: p.name,
+                                                                            paperWidthCm: paperW,
+                                                                            paperHeightCm: paperH
+                                                                        };
+                                                                        if (autoUps !== null) newParams.ups = autoUps;
+                                                                        if (autoPressUps !== null) newParams.pressUps = autoPressUps;
+                                                                        onChange(index, 'params', newParams);
+                                                                        setPaperSearch(p.name);
+                                                                        setShowPaperSuggestions(false);
+                                                                    }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
+                                                                        <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}×${p.height_cm}cm)` : ''}</span>
+                                                                        <span className="group-hover:opacity-0 transition-opacity">{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
+                                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
+                                                                            <span className="text-gray-400 text-[10px]">Stock:</span>
+                                                                            <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
+                                                                            {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
+                                                                        </div>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">Stock Sheet Cost ({currency})</label>
+                                                <Input type="number" step="0.0001" name="paperCostPerSheet" value={params.paperCostPerSheet || ''} onChange={handleChange} className="bg-secondary border-white/10 font-mono" placeholder="Cost per sheet" />
+                                            </div>
                                         </div>
-                                        <div className="md:col-span-4 flex items-end">
+                                    </div>
+
+                                    {/* Collapsible Dimensions Section Card */}
+                                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
+                                        <div className="flex items-center justify-between">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowDimensions(v => !v)}
-                                                className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/25 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg px-3 py-2 transition-all w-full justify-center"
+                                                className="flex items-center gap-2 text-xs font-semibold text-gray-300 uppercase tracking-wider hover:text-white transition-all cursor-pointer"
                                             >
-                                                <span className={`transition-transform duration-200 ${showDimensions ? 'rotate-90' : ''}`}>▶</span>
-                                                {showDimensions ? 'Hide' : 'Show'} Dimensions
-                                                {(params.compWidthCm || params.paperWidthCm) && !showDimensions && (
-                                                    <span className="text-[10px] text-amber-400 font-mono">
-                                                        {params.compWidthCm && `${params.compWidthCm}×${params.compHeightCm}cm`}
-                                                    </span>
-                                                )}
+                                                <span className={`transition-transform duration-200 text-amber-400 ${showDimensions ? 'rotate-90' : ''}`}>▶</span>
+                                                {showDimensions ? 'Hide' : 'Show'} Dimensions (Component, Press & Stock Sheet)
                                             </button>
-                                        </div>
-                                        {showDimensions && (
-                                            <>
-                                                <div><label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label><Input type="number" name="compWidthCm" value={params.compWidthCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                                <div><label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label><Input type="number" name="compHeightCm" value={params.compHeightCm || ''} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <h3 className="text-md font-semibold text-gray-300 mb-3 border-t border-white/10 pt-4">Materials</h3>
-                                    <div className="grid md:grid-cols-2 gap-4 mb-6">
-                                        <div className="md:col-span-2 relative">
-                                            <label className="block text-sm text-gray-400 mb-1">Select Paper</label>
-                                            <div className="relative">
-                                                <Input
-                                                    value={paperSearch}
-                                                    onChange={(e) => {
-                                                        setPaperSearch(e.target.value);
-                                                        setShowPaperSuggestions(true);
-                                                    }}
-                                                    onFocus={() => setShowPaperSuggestions(true)}
-                                                    onBlur={() => setTimeout(() => setShowPaperSuggestions(false), 200)}
-                                                    placeholder="Type to search digital paper..."
-                                                    className="bg-secondary border-white/10"
-                                                />
-                                                {showPaperSuggestions && (
-                                                    <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
-                                                        {papers.filter(p => {
-                                                            const pType = (p.type || '').toUpperCase();
-                                                            return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
-                                                        }).map(p => {
-                                                            const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
-                                                            return (
-                                                                <li key={p.id} onClick={() => {
-                                                                    onChange(index, 'params', {
-                                                                        ...params,
-                                                                        paperCostPerSheet: p.unit_cost,
-                                                                        paperId: p.id,
-                                                                        paperName: p.name,
-                                                                        paperWidthCm: p.width_cm || 0,
-                                                                        paperHeightCm: p.height_cm || 0
-                                                                    });
-                                                                    setPaperSearch(p.name);
-                                                                    setShowPaperSuggestions(false);
-                                                                }} className={`px-4 py-2 hover:bg-white/10 cursor-pointer text-sm flex justify-between items-center relative group ${isLowStock ? 'text-red-400 hover:bg-red-500/10' : 'text-white'}`}>
-                                                                    <span>{p.name} {p.width_cm && p.height_cm ? `(${p.width_cm}x${p.height_cm}cm)` : ''}</span>
-                                                                    <span className="group-hover:opacity-0 transition-opacity">{currency}{parseFloat(p.unit_cost).toFixed(4)}</span>
-                                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 px-2.5 py-1 rounded bg-black border border-white/10 shadow-2xl z-50 pointer-events-none text-xs">
-                                                                        <span className="text-gray-400 text-[10px]">Stock:</span>
-                                                                        <span className={`font-mono font-bold ${isLowStock ? 'text-red-400' : 'text-emerald-400'}`}>{p.stock_quantity ?? 0}</span>
-                                                                        {p.min_stock > 0 && <span className="text-[10px] text-gray-500">(Min: {p.min_stock})</span>}
-                                                                    </div>
-                                                                </li>
-                                                            );
-                                                        })}
-                                                    </ul>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div><label className="block text-sm text-gray-400 mb-1">Paper Cost/Sheet</label><Input type="number" name="paperCostPerSheet" value={params.paperCostPerSheet} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                        <div><label className="block text-sm text-gray-400 mb-1">Print Cost / sq(cm)</label><Input type="number" name="digitalPricePerSqCm" value={params.digitalPricePerSqCm} onChange={handleChange} className="bg-secondary border-white/10 disabled:opacity-50" disabled /></div>
-                                        <div>
-                                            <label className="block text-sm text-gray-400 mb-1">Print Cost / Unit</label>
-                                            <Input
-                                                type="number"
-                                                value={((parseFloat(params.paperWidthCm) || 0) * (parseFloat(params.paperHeightCm) || 0) * (parseFloat(params.digitalPricePerSqCm) || 0) * (parseInt(params.sides) || 1)).toFixed(4)}
-                                                className="bg-secondary border-white/10 disabled:opacity-50"
-                                                disabled
-                                            />
-                                        </div>
-                                        {/* Paper dimension toggle for digital */}
-                                        <div className="md:col-span-2">
-                                            {showDimensions ? (
-                                                <>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div><label className="block text-sm text-gray-400 mb-1">Width (cm)</label><Input type="number" name="paperWidthCm" value={params.paperWidthCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                                        <div><label className="block text-sm text-gray-400 mb-1">Height (cm)</label><Input type="number" name="paperHeightCm" value={params.paperHeightCm} onChange={handleChange} className="bg-secondary border-white/10" /></div>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                params.paperWidthCm && (
-                                                    <div className="text-xs text-amber-400/70 font-mono mt-1">Paper: {params.paperWidthCm}×{params.paperHeightCm}cm</div>
-                                                )
+                                            {!showDimensions && (params.compWidthCm || params.cutWidthCm || params.paperWidthCm) && (
+                                                <span className="text-xs text-amber-400 font-mono">
+                                                    {params.compWidthCm ? `Comp: ${params.compWidthCm}×${params.compHeightCm}cm` : ''}
+                                                    {params.cutWidthCm ? `${params.compWidthCm ? ' · ' : ''}Press: ${params.cutWidthCm}×${params.cutHeightCm}cm` : ''}
+                                                    {params.paperWidthCm ? `${params.compWidthCm || params.cutWidthCm ? ' · ' : ''}Stock: ${params.paperWidthCm}×${params.paperHeightCm}cm` : ''}
+                                                </span>
                                             )}
                                         </div>
+
+                                        {showDimensions && (
+                                            <div className="grid md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/10">
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Comp Width (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="compWidthCm"
+                                                        value={params.compWidthCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10 font-mono"
+                                                        placeholder="Comp width"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="compHeightCm"
+                                                        value={params.compHeightCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10 font-mono"
+                                                        placeholder="Comp height"
+                                                    />
+                                                </div>
+                                                <div className="hidden md:block"></div>
+
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Press Sheet Width (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="cutWidthCm"
+                                                        value={params.cutWidthCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-amber-500/30 font-mono"
+                                                        placeholder="Press Width cm"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Press Sheet Height (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="cutHeightCm"
+                                                        value={params.cutHeightCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-amber-500/30 font-mono"
+                                                        placeholder="Press Height cm"
+                                                    />
+                                                </div>
+                                                <div className="hidden md:block"></div>
+
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Stock Sheet Width (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="paperWidthCm"
+                                                        value={params.paperWidthCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10 font-mono"
+                                                        placeholder="Stock Width"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Stock Sheet Height (cm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="paperHeightCm"
+                                                        value={params.paperHeightCm || ''}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10 font-mono"
+                                                        placeholder="Stock Height"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </>
+                                </div>
                             )}
 
                             <div ref={sectionRef}>
@@ -1536,7 +1858,24 @@ export default function EstimationComponentForm({
                             )}
                             {type === 'digital' && (
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-gray-400"><span>Papers Used:</span> <span className="font-mono text-white">{calculationResult.TotalImpressions}</span></div>
+                                    <div className="bg-white/5 p-3 rounded space-y-2 mb-2">
+                                        <div className="flex justify-between text-gray-300">
+                                            <span>Stock Sheets Used:</span>
+                                            <span className="font-mono text-white font-semibold">
+                                                {calculationResult.stockSheetsUsed != null
+                                                    ? Number(calculationResult.stockSheetsUsed).toLocaleString('en-US', { maximumFractionDigits: 2 })
+                                                    : Number(calculationResult.fullSheetsUsed || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-gray-300">
+                                            <span>Press Sheets Used:</span>
+                                            <span className="font-mono text-white font-semibold">
+                                                {calculationResult.pressSheetsUsed != null
+                                                    ? Number(calculationResult.pressSheetsUsed).toLocaleString('en-US', { maximumFractionDigits: 2 })
+                                                    : Number(calculationResult.cutSheets || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
                                     <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                     <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                 </div>

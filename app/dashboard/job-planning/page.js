@@ -55,9 +55,7 @@ function JobPlanningPageInner() {
     }, [searchParams]);
 
     const load = useCallback(async (silent = false) => {
-        const isInitialLoad = !data.orders || data.orders.length === 0;
-        const showLoading = !silent && isInitialLoad;
-        if (showLoading) setLoading(true);
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const res = await fetch('/api/job-planning');
@@ -67,9 +65,9 @@ function JobPlanningPageInner() {
         } catch (e) {
             setError(e.message);
         } finally {
-            if (showLoading) setLoading(false);
+            setLoading(false);
         }
-    }, [data.orders]);
+    }, []);
 
     useEffect(() => { load(); }, [load]);
 

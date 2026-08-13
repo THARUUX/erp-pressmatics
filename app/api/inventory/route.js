@@ -6,16 +6,16 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
 
-        let query = 'SELECT * FROM inventory_items';
+        let query = 'SELECT * FROM inventory_items WHERE 1=1';
         const params = [];
 
         if (category) {
             // For SFG, use flexible matching to catch 'SF', 'SFG', 'Semi-Finished', etc.
             // For Assets, also use flexible matching.
             if (category === 'SFG') {
-                query += " WHERE (category = 'SFG' OR category = 'SF' OR category LIKE '%SFG%' OR category LIKE '%Semi%' OR category LIKE '%Asset%')";
+                query += " AND (category = 'SFG' OR category = 'SF' OR category LIKE '%SFG%' OR category LIKE '%Semi%' OR category LIKE '%Asset%')";
             } else {
-                query += ' WHERE category = ?';
+                query += ' AND category = ?';
                 params.push(category);
             }
         }
@@ -31,8 +31,15 @@ export async function GET(req) {
 
 export async function POST(req) {
     try {
+        let activeCompanyId = 1;
+        try {
+            const cookieStore = await cookies();
+            const c = cookieStore.get('company_id');
+            if (c && c.value) activeCompanyId = parseInt(c.value, 10);
+        } catch (e) {}
+
         const body = await req.json();
-        const { name, category, type, unit_cost, stock_quantity, uom } = body;
+        const { name, category, type, unit_cost, stock_quantity, uom, is_common } = body;
         let { item_code } = body;
 
         if (!name || !category) {
@@ -80,8 +87,8 @@ export async function POST(req) {
         }
 
         const [result] = await pool.execute(
-            'INSERT INTO inventory_items (name, category, type, unit_cost, stock_quantity, item_code, uom, min_stock, is_active, width_cm, height_cm, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, category, type || '', parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code, uom || 'Unit', parseInt(body.min_stock) || 0, 1, parseFloat(body.width_cm) || null, parseFloat(body.height_cm) || null, body.description || null]
+            'INSERT INTO inventory_items (name, category, type, unit_cost, stock_quantity, item_code, uom, min_stock, is_active, width_cm, height_cm, description, company_id, is_common) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, category, type || '', parseFloat(unit_cost) || 0, parseInt(stock_quantity) || 0, item_code, uom || 'Unit', parseInt(body.min_stock) || 0, 1, parseFloat(body.width_cm) || null, parseFloat(body.height_cm) || null, body.description || null, activeCompanyId, is_common ? 1 : 0]
         );
 
         return NextResponse.json({ success: true, id: result.insertId, item_code });

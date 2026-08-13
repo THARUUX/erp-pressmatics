@@ -119,7 +119,7 @@ export async function POST(req) {
         const {
             name, unit_cost, is_machine, machine_id, cost_unit, variants, speed, speed_unit,
             assigned_employee_id, assigned_team_id, assigned_employee_ids, assigned_team_ids,
-            assigned_helper_ids
+            assigned_helper_ids, is_common
         } = await req.json();
 
         if (!name) {

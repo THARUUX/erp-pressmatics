@@ -45,8 +45,8 @@ export async function GET() {
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
                  FROM sales_orders so
-                 WHERE so.status NOT IN ('Delivered','Cancelled','Ready')
-                    OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL)
+                 WHERE (so.status NOT IN ('Delivered','Cancelled','Ready')
+                        OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL))
                  ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
             )
         ]);
@@ -68,7 +68,7 @@ export async function GET() {
             empIds.forEach(id => { if (id) empSet.add(parseInt(id)); });
             teamIds.forEach(tId => {
                 const members = teamMembersMap.get(parseInt(tId)) || [];
-                members.forEach(eId => empSet.add(parseInt(eId)));
+                members.forEach(eId => empSet.add(eId));
             });
             return Array.from(empSet)
                 .map(id => ({ id, name: empMap.get(id) }))
@@ -138,9 +138,10 @@ export async function GET() {
                  FROM job_tasks jt
                  LEFT JOIN machines m ON jt.machine_id = m.id
                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-                 WHERE jt.sales_order_id IN (${placeholders}) OR jt.sales_order_id IS NULL
+                 WHERE jt.sales_order_id IN (${placeholders})
+                    OR (jt.sales_order_id IS NULL AND (jt.company_id = ? OR (jt.company_id IS NULL AND ? = 1)))
                  ORDER BY jt.machine_position ASC, so.delivery_date ASC, jt.display_order ASC, jt.id ASC`,
-                orderIds
+                [...orderIds, activeCompanyId, activeCompanyId]
             );
             tasks = await enrichTasksWithEstimationDetails(rows, orderIds);
         } else {
@@ -148,8 +149,9 @@ export async function GET() {
                 `SELECT jt.*, m.name AS machine_label, m.type AS machine_type, NULL AS order_delivery_date
                  FROM job_tasks jt
                  LEFT JOIN machines m ON jt.machine_id = m.id
-                 WHERE jt.sales_order_id IS NULL
-                 ORDER BY jt.machine_position ASC, jt.display_order ASC, jt.id ASC`
+                 WHERE jt.sales_order_id IS NULL AND (jt.company_id = ? OR (jt.company_id IS NULL AND ? = 1))
+                 ORDER BY jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
+                [activeCompanyId, activeCompanyId]
             );
             tasks = await enrichTasksWithEstimationDetails(rows, []);
         }
