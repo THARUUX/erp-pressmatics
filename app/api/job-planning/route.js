@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import pool from '@/lib/db';
 
 // Resolve run quantity based on speed unit (mirrors tasks/route.js logic)
@@ -24,6 +25,10 @@ function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpre
 // orders includes tasks with machine_id + machine_name
 export async function GET() {
     try {
+        const cookieStore = await cookies();
+        const c = cookieStore.get('activeCompanyId');
+        let activeCompanyId = 1;
+        if (c && c.value) activeCompanyId = parseInt(c.value, 10);
         // Fetch employees, teams, team_members, machines, finishings, and sales orders concurrently in parallel
         const [
             [employees],
