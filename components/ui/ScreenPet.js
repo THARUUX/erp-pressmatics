@@ -105,7 +105,7 @@ const COMMANDS = [
 export default function ScreenPet() {
     const router = useRouter();
     const [state, setState] = useState('idle'); // idle, sleep, walking, copied, downloading, password, searching, dragged
-    const [emotion, setEmotion] = useState('normal'); // normal, happy, wink, thinking, gasp
+    const [emotion, setEmotion] = useState('normal'); // default normal: normal, happy, wink, thinking, gasp
     const [hidden, setHidden] = useState(true); // Hidden until mounted and read from localStorage
     const [zzzList, setZzzList] = useState([]); // List of floating Zzzs
     const [showSpeechBubble, setShowSpeechBubble] = useState(false);
@@ -126,7 +126,7 @@ export default function ScreenPet() {
 
     // Customization states
     const [petName, setPetName] = useState('Pressy');
-    const [petSize, setPetSize] = useState('medium'); // small, medium, large
+    const [petSize, setPetSize] = useState('small'); // small, medium, large
     const [petThemeLocked, setPetThemeLocked] = useState(false);
     const [walkingEnabled, setWalkingEnabled] = useState(true);
     const [idleEmotionsEnabled, setIdleEmotionsEnabled] = useState(true);
@@ -135,7 +135,7 @@ export default function ScreenPet() {
 
     // Form temporary states for the settings modal
     const [tempPetName, setTempPetName] = useState('Pressy');
-    const [tempPetSize, setTempPetSize] = useState('medium');
+    const [tempPetSize, setTempPetSize] = useState('small');
     const [tempPetTheme, setTempPetTheme] = useState('green');
     const [tempThemeLocked, setTempThemeLocked] = useState(false);
     const [tempWalkingEnabled, setTempWalkingEnabled] = useState(true);
@@ -212,88 +212,8 @@ export default function ScreenPet() {
 
     // Intercept global fetch to show processing state on background processes
     useEffect(() => {
-        if (hidden) return;
-
-        const originalFetch = window.fetch;
-        let activeRequests = 0;
-        let clearTimer = null;
-
-        window.fetch = async function (...args) {
-            const url = args[0] || '';
-            const isIgnored = typeof url === 'string' && (
-                url.includes('/api/auth/me') ||
-                url.includes('/_next/data')
-            );
-
-            if (!isIgnored) {
-                activeRequests++;
-                setState('loading');
-                if (clearTimer) clearTimeout(clearTimer);
-
-                if (!loadTimeInterval.current) {
-                    let spokenSlowPhrase = false;
-                    setLoadElapsed(0);
-                    loadTimeInterval.current = setInterval(() => {
-                        setLoadElapsed(prev => {
-                            const next = prev + 0.1;
-                            if (next >= 2.0 && !spokenSlowPhrase) {
-                                spokenSlowPhrase = true;
-                                const slowPhrases = [
-                                    userName ? `This is taking a bit long, ${userName}...` : "This is taking a bit long...",
-                                    "Still processing heavy calculations...",
-                                    userName ? `Hang tight, ${userName}, almost there...` : "Hang tight, almost there...",
-                                    "Working hard on this request..."
-                                ];
-                                triggerSpeech(slowPhrases[Math.floor(Math.random() * slowPhrases.length)], 3000);
-                            }
-                            if (next >= 4.0) {
-                                clearInterval(loadTimeInterval.current);
-                            }
-                            return next;
-                        });
-                    }, 100);
-                }
-
-                if (systemRemindersEnabled) {
-                    const loadPhrases = [
-                        userName ? `Processing data, ${userName}...` : "Processing data...",
-                        userName ? `Loading updates, ${userName}...` : "Loading updates...",
-                        "Recalculating statistics...",
-                        "Updating ERP dashboard...",
-                        "Syncing records..."
-                    ];
-                    triggerSpeech(loadPhrases[Math.floor(Math.random() * loadPhrases.length)], 2000);
-                }
-            }
-
-            try {
-                return await originalFetch.apply(this, args);
-            } finally {
-                if (!isIgnored) {
-                    activeRequests--;
-                    if (activeRequests <= 0) {
-                        activeRequests = 0;
-                        if (loadTimeInterval.current) {
-                            clearInterval(loadTimeInterval.current);
-                            loadTimeInterval.current = null;
-                        }
-                        setLoadElapsed(0);
-                        clearTimer = setTimeout(() => {
-                            setState(prev => prev === 'loading' ? 'idle' : prev);
-                        }, 800);
-                    }
-                }
-            }
-        };
-
-        return () => {
-            window.fetch = originalFetch;
-            if (clearTimer) clearTimeout(clearTimer);
-            if (loadTimeInterval.current) {
-                clearInterval(loadTimeInterval.current);
-                loadTimeInterval.current = null;
-            }
-        };
+        // Fetch interceptor disabled to prevent locking pet in loading state during routine background requests
+        return () => { };
     }, [hidden, userName]);
 
     // Random color theme switcher
@@ -501,9 +421,6 @@ export default function ScreenPet() {
         if (hidden || !systemRemindersEnabled || alerts.length === 0) return;
 
         const rotateAlert = () => {
-            // Only trigger if speech bubble isn't already active (e.g. loading, password, or manual actions)
-            if (showSpeechBubble || ['loading', 'password', 'searching', 'copied', 'downloading', 'dragged'].includes(state)) return;
-
             // Pick a random alert
             const alert = alerts[Math.floor(Math.random() * alerts.length)];
 
@@ -511,22 +428,22 @@ export default function ScreenPet() {
             setEmotion('gasp');
             setTimeout(() => {
                 setEmotion('normal');
-            }, 3000);
+            }, 2500);
 
             // Display alert
             setActiveAlert(alert);
-            triggerSpeech(alert.message, 8000, true);
+            triggerSpeech(alert.message, 7000, true);
         };
 
-        // First alert triggers after 10 seconds, then rotates every 60 seconds
-        const initialTimeout = setTimeout(rotateAlert, 10000);
-        const rotationInterval = setInterval(rotateAlert, 60000);
+        // Rotate alerts every 90 seconds
+        const initialTimeout = setTimeout(rotateAlert, 20000);
+        const rotationInterval = setInterval(rotateAlert, 90000);
 
         return () => {
             clearTimeout(initialTimeout);
             clearInterval(rotationInterval);
         };
-    }, [hidden, alerts, showSpeechBubble, state]);
+    }, [hidden, alerts, systemRemindersEnabled]);
 
     // Set up global event listeners for state management and cursor tracking
     useEffect(() => {
@@ -550,6 +467,14 @@ export default function ScreenPet() {
 
             // Pupil tracking cursor when awake
             if (petRef.current && state !== 'sleep') {
+                const currentEmotion = emotionRef.current;
+
+                // 1. When in aggrieved, happy, or when walking, don't move eyes with the cursor!
+                if (['aggrieved', 'happy'].includes(currentEmotion) || state === 'walking') {
+                    setEyeOffset({ x: 0, y: 0 });
+                    return;
+                }
+
                 const rect = petRef.current.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
@@ -559,11 +484,10 @@ export default function ScreenPet() {
 
                 if (distance > 0) {
                     const angle = Math.atan2(dy, dx);
-                    const isAngryMood = ['angry', 'furious', 'emo_angry'].includes(emotionRef.current);
+                    const offsetAmount = Math.min(4.5, distance / 45);
 
-                    // In angry moods: dramatic offset (8px) in the OPPOSITE direction of cursor!
-                    const offsetAmount = isAngryMood ? 4.0 : Math.min(4.5, distance / 45);
-                    const directionMult = isAngryMood ? -1 : 1;
+                    // 2. Emo angry eyes should invert cursor!
+                    const directionMult = (currentEmotion === 'emo_angry' || currentEmotion === 'angry' || currentEmotion === 'furious') ? -1 : 1;
 
                     setEyeOffset({
                         x: Math.cos(angle) * offsetAmount * directionMult,
@@ -651,10 +575,33 @@ export default function ScreenPet() {
         };
     }, [hidden, state]);
 
-    // Set up random emotion cycles when idle
+    // Reset eye offset to original centered position when in static eye states
     useEffect(() => {
-        if (hidden || !idleEmotionsEnabled || state !== 'idle') {
-            if (Date.now() >= angryUntilRef.current) {
+        if (emotion === 'happy' || state === 'walking' || state === 'sleep') {
+            setEyeOffset({ x: 0, y: 0 });
+        }
+    }, [emotion, state]);
+
+    // Random left/right eye movement for aggrieved state (slightly lowered eyes)
+    useEffect(() => {
+        if (emotion !== 'aggrieved') return;
+
+        // Set initial lowered position
+        setEyeOffset({ x: 0, y: 3.5 });
+
+        const interval = setInterval(() => {
+            const randomX = (Math.random() - 0.5) * 7;
+            const randomY = 3.5 + (Math.random() - 0.5) * 1.5;
+            setEyeOffset({ x: randomX, y: randomY });
+        }, 1200 + Math.random() * 800);
+
+        return () => clearInterval(interval);
+    }, [emotion]);
+
+    // Set up random emotion cycles when idle or walking
+    useEffect(() => {
+        if (hidden || !idleEmotionsEnabled || ['sleep', 'dragged', 'password'].includes(state)) {
+            if (Date.now() >= angryUntilRef.current && emotionRef.current !== 'emo_angry') {
                 setEmotion('normal');
             }
             clearInterval(emotionTimer.current);
@@ -662,32 +609,46 @@ export default function ScreenPet() {
         }
 
         const cycleEmotion = () => {
-            if (Date.now() < angryUntilRef.current) return;
+            // If in active angry timeout or emo_angry state (waiting for click), do not change emotion
+            if (Date.now() < angryUntilRef.current || emotionRef.current === 'emo_angry') return;
 
-            // Rare 3% chance to trigger persistent emotion mode autonomously
-            if (Math.random() < 0.03) {
-                const persistentEmotions = [
-                    { type: 'angry', text: "Grrr! Something is bugging me... I need a minute to cool off!" },
-                    { type: 'emo_angry', text: "🤖 Cyber Glare active! Monitoring errors closely for 1 minute..." },
-                    { type: 'aggrieved', text: "🥺 Feeling a bit overwhelmed... I'll take a minute to recover." }
-                ];
-                const selected = persistentEmotions[Math.floor(Math.random() * persistentEmotions.length)];
-                triggerAngryMode(selected.type, 60000, selected.text);
+            // Defined list of emotions with exact user-specified durations (ms)
+            const availableEmotions = [
+                { type: 'happy', duration: 3000 },
+                { type: 'gasp', duration: 60000 },
+                { type: 'wink', duration: 1000 },
+                { type: 'thinking', duration: 15000 },
+                { type: 'emo_angry', duration: null }, // Stays until clicked!
+                { type: 'aggrieved', duration: 60000 }
+            ];
+
+            const selected = availableEmotions[Math.floor(Math.random() * availableEmotions.length)];
+            setEmotion(selected.type);
+
+            if (selected.type === 'emo_angry') {
+                triggerSpeech("🤖 Cyber Glare active! Click me to calm me down!", 5000);
                 return;
             }
 
-            const emotions = ['normal', 'happy', 'wink', 'thinking', 'gasp'];
-            const nextEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-            setEmotion(nextEmotion);
+            if (selected.type === 'aggrieved') {
+                triggerSpeech("🥺 Feeling a bit aggrieved...", 4000);
+            }
 
-            // Revert back to normal after 3.5 seconds
-            setTimeout(() => {
-                if (Date.now() < angryUntilRef.current) return;
-                setEmotion('normal');
-            }, 3500);
+            if (selected.duration) {
+                setTimeout(() => {
+                    if (Date.now() < angryUntilRef.current || emotionRef.current === 'emo_angry') return;
+                    setEmotion('normal');
+                }, selected.duration);
+            }
         };
 
-        emotionTimer.current = setInterval(cycleEmotion, 8000 + Math.random() * 5000);
+        // Only trigger random emotion shifts when in default 'normal' state
+        emotionTimer.current = setInterval(() => {
+            if (emotionRef.current === 'normal') {
+                cycleEmotion();
+            }
+        }, 10000 + Math.random() * 5000);
+
         return () => clearInterval(emotionTimer.current);
     }, [hidden, state, idleEmotionsEnabled]);
 
@@ -891,6 +852,13 @@ export default function ScreenPet() {
     const handlePetClick = () => {
         if (isDragging.current || state === 'sleep') return;
 
+        // If pet is in emo_angry, clicking it calms it down immediately back to normal!
+        if (emotion === 'emo_angry') {
+            setEmotion('normal');
+            triggerSpeech("Phew! Thanks for calming me down!", 3000);
+            return;
+        }
+
         if (Date.now() < angryUntilRef.current) {
             const angryResponses = [
                 "I'm STILL angry! Give me some space!",
@@ -929,7 +897,10 @@ export default function ScreenPet() {
             return;
         }
 
-        setEmotion('happy');
+        const emotionsList = ['happy', 'wink', 'thinking', 'gasp'];
+        const chosenEmotion = emotionsList[(clickCountRef.current - 1) % emotionsList.length];
+        setEmotion(chosenEmotion);
+
         const phrases = [
             "Haha! That tickles!",
             userName ? `Need anything done, ${userName}?` : "Need anything done?",
@@ -1087,9 +1058,8 @@ export default function ScreenPet() {
     }, [showCommandBar, filteredCommands, selectedCommandIndex]);
 
     const getActiveColor = () => {
-        if (emotion === 'angry' || emotion === 'furious') return 'rgb(239, 68, 68)';
+        if (['angry', 'furious', 'emo_angry'].includes(emotion)) return 'rgb(239, 68, 68)';
         if (emotion === 'aggrieved') return 'rgb(52, 211, 153)';
-        if (emotion === 'emo_angry') return 'rgb(6, 182, 212)';
         if (state === 'loading') {
             const ratio = Math.min(1, loadElapsed / 4.0);
             const r = Math.round(themeColor.r + (255 - themeColor.r) * ratio);
@@ -1102,9 +1072,8 @@ export default function ScreenPet() {
 
     const getActiveShadow = () => {
         if (emotion === 'furious') return 'rgba(239, 68, 68, 0.95)';
-        if (emotion === 'angry') return 'rgba(239, 68, 68, 0.8)';
+        if (['angry', 'emo_angry'].includes(emotion)) return 'rgba(239, 68, 68, 0.8)';
         if (emotion === 'aggrieved') return 'rgba(52, 211, 153, 0.8)';
-        if (emotion === 'emo_angry') return 'rgba(6, 182, 212, 0.8)';
         if (state === 'loading') {
             const ratio = Math.min(1, loadElapsed / 4.0);
             const r = Math.round(themeColor.r + (255 - themeColor.r) * ratio);
@@ -1118,13 +1087,13 @@ export default function ScreenPet() {
     // Get pet dimensions based on size state
     const getPetDimensions = () => {
         switch (petSize) {
-            case 'small':
-                return { width: '80px', height: '64px', petWidth: 80, petHeight: 64 };
+            case 'medium':
+                return { width: '96px', height: '76px', petWidth: 96, petHeight: 76 };
             case 'large':
                 return { width: '120px', height: '95px', petWidth: 120, petHeight: 95 };
-            case 'medium':
+            case 'small':
             default:
-                return { width: '96px', height: '76px', petWidth: 96, petHeight: 76 };
+                return { width: '80px', height: '64px', petWidth: 80, petHeight: 64 };
         }
     };
 
@@ -1134,35 +1103,20 @@ export default function ScreenPet() {
 
         return (
             <div
-                className="relative flex items-center justify-center gap-3.5 z-20 will-change-transform transition-transform duration-100"
-                style={{ transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)` }}
+                className="relative flex items-center justify-center gap-3.5 z-20 will-change-transform transition-all duration-300"
+                style={{
+                    animation: state === 'dragged' ? 'pet-eye-vibrate 0.08s infinite' : 'none',
+                    transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px) ${state === 'dragged' ? 'scale(1.35)' : state === 'walking' ? 'scaleY(0.3)' : 'scaleY(1)'}`
+                }}
             >
-                {/* Eyebrows */}
-                {(emotion === 'angry' || emotion === 'furious') && (
-                    <div className="absolute -top-2 inset-x-0 flex justify-between px-0.5 z-30 pointer-events-none">
-                        <div className="w-4 h-[3.5px] bg-red-500 rounded-full transform rotate-[25deg] shadow-[0_0_8px_#ef4444]" />
-                        <div className="w-4 h-[3.5px] bg-red-500 rounded-full transform -rotate-[25deg] shadow-[0_0_8px_#ef4444]" />
-                    </div>
-                )}
-                {emotion === 'aggrieved' && (
-                    <div className="absolute -top-2 inset-x-0 flex justify-between px-0.5 z-30 pointer-events-none">
-                        <div className="w-4 h-[3px] bg-emerald-400 rounded-full transform -rotate-[20deg] shadow-[0_0_6px_#34d399]" />
-                        <div className="w-4 h-[3px] bg-emerald-400 rounded-full transform rotate-[20deg] shadow-[0_0_6px_#34d399]" />
-                    </div>
-                )}
-                {emotion === 'emo_angry' && (
-                    <div className="absolute -top-2 inset-x-0 flex justify-between px-0.5 z-30 pointer-events-none">
-                        <div className="w-4 h-[3.5px] bg-cyan-400 rounded-full transform rotate-[22deg] shadow-[0_0_8px_#06b6d4]" />
-                        <div className="w-4 h-[3.5px] bg-cyan-400 rounded-full transform -rotate-[22deg] shadow-[0_0_8px_#06b6d4]" />
-                    </div>
-                )}
+
 
                 {/* Left Eye */}
                 <div style={{ transform: 'rotate(8deg)' }} className="origin-center">
                     <div
                         style={{
                             animation: state === 'sleep' ? 'none' : 'pet-blink 4.5s infinite',
-                            transform: state === 'sleep' ? 'scaleY(0.1)' : emotion === 'gasp' ? 'scale(1.2)' : 'scaleY(1)'
+                            transform: state === 'sleep' ? 'scaleY(0.1)' : state === 'walking' ? 'scaleY(0.45)' : (state === 'dragged' || emotion === 'gasp') ? 'scale(1.25)' : 'scaleY(1)'
                         }}
                         className="origin-center transition-transform duration-300"
                     >
@@ -1171,9 +1125,17 @@ export default function ScreenPet() {
                                 width: '17px',
                                 height: '22px',
                                 borderRadius: '10px',
-                                backgroundColor: isIconState && state !== 'question' ? '#080808' : getActiveColor(),
-                                border: isIconState && state !== 'question' ? '1px solid rgba(255,255,255,0.08)' : 'none',
-                                boxShadow: isIconState && state !== 'question' ? 'none' : `${getActiveShadow()} 0px 0px 8px, ${getActiveShadow()} 0px 0px 16px`,
+                                backgroundColor: (isIconState && state !== 'question') || ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) ? '#080808' : getActiveColor(),
+                                border: (isIconState && state !== 'question') || ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) ? `1px solid ${getActiveColor()}40` : 'none',
+                                boxShadow: (emotion === 'furious' || emotion === 'angry')
+                                    ? '0 0 12px #ef4444'
+                                    : emotion === 'aggrieved'
+                                        ? 'none'
+                                        : emotion === 'emo_angry'
+                                            ? 'none'
+                                            : ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) || (isIconState && state !== 'question')
+                                                ? 'none'
+                                                : `${getActiveShadow()} 0px 0px 8px, ${getActiveShadow()} 0px 0px 16px`,
                                 transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)`,
                             }}
                             className="transition-all duration-300 ease-out relative flex items-center justify-center overflow-hidden"
@@ -1201,39 +1163,41 @@ export default function ScreenPet() {
                             >
                                 &gt;
                             </div>
-                            {/* Angry Left Eye Slant Cut */}
+                            {/* Angry Left Eye - Fierce Slanted Red Eye */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'angry' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[18px] h-[10px] bg-neutral-950 rounded-b-md transform rotate-[18deg] translate-y-[-4px]" />
+                                <div className="w-[16px] h-[10px] bg-red-500 rounded-b-[5px] transform rotate-[18deg] " />
                             </div>
                             {/* Furious Half-Circle Left Eye */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'furious' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[15px] h-[11px] bg-red-500 rounded-b-full transform -rotate-[28deg] shadow-[0_0_12px_#ef4444]" />
+                                <div className="w-[15px] h-[11px] bg-red-500 rounded-b-full transform -rotate-[28deg] " />
                             </div>
-                            {/* Aggrieved Left Eye */}
-                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[16px] h-[14px] bg-emerald-400 rounded-b-[6px] rounded-t-[2px] transform rotate-[14deg] shadow-[0_0_10px_#34d399] relative">
-                                    <span className="w-1.5 h-1.5 bg-white rounded-full absolute top-1 right-1 opacity-90" />
-                                </div>
+                            {/* Aggrieved Left Eye (Low-opacity background eye pill & melancholy drooping sad cyan eye) */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'aggrieved' ? 'opacity-30 scale-110' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[17px] h-[22px] bg-cyan-400/40 rounded-[10px] " />
                             </div>
-                            {/* EMO Angry Left Eye */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 z-10 ${emotion === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[16px] h-[10px] bg-cyan-400 rounded-b-[6px] rounded-tl-[8px] transform -rotate-[22deg] " />
+                            </div>
+                            {/* EMO Angry Left Eye (Fierce inner slanted cyan cut from reference image) */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'emo_angry' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[16px] h-[10px] bg-cyan-400 rounded-b-[4px] rounded-t-[1px] transform -rotate-[16deg] shadow-[0_0_12px_#06b6d4]" />
+                                <div className="w-[17px] h-[11px] bg-red-400 rounded-b-[5px] transform rotate-[10deg] " />
                             </div>
-                            {/* Dragged Cross */}
-                            <div
-                                className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[8px] font-extrabold font-mono`}
-                                style={{ color: getActiveColor() }}
-                            >
-                                X
+                            {/* Dragged Circle Eye */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[13px] h-[13px] border-[2.5px] rounded-full" style={{ borderColor: getActiveColor(), backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
                             </div>
                             {/* Happy Inverted Curve Arch ^ */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'happy' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[13px] h-[7px] border-t-[3px] border-neutral-950 rounded-t-full translate-y-[1px]" />
+                                <div className="w-[14px] h-[9px] border-t-[3.5px] rounded-t-full" style={{ borderColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
                             </div>
-                            {/* Gasp pupil dot */}
-                            <div className={`absolute w-2 h-2 rounded-full bg-neutral-950 transition-all duration-300 ${emotion === 'gasp' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
-                            {/* Thinking Pupil inside capsule */}
-                            <div className={`absolute w-2 h-2 rounded-full bg-neutral-950 transition-all duration-300 ${emotion === 'thinking' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ transform: 'translate(2px, -3px)' }} />
+                            {/* Gasp Open Ring O */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'gasp' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[14px] h-[14px] border-[3px] rounded-full" style={{ borderColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
+                            </div>
+                            {/* Thinking Pupil looking up-right */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'thinking' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[9px] h-[9px] rounded-full translate-x-[2px] translate-y-[-2px]" style={{ backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1243,7 +1207,7 @@ export default function ScreenPet() {
                     <div
                         style={{
                             animation: state === 'sleep' ? 'none' : 'pet-blink 4.5s infinite',
-                            transform: state === 'sleep' ? 'scaleY(0.1)' : emotion === 'gasp' ? 'scale(1.2)' : 'scaleY(1)'
+                            transform: state === 'sleep' ? 'scaleY(0.1)' : state === 'walking' ? 'scaleY(0.45)' : (state === 'dragged' || emotion === 'gasp') ? 'scale(1.25)' : 'scaleY(1)'
                         }}
                         className="origin-center transition-transform duration-300"
                     >
@@ -1252,9 +1216,17 @@ export default function ScreenPet() {
                                 width: '17px',
                                 height: '22px',
                                 borderRadius: '10px',
-                                backgroundColor: isIconState || emotion === 'wink' ? '#080808' : getActiveColor(),
-                                border: isIconState || emotion === 'wink' ? '1px solid rgba(255,255,255,0.08)' : 'none',
-                                boxShadow: isIconState || emotion === 'wink' ? 'none' : `${getActiveShadow()} 0px 0px 8px, ${getActiveShadow()} 0px 0px 16px`,
+                                backgroundColor: (isIconState && state !== 'question') || ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) ? '#080808' : getActiveColor(),
+                                border: (isIconState && state !== 'question') || ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) ? `1px solid ${getActiveColor()}40` : 'none',
+                                boxShadow: (emotion === 'furious' || emotion === 'angry')
+                                    ? '0 0 12px #ef4444'
+                                    : emotion === 'aggrieved'
+                                        ? 'none'
+                                        : emotion === 'emo_angry'
+                                            ? 'none'
+                                            : ['happy', 'gasp', 'thinking', 'wink', 'aggrieved', 'emo_angry', 'angry', 'furious'].includes(emotion) || (isIconState && state !== 'question')
+                                                ? 'none'
+                                                : `${getActiveShadow()} 0px 0px 8px, ${getActiveShadow()} 0px 0px 16px`,
                                 transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)`,
                             }}
                             className="transition-all duration-300 ease-out relative flex items-center justify-center overflow-hidden"
@@ -1282,34 +1254,32 @@ export default function ScreenPet() {
                             >
                                 &lt;
                             </div>
-                            {/* Angry Right Eye Slant Cut */}
+                            {/* Angry Right Eye - Fierce Slanted Red Eye */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'angry' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[18px] h-[10px] bg-neutral-950 rounded-b-md transform -rotate-[18deg] translate-y-[-4px]" />
+                                <div className="w-[16px] h-[10px] bg-red-500 rounded-b-[5px] transform -rotate-[18deg] " />
                             </div>
                             {/* Furious Half-Circle Right Eye */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'furious' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[15px] h-[11px] bg-red-500 rounded-b-full transform rotate-[28deg] shadow-[0_0_12px_#ef4444]" />
+                                <div className="w-[15px] h-[11px] bg-red-500 rounded-b-full transform rotate-[28deg] " />
                             </div>
-                            {/* Aggrieved Right Eye */}
-                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[16px] h-[14px] bg-emerald-400 rounded-b-[6px] rounded-t-[2px] transform -rotate-[14deg] shadow-[0_0_10px_#34d399] relative">
-                                    <span className="w-1.5 h-1.5 bg-white rounded-full absolute top-1 left-1 opacity-90" />
-                                </div>
+                            {/* Aggrieved Right Eye (Low-opacity background eye pill & melancholy drooping sad cyan eye) */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'aggrieved' ? 'opacity-30 scale-110' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[17px] h-[22px] bg-cyan-400/40 rounded-[10px] " />
                             </div>
-                            {/* EMO Angry Right Eye */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 z-10 ${emotion === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[16px] h-[10px] bg-cyan-400 rounded-b-[6px] rounded-tr-[8px] transform rotate-[22deg] " />
+                            </div>
+                            {/* EMO Angry Right Eye (Fierce inner slanted cyan cut from reference image) */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'emo_angry' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[16px] h-[10px] bg-cyan-400 rounded-b-[4px] rounded-t-[1px] transform rotate-[16deg] shadow-[0_0_12px_#06b6d4]" />
+                                <div className="w-[17px] h-[11px] bg-red-400 rounded-b-[5px] transform -rotate-[10deg] " />
                             </div>
-                            {/* Dragged Cross */}
-                            <div
-                                className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'} text-[8px] font-extrabold font-mono`}
-                                style={{ color: getActiveColor() }}
-                            >
-                                X
+                            {/* Dragged Circle Eye */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${state === 'dragged' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[13px] h-[13px] border-[2.5px] rounded-full" style={{ borderColor: getActiveColor(), backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
                             </div>
                             {/* Happy Inverted Curve Arch ^ */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'happy' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <div className="w-[13px] h-[7px] border-t-[3px] border-neutral-950 rounded-t-full translate-y-[1px]" />
+                                <div className="w-[14px] h-[9px] border-t-[3.5px] rounded-t-full" style={{ borderColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
                             </div>
                             {/* Question Right Eye - Question Mark */}
                             <div
@@ -1320,12 +1290,16 @@ export default function ScreenPet() {
                             </div>
                             {/* Wink line */}
                             <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'wink' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                                <span className="w-3 h-[2.5px] rounded-full" style={{ backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 4px ${getActiveColor()})` }}></span>
+                                <span className="w-[14px] h-[3.5px] rounded-full" style={{ backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }}></span>
                             </div>
-                            {/* Gasp pupil dot */}
-                            <div className={`absolute w-2 h-2 rounded-full bg-neutral-950 transition-all duration-300 ${emotion === 'gasp' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
-                            {/* Thinking Pupil inside capsule */}
-                            <div className={`absolute w-2 h-2 rounded-full bg-neutral-950 transition-all duration-300 ${emotion === 'thinking' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ transform: 'translate(2px, -3px)' }} />
+                            {/* Gasp Open Ring O */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'gasp' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[14px] h-[14px] border-[3px] rounded-full" style={{ borderColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
+                            </div>
+                            {/* Thinking Pupil looking up-right */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${emotion === 'thinking' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                                <div className="w-[9px] h-[9px] rounded-full translate-x-[2px] translate-y-[-2px]" style={{ backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 6px ${getActiveColor()})` }} />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1340,12 +1314,11 @@ export default function ScreenPet() {
             if (emotion === 'angry') return 'angry';
             if (emotion === 'aggrieved') return 'aggrieved';
             if (emotion === 'emo_angry') return 'line';
-            if (emotion === 'gasp') return 'gasp';
-            if (state === 'sleep') return 'circle';
-            if (state === 'dragged' || emotion === 'thinking' || state === 'loading') return 'line';
+            if (state === 'dragged' || emotion === 'gasp') return 'gasp';
+            if (emotion === 'thinking' || state === 'loading') return 'line';
             if (state === 'question') return 'curved';
             if (emotion === 'happy') return 'happy_smile';
-            if (emotion === 'wink') return 'curved';
+            if (emotion === 'wink') return 'smile';
             return 'smile';
         };
 
@@ -1353,8 +1326,8 @@ export default function ScreenPet() {
 
         return (
             <div className="relative w-12 h-[12px] flex justify-center items-center pointer-events-none">
-                {/* Normal capsule mouth */}
-                <div className={`absolute w-[5px] h-[10px] border-[2px] rounded-full transition-all duration-300 ${activeMouth === 'normal' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ borderColor: getActiveColor() }}></div>
+                {/* Normal neutral mouth - sleek horizontal bar */}
+                <div className={`absolute h-[2.5px] rounded-full transition-all duration-300 ${activeMouth === 'normal' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ width: '10px', backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }}></div>
 
                 {/* Small line mouth */}
                 <div className={`absolute h-[2.5px] rounded-full transition-all duration-300 ${activeMouth === 'line' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ width: '11px', backgroundColor: getActiveColor(), filter: `drop-shadow(0 0 3px ${getActiveColor()})` }}></div>
@@ -1374,8 +1347,8 @@ export default function ScreenPet() {
                 {/* Angry Frown mouth */}
                 <div className={`absolute w-[14px] h-[7px] border-t-[3px] rounded-t-full transition-all duration-300 ${activeMouth === 'angry' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ borderTopColor: '#ef4444', filter: 'drop-shadow(0 0 5px #ef4444)' }}></div>
 
-                {/* Aggrieved Pout Mouth */}
-                <div className={`absolute w-[11px] h-[5px] border-t-[2.5px] border-emerald-400 rounded-t-full transition-all duration-300 shadow-[0_0_6px_#34d399] ${activeMouth === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
+                {/* Aggrieved Flat Blue Mouth Line */}
+                <div className={`absolute h-[2.5px] rounded-full transition-all duration-300 ${activeMouth === 'aggrieved' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} style={{ width: '12px', backgroundColor: '#00ffff', filter: 'drop-shadow(0 0 5px #00ffff)' }} />
 
                 {/* Furious Gritting Teeth Mouth */}
                 <div className={`absolute w-[16px] h-[8px] border-[2px] border-red-500 bg-red-950/90 rounded-[3px] flex items-center justify-evenly transition-all duration-300 shadow-[0_0_10px_#ef4444] ${activeMouth === 'furious' ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
@@ -1395,7 +1368,7 @@ export default function ScreenPet() {
 
     // Render speech bubble state
     const renderSpeechBubble = () => {
-        if (!showSpeechBubble) return null;
+        if (!showSpeechBubble || state === 'dragged' || isDragging.current) return null;
 
         const isAngryTheme = ['angry', 'furious'].includes(emotion);
         const isEmoAngryTheme = emotion === 'emo_angry';
@@ -1404,18 +1377,16 @@ export default function ScreenPet() {
         const bubbleBgClass = isAngryTheme
             ? 'bg-red-950/95 text-red-100 border-red-500/50 shadow-[0_0_25px_rgba(239,68,68,0.4)]'
             : isEmoAngryTheme
-                ? 'bg-cyan-950/95 text-cyan-100 border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.4)]'
+                ? 'bg-red-950/95 text-red-100 border-red-500/50 shadow-[0_0_25px_rgba(239,68,68,0.4)]'
                 : isAggrievedTheme
                     ? 'bg-emerald-950/95 text-emerald-100 border-emerald-500/50 shadow-[0_0_25px_rgba(52,211,153,0.4)]'
                     : 'bg-neutral-900/95 text-white border-white/15 shadow-2xl';
 
-        const arrowColorClass = isAngryTheme
+        const arrowColorClass = (isAngryTheme || isEmoAngryTheme)
             ? 'border-t-red-950'
-            : isEmoAngryTheme
-                ? 'border-t-cyan-950'
-                : isAggrievedTheme
-                    ? 'border-t-emerald-950'
-                    : 'border-t-neutral-900';
+            : isAggrievedTheme
+                ? 'border-t-emerald-950'
+                : 'border-t-neutral-900';
 
         return (
             <div
@@ -1553,6 +1524,13 @@ export default function ScreenPet() {
                     50% { transform: rotate(0deg) translateY(0); }
                     75% { transform: rotate(-8deg) translateY(-6px); }
                 }
+                @keyframes pet-eye-vibrate {
+                    0%, 100% { transform: translate(0, 0); }
+                    20% { transform: translate(-3px, 2px); }
+                    40% { transform: translate(3px, -2px); }
+                    60% { transform: translate(-2px, -2px); }
+                    80% { transform: translate(2px, 3px); }
+                }
                 @keyframes pet-drag-wobble {
                     0%, 100% { transform: rotate(0deg) scale(1); }
                     25% { transform: rotate(10deg) scale(1.08, 0.92); }
@@ -1638,48 +1616,50 @@ export default function ScreenPet() {
                 </div>
 
                 {/* Floating controls outside the pet body, centered below */}
-                <div
-                    className="absolute -bottom-9 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#0a0a0a]/95 border border-white/15 px-2.5 py-1 rounded-full shadow-2xl z-[100000] opacity-0 pointer-events-none group-hover/pet:opacity-100 group-hover/pet:pointer-events-auto transition-opacity duration-300"
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowCommandBar(true);
-                        }}
-                        className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
-                        title="Search / Commands (Ctrl+K)"
+                {state !== 'dragged' && !isDragging.current && (
+                    <div
+                        className="absolute -bottom-9 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#0a0a0a]/95 border border-white/15 px-2.5 py-1 rounded-full shadow-2xl z-[100000] opacity-0 pointer-events-none group-hover/pet:opacity-100 group-hover/pet:pointer-events-auto transition-opacity duration-300"
+                        onMouseDown={(e) => e.stopPropagation()}
                     >
-                        <FiSearch className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setTempPetName(petName);
-                            setTempPetSize(petSize);
-                            setTempPetTheme(themeColor.name);
-                            setTempThemeLocked(petThemeLocked);
-                            setTempWalkingEnabled(walkingEnabled);
-                            setTempIdleEmotionsEnabled(idleEmotionsEnabled);
-                            setTempSystemRemindersEnabled(systemRemindersEnabled);
-                            setShowSettingsModal(true);
-                        }}
-                        className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
-                        title="Customize Pet"
-                    >
-                        <FiSettings className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleClose();
-                        }}
-                        className="p-1 text-white/50 hover:text-red-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
-                        title="Hide Assistant"
-                    >
-                        <FiX className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowCommandBar(true);
+                            }}
+                            className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                            title="Search / Commands (Ctrl+K)"
+                        >
+                            <FiSearch className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setTempPetName(petName);
+                                setTempPetSize(petSize);
+                                setTempPetTheme(themeColor.name);
+                                setTempThemeLocked(petThemeLocked);
+                                setTempWalkingEnabled(walkingEnabled);
+                                setTempIdleEmotionsEnabled(idleEmotionsEnabled);
+                                setTempSystemRemindersEnabled(systemRemindersEnabled);
+                                setShowSettingsModal(true);
+                            }}
+                            className="p-1 text-white/50 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                            title="Customize Pet"
+                        >
+                            <FiSettings className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleClose();
+                            }}
+                            className="p-1 text-white/50 hover:text-red-400 hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                            title="Hide Assistant"
+                        >
+                            <FiX className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Command Bar Modal */}

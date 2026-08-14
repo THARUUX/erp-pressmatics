@@ -303,9 +303,9 @@ export default function ItemsPage() {
                 const val = (getValue() || 'offset').toLowerCase();
                 const isDigital = val === 'digital';
                 return (
-                    <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold uppercase tracking-wider border ${isDigital
-                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold uppercase tracking-wider ${isDigital
+                        ? ' text-purple-400 '
+                        : ' text-emerald-400'
                         }`}>
                         {val}
                     </span>
@@ -564,14 +564,14 @@ export default function ItemsPage() {
                                                 <FiStar className={item.is_favorite ? 'fill-yellow-400' : ''} />
                                             </button>
                                             <h3 className="text-base font-semibold">{item.estimation_name || item.customer_name || 'Untitled'}</h3>
-                                            {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>}
+                                            {/* {!!item.is_favorite && <span className="text-[10px] bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-1.5 rounded">TEMPLATE</span>} */}
                                         </div>
                                         <div className="text-xs text-blue-400 font-mono mt-1 mb-0.5">{item.code}</div>
                                         <p className="text-gray-400 text-sm">{item.customer_name} • {item.job_description} • {item.quantity} units</p>
                                         <div className="mt-2">
-                                            <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold uppercase tracking-wider border ${isDigitalCard
-                                                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            <span className={`text-[11px]  rounded font-bold uppercase tracking-wider ${isDigitalCard
+                                                ? ' text-purple-400 '
+                                                : ' text-emerald-400'
                                                 }`}>
                                                 {item.type || 'offset'}
                                             </span>

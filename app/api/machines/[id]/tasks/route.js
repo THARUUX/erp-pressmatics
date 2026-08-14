@@ -76,6 +76,13 @@ export async function GET(req, { params }) {
                     so.status      AS order_status,
                     so.delivery_date,
                     so.total_amount,
+                    CASE
+                      WHEN (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'services') > 0 THEN 'services'
+                      WHEN (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'digital') > 0 THEN 'digital'
+                      WHEN (SELECT COUNT(*) FROM quotation_item_details qid JOIN quotation_items qi ON qid.quotation_item_id = qi.id JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qid.type = 'digital') > 0 THEN 'digital'
+                      WHEN jt.service_id IS NOT NULL THEN 'services'
+                      ELSE 'offset'
+                    END AS job_type,
                     (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
                      FROM quotation_items qi
                      JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id

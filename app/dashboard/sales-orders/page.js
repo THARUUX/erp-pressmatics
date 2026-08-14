@@ -22,16 +22,16 @@ import { dateOperatorFilterFn } from '@/lib/dateFilter';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
 const STATUS_COLORS = {
-    'Pending':       'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    'In Production': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    'Ready':         'bg-green-500/20 text-green-300 border-green-500/30',
-    'Delivered':     'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    'Cancelled':     'bg-red-500/20 text-red-300 border-red-500/30',
+    'Pending': ' text-yellow-300 ',
+    'In Production': ' text-blue-300 ',
+    'Ready': ' text-green-300 ',
+    'Delivered': ' text-purple-300 ',
+    'Cancelled': ' text-red-300 ',
 };
 function StatusBadge({ status }) {
     const cls = STATUS_COLORS[status] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cls}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider  ${cls}`}>
             {status}
         </span>
     );
@@ -42,21 +42,24 @@ function CategoryBadge({ category }) {
     const cat = (category || 'offset').toLowerCase();
     if (cat === 'digital') {
         return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
-                <FiMonitor className="w-3 h-3" /> Digital
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold  uppercase tracking-wider">
+                {/* <FiMonitor className="w-3 h-3" />  */}
+                Digital
             </span>
         );
     }
     if (cat === 'services') {
         return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
-                <FiTool className="w-3 h-3" /> Service
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold  uppercase tracking-wider">
+                {/* <FiTool className="w-3 h-3" /> */}
+                Service
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
-            <FiOffsetIcon className="w-3 h-3" /> Offset
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+            {/* <FiOffsetIcon className="w-3 h-3" /> */}
+            Offset
         </span>
     );
 }
@@ -74,8 +77,8 @@ function ColFilter({ column }) {
     const placeholder = isDateCol
         ? "Date (>=2026-08-01, today, month)..."
         : isAmountCol
-        ? "Amount (>1000, <=5000)..."
-        : "Filter…";
+            ? "Amount (>1000, <=5000)..."
+            : "Filter…";
 
     return (
         <input value={val} onChange={e => column.setFilterValue(e.target.value)}
@@ -111,15 +114,15 @@ export default function SalesOrdersPage() {
     const { settings } = useSettings();
     const currency = settings.currency || 'LKR';
 
-    const [data, setData]             = useState([]);
-    const [stats, setStats]           = useState({ pending_count: 0, production_count: 0, pending_total: 0 });
-    const [loading, setLoading]       = useState(true);
+    const [data, setData] = useState([]);
+    const [stats, setStats] = useState({ pending_count: 0, production_count: 0, pending_total: 0 });
+    const [loading, setLoading] = useState(true);
     const [categoryFilter, setCategory] = useState('All');
-    const [statusFilter, setStatus]   = useState('All');
+    const [statusFilter, setStatus] = useState('All');
     const [durationFilter, setDuration] = useState('All Time');
     const [customStartDate, setCustomStart] = useState('');
-    const [customEndDate, setCustomEnd]     = useState('');
-    const [globalFilter, setGlobal]   = useState('');
+    const [customEndDate, setCustomEnd] = useState('');
+    const [globalFilter, setGlobal] = useState('');
     const [columnVisibility, setColVis] = useState({});
     const [columnFilters, setColumnFilters] = useState([]);
     const [exportingPdf, setExportingPdf] = useState(false);
@@ -130,7 +133,7 @@ export default function SalesOrdersPage() {
         let url = '/api/sales-orders?limit=1000&offset=0';
         if (statusFilter !== 'All') url += `&status=${encodeURIComponent(statusFilter)}`;
         if (categoryFilter !== 'All') url += `&category=${encodeURIComponent(categoryFilter.toLowerCase())}`;
-        
+
         fetch(url)
             .then(r => r.json())
             .then(d => {
@@ -248,9 +251,9 @@ export default function SalesOrdersPage() {
         const promptMsg = hasTasks
             ? `Regenerate tasks for ${order.code}? Existing tasks will be replaced according to current task configurations.`
             : `Generate default tasks for ${order.code}?`;
-            
+
         if (!(await confirmDialog(promptMsg, { confirmLabel: hasTasks ? 'Regenerate' : 'Generate', danger: hasTasks }))) return;
-        
+
         const loadingToast = toast.loading(hasTasks ? 'Regenerating tasks...' : 'Generating tasks...');
         try {
             const res = await fetch(`/api/sales-orders/${order.id}/tasks`, {
@@ -513,17 +516,15 @@ export default function SalesOrdersPage() {
                                 <button
                                     key={cat.key}
                                     onClick={() => setCategory(cat.key)}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                                        isActive
-                                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-purple-600/30'
-                                            : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-                                    }`}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${isActive
+                                        ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg shadow-purple-600/30'
+                                        : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                                        }`}
                                 >
                                     <Icon className="w-3.5 h-3.5" />
                                     <span>{cat.label}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                                        isActive ? 'bg-white/20 text-white font-extrabold' : 'bg-white/10 text-gray-400'
-                                    }`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${isActive ? 'bg-white/20 text-white font-extrabold' : 'bg-white/10 text-gray-400'
+                                        }`}>
                                         {count}
                                     </span>
                                 </button>

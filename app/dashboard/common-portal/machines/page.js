@@ -1,8 +1,34 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiCpu, FiCalendar, FiClock, FiCheck, FiRefreshCw, FiUser, FiLayers, FiAlertCircle, FiArrowRight, FiMove } from 'react-icons/fi';
+import {
+    FiCpu, FiCalendar, FiClock, FiCheck, FiRefreshCw, FiUser,
+    FiLayers, FiAlertCircle, FiArrowRight, FiMove, FiPrinter, FiMonitor, FiTool
+} from 'react-icons/fi';
 import toast from 'react-hot-toast';
+
+function EstimationBadge({ type }) {
+    const t = (type || 'offset').toLowerCase();
+    if (t === 'digital') {
+        return (
+            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                <FiMonitor className="w-2.5 h-2.5 text-purple-400" /> Digital
+            </span>
+        );
+    }
+    if (t === 'services') {
+        return (
+            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+                <FiTool className="w-2.5 h-2.5 text-amber-400" /> Service
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+            <FiPrinter className="w-2.5 h-2.5 text-emerald-400" /> Offset
+        </span>
+    );
+}
 
 export default function CommonMachinesPortalPage() {
     const [machines, setMachines] = useState([]);
@@ -11,6 +37,7 @@ export default function CommonMachinesPortalPage() {
     const [loading, setLoading] = useState(true);
     const [selectedMachineId, setSelectedMachineId] = useState('all');
     const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('all');
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
 
     // Main Planning Kanban Drag State
     const [draggedTask, setDraggedTask] = useState(null);
@@ -77,7 +104,8 @@ export default function CommonMachinesPortalPage() {
     const filteredTasks = tasks.filter(t => {
         const matchesMachine = selectedMachineId === 'all' || String(t.machine_id) === String(selectedMachineId);
         const matchesCompany = selectedCompanyFilter === 'all' || String(t.company_id) === String(selectedCompanyFilter);
-        return matchesMachine && matchesCompany;
+        const matchesCategory = selectedCategoryFilter === 'all' || (t.job_type || 'offset').toLowerCase() === selectedCategoryFilter.toLowerCase();
+        return matchesMachine && matchesCompany && matchesCategory;
     });
 
     const columns = [
@@ -92,7 +120,7 @@ export default function CommonMachinesPortalPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-6">
                 <div>
                     <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-3">
-                        <FiCpu className="text-purple-400" /> Shared Machine Resource Portals
+                        <FiCpu className="text-emerald-400" /> Shared Machine Resource Portals
                     </h1>
                     <p className="text-gray-400 text-xs mt-1">
                         Cross-company shop-floor portals for shared printing presses, finishing machinery &amp; prepress resources
@@ -113,17 +141,15 @@ export default function CommonMachinesPortalPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {machines.map(m => {
                         const mTasks = tasks.filter(t => t.machine_id === m.id);
-                        const c1Count = mTasks.filter(t => t.company_id === 1).length;
-                        const c2Count = mTasks.filter(t => t.company_id === 2).length;
 
                         return (
                             <div
                                 key={m.id}
-                                className="bg-black/40 backdrop-blur-xl border border-white/10 hover:border-purple-500/40 rounded-2xl p-5 space-y-3 transition-all group flex flex-col justify-between"
+                                className="bg-black/40 backdrop-blur-xl border border-white/10 hover:border-emerald-500/40 rounded-2xl p-5 space-y-3 transition-all group flex flex-col justify-between"
                             >
                                 <div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase">
+                                        <span className="text-[10px] font-extrabold py-0.5 rounded-full text-emerald-300 uppercase">
                                             {m.type?.replace('_', ' ')}
                                         </span>
                                         <span className="text-xs font-mono font-bold text-gray-400">
@@ -131,24 +157,15 @@ export default function CommonMachinesPortalPage() {
                                         </span>
                                     </div>
 
-                                    <h3 className="text-base font-bold text-white tracking-tight mt-2 group-hover:text-purple-300 transition-colors">
+                                    <h3 className="text-base font-bold text-white tracking-tight mt-2 group-hover:text-emerald-300 transition-colors">
                                         {m.name}
                                     </h3>
-
-                                    <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
-                                        <span className="text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 text-[11px] font-bold">
-                                            Company 1: {c1Count}
-                                        </span>
-                                        <span className="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-[11px] font-bold">
-                                            Company 2: {c2Count}
-                                        </span>
-                                    </div>
                                 </div>
 
-                                <div className="pt-4 mt-4 border-t border-white/10">
+                                <div className="pt-4 border-t border-white/10">
                                     <a
                                         href={`/machines/${m.id}/portal`}
-                                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg transition-all"
+                                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg transition-all"
                                     >
                                         Open Shared Machine Portal <FiArrowRight className="w-4 h-4" />
                                     </a>
@@ -161,7 +178,7 @@ export default function CommonMachinesPortalPage() {
 
             {/* Filter Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Filter Tasks:</span>
                     <select
                         value={selectedMachineId}
@@ -173,6 +190,24 @@ export default function CommonMachinesPortalPage() {
                             <option key={m.id} value={m.id}>{m.name}</option>
                         ))}
                     </select>
+
+                    <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1">
+                        {[
+                            { id: 'all', label: 'All Types' },
+                            { id: 'offset', label: 'Offset' },
+                            { id: 'digital', label: 'Digital' },
+                            { id: 'services', label: 'Services' }
+                        ].map(cat => (
+                            <button
+                                key={cat.id}
+                                onClick={() => setSelectedCategoryFilter(cat.id)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${selectedCategoryFilter === cat.id ? 'bg-white/10 text-white border border-white/10' : 'text-gray-400 hover:text-white'
+                                    }`}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1 w-full sm:w-auto">
@@ -184,9 +219,8 @@ export default function CommonMachinesPortalPage() {
                         <button
                             key={c.id}
                             onClick={() => setSelectedCompanyFilter(c.id)}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                selectedCompanyFilter === c.id ? 'bg-white/10 text-white border border-white/10' : 'text-gray-400 hover:text-white'
-                            }`}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${selectedCompanyFilter === c.id ? 'bg-white/10 text-white border border-white/10' : 'text-gray-400 hover:text-white'
+                                }`}
                         >
                             {c.label}
                         </button>
@@ -194,7 +228,7 @@ export default function CommonMachinesPortalPage() {
                 </div>
             </div>
 
-            {/* Task Kanban Columns using Main Planning Drag Method */}
+            {/* Task Kanban Columns */}
             {loading ? (
                 <div className="py-24 text-center text-gray-500 animate-pulse">Loading shared machine tasks...</div>
             ) : (
@@ -215,9 +249,8 @@ export default function CommonMachinesPortalPage() {
                                 onDragEnter={e => { e.preventDefault(); setDragOverColumnId(col.id); }}
                                 onDragLeave={e => { e.preventDefault(); setDragOverColumnId(null); }}
                                 onDrop={e => { e.preventDefault(); handleDropOnColumn(col.id); }}
-                                className={`border rounded-2xl p-4 ${col.color} backdrop-blur-md min-h-[500px] transition-all ${
-                                    isOver ? 'border-purple-500 ring-2 ring-purple-500/30 scale-[1.01] bg-purple-950/20' : ''
-                                }`}
+                                className={`border rounded-2xl p-4 ${col.color} backdrop-blur-md min-h-[500px] transition-all ${isOver ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.01] bg-emerald-950/20' : ''
+                                    }`}
                             >
                                 <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
                                     <h3 className="font-extrabold text-sm uppercase tracking-wider">{col.label}</h3>
@@ -229,7 +262,7 @@ export default function CommonMachinesPortalPage() {
                                 <div className="space-y-3">
                                     {colTasks.length === 0 ? (
                                         <div className="py-16 text-center text-gray-500 text-xs border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2">
-                                            <FiMove className="w-5 h-5 text-purple-400 animate-bounce" />
+                                            <FiMove className="w-5 h-5 text-emerald-400 animate-bounce" />
                                             <span>Drag tasks here to set as {col.label}</span>
                                         </div>
                                     ) : (
@@ -242,15 +275,14 @@ export default function CommonMachinesPortalPage() {
                                                     onDragStart={e => {
                                                         setDraggedTask(task);
                                                         e.dataTransfer.effectAllowed = 'move';
-                                                        try { e.dataTransfer.setData('text/plain', String(task.id)); } catch (_) {}
+                                                        try { e.dataTransfer.setData('text/plain', String(task.id)); } catch (_) { }
                                                     }}
                                                     onDragEnd={() => {
                                                         setDraggedTask(null);
                                                         setDragOverColumnId(null);
                                                     }}
-                                                    className={`bg-black/60 border border-white/10 hover:border-purple-500/40 rounded-xl p-4 space-y-3 shadow-lg transition-all cursor-grab active:cursor-grabbing ${
-                                                        isDragged ? 'opacity-30' : 'opacity-100'
-                                                    }`}
+                                                    className={`bg-black/60 border border-white/10 hover:border-emerald-500/40 rounded-xl p-4 space-y-3 shadow-lg transition-all cursor-grab active:cursor-grabbing ${isDragged ? 'opacity-30' : 'opacity-100'
+                                                        }`}
                                                 >
                                                     {/* Header Badges */}
                                                     <div className="flex items-center justify-between gap-2">
@@ -259,11 +291,12 @@ export default function CommonMachinesPortalPage() {
                                                                 <FiMove className="w-4 h-4" />
                                                             </div>
 
-                                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border tracking-wider uppercase ${
-                                                                task.company_id === 1
-                                                                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                                                                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                                            }`}>
+                                                            <EstimationBadge type={task.job_type} />
+
+                                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border tracking-wider uppercase ${task.company_id === 1
+                                                                ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                                                                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                                                }`}>
                                                                 {task.company_name}
                                                             </span>
                                                         </div>
@@ -292,7 +325,7 @@ export default function CommonMachinesPortalPage() {
                                                         </div>
                                                         <div>
                                                             <span className="text-gray-500 block uppercase">Est. Time</span>
-                                                            <span className="font-bold font-mono text-purple-300">{task.estimated_minutes ? `${task.estimated_minutes}m` : '—'}</span>
+                                                            <span className="font-bold font-mono text-emerald-300">{task.estimated_minutes ? `${task.estimated_minutes}m` : '—'}</span>
                                                         </div>
                                                         <div>
                                                             <span className="text-gray-500 block uppercase">Machine</span>

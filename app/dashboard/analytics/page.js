@@ -6,7 +6,7 @@ import {
     FiRefreshCw, FiArrowRight, FiTrendingUp, FiDollarSign, FiFileText,
     FiShoppingCart, FiBarChart2, FiActivity, FiClock, FiX, FiUsers, FiUser, FiEye, FiCheckCircle,
     FiPackage, FiAlertTriangle, FiDownload, FiCpu, FiLayers, FiSearch,
-    FiPlus, FiTrash2, FiZap
+    FiPlus, FiTrash2, FiZap, FiExternalLink
 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
@@ -221,7 +221,7 @@ export default function AnalyticsPage() {
     const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
     const [selectedTaskDetailLoading, setSelectedTaskDetailLoading] = useState(false);
 
-    
+
     // Employee Performance States
     const [empPerfDurationType, setEmpPerfDurationType] = useState("last_30_days");
     const [empPerfCustomStart, setEmpPerfCustomStart] = useState("");
@@ -459,7 +459,7 @@ export default function AnalyticsPage() {
             fetch('/api/analytics/service-explorer?listTypes=1')
                 .then(r => r.ok ? r.json() : { types: [] })
                 .then(data => setSvcServiceTypes(data.types || []))
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [tab, prodTab]);
 
@@ -550,7 +550,7 @@ export default function AnalyticsPage() {
         setDetailsTab('performance');
     }, []);
 
-    
+
     const loadEmployeePerformance = useCallback(async () => {
         setEmpPerfLoading(true);
         try {
@@ -918,7 +918,7 @@ export default function AnalyticsPage() {
                 });
                 if (!task) return `<b>${item.name}</b><br/>Rate: <b>${fmtCurrency(item.value)}</b>`;
                 const unit = task.is_finishing ? (task.rate_unit || 'Unit') : '1k Imps';
-                const qty = task.is_finishing 
+                const qty = task.is_finishing
                     ? `${fmt(task.quantity || task.finishing_qty)} ${task.rate_unit || 'Units'}`
                     : `${fmt(task.printed_sheets || task.quantity)} Imps`;
                 return `<b>${task.name}</b><br/>
@@ -1146,8 +1146,9 @@ export default function AnalyticsPage() {
     }
 
     return (
-        <div className={`space-y-6 max-w-7xl mx-auto analytics-zoom analytics-container-${fontSize}`}>
-            <style dangerouslySetInnerHTML={{ __html: `
+        <div className={`space-y-6 mx-auto analytics-zoom analytics-container-${fontSize}`}>
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .analytics-container-sm {
                     --font-scale: 0.9;
                 }
@@ -1194,11 +1195,10 @@ export default function AnalyticsPage() {
                             <button
                                 key={sz.id}
                                 onClick={() => adjustFontSize(sz.id)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    fontSize === sz.id
-                                        ? 'bg-white/[0.08] text-white border border-white/[0.10]'
-                                        : 'text-white/35 hover:text-white/60 border border-transparent'
-                                }`}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${fontSize === sz.id
+                                    ? 'bg-white/[0.08] text-white border border-white/[0.10]'
+                                    : 'text-white/35 hover:text-white/60 border border-transparent'
+                                    }`}
                                 title={sz.title}
                             >
                                 {sz.label}
@@ -1496,6 +1496,8 @@ export default function AnalyticsPage() {
                                                                             <th className="px-4 py-2">Customer</th>
                                                                             <th className="px-4 py-2">Task Details</th>
                                                                             <th className="px-4 py-2 text-center">Status</th>
+                                                                            <th className="px-4 py-2 text-right">Run Qty</th>
+                                                                            <th className="px-4 py-2 text-right">Actual Output</th>
                                                                             <th className="px-4 py-2 text-right">Est. Time</th>
                                                                             <th className="px-4 py-2 text-right">Act. Time</th>
                                                                             <th className="px-4 py-2 text-right">Variance</th>
@@ -1512,22 +1514,42 @@ export default function AnalyticsPage() {
                                                                             const varColor = varVal == null ? 'text-white/30' : varVal > 0 ? 'text-red-400 font-bold' : varVal < 0 ? 'text-emerald-400 font-bold' : 'text-white/40';
 
                                                                             const statusCls = t.status === 'done'
-                                                                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                                                                ? ' text-emerald-300 '
                                                                                 : t.status === 'in_progress'
-                                                                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                                                                    : 'bg-white/5 text-white/50 border-white/10';
+                                                                                    ? ' text-amber-300 '
+                                                                                    : ' text-white/50 ';
+
+                                                                            const runQty = t.run_quantity || t.quantity || t.sheet_count || 0;
+                                                                            const actQty = t.actual_sheets_printed != null ? parseFloat(t.actual_sheets_printed) : null;
+                                                                            const wasteQty = t.actual_sheets_wasted != null ? parseFloat(t.actual_sheets_wasted) : 0;
 
                                                                             return (
-                                                                                <tr key={t.id} className="hover:bg-white/[0.01] transition-colors">
+                                                                                <tr
+                                                                                    key={t.id}
+                                                                                    onClick={() => openTaskModal(t.id)}
+                                                                                    className="hover:bg-white/[0.05] transition-colors cursor-pointer group"
+                                                                                    title="Click to view detailed task specs & work logs"
+                                                                                >
                                                                                     <td className="px-4 py-2.5 font-mono text-blue-400 font-semibold">{t.order_code || '—'}</td>
                                                                                     <td className="px-4 py-2.5 text-white/70 max-w-[120px] truncate">{t.customer_name || '—'}</td>
                                                                                     <td className="px-4 py-2.5 text-white font-medium">
                                                                                         {displayText}
                                                                                     </td>
                                                                                     <td className="px-4 py-2.5 text-center">
-                                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${statusCls}`}>
+                                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${statusCls}`}>
                                                                                             {t.status}
                                                                                         </span>
+                                                                                    </td>
+                                                                                    <td className="px-4 py-2.5 text-right font-mono text-white/50 font-bold">
+                                                                                        {runQty ? Number(runQty).toLocaleString() : '—'}
+                                                                                    </td>
+                                                                                    <td className="px-4 py-2.5 text-right font-mono text-white/70 font-bold">
+                                                                                        {actQty != null ? (
+                                                                                            <>
+                                                                                                {actQty.toLocaleString()}
+                                                                                                {wasteQty > 0 && <span className="text-red-400 font-normal text-[10px] block">({wasteQty.toLocaleString()} waste)</span>}
+                                                                                            </>
+                                                                                        ) : '—'}
                                                                                     </td>
                                                                                     <td className="px-4 py-2.5 text-right text-white/50 font-mono">{formatMins(t.estimated_minutes)}</td>
                                                                                     <td className="px-4 py-2.5 text-right text-white/70 font-mono">{formatMins(t.actual_minutes)}</td>
@@ -1808,28 +1830,26 @@ export default function AnalyticsPage() {
                                         <div className="lg:col-span-2 bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 flex flex-col justify-between">
                                             <div className="flex items-center justify-between mb-3">
                                                 <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider">
-                                                    {prodRevenueChartMetric === 'revenue' 
-                                                        ? 'Job-wise Revenue Distribution (Top 10)' 
+                                                    {prodRevenueChartMetric === 'revenue'
+                                                        ? 'Job-wise Revenue Distribution (Top 10)'
                                                         : `Job-wise Rate Comparison (Top 10)`}
                                                 </p>
                                                 <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/[0.05]">
                                                     <button
                                                         onClick={() => setProdRevenueChartMetric('revenue')}
-                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${
-                                                            prodRevenueChartMetric === 'revenue'
-                                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                                                : 'text-white/40 hover:text-white/70 border border-transparent'
-                                                        }`}
+                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${prodRevenueChartMetric === 'revenue'
+                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                            : 'text-white/40 hover:text-white/70 border border-transparent'
+                                                            }`}
                                                     >
                                                         Revenue
                                                     </button>
                                                     <button
                                                         onClick={() => setProdRevenueChartMetric('rate')}
-                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${
-                                                            prodRevenueChartMetric === 'rate'
-                                                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                                                : 'text-white/40 hover:text-white/70 border border-transparent'
-                                                        }`}
+                                                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${prodRevenueChartMetric === 'rate'
+                                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                                            : 'text-white/40 hover:text-white/70 border border-transparent'
+                                                            }`}
                                                     >
                                                         Rate
                                                     </button>
@@ -2014,23 +2034,28 @@ export default function AnalyticsPage() {
                                                                 const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                                                 const statusCls = t.status === 'done'
-                                                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                                                    ? ' text-emerald-300'
                                                                     : t.status === 'in_progress'
-                                                                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-                                                                        : 'bg-white/5 text-white/50 border-white/10';
+                                                                        ? ' text-amber-300 '
+                                                                        : ' text-white/50 ';
 
-                                                                const qtyDisplay = t.is_finishing 
+                                                                const qtyDisplay = t.is_finishing
                                                                     ? `${fmt(t.quantity || t.finishing_qty)} ${t.rate_unit || 'Units'}`
                                                                     : `${fmt(t.printed_sheets || t.quantity)} Imps`;
 
                                                                 return (
-                                                                    <tr key={t.id} className="hover:bg-white/[0.01] transition-colors">
+                                                                    <tr
+                                                                        key={t.id}
+                                                                        onClick={() => openTaskModal(t.id)}
+                                                                        className="hover:bg-white/[0.05] transition-colors cursor-pointer group"
+                                                                        title="Click to view detailed task specs & work logs"
+                                                                    >
                                                                         <td className="px-4 py-2.5 font-mono text-blue-400 font-semibold">{t.order_code || '—'}</td>
                                                                         <td className="px-4 py-2.5 text-white/70 max-w-[120px] truncate">{t.customer_name || '—'}</td>
                                                                         <td className="px-4 py-2.5 text-white font-medium">{displayText}</td>
                                                                         <td className="px-4 py-2.5 text-right font-mono text-white/80">{qtyDisplay}</td>
                                                                         <td className="px-4 py-2.5 text-center">
-                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${statusCls}`}>
+                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${statusCls}`}>
                                                                                 {t.status}
                                                                             </span>
                                                                         </td>
@@ -2364,13 +2389,12 @@ export default function AnalyticsPage() {
                                                             </td>
                                                             <td className="py-3.5 px-4 text-center">
                                                                 {emp.efficiencyPct != null ? (
-                                                                    <span className={`px-2.5 py-0.5 rounded-full font-mono font-semibold text-[11px] ${
-                                                                        emp.efficiencyPct >= 100
-                                                                            ? 'bg-white/20 text-white border border-white/30'
-                                                                            : emp.efficiencyPct >= 75
+                                                                    <span className={`px-2.5 py-0.5 rounded-full font-mono font-semibold text-[11px] ${emp.efficiencyPct >= 100
+                                                                        ? 'bg-white/20 text-white border border-white/30'
+                                                                        : emp.efficiencyPct >= 75
                                                                             ? 'bg-white/10 text-white/80 border border-white/20'
                                                                             : 'bg-white/[0.05] text-white/50 border border-white/10'
-                                                                    }`}>
+                                                                        }`}>
                                                                         {emp.efficiencyPct}%
                                                                     </span>
                                                                 ) : (
@@ -2521,11 +2545,10 @@ export default function AnalyticsPage() {
                                                 <button
                                                     key={t.id}
                                                     onClick={() => setSelectedExplorerTaskId(t.id)}
-                                                    className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer block ${
-                                                        isActive
-                                                            ? 'bg-white/[0.06] border-white/25 text-white'
-                                                            : 'bg-black/20 border-white/[0.05] hover:border-white/15 text-white/70 hover:text-white'
-                                                    }`}
+                                                    className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer block ${isActive
+                                                        ? 'bg-white/[0.06] border-white/25 text-white'
+                                                        : 'bg-black/20 border-white/[0.05] hover:border-white/15 text-white/70 hover:text-white'
+                                                        }`}
                                                 >
                                                     <div className="flex items-center justify-between gap-2 mb-1.5">
                                                         <span className="font-mono text-xs font-semibold text-indigo-400">{t.order_code || 'Unassigned'}</span>
@@ -2743,9 +2766,8 @@ export default function AnalyticsPage() {
                                                                 return (
                                                                     <div key={`work-${idx}`} className="relative">
                                                                         {/* Dot */}
-                                                                        <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border ${
-                                                                            isRunning ? 'bg-amber-400 border-neutral-900 animate-pulse' : 'bg-emerald-400 border-neutral-900'
-                                                                        }`} />
+                                                                        <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border ${isRunning ? 'bg-amber-400 border-neutral-900 animate-pulse' : 'bg-emerald-400 border-neutral-900'
+                                                                            }`} />
 
                                                                         <div className="flex items-start justify-between gap-4 text-xs">
                                                                             <div>
@@ -2758,7 +2780,7 @@ export default function AnalyticsPage() {
                                                                             </div>
                                                                             <div className="text-right">
                                                                                 <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>
-                                                                                    {durMins}m
+                                                                                    {formatMins(durMins)}
                                                                                 </span>
                                                                                 <p className="text-[9px] text-white/20 mt-0.5">{isRunning ? 'Active' : 'Duration'}</p>
                                                                             </div>
@@ -2784,7 +2806,7 @@ export default function AnalyticsPage() {
                                                                             </div>
                                                                             <div className="text-right shrink-0">
                                                                                 <span className="font-mono font-bold text-orange-300">
-                                                                                    {item.duration_minutes}m
+                                                                                    {formatMins(item.duration_minutes)}
                                                                                 </span>
                                                                                 <p className="text-[9px] text-orange-300/45 mt-0.5">Paused Duration</p>
                                                                             </div>
@@ -3029,7 +3051,7 @@ export default function AnalyticsPage() {
                                                                                         <p className="text-[10px] text-white/35 font-mono mt-0.5">{formatDateTime(item.started_at)} – {isRunning ? 'Running Now' : formatDateTime(item.stopped_at)}</p>
                                                                                     </div>
                                                                                     <div className="text-right">
-                                                                                        <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>{durMins}m</span>
+                                                                                        <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>{formatMins(durMins)}</span>
                                                                                         <p className="text-[9px] text-white/20 mt-0.5">{isRunning ? 'Active' : 'Duration'}</p>
                                                                                     </div>
                                                                                 </div>
@@ -3047,7 +3069,7 @@ export default function AnalyticsPage() {
                                                                                         <p className="text-[10px] text-orange-300/60 font-mono mt-0.5">{formatDateTime(item.started_at)} – {formatDateTime(item.stopped_at)}</p>
                                                                                     </div>
                                                                                     <div className="text-right shrink-0">
-                                                                                        <span className="font-mono font-bold text-orange-300">{item.duration_minutes}m</span>
+                                                                                        <span className="font-mono font-bold text-orange-300">{formatMins(item.duration_minutes)}</span>
                                                                                         <p className="text-[9px] text-orange-300/45 mt-0.5">Paused Duration</p>
                                                                                     </div>
                                                                                 </div>
@@ -3134,21 +3156,19 @@ export default function AnalyticsPage() {
                         <div className="flex border-b border-white/[0.06] bg-white/[0.02]">
                             <button
                                 onClick={() => setDetailsTab('performance')}
-                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-                                    detailsTab === 'performance'
-                                        ? 'border-white text-white bg-white/[0.03]'
-                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
-                                }`}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${detailsTab === 'performance'
+                                    ? 'border-white text-white bg-white/[0.03]'
+                                    : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                    }`}
                             >
                                 Performance
                             </button>
                             <button
                                 onClick={() => setDetailsTab('maintenance')}
-                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-                                    detailsTab === 'maintenance'
-                                        ? 'border-white text-white bg-white/[0.03]'
-                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
-                                }`}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${detailsTab === 'maintenance'
+                                    ? 'border-white text-white bg-white/[0.03]'
+                                    : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                    }`}
                             >
                                 Parts & Maintenance
                             </button>
@@ -3252,7 +3272,7 @@ export default function AnalyticsPage() {
             {/* Task Detail Inspector Modal */}
             {taskModalId && (
                 <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                    <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
                         {/* Modal Header */}
                         <div className="p-5 border-b border-white/[0.08] flex items-center justify-between">
                             <div className="flex items-center gap-3 min-w-0">
@@ -3276,12 +3296,40 @@ export default function AnalyticsPage() {
                                     </h3>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => { setTaskModalId(null); setTaskModalData(null); }}
-                                className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-white/60 hover:text-white transition-colors cursor-pointer shrink-0 ml-2"
-                            >
-                                <FiX className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                {taskModalData?.task?.id && (
+                                    <button
+                                        onClick={() => {
+                                            const tid = taskModalData.task.id;
+                                            const resId = taskModalData.task.machine_id;
+                                            setProdTab('task-details');
+                                            if (resId) {
+                                                setExplorerResType('machine');
+                                                setExplorerResId(resId.toString());
+                                            }
+                                            if (taskModalData.task.scheduled_date) {
+                                                setExplorerDate(taskModalData.task.scheduled_date.split('T')[0]);
+                                            }
+                                            if (tid) {
+                                                setSelectedExplorerTaskId(tid);
+                                            }
+                                            setTaskModalId(null);
+                                            setTaskModalData(null);
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                                        title="View in Detailed Task Explorer tab"
+                                    >
+                                        <FiExternalLink className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Open in Task Explorer</span>
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => { setTaskModalId(null); setTaskModalData(null); }}
+                                    className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-white/60 hover:text-white transition-colors cursor-pointer"
+                                >
+                                    <FiX className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Modal Body */}
@@ -3292,91 +3340,257 @@ export default function AnalyticsPage() {
                                     <Skel h="h-12" />
                                     <Skel h="h-12" />
                                 </div>
-                            ) : taskModalData?.task ? (
-                                <>
-                                    {/* Task Specifications Grid */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Est. vs Act. Time</p>
-                                            <p className="text-sm font-bold text-white font-mono mt-1">
-                                                {formatMins(taskModalData.task.estimated_minutes)} / {taskModalData.task.actual_minutes != null ? formatMins(taskModalData.task.actual_minutes) : "—"}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Est. Output vs Act. Produced</p>
-                                            <p className="text-sm font-bold text-white font-mono mt-1">
-                                                {taskModalData.task.sheet_count || taskModalData.task.quantity ? fmt(parseFloat(taskModalData.task.sheet_count || taskModalData.task.quantity)) : "—"} / {taskModalData.task.actual_sheets_printed ? fmt(parseFloat(taskModalData.task.actual_sheets_printed)) : (taskModalData.task.status === "done" ? fmt(parseFloat(taskModalData.task.quantity || 0)) : "—")}
-                                            </p>
-                                            {parseFloat(taskModalData.task.actual_sheets_wasted) > 0 && (
-                                                <p className="text-[10px] text-amber-400 font-mono">Wasted: {fmt(parseFloat(taskModalData.task.actual_sheets_wasted))}</p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Machine / Resource</p>
-                                            <p className="text-sm font-bold text-white truncate mt-1">
-                                                {taskModalData.task.machine_name || "Finishing / Service"}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Assigned Operator</p>
-                                            <p className="text-sm font-bold text-white truncate mt-1">
-                                                {taskModalData.task.completed_by || taskModalData.task.assigned_to || "Unassigned"}
-                                            </p>
-                                        </div>
-                                    </div>
+                            ) : taskModalData?.task ? (() => {
+                                const t = taskModalData.task;
+                                const modalTimelineElements = [];
+                                if (taskModalData.logs) {
+                                    taskModalData.logs.forEach((log, idx) => {
+                                        modalTimelineElements.push({
+                                            type: 'work',
+                                            log,
+                                            started_at: log.started_at,
+                                            stopped_at: log.stopped_at,
+                                            employee_name: log.employee_name,
+                                            duration_seconds: log.duration_seconds
+                                        });
 
-                                    {/* Task Description */}
-                                    {taskModalData.task.description && (
-                                        <div className="bg-black/30 border border-white/[0.05] rounded-xl p-3.5">
-                                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1">Task Description / Instructions</p>
-                                            <p className="text-xs text-white/80 leading-relaxed">{taskModalData.task.description}</p>
-                                        </div>
-                                    )}
+                                        if (idx < taskModalData.logs.length - 1) {
+                                            const nextLog = taskModalData.logs[idx + 1];
+                                            if (log.stopped_at && nextLog.started_at) {
+                                                const pauseStart = new Date(log.stopped_at);
+                                                const pauseEnd = new Date(nextLog.started_at);
+                                                const pauseMs = pauseEnd.getTime() - pauseStart.getTime();
+                                                if (pauseMs > 30000) {
+                                                    const pauseMins = Math.round(pauseMs / 60000);
+                                                    modalTimelineElements.push({
+                                                        type: 'pause',
+                                                        started_at: log.stopped_at,
+                                                        stopped_at: nextLog.started_at,
+                                                        duration_minutes: pauseMins
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
 
-                                    {/* Downtime Flag */}
-                                    {taskModalData.task.downtime_minutes > 0 && (
-                                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 flex items-start gap-3">
-                                            <FiAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="text-xs font-bold text-amber-300">Recorded Machine Downtime: {taskModalData.task.downtime_minutes}m</p>
-                                                {taskModalData.task.downtime_reason && (
-                                                    <p className="text-xs text-amber-200/70 mt-0.5">{taskModalData.task.downtime_reason}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Work Session Timeline */}
-                                    <div>
-                                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Work Log Session Timeline</h4>
-                                        {!taskModalData.logs?.length ? (
-                                            <div className="text-center py-6 text-xs text-white/30 italic bg-black/20 border border-white/[0.05] rounded-xl">
-                                                No active timer work logs recorded for this task.
-                                            </div>
-                                        ) : (
-                                            <div className="bg-black/30 border border-white/[0.06] rounded-xl p-4 space-y-3">
-                                                {taskModalData.logs.map((log, idx) => {
-                                                    const durMins = Math.round((log.duration_seconds || 0) / 60);
-                                                    return (
-                                                        <div key={log.id || idx} className="flex items-center justify-between text-xs py-2 border-b border-white/[0.04] last:border-0">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                                                                <div>
-                                                                    <p className="font-semibold text-white">{log.employee_name || "Operator"}</p>
-                                                                    <p className="text-[10px] text-white/35 font-mono">
-                                                                        {log.started_at ? new Date(log.started_at).toLocaleString() : "—"} {log.stopped_at ? `– ${new Date(log.stopped_at).toLocaleTimeString()}` : "(Active Now)"}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <span className="font-mono font-bold text-white">{durMins}m</span>
-                                                        </div>
-                                                    );
-                                                })}
+                                return (
+                                    <div className="space-y-5">
+                                        {/* Task Description */}
+                                        {t.description && (
+                                            <div className="bg-black/30 border border-white/[0.05] rounded-xl p-3.5">
+                                                <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1">Task Instructions / Specs</p>
+                                                <p className="text-xs text-white/80 leading-relaxed">{t.description}</p>
                                             </div>
                                         )}
+
+                                        {/* 4 Metrics Grid */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Estimated Time</p>
+                                                <p className="text-lg font-bold text-white font-mono">{formatMins(t.estimated_minutes)}</p>
+                                                <p className="text-[9px] text-white/35 mt-0.5">Planned limit</p>
+                                            </div>
+
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Logged Duration</p>
+                                                <p className="text-lg font-bold text-white font-mono">
+                                                    {t.actual_minutes != null ? formatMins(t.actual_minutes) : '—'}
+                                                </p>
+                                                <p className="text-[9px] text-white/35 mt-0.5">Active timer total</p>
+                                            </div>
+
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Planned Qty</p>
+                                                <p className="text-lg font-bold text-white font-mono">
+                                                    {t.run_quantity || t.quantity ? fmt(parseFloat(t.run_quantity || t.quantity)) : '—'}
+                                                </p>
+                                                <p className="text-[9px] text-white/35 mt-0.5">
+                                                    {t.sheet_count ? `${fmt(parseFloat(t.sheet_count))} sheets` : 'Sheets: —'}
+                                                </p>
+                                            </div>
+
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3.5">
+                                                <p className="text-[9px] font-bold text-white/35 uppercase tracking-wider mb-1">Actual Output</p>
+                                                <p className="text-lg font-bold text-emerald-400 font-mono">
+                                                    {t.actual_sheets_printed ? fmt(parseFloat(t.actual_sheets_printed)) : (t.status === "done" ? fmt(parseFloat(t.quantity || 0)) : '—')}
+                                                </p>
+                                                <p className="text-[9px] text-white/35 mt-0.5">
+                                                    {parseFloat(t.actual_sheets_wasted) > 0 ? (
+                                                        <span className="text-red-400 font-semibold">Wasted: {fmt(parseFloat(t.actual_sheets_wasted))}</span>
+                                                    ) : 'Wasted: —'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Details & Specifications Grid (3 Columns) */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {/* Column 1: Resource & Config Details */}
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Resource & Config Details</p>
+                                                <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                    <span className="text-white/35">Resource Name</span>
+                                                    <span className="text-white font-semibold text-right truncate">
+                                                        {t.machine_name || (t.machine_id ? `ID: ${t.machine_id}` : 'Finishing (Manual)')}
+                                                    </span>
+
+                                                    <span className="text-white/35">Type</span>
+                                                    <span className="text-white font-semibold text-right capitalize">
+                                                        {t.machine_type || 'Finishing'}
+                                                    </span>
+
+                                                    <span className="text-white/35">Planned Impressions</span>
+                                                    <span className="text-white font-semibold text-right">
+                                                        {t.impression_count ? Number(t.impression_count).toLocaleString() : '—'}
+                                                    </span>
+
+                                                    <span className="text-white/35">Speed Configuration</span>
+                                                    <span className="text-white font-semibold text-right">
+                                                        {t.custom_speed ? `${t.custom_speed} ${t.custom_speed_unit || 'sheets/hr'}` : 'Auto'}
+                                                    </span>
+
+                                                    <span className="text-white/35">Plates Used (CTP)</span>
+                                                    <span className="text-white font-semibold text-right">
+                                                        {t.actual_plates_used || '0'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Column 2: Operators & Downtime */}
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Operators & Downtime</p>
+                                                <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                    <span className="text-white/35">Assigned Operator</span>
+                                                    <span className="text-white font-semibold text-right truncate">{t.assigned_to || 'Unassigned'}</span>
+
+                                                    <span className="text-white/35">Helper Name</span>
+                                                    <span className="text-white font-semibold text-right truncate">{t.helper_name || 'None'}</span>
+
+                                                    <span className="text-white/35">Completed By</span>
+                                                    <span className="text-white font-semibold text-right truncate">{t.completed_by || '—'}</span>
+
+                                                    <span className="text-white/35">Completed Helper</span>
+                                                    <span className="text-white font-semibold text-right truncate">{t.completed_by_helper || '—'}</span>
+
+                                                    <span className="text-white/35">Downtime Minutes</span>
+                                                    <span className={`font-semibold text-right ${t.downtime_minutes ? 'text-red-400' : 'text-white'}`}>
+                                                        {t.downtime_minutes || '0'}m
+                                                    </span>
+                                                </div>
+                                                {t.downtime_minutes > 0 && t.downtime_reason && (
+                                                    <div className="text-[11px] bg-red-500/10 border border-red-500/20 text-red-300 p-2 rounded-lg mt-2">
+                                                        <strong>Reason:</strong> {t.downtime_reason}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Column 3: Overall Lifecycle Timestamps */}
+                                            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-2.5">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Overall Lifecycle Timestamps</p>
+                                                <div className="grid grid-cols-2 gap-y-2 text-xs">
+                                                    <span className="text-white/35">Task Started</span>
+                                                    <span className="text-white font-semibold text-right truncate">
+                                                        {formatDateTime(t.started_at)}
+                                                    </span>
+
+                                                    <span className="text-white/35">Task Completed</span>
+                                                    <span className="text-white font-semibold text-right truncate">
+                                                        {formatDateTime(t.completed_at)}
+                                                    </span>
+
+                                                    <span className="text-white/35">Created Date</span>
+                                                    <span className="text-white font-semibold text-right truncate">
+                                                        {formatDateTime(t.created_at)}
+                                                    </span>
+
+                                                    <span className="text-white/35">Scheduled Date</span>
+                                                    <span className="text-white font-semibold text-right truncate">
+                                                        {t.scheduled_date ? new Date(t.scheduled_date).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Work Log Timeline */}
+                                        <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-4 space-y-3">
+                                            <div className="flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider">Timer Execution Timeline</p>
+                                                <span className="text-[10px] text-white/45">{modalTimelineElements.length} segments</span>
+                                            </div>
+
+                                            {modalTimelineElements.length === 0 ? (
+                                                <div className="text-center py-6 text-xs text-white/35 italic">
+                                                    No active timer logs recorded for this task.
+                                                </div>
+                                            ) : (
+                                                <div className="relative pl-4 space-y-4 border-l border-white/10 mt-2">
+                                                    {modalTimelineElements.map((item, idx) => {
+                                                        if (item.type === 'work') {
+                                                            const isRunning = !item.stopped_at;
+                                                            const durMins = item.duration_seconds
+                                                                ? Math.round(item.duration_seconds / 60)
+                                                                : isRunning
+                                                                    ? Math.max(0, Math.floor((Date.now() - new Date(item.started_at).getTime()) / 60000))
+                                                                    : 0;
+
+                                                            return (
+                                                                <div key={`work-${idx}`} className="relative">
+                                                                    {/* Dot */}
+                                                                    <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border ${isRunning ? 'bg-amber-400 border-neutral-900 animate-pulse' : 'bg-emerald-400 border-neutral-900'
+                                                                        }`} />
+
+                                                                    <div className="flex items-start justify-between gap-4 text-xs">
+                                                                        <div>
+                                                                            <p className="font-semibold text-white">
+                                                                                {item.employee_name} <span className="text-white/40 font-normal">started timer</span>
+                                                                            </p>
+                                                                            <p className="text-[10px] text-white/35 font-mono mt-0.5">
+                                                                                {formatDateTime(item.started_at)} – {isRunning ? 'Running Now' : formatDateTime(item.stopped_at)}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className={`font-mono font-bold ${isRunning ? 'text-amber-400 animate-pulse' : 'text-white/60'}`}>
+                                                                                {formatMins(durMins)}
+                                                                            </span>
+                                                                            <p className="text-[9px] text-white/20 mt-0.5">{isRunning ? 'Active' : 'Duration'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div key={`pause-${idx}`} className="relative">
+                                                                    {/* Dash indicator */}
+                                                                    <span className="absolute -left-[23px] top-1.5 w-3 h-3 rounded-full border border-orange-500/40 bg-neutral-950 flex items-center justify-center">
+                                                                        <span className="w-1 h-1 rounded-full bg-orange-400 animate-pulse" />
+                                                                    </span>
+
+                                                                    <div className="flex items-start justify-between gap-4 text-xs bg-orange-500/5 border border-orange-500/10 rounded-lg p-2 ml-1">
+                                                                        <div>
+                                                                            <p className="font-semibold text-orange-300">
+                                                                                Machine / Task Paused
+                                                                            </p>
+                                                                            <p className="text-[10px] text-orange-200/50 font-mono mt-0.5">
+                                                                                {formatDateTime(item.started_at)} – {formatDateTime(item.stopped_at)}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className="font-mono font-bold text-orange-400">
+                                                                                {formatMins(item.duration_minutes)}
+                                                                            </span>
+                                                                            <p className="text-[9px] text-orange-400/50 mt-0.5">Idle / Pause</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </>
-                            ) : (
+                                );
+                            })() : (
                                 <p className="text-center py-8 text-white/30 text-xs">Task details not found.</p>
                             )}
                         </div>
@@ -3694,15 +3908,13 @@ function MachinePartsList({ machineId, parts = [], onRefresh }) {
                                 <div className="space-y-1">
                                     <div className="flex justify-between items-center text-[10px]">
                                         <span className="text-white/40">Lifespan Remaining</span>
-                                        <span className={`font-bold ${
-                                            remainingPct <= 15 ? 'text-red-400 animate-pulse' : remainingPct <= 50 ? 'text-amber-400' : 'text-emerald-400'
-                                        }`}>{Math.round(remainingPct)}%</span>
+                                        <span className={`font-bold ${remainingPct <= 15 ? 'text-red-400 animate-pulse' : remainingPct <= 50 ? 'text-amber-400' : 'text-emerald-400'
+                                            }`}>{Math.round(remainingPct)}%</span>
                                     </div>
                                     <div className="w-full h-2 bg-white/[0.05] rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                remainingPct <= 15 ? 'bg-red-500' : remainingPct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
-                                            }`}
+                                            className={`h-full rounded-full transition-all duration-500 ${remainingPct <= 15 ? 'bg-red-500' : remainingPct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                                                }`}
                                             style={{ width: `${remainingPct}%` }}
                                         />
                                     </div>

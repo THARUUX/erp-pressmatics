@@ -16,7 +16,8 @@ import {
     FiShoppingCart, FiDollarSign, FiChevronUp, FiChevronDown,
     FiChevronsLeft, FiChevronLeft, FiChevronRight, FiChevronsRight,
     FiEdit2, FiFileText, FiClock, FiCheckCircle,
-    FiAlertTriangle, FiPackage, FiDownload,
+    FiAlertTriangle, FiPackage, FiDownload, FiLayers, FiPrinter as FiOffsetIcon,
+    FiMonitor, FiTool
 } from 'react-icons/fi';
 import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -36,6 +37,30 @@ function StatusBadge({ status }) {
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border ${STATUS[status] || STATUS.draft}`}>
             {status}
+        </span>
+    );
+}
+
+/* ── Category badge ───────────────────────────────────────────────────────── */
+function CategoryBadge({ category }) {
+    const cat = (category || 'offset').toLowerCase();
+    if (cat === 'digital') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                Digital
+            </span>
+        );
+    }
+    if (cat === 'services') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                Service
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+            Offset
         </span>
     );
 }
@@ -92,19 +117,21 @@ function ColumnFilter({ column }) {
     );
 }
 
+const CATEGORY_TABS = [
+    { key: 'All', label: 'All Categories', icon: FiLayers },
+    { key: 'Offset', label: 'Offset Printing', icon: FiOffsetIcon },
+    { key: 'Digital', label: 'Digital Printing', icon: FiMonitor },
+    { key: 'Services', label: 'Services', icon: FiTool },
+];
+
 /* ── Main page ────────────────────────────────────────────────────────────── */
 export default function QuotationsPage() {
     const { settings } = useSettings();
     const currency = settings.currency || 'LKR';
     const router = useRouter();
     const [data, setData]           = useState([]);
-    const stats = useMemo(() => {
-        const sent = data.reduce((acc, q) => (q.status === 'sent') ? acc + 1 : acc, 0);
-        const converted = data.reduce((acc, q) => q.status === 'converted' ? acc + 1 : acc, 0);
-        const total = data.reduce((acc, q) => q.status === 'converted' ? acc + Number(q.total_amount || 0) : acc, 0);
-        return { sent, converted, total };
-    }, [data]);
     const [loading, setLoading]     = useState(true);
+    const [categoryFilter, setCategory] = useState('All');
     const [deleting, setDeleting]   = useState(null);
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
@@ -118,6 +145,56 @@ export default function QuotationsPage() {
     const [convertingLabel, setConvertingLabel] = useState('');
     const [columnFilters, setColumnFilters] = useState([]);
     const [exportingPdf, setExportingPdf] = useState(false);
+
+    /* ── Fetch all quotations ────────────────────────────────────────────── */
+    const fetchAll = useCallback(() => {
+        setLoading(true);
+        fetch('/api/quotations?page=1&limit=1000')
+            .then(r => r.json())
+            .then(res => {
+                setData(Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
+
+    useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    /* Category counts calculated from full fetched dataset */
+    const categoryCounts = useMemo(() => {
+        let offset = 0;
+        let digital = 0;
+        let services = 0;
+        for (const item of data) {
+            const cat = (item.job_type || 'offset').toLowerCase();
+            if (cat === 'digital') digital++;
+            else if (cat === 'services') services++;
+            else offset++;
+        }
+        return {
+            all: data.length,
+            offset,
+            digital,
+            services
+        };
+    }, [data]);
+
+    /* Filter data by categoryFilter */
+    const filteredData = useMemo(() => {
+        if (categoryFilter === 'All') return data;
+        return data.filter(item => {
+            const cat = (item.job_type || 'offset').toLowerCase();
+            return cat === categoryFilter.toLowerCase();
+        });
+    }, [data, categoryFilter]);
+
+    /* Stats calculated dynamically from filtered data */
+    const stats = useMemo(() => {
+        const sent = filteredData.reduce((acc, q) => (q.status === 'sent') ? acc + 1 : acc, 0);
+        const converted = filteredData.reduce((acc, q) => q.status === 'converted' ? acc + 1 : acc, 0);
+        const total = filteredData.reduce((acc, q) => q.status === 'converted' ? acc + Number(q.total_amount || 0) : acc, 0);
+        return { sent, converted, total };
+    }, [filteredData]);
 
     const handleExportPDF = async () => {
         setExportingPdf(true);
@@ -136,7 +213,7 @@ export default function QuotationsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: 'Quotations Report',
-                    subtitle: 'Exported Quotations List (Customized & Filtered)',
+                    subtitle: `Exported Quotations List (${categoryFilter} Category)`,
                     columns: visibleCols,
                     rows: filteredRows,
                     currency: currency
@@ -153,7 +230,7 @@ export default function QuotationsPage() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `quotations_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            a.download = `quotations_${categoryFilter.toLowerCase()}_report_${new Date().toISOString().slice(0, 10)}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -166,20 +243,6 @@ export default function QuotationsPage() {
             setExportingPdf(false);
         }
     };
-
-    /* ── Fetch all (TanStack handles pagination client-side) ───────────────── */
-    const fetchAll = useCallback(() => {
-        setLoading(true);
-        fetch('/api/quotations?page=1&limit=500')
-            .then(r => r.json())
-            .then(res => {
-                setData(Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : []);
-                setLoading(false);
-            })
-            .catch(() => setLoading(false));
-    }, []);
-
-    useEffect(() => { fetchAll(); }, [fetchAll]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -330,6 +393,12 @@ export default function QuotationsPage() {
             ),
         },
         {
+            accessorKey: 'job_type',
+            header: 'Category',
+            size: 110,
+            cell: ({ getValue }) => <CategoryBadge category={getValue()} />,
+        },
+        {
             accessorKey: 'customer_name',
             header: 'Customer',
             cell: ({ getValue }) => (
@@ -460,7 +529,7 @@ export default function QuotationsPage() {
 
     /* ── Table instance ────────────────────────────────────────────────────── */
     const table = useReactTable({
-        data,
+        data: filteredData,
         columns,
         state: { globalFilter, columnVisibility, columnFilters },
         onGlobalFilterChange: setGlobalFilter,
@@ -663,13 +732,13 @@ export default function QuotationsPage() {
                     </Link>
                 </div>
             </header>
-            
+
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 {[
                     { label: 'Sent Quotations', value: stats.sent, icon: FiClock, color: 'text-blue-400' },
                     { label: 'Converted Quotations', value: stats.converted, icon: FiCheckCircle, color: 'text-emerald-400' },
-                    { label: 'Total Coverted Value', value: `${currency} ${fmt(stats.total)}`, icon: FiDollarSign, color: 'text-indigo-400' },
+                    { label: 'Total Converted Value', value: `${currency} ${fmt(stats.total)}`, icon: FiDollarSign, color: 'text-indigo-400' },
                 ].map(s => (
                     <div key={s.label} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
                         <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}><s.icon className="w-5 h-5" /></div>
@@ -681,14 +750,49 @@ export default function QuotationsPage() {
                 ))}
             </div>
 
+            {/* ── Category Tabs (Offset / Digital / Services) ─────────────── */}
+            <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl p-3 mb-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
+                        <FiLayers className="w-4 h-4 text-emerald-400" />
+                        <span>Quotation Category:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {CATEGORY_TABS.map(cat => {
+                            const isActive = categoryFilter.toLowerCase() === cat.key.toLowerCase();
+                            const countKey = cat.key.toLowerCase();
+                            const count = categoryCounts[countKey] !== undefined ? categoryCounts[countKey] : categoryCounts.all;
+                            const Icon = cat.icon;
+                            return (
+                                <button
+                                    key={cat.key}
+                                    onClick={() => setCategory(cat.key)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${isActive
+                                        ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg shadow-emerald-600/30'
+                                        : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                                        }`}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    <span>{cat.label}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${isActive ? 'bg-white/20 text-white font-extrabold' : 'bg-white/10 text-gray-400'
+                                        }`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
             {/* ── Table ──────────────────────────────────────────────────── */}
             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                 {loading ? (
                     <div className="py-24 text-center text-gray-500 animate-pulse">Loading quotations…</div>
-                ) : data.length === 0 ? (
+                ) : filteredData.length === 0 ? (
                     <div className="py-24 text-center">
                         <FiFileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-                        <p className="text-gray-500">No quotations found</p>
+                        <p className="text-gray-500">No quotations found for selected category</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -743,7 +847,7 @@ export default function QuotationsPage() {
                 )}
 
                 {/* ── Pagination bar ──────────────────────────────────────── */}
-                {!loading && data.length > 0 && (
+                {!loading && filteredData.length > 0 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06] bg-black/20 flex-wrap gap-3">
                         {/* Page size */}
                         <div className="flex items-center gap-2 text-xs text-gray-500">

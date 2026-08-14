@@ -155,6 +155,7 @@ export async function middleware(request) {
             pathname === '/api/auth/login' ||
             pathname === '/api/auth/companies' ||
             pathname.startsWith('/api/portal/') ||
+            pathname.startsWith('/api/common-portal/') ||
             pathname === '/api/whatsapp/incoming' ||
             pathname.startsWith('/api/jobs/') ||
             pathname.startsWith('/api/operator/') ||

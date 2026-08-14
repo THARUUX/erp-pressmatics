@@ -186,12 +186,12 @@ export default function ServicesPage() {
                     {services.map(service => (
                         <div
                             key={service.id}
-                            className="bg-black/40 backdrop-blur-xl border border-white/10 hover:border-purple-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all group shadow-xl"
+                            className="bg-black/40 backdrop-blur-xl border border-white/10 hover:border-emerald-500/40 rounded-2xl p-6 flex flex-col justify-between transition-all group shadow-xl"
                         >
                             <div>
                                 <div className="flex justify-between items-start gap-4 mb-2">
                                     <div>
-                                        <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors flex items-center gap-2">
+                                        <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors flex items-center gap-2">
                                             {service.name}
                                             {service.is_common ? (
                                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
@@ -223,7 +223,7 @@ export default function ServicesPage() {
                             <div className="border-t border-white/[0.06] pt-4">
                                 <Link
                                     href={`/services/${service.id}/portal`}
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold py-3 rounded-xl shadow-lg transition-all"
+                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-bold py-3 rounded-xl shadow-lg transition-all duration-300"
                                 >
                                     <FiGrid className="w-4 h-4" /> Open Service Portal ↗
                                 </Link>

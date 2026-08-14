@@ -267,8 +267,8 @@ export default function MachinesPage() {
                         <div className="font-bold text-white text-[14px] flex items-center gap-2">
                             {item.name}
                             {item.is_common ? (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
-                                    Shared / Common
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-300  uppercase tracking-wider">
+                                    Shared
                                 </span>
                             ) : null}
                         </div>
@@ -300,18 +300,18 @@ export default function MachinesPage() {
                     <div className="text-xs text-gray-300">
                         {item.type === 'offset' && (
                             <>
-                                <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</div>
-                                <div className="text-gray-500 mt-0.5">Factor: {item.sheet_factor} {item.plate_name && <span className="text-amber-500/80">· Plate: {item.plate_name}</span>}</div>
+                                <div> <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> {item.speed_unit === 'Units/Hr' ? 'uph' : 'sph'}</div>
+                                {/* <div className="text-gray-500 mt-0.5">Factor: {item.sheet_factor} {item.plate_name && <span className="text-amber-500/80">· Plate: {item.plate_name}</span>}</div> */}
                             </>
                         )}
                         {item.type === 'digital' && (
                             <>
-                                <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> sph</div>
-                                <div className="text-amber-500/80 mt-0.5">Rates: Max {item.digital_price_max} · Med {item.digital_price_medium} · Min {item.digital_price_min}</div>
+                                <div> <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> sph</div>
+                                {/* <div className="text-amber-500/80 mt-0.5">Rates: Max {item.digital_price_max} · Med {item.digital_price_medium} · Min {item.digital_price_min}</div> */}
                             </>
                         )}
                         {item.type === 'finishing' && (
-                            <div>Speed: <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> uph</div>
+                            <div> <span className="font-semibold text-white">{Number(item.speed).toLocaleString()}</span> uph</div>
                         )}
                         {item.type === 'prepress' && (
                             <div>Prepress Equipment</div>
@@ -342,57 +342,57 @@ export default function MachinesPage() {
                 );
             }
         },
-        {
-            accessorKey: 'assigned_employee_name',
-            header: 'Assignments',
-            cell: ({ row }) => {
-                const item = row.original;
-                return (
-                    <div className="flex flex-wrap gap-1.5">
-                        {item.assigned_employee_name && (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full" title={`Operators: ${item.assigned_employee_name}`}>
-                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
-                            </span>
-                        )}
-                        {item.assigned_helper_name && (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-full" title={`Helpers: ${item.assigned_helper_name}`}>
-                                <FiUsers className="w-2.5 h-2.5" />Helpers: {item.assigned_helper_name}
-                            </span>
-                        )}
-                        {item.assigned_team_name && (
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full" title={`Teams: ${item.assigned_team_name}`}>
-                                <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
-                            </span>
-                        )}
-                        {!item.assigned_employee_name && !item.assigned_team_name && !item.assigned_helper_name && (
-                            <span className="text-gray-600 text-xs">—</span>
-                        )}
-                    </div>
-                );
-            }
-        },
-        {
-            id: 'parts_status',
-            header: 'Parts & Maintenance',
-            cell: ({ row }) => {
-                const item = row.original;
-                if (!item.total_parts) {
-                    return <span className="text-white/20 text-xs">No parts defined</span>;
-                }
-                if (item.warning_parts > 0) {
-                    return (
-                        <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-medium">
-                            <FiZap className="w-2.5 h-2.5 text-red-400 animate-pulse" /> {item.warning_parts} part(s) low
-                        </span>
-                    );
-                }
-                return (
-                    <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
-                        <FiZap className="w-2.5 h-2.5 text-emerald-400" /> {item.total_parts} parts OK
-                    </span>
-                );
-            }
-        },
+        // {
+        //     accessorKey: 'assigned_employee_name',
+        //     header: 'Assignments',
+        //     cell: ({ row }) => {
+        //         const item = row.original;
+        //         return (
+        //             <div className="flex flex-wrap gap-1.5">
+        //                 {item.assigned_employee_name && (
+        //                     <span className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-full" title={`Operators: ${item.assigned_employee_name}`}>
+        //                         <FiUsers className="w-2.5 h-2.5" />{item.assigned_employee_name}
+        //                     </span>
+        //                 )}
+        //                 {item.assigned_helper_name && (
+        //                     <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-full" title={`Helpers: ${item.assigned_helper_name}`}>
+        //                         <FiUsers className="w-2.5 h-2.5" />Helpers: {item.assigned_helper_name}
+        //                     </span>
+        //                 )}
+        //                 {item.assigned_team_name && (
+        //                     <span className="inline-flex items-center gap-1 text-[10px] bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded-full" title={`Teams: ${item.assigned_team_name}`}>
+        //                         <FiUsers className="w-2.5 h-2.5" />{item.assigned_team_name}
+        //                     </span>
+        //                 )}
+        //                 {!item.assigned_employee_name && !item.assigned_team_name && !item.assigned_helper_name && (
+        //                     <span className="text-gray-600 text-xs">—</span>
+        //                 )}
+        //             </div>
+        //         );
+        //     }
+        // },
+        // {
+        //     id: 'parts_status',
+        //     header: 'Parts & Maintenance',
+        //     cell: ({ row }) => {
+        //         const item = row.original;
+        //         if (!item.total_parts) {
+        //             return <span className="text-white/20 text-xs">No parts defined</span>;
+        //         }
+        //         if (item.warning_parts > 0) {
+        //             return (
+        //                 <span className="inline-flex items-center gap-1 text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-medium">
+        //                     <FiZap className="w-2.5 h-2.5 text-red-400 animate-pulse" /> {item.warning_parts} part(s) low
+        //                 </span>
+        //             );
+        //         }
+        //         return (
+        //             <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">
+        //                 <FiZap className="w-2.5 h-2.5 text-emerald-400" /> {item.total_parts} parts OK
+        //             </span>
+        //         );
+        //     }
+        // },
         {
             id: 'actions',
             header: () => <div className="text-right">Actions</div>,
@@ -447,7 +447,7 @@ export default function MachinesPage() {
                 <div className="flex items-center gap-3">
                     <Link
                         href="/dashboard/common-portal/machines"
-                        className="flex items-center gap-2 bg-purple-600/20 border border-purple-500/30 hover:bg-purple-600/30 text-purple-300 px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
+                        className="flex items-center gap-2 bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/30 text-emerald-300 px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg"
                     >
                         <FiCpu /> Shared Machines Portal
                     </Link>
@@ -836,21 +836,19 @@ export default function MachinesPage() {
                         <div className="flex border-b border-white/[0.06] bg-white/[0.02]">
                             <button
                                 onClick={() => setDetailsTab('performance')}
-                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-                                    detailsTab === 'performance'
-                                        ? 'border-white text-white bg-white/[0.03]'
-                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
-                                }`}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${detailsTab === 'performance'
+                                    ? 'border-white text-white bg-white/[0.03]'
+                                    : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                    }`}
                             >
                                 Performance
                             </button>
                             <button
                                 onClick={() => setDetailsTab('maintenance')}
-                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-                                    detailsTab === 'maintenance'
-                                        ? 'border-white text-white bg-white/[0.03]'
-                                        : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
-                                }`}
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${detailsTab === 'maintenance'
+                                    ? 'border-white text-white bg-white/[0.03]'
+                                    : 'border-transparent text-white/40 hover:text-white/80 hover:bg-white/[0.01]'
+                                    }`}
                             >
                                 Parts & Maintenance
                             </button>
@@ -1299,15 +1297,13 @@ function MachinePartsList({ machineId, parts = [], onRefresh }) {
                                 <div className="space-y-1">
                                     <div className="flex justify-between items-center text-[10px]">
                                         <span className="text-white/40">Lifespan Remaining</span>
-                                        <span className={`font-bold ${
-                                            remainingPct <= 15 ? 'text-red-400 animate-pulse' : remainingPct <= 50 ? 'text-amber-400' : 'text-emerald-400'
-                                        }`}>{Math.round(remainingPct)}%</span>
+                                        <span className={`font-bold ${remainingPct <= 15 ? 'text-red-400 animate-pulse' : remainingPct <= 50 ? 'text-amber-400' : 'text-emerald-400'
+                                            }`}>{Math.round(remainingPct)}%</span>
                                     </div>
                                     <div className="w-full h-2 bg-white/[0.05] rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                remainingPct <= 15 ? 'bg-red-500' : remainingPct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
-                                            }`}
+                                            className={`h-full rounded-full transition-all duration-500 ${remainingPct <= 15 ? 'bg-red-500' : remainingPct <= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                                                }`}
                                             style={{ width: `${remainingPct}%` }}
                                         />
                                     </div>

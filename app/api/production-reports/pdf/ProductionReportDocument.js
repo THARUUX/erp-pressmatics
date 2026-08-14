@@ -144,13 +144,15 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                                 {/* Table */}
                                 <View style={s.table}>
                                     <View style={s.tableHeader}>
-                                        <Text style={[s.tableHeaderText, { width: '10%' }]}>SO Code</Text>
-                                        <Text style={[s.tableHeaderText, { width: '22%' }]}>Customer</Text>
-                                        <Text style={[s.tableHeaderText, { width: '32%' }]}>Task Name / Details</Text>
-                                        <Text style={[s.tableHeaderText, { width: '9%', textAlign: 'center' }]}>Status</Text>
-                                        <Text style={[s.tableHeaderText, { width: '9%', textAlign: 'right' }]}>Est. Time</Text>
-                                        <Text style={[s.tableHeaderText, { width: '9%', textAlign: 'right' }]}>Act. Time</Text>
-                                        <Text style={[s.tableHeaderText, { width: '9%', textAlign: 'right' }]}>Variance</Text>
+                                        <Text style={[s.tableHeaderText, { width: '9%' }]}>SO Code</Text>
+                                        <Text style={[s.tableHeaderText, { width: '18%' }]}>Customer</Text>
+                                        <Text style={[s.tableHeaderText, { width: '25%' }]}>Task Details</Text>
+                                        <Text style={[s.tableHeaderText, { width: '8%', textAlign: 'center' }]}>Status</Text>
+                                        <Text style={[s.tableHeaderText, { width: '10%', textAlign: 'right' }]}>Run Qty</Text>
+                                        <Text style={[s.tableHeaderText, { width: '12%', textAlign: 'right' }]}>Actual Output</Text>
+                                        <Text style={[s.tableHeaderText, { width: '6%', textAlign: 'right' }]}>Est.</Text>
+                                        <Text style={[s.tableHeaderText, { width: '6%', textAlign: 'right' }]}>Act.</Text>
+                                        <Text style={[s.tableHeaderText, { width: '6%', textAlign: 'right' }]}>Var.</Text>
                                     </View>
 
                                     {mTasks.map(t => {
@@ -160,24 +162,33 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                                         const displayText = operationDetail ? `${cleanName} (${operationDetail})` : cleanName;
 
                                         const statusStyle = s[`status_${t.status}`] || s.status_pending;
+                                        const runQty = t.run_quantity || t.quantity || t.sheet_count || 0;
+                                        const actQty = t.actual_sheets_printed != null ? parseFloat(t.actual_sheets_printed) : null;
+                                        const wasteQty = t.actual_sheets_wasted != null ? parseFloat(t.actual_sheets_wasted) : 0;
 
                                         return (
                                             <View key={t.id} style={s.tableRow}>
-                                                <Text style={[s.tableCellBold, { width: '10%' }]}>{t.order_code || '—'}</Text>
-                                                <Text style={[s.tableCell, { width: '22%' }]} numberOfLines={1}>{t.customer_name || '—'}</Text>
-                                                <Text style={[s.tableCell, { width: '32%' }]} numberOfLines={1}>
+                                                <Text style={[s.tableCellBold, { width: '9%' }]}>{t.order_code || '—'}</Text>
+                                                <Text style={[s.tableCell, { width: '18%' }]} numberOfLines={1}>{t.customer_name || '—'}</Text>
+                                                <Text style={[s.tableCell, { width: '25%' }]} numberOfLines={1}>
                                                     {displayText}
                                                 </Text>
-                                                <View style={{ width: '9%', alignItems: 'center' }}>
+                                                <View style={{ width: '8%', alignItems: 'center' }}>
                                                     <Text style={[s.statusBadge, statusStyle]}>{t.status}</Text>
                                                 </View>
-                                                <Text style={[s.tableCell, { width: '9%', textAlign: 'right' }]}>
+                                                <Text style={[s.tableCellBold, { width: '10%', textAlign: 'right' }]}>
+                                                    {runQty ? Number(runQty).toLocaleString() : '—'}
+                                                </Text>
+                                                <Text style={[s.tableCellBold, { width: '12%', textAlign: 'right', color: '#16a34a' }]}>
+                                                    {actQty != null ? `${Number(actQty).toLocaleString()}${wasteQty > 0 ? ` (${Number(wasteQty).toLocaleString()} w)` : ''}` : '—'}
+                                                </Text>
+                                                <Text style={[s.tableCell, { width: '6%', textAlign: 'right' }]}>
                                                     {formatDuration(t.estimated_minutes)}
                                                 </Text>
-                                                <Text style={[s.tableCell, { width: '9%', textAlign: 'right' }]}>
+                                                <Text style={[s.tableCell, { width: '6%', textAlign: 'right' }]}>
                                                     {formatDuration(t.actual_minutes)}
                                                 </Text>
-                                                <Text style={[s.tableCell, getVarianceStyle(t.estimated_minutes, t.actual_minutes), s.varianceText, { width: '9%', textAlign: 'right' }]}>
+                                                <Text style={[s.tableCell, getVarianceStyle(t.estimated_minutes, t.actual_minutes), s.varianceText, { width: '6%', textAlign: 'right' }]}>
                                                     {formatVariance(t.estimated_minutes, t.actual_minutes)}
                                                 </Text>
                                             </View>
