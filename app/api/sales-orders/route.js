@@ -7,13 +7,21 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get('search') || '';
         const status = searchParams.get('status') || '';
-        const limit = parseInt(searchParams.get('limit') || '50');
+        const category = searchParams.get('category') || searchParams.get('job_type') || '';
+        const limit = parseInt(searchParams.get('limit') || '1000');
         const offset = parseInt(searchParams.get('offset') || '0');
 
         const service_id = searchParams.get('service_id') || '';
         const exclude_services = searchParams.get('exclude_services') || '';
 
         let query = `SELECT so.*,
+            CASE
+              WHEN so.service_id IS NOT NULL THEN 'services'
+              WHEN (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'services') > 0 THEN 'services'
+              WHEN (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'digital') > 0 THEN 'digital'
+              WHEN (SELECT COUNT(*) FROM quotation_item_details qid JOIN quotation_items qi ON qid.quotation_item_id = qi.id JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qid.type = 'digital') > 0 THEN 'digital'
+              ELSE 'offset'
+            END AS job_type,
             (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
              FROM quotation_items qi
              JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
@@ -33,58 +41,42 @@ export async function GET(req) {
             query += ' AND (so.code LIKE ? OR so.customer_name LIKE ?)';
             params.push(`%${search}%`, `%${search}%`);
         }
-        if (status) {
-            if (status !== 'All') {
-                query += ' AND so.status = ?';
-                params.push(status);
-            }
+        if (status && status !== 'All') {
+            query += ' AND so.status = ?';
+            params.push(status);
+        }
+
+        if (category && category.toLowerCase() !== 'all') {
+            query += ` HAVING job_type = ?`;
+            params.push(category.toLowerCase());
         }
 
         query += ` ORDER BY so.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
         const [rows] = await pool.execute(query, params);
 
-        // Get total count for pagination
-        let countQuery = 'SELECT COUNT(*) as total FROM sales_orders WHERE (company_id = ? OR (company_id IS NULL AND ? = 1))';
-        const countParams = [activeCompanyId, activeCompanyId];
-        if (service_id) {
-            countQuery += ' AND service_id = ?';
-            countParams.push(service_id);
-        } else if (exclude_services === 'true' || exclude_services === '1') {
-            countQuery += ' AND service_id IS NULL';
-        }
-
-        if (search) {
-            countQuery += ' AND (code LIKE ? OR customer_name LIKE ?)';
-            countParams.push(`%${search}%`, `%${search}%`);
-        }
-        if (status && status !== 'All') {
-            countQuery += ' AND status = ?';
-            countParams.push(status);
-        }
-
-        const [countResult] = await pool.execute(countQuery, countParams);
-        const total = countResult[0].total;
-
-        // Query stats for sales orders (scoped by service_id or exclude_services if provided)
-        let statsQuery = `
-            SELECT
-                COUNT(CASE WHEN status = 'Pending' THEN 1 END) AS pending_count,
-                SUM(CASE WHEN status IN ('In Production') THEN 1 END) AS production_count,
+        // Fetch counts and stats for sales orders
+        let baseCountQuery = `
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN (so.service_id IS NOT NULL OR (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'services') > 0) THEN 1 ELSE 0 END) as services_count,
+                SUM(CASE WHEN (so.service_id IS NULL AND (SELECT COUNT(*) FROM quotation_items qi JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id WHERE qli.quotation_id = so.quotation_id AND qi.type = 'digital') > 0) THEN 1 ELSE 0 END) as digital_count,
+                SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending_count,
+                SUM(CASE WHEN status IN ('In Production') THEN 1 ELSE 0 END) AS production_count,
                 SUM(CASE WHEN status = 'Pending' THEN total_amount ELSE 0 END) AS pending_total
-            FROM sales_orders WHERE (company_id = ? OR (company_id IS NULL AND ? = 1))
+            FROM sales_orders so WHERE 1=1
         `;
-        const statsParams = [activeCompanyId, activeCompanyId];
+        const countParams = [];
         if (service_id) {
-            statsQuery += ' AND service_id = ?';
-            statsParams.push(service_id);
-        } else if (exclude_services === 'true' || exclude_services === '1') {
-            statsQuery += ' AND service_id IS NULL';
+            baseCountQuery += ' AND so.service_id = ?';
+            countParams.push(service_id);
         }
 
-        const [[stats]] = await pool.execute(statsQuery, statsParams);
+        const [[stats]] = await pool.execute(baseCountQuery, countParams);
 
-        return NextResponse.json({ salesOrders: rows, total, stats });
+        const totalCount = stats ? stats.total : rows.length;
+
+        return NextResponse.json({ salesOrders: rows, total: totalCount, stats });
     } catch (error) {
         console.error("Fetch Sales Orders Error:", error);
         return NextResponse.json({ error: 'Failed to fetch sales orders' }, { status: 500 });

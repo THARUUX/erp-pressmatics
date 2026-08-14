@@ -14,7 +14,8 @@ import {
     FiSearch, FiPrinter, FiTrash2, FiFileText, FiDownload,
     FiChevronUp, FiChevronDown, FiChevronsLeft, FiChevronLeft,
     FiChevronRight, FiChevronsRight, FiClock, FiCheckCircle, FiDollarSign,
-    FiCpu, FiRefreshCw, FiCalendar, FiFilter,
+    FiCpu, FiRefreshCw, FiCalendar, FiFilter, FiLayers, FiPrinter as FiOffsetIcon,
+    FiMonitor, FiTool
 } from 'react-icons/fi';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
 import { dateOperatorFilterFn } from '@/lib/dateFilter';
@@ -32,6 +33,30 @@ function StatusBadge({ status }) {
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cls}`}>
             {status}
+        </span>
+    );
+}
+
+/* ── Category badge ───────────────────────────────────────────────────────── */
+function CategoryBadge({ category }) {
+    const cat = (category || 'offset').toLowerCase();
+    if (cat === 'digital') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                <FiMonitor className="w-3 h-3" /> Digital
+            </span>
+        );
+    }
+    if (cat === 'services') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+                <FiTool className="w-3 h-3" /> Service
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+            <FiOffsetIcon className="w-3 h-3" /> Offset
         </span>
     );
 }
@@ -70,6 +95,13 @@ function PagBtn({ children, onClick, disabled }) {
     );
 }
 
+const CATEGORY_TABS = [
+    { key: 'All', label: 'All Categories', icon: FiLayers },
+    { key: 'Offset', label: 'Offset Printing', icon: FiOffsetIcon },
+    { key: 'Digital', label: 'Digital Printing', icon: FiMonitor },
+    { key: 'Services', label: 'Services', icon: FiTool },
+];
+
 const STATUS_TABS = ['All', 'Pending', 'In Production', 'Ready', 'Delivered', 'Cancelled'];
 const TIME_PRESETS = ['All Time', 'Today', 'Yesterday', 'This Week', 'This Month', 'Last 30 Days', 'This Quarter', 'This Year', 'Custom Range'];
 
@@ -82,6 +114,7 @@ export default function SalesOrdersPage() {
     const [data, setData]             = useState([]);
     const [stats, setStats]           = useState({ pending_count: 0, production_count: 0, pending_total: 0 });
     const [loading, setLoading]       = useState(true);
+    const [categoryFilter, setCategory] = useState('All');
     const [statusFilter, setStatus]   = useState('All');
     const [durationFilter, setDuration] = useState('All Time');
     const [customStartDate, setCustomStart] = useState('');
@@ -91,11 +124,13 @@ export default function SalesOrdersPage() {
     const [columnFilters, setColumnFilters] = useState([]);
     const [exportingPdf, setExportingPdf] = useState(false);
 
-    /* fetch all — TanStack handles pagination/sort/filter client-side */
+    /* fetch all sales orders */
     const fetchAll = useCallback(() => {
         setLoading(true);
-        let url = '/api/sales-orders?limit=500&offset=0&exclude_services=true';
+        let url = '/api/sales-orders?limit=1000&offset=0';
         if (statusFilter !== 'All') url += `&status=${encodeURIComponent(statusFilter)}`;
+        if (categoryFilter !== 'All') url += `&category=${encodeURIComponent(categoryFilter.toLowerCase())}`;
+        
         fetch(url)
             .then(r => r.json())
             .then(d => {
@@ -104,24 +139,50 @@ export default function SalesOrdersPage() {
                 setLoading(false);
             })
             .catch(() => setLoading(false));
-    }, [statusFilter]);
+    }, [statusFilter, categoryFilter]);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
 
-    /* Filter data by duration preset or custom date range */
+    /* Category counts calculated from full fetched dataset */
+    const categoryCounts = useMemo(() => {
+        let offset = 0;
+        let digital = 0;
+        let services = 0;
+        for (const item of data) {
+            const cat = (item.job_type || 'offset').toLowerCase();
+            if (cat === 'digital') digital++;
+            else if (cat === 'services') services++;
+            else offset++;
+        }
+        return {
+            all: data.length,
+            offset,
+            digital,
+            services
+        };
+    }, [data]);
+
+    /* Filter data by category, duration preset, or custom date range */
     const durationFilteredData = useMemo(() => {
-        if (!durationFilter || durationFilter === 'All Time') return data;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayTime = today.getTime();
-
         return data.filter(item => {
+            // 1. Category Filter
+            if (categoryFilter !== 'All') {
+                const itemCategory = (item.job_type || 'offset').toLowerCase();
+                if (itemCategory !== categoryFilter.toLowerCase()) return false;
+            }
+
+            // 2. Duration Filter
+            if (!durationFilter || durationFilter === 'All Time') return true;
+
             if (!item.order_date) return false;
             const d = new Date(item.order_date);
             if (isNaN(d.getTime())) return false;
             d.setHours(0, 0, 0, 0);
             const t = d.getTime();
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayTime = today.getTime();
 
             if (durationFilter === 'Today') {
                 return t === todayTime;
@@ -171,7 +232,7 @@ export default function SalesOrdersPage() {
             }
             return true;
         });
-    }, [data, durationFilter, customStartDate, customEndDate]);
+    }, [data, categoryFilter, durationFilter, customStartDate, customEndDate]);
 
     const handleDelete = async (e, id) => {
         e.stopPropagation();
@@ -238,7 +299,7 @@ export default function SalesOrdersPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: 'Sales Orders Directory Report',
-                    subtitle: 'Exported Sales Orders (Customized & Filtered)',
+                    subtitle: `Exported Sales Orders (${categoryFilter} Category)`,
                     columns: visibleCols,
                     rows: filteredRows,
                     stats: pdfStats,
@@ -256,7 +317,7 @@ export default function SalesOrdersPage() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `sales_orders_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            a.download = `sales_orders_${categoryFilter.toLowerCase()}_report_${new Date().toISOString().slice(0, 10)}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -279,6 +340,10 @@ export default function SalesOrdersPage() {
                     {getValue()}
                 </span>
             ),
+        },
+        {
+            accessorKey: 'job_type', header: 'Category', size: 110,
+            cell: ({ getValue }) => <CategoryBadge category={getValue()} />,
         },
         {
             accessorKey: 'customer_name', header: 'Customer',
@@ -431,6 +496,43 @@ export default function SalesOrdersPage() {
                 ))}
             </div>
 
+            {/* ── Category Tabs (Offset / Digital / Services) ─────────────── */}
+            <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl p-3 mb-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
+                        <FiLayers className="w-4 h-4 text-indigo-400" />
+                        <span>Production Segment:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {CATEGORY_TABS.map(cat => {
+                            const isActive = categoryFilter.toLowerCase() === cat.key.toLowerCase();
+                            const countKey = cat.key.toLowerCase();
+                            const count = categoryCounts[countKey] !== undefined ? categoryCounts[countKey] : categoryCounts.all;
+                            const Icon = cat.icon;
+                            return (
+                                <button
+                                    key={cat.key}
+                                    onClick={() => setCategory(cat.key)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-purple-600/30'
+                                            : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                                    }`}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    <span>{cat.label}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                                        isActive ? 'bg-white/20 text-white font-extrabold' : 'bg-white/10 text-gray-400'
+                                    }`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
             {/* ── Time Duration Filter Bar ───────────────────────────────── */}
             <div className="bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl p-3.5 mb-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -474,7 +576,7 @@ export default function SalesOrdersPage() {
             <div className="flex flex-wrap gap-1 mb-4">
                 {STATUS_TABS.map(s => (
                     <button key={s} onClick={() => setStatus(s)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${statusFilter === s ? 'bg-white text-black' : 'bg-black/30 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}>
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${statusFilter === s ? 'bg-white text-black font-bold' : 'bg-black/30 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}>
                         {s}
                     </button>
                 ))}
@@ -487,7 +589,7 @@ export default function SalesOrdersPage() {
                 ) : data.length === 0 ? (
                     <div className="py-24 text-center">
                         <FiFileText className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-                        <p className="text-gray-500">No sales orders found</p>
+                        <p className="text-gray-500">No sales orders found for selected filters</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
