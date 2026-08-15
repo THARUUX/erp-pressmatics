@@ -48,7 +48,10 @@ export function SpotlightCard({ children, className, dark, spotlightColor, onCli
     >
       {/* Border Spotlight */}
       <div
-        className="pointer-events-none absolute -inset-px rounded-3xl transition-opacity duration-300 z-0"
+        className={cn(
+          "pointer-events-none absolute -inset-px rounded-3xl transition-opacity duration-300 z-0",
+          className?.includes("rounded-2xl") && "rounded-2xl"
+        )}
         style={{
           opacity,
           background: borderGradient,
@@ -58,11 +61,15 @@ export function SpotlightCard({ children, className, dark, spotlightColor, onCli
       {/* Content Wrapper */}
       <div className={cn(
         "relative rounded-[23px] h-full w-full z-10 overflow-hidden backdrop-blur-md",
+        className?.includes("rounded-2xl") && "rounded-[15px]",
         dark ? "bg-[#0b0c16]/85 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)]" : "bg-white/60 text-slate-800 shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.7)]"
       )}>
         {/* Background Spotlight */}
         <div
-          className="pointer-events-none absolute -inset-px rounded-[23px] transition-opacity duration-300 z-0"
+          className={cn(
+            "pointer-events-none absolute -inset-px rounded-[23px] transition-opacity duration-300 z-0",
+            className?.includes("rounded-2xl") && "rounded-[15px]"
+          )}
           style={{
             opacity,
             background: `radial-gradient(350px circle at ${position.x}px ${position.y}px, ${color}, transparent 80%)`,

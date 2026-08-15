@@ -8,6 +8,7 @@ import {
     FiAlertTriangle
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { SpotlightCard } from '@/components/magicui/spotlight-card';
 
 function toLocalDt(isoStr) {
     if (!isoStr) return '';
@@ -469,22 +470,33 @@ export default function MachineTaskExecutionPage({ params }) {
         <div className="space-y-6">
             {/* Quick Metrics Bar */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
-                    <p className="text-gray-400 text-[11px] font-bold uppercase">Total Tasks</p>
-                    <p className="text-2xl font-black text-white mt-0.5">{tasks.length}</p>
-                </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
-                    <p className="text-amber-400 text-[11px] font-bold uppercase">Pending / Paused</p>
-                    <p className="text-2xl font-black text-amber-300 mt-0.5">{pendingTasks.length}</p>
-                </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4">
-                    <p className="text-purple-400 text-[11px] font-bold uppercase">In Production</p>
-                    <p className="text-2xl font-black text-purple-300 mt-0.5">{activeTasks.length}</p>
-                </div>
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
-                    <p className="text-emerald-400 text-[11px] font-bold uppercase font-sans">Completed</p>
-                    <p className="text-2xl font-black text-emerald-300 mt-0.5">{doneTasks.length}</p>
-                </div>
+                <SpotlightCard dark spotlightColor="rgba(148, 163, 184, 0.2)" className="rounded-2xl border-white/10">
+                    <div className="bg-white/5 p-4 space-y-0.5">
+                        <p className="text-gray-400 text-[11px] font-bold uppercase">Total Tasks</p>
+                        <p className="text-2xl font-black text-white">{tasks.length}</p>
+                    </div>
+                </SpotlightCard>
+
+                <SpotlightCard dark spotlightColor="rgba(251, 191, 36, 0.25)" className="rounded-2xl border-amber-500/20">
+                    <div className="bg-amber-500/5 p-4 space-y-0.5">
+                        <p className="text-amber-400 text-[11px] font-bold uppercase">Pending / Paused</p>
+                        <p className="text-2xl font-black text-amber-300">{pendingTasks.length}</p>
+                    </div>
+                </SpotlightCard>
+
+                <SpotlightCard dark spotlightColor="rgba(168, 85, 247, 0.25)" className="rounded-2xl border-purple-500/20">
+                    <div className="bg-purple-500/5 p-4 space-y-0.5">
+                        <p className="text-purple-400 text-[11px] font-bold uppercase">In Production</p>
+                        <p className="text-2xl font-black text-purple-300">{activeTasks.length}</p>
+                    </div>
+                </SpotlightCard>
+
+                <SpotlightCard dark spotlightColor="rgba(52, 211, 153, 0.25)" className="rounded-2xl border-emerald-500/20">
+                    <div className="bg-emerald-500/5 p-4 space-y-0.5">
+                        <p className="text-emerald-400 text-[11px] font-bold uppercase font-sans">Completed</p>
+                        <p className="text-2xl font-black text-emerald-300">{doneTasks.length}</p>
+                    </div>
+                </SpotlightCard>
             </div>
 
             {/* Filter & Search Bar */}

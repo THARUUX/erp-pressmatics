@@ -70,6 +70,7 @@ const NAV_GROUPS = [
     {
         label: 'System',
         items: [
+            { icon: FiLayers, label: 'Resources', href: '/dashboard/resources' },
             { icon: FiUsers, label: 'Users', href: '/dashboard/users', permission: 'access_system' },
             { icon: FiSettings, label: 'Settings', href: '/dashboard/settings', permission: 'access_system' },
             { icon: FiBookOpen, label: 'Guide', href: '/dashboard/guide' },
