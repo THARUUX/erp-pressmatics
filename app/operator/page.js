@@ -376,6 +376,14 @@ export default function OperatorConsole() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => router.push('/dashboard/resources')}
+                        className="p-2 bg-white/5 border border-white/10 text-blue-400 hover:bg-white/10 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                        title="Open Resources Explorer"
+                    >
+                        <FiLayers className="w-4 h-4 text-blue-400" />
+                        <span className="hidden sm:inline">Resources</span>
+                    </button>
                     {selectedTarget && (
                         <button
                             onClick={() => { setScanError(''); setScanning(true); }}
