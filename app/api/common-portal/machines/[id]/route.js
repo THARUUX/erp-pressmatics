@@ -207,29 +207,63 @@ export async function PUT(req, { params }) {
                  WHERE task_id = ? AND stopped_at IS NULL`,
                 [taskId]
             );
-            // Update status, actual output, downtime, and completion metadata
-            await targetPool.execute(
-                `UPDATE job_tasks 
-                 SET status = 'done', 
-                     actual_sheets_printed = ?,
-                     actual_sheets_wasted = ?,
-                     downtime_minutes = ?,
-                     downtime_reason = ?,
-                     completed_by = ?, 
-                     completed_by_helper = ?, 
-                     completed_at = ? 
-                 WHERE id = ?`,
-                [
-                    actual_sheets_printed !== undefined && actual_sheets_printed !== null && actual_sheets_printed !== '' ? parseFloat(actual_sheets_printed) : null,
-                    actual_sheets_wasted !== undefined && actual_sheets_wasted !== null && actual_sheets_wasted !== '' ? parseFloat(actual_sheets_wasted) : 0,
-                    downtime_minutes !== undefined && downtime_minutes !== null && downtime_minutes !== '' ? parseInt(downtime_minutes) : 0,
-                    downtime_reason || null,
-                    completed_by || null,
-                    completed_by_helper || null,
-                    completed_at ? new Date(completed_at) : new Date(),
-                    taskId
-                ]
-            );
+
+            const parsedOutput = actual_sheets_printed !== undefined && actual_sheets_printed !== null && actual_sheets_printed !== '' ? parseFloat(actual_sheets_printed) : null;
+            
+            // Try updating run_quantity if column exists
+            try {
+                await targetPool.execute(
+                    `UPDATE job_tasks 
+                     SET status = 'done', 
+                         quantity = COALESCE(?, quantity),
+                         run_quantity = COALESCE(?, run_quantity),
+                         actual_sheets_printed = ?,
+                         actual_sheets_wasted = ?,
+                         downtime_minutes = ?,
+                         downtime_reason = ?,
+                         completed_by = ?, 
+                         completed_by_helper = ?, 
+                         completed_at = ? 
+                     WHERE id = ?`,
+                    [
+                        parsedOutput,
+                        parsedOutput,
+                        parsedOutput,
+                        actual_sheets_wasted !== undefined && actual_sheets_wasted !== null && actual_sheets_wasted !== '' ? parseFloat(actual_sheets_wasted) : 0,
+                        downtime_minutes !== undefined && downtime_minutes !== null && downtime_minutes !== '' ? parseInt(downtime_minutes) : 0,
+                        downtime_reason || null,
+                        completed_by || null,
+                        completed_by_helper || null,
+                        completed_at ? new Date(completed_at) : new Date(),
+                        taskId
+                    ]
+                );
+            } catch {
+                await targetPool.execute(
+                    `UPDATE job_tasks 
+                     SET status = 'done', 
+                         quantity = COALESCE(?, quantity),
+                         actual_sheets_printed = ?,
+                         actual_sheets_wasted = ?,
+                         downtime_minutes = ?,
+                         downtime_reason = ?,
+                         completed_by = ?, 
+                         completed_by_helper = ?, 
+                         completed_at = ? 
+                     WHERE id = ?`,
+                    [
+                        parsedOutput,
+                        parsedOutput,
+                        actual_sheets_wasted !== undefined && actual_sheets_wasted !== null && actual_sheets_wasted !== '' ? parseFloat(actual_sheets_wasted) : 0,
+                        downtime_minutes !== undefined && downtime_minutes !== null && downtime_minutes !== '' ? parseInt(downtime_minutes) : 0,
+                        downtime_reason || null,
+                        completed_by || null,
+                        completed_by_helper || null,
+                        completed_at ? new Date(completed_at) : new Date(),
+                        taskId
+                    ]
+                );
+            }
             return NextResponse.json({ success: true, message: 'Task marked as done' });
         }
 

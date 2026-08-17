@@ -60,6 +60,7 @@ export default function OperatorConsole() {
 
     const [completingTask, setCompletingTask] = useState(null); // task for log & finish
     const [completionTime, setCompletionTime] = useState(nowDt());
+    const [actualRunQty, setActualRunQty] = useState('');
     const [actualSheets, setActualSheets] = useState('');
     const [actualWastage, setActualWastage] = useState('');
     const [actualPlates, setActualPlates] = useState('');
@@ -271,6 +272,11 @@ export default function OperatorConsole() {
 
         setActionLoading(true);
         try {
+            const runQtyVal = task.run_quantity != null && parseFloat(task.run_quantity) > 0
+                ? parseFloat(task.run_quantity)
+                : (task.quantity != null && parseFloat(task.quantity) > 0
+                    ? parseFloat(task.quantity)
+                    : (task.sheet_count != null ? parseFloat(task.sheet_count) : 0));
             const estSheets = task.sheet_count != null ? parseFloat(task.sheet_count) : 0;
             const estWastage = task.wastage_sheets != null ? parseFloat(task.wastage_sheets) : 0;
             const estPlates = task.plate_count != null ? parseInt(task.plate_count) : 0;
@@ -280,7 +286,9 @@ export default function OperatorConsole() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status: 'done',
-                    actual_sheets_printed: estSheets - estWastage > 0 ? estSheets - estWastage : estSheets,
+                    run_quantity: runQtyVal,
+                    quantity: runQtyVal,
+                    actual_sheets_printed: estSheets - estWastage > 0 ? estSheets - estWastage : (runQtyVal > 0 ? runQtyVal : estSheets),
                     actual_sheets_wasted: estWastage,
                     actual_plates_used: estPlates,
                     downtime_minutes: 0,
@@ -302,9 +310,13 @@ export default function OperatorConsole() {
     const handleOpenCompleteModal = (task) => {
         setCompletingTask(task);
         setCompletionTime(nowDt());
-        setActualSheets(task.sheet_count != null ? String(task.sheet_count) : '');
-        setActualWastage(task.wastage_sheets != null ? String(task.wastage_sheets) : '0');
-        setActualPlates(task.plate_count != null ? String(task.plate_count) : '0');
+        const defaultRunQty = task.run_quantity != null && parseFloat(task.run_quantity) > 0
+            ? String(task.run_quantity)
+            : (task.quantity != null && parseFloat(task.quantity) > 0 ? String(task.quantity) : (task.sheet_count != null && parseFloat(task.sheet_count) > 0 ? String(task.sheet_count) : ''));
+        setActualRunQty(defaultRunQty);
+        setActualSheets(task.actual_sheets_printed != null ? String(task.actual_sheets_printed) : (task.sheet_count != null ? String(task.sheet_count) : ''));
+        setActualWastage(task.actual_sheets_wasted != null ? String(task.actual_sheets_wasted) : '0');
+        setActualPlates(task.actual_plates_used != null ? String(task.actual_plates_used) : (task.plate_count != null ? String(task.plate_count) : '0'));
         setDowntimeMinutes('0');
         setDowntimeReason('None');
     };
@@ -315,12 +327,17 @@ export default function OperatorConsole() {
 
         setActionLoading(true);
         try {
+            const parsedRunQty = actualRunQty !== '' ? parseFloat(actualRunQty) : null;
+            const parsedSheets = actualSheets !== '' ? parseFloat(actualSheets) : parsedRunQty;
+
             const res = await fetch(`/api/sales-orders/${completingTask.sales_order_id || 'unassigned'}/tasks/${completingTask.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status: 'done',
-                    actual_sheets_printed: actualSheets !== '' ? parseFloat(actualSheets) : null,
+                    run_quantity: parsedRunQty,
+                    quantity: parsedRunQty,
+                    actual_sheets_printed: parsedSheets,
                     actual_sheets_wasted: actualWastage !== '' ? parseFloat(actualWastage) : null,
                     actual_plates_used: actualPlates !== '' ? parseInt(actualPlates) : null,
                     downtime_minutes: parseInt(downtimeMinutes) || 0,
@@ -638,8 +655,14 @@ export default function OperatorConsole() {
                                         )}
 
                                         {/* Estimation Details Grid */}
-                                        {(task.sheet_count > 0 || task.plate_count > 0 || task.quantity > 0) && (
+                                        {(task.sheet_count > 0 || task.plate_count > 0 || task.quantity > 0 || task.run_quantity > 0) && (
                                             <div className="grid grid-cols-3 gap-2 bg-black/40 border border-white/[0.06] p-2.5 rounded-xl text-center">
+                                                {(task.run_quantity > 0 || task.quantity > 0) && (
+                                                    <div>
+                                                        <span className="text-[9px] text-amber-400 block font-semibold uppercase">Run Qty</span>
+                                                        <span className="text-xs font-bold text-amber-300 font-mono">{(task.run_quantity || task.quantity)?.toLocaleString()}</span>
+                                                    </div>
+                                                )}
                                                 {task.sheet_count > 0 && (
                                                     <div>
                                                         <span className="text-[9px] text-neutral-400 block font-semibold uppercase">Est. Sheets</span>
@@ -650,12 +673,6 @@ export default function OperatorConsole() {
                                                     <div>
                                                         <span className="text-[9px] text-neutral-400 block font-semibold uppercase">Est. Plates</span>
                                                         <span className="text-xs font-bold text-neutral-200">{task.plate_count}</span>
-                                                    </div>
-                                                )}
-                                                {task.quantity > 0 && (
-                                                    <div>
-                                                        <span className="text-[9px] text-neutral-400 block font-semibold uppercase">Est. Output</span>
-                                                        <span className="text-xs font-bold text-neutral-200">{task.quantity}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -873,6 +890,25 @@ export default function OperatorConsole() {
                         </div>
 
                         <form onSubmit={handleSubmitCompletion} className="space-y-3">
+                            <div className="bg-white/5 border border-white/10 p-3 rounded-xl space-y-1.5">
+                                <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+                                    Run Quantity (Produced Output Qty)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={actualRunQty}
+                                    onChange={e => setActualRunQty(e.target.value)}
+                                    placeholder="Completed Output Quantity"
+                                    className="w-full px-3 py-2 bg-black border border-white/10 rounded-xl text-xs font-mono font-bold text-amber-300 outline-none focus:border-amber-500"
+                                    required
+                                />
+                                {(completingTask.run_quantity || completingTask.quantity || completingTask.sheet_count) > 0 && (
+                                    <span className="text-[9px] text-neutral-400 block">
+                                        Estimated Target: {(completingTask.run_quantity || completingTask.quantity || completingTask.sheet_count)?.toLocaleString()}
+                                    </span>
+                                )}
+                            </div>
                             {(completingTask.sheet_count > 0 || completingTask.name.toLowerCase().includes('printing')) && (
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>

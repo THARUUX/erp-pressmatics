@@ -137,8 +137,21 @@ async function syncSalesOrderStatus(salesOrderId) {
     }
 }
 
+// Helper to ensure run_quantity column exists
+let runQtyColumnChecked = false;
+async function ensureRunQuantityColumn() {
+    if (runQtyColumnChecked) return;
+    try {
+        await pool.execute('ALTER TABLE job_tasks ADD COLUMN run_quantity DOUBLE NULL');
+    } catch {
+        // Ignore if column already exists
+    }
+    runQtyColumnChecked = true;
+}
+
 export async function PUT(req, { params }) {
     try {
+        await ensureRunQuantityColumn();
         const resolvedParams = await params;
         const rawId = resolvedParams?.id;
         const { taskId } = resolvedParams;
@@ -154,7 +167,7 @@ export async function PUT(req, { params }) {
             name, status, completed_at, completed_by, assigned_to,
             description, machine_id, machine_name, estimated_minutes,
             scheduled_date, custom_make_ready_minutes, custom_speed, custom_speed_unit,
-            quantity, sheet_count, impression_count,
+            quantity, run_quantity, sheet_count, impression_count,
             actual_sheets_printed, actual_sheets_wasted, actual_plates_used,
             downtime_minutes, downtime_reason,
             helper_name, completed_by_helper, started_at, is_manual,
@@ -258,6 +271,10 @@ export async function PUT(req, { params }) {
                     updates.push('is_manual = 0');
                 }
             }
+        }
+        if (run_quantity !== undefined) {
+            updates.push('run_quantity = ?');
+            paramsList.push(run_quantity !== null ? parseFloat(run_quantity) : null);
         }
         if (sheet_count !== undefined) {
             updates.push('sheet_count = ?');
