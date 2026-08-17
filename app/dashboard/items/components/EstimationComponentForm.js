@@ -955,7 +955,9 @@ export default function EstimationComponentForm({
                                                     <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
                                                         {papers.filter(p => {
                                                             const pType = (p.type || '').toUpperCase();
-                                                            return pType !== 'DIGITAL' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
+                                                            const pCat = (p.category || '').toUpperCase();
+                                                            const matchesCategory = pCat ? (pCat === 'OFFSET' || pCat === 'BOTH') : (pType !== 'DIGITAL');
+                                                            return matchesCategory && p.name.toLowerCase().includes(paperSearch.toLowerCase());
                                                         }).map(p => {
                                                             const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
                                                             return (
@@ -1353,7 +1355,9 @@ export default function EstimationComponentForm({
                                                         <ul className="absolute z-50 w-full bg-secondary border border-white/10 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-xl">
                                                             {papers.filter(p => {
                                                                 const pType = (p.type || '').toUpperCase();
-                                                                return pType !== 'OFFSET' && p.name.toLowerCase().includes(paperSearch.toLowerCase());
+                                                                const pCat = (p.category || '').toUpperCase();
+                                                                const matchesCategory = pCat ? (pCat === 'DIGITAL' || pCat === 'BOTH') : (pType !== 'OFFSET');
+                                                                return matchesCategory && p.name.toLowerCase().includes(paperSearch.toLowerCase());
                                                             }).map(p => {
                                                                 const isLowStock = (p.stock_quantity ?? 0) < (p.min_stock ?? 0);
                                                                 return (

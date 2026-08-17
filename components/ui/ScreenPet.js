@@ -145,6 +145,7 @@ export default function ScreenPet() {
     const clickCountRef = useRef(0);
     const clickResetTimer = useRef(null);
     const emotionRef = useRef(emotion);
+    const stateRef = useRef(state);
     const angryUntilRef = useRef(0);
     const angryTimer = useRef(null);
 
@@ -155,6 +156,10 @@ export default function ScreenPet() {
     useEffect(() => {
         emotionRef.current = emotion;
     }, [emotion]);
+
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
 
     const triggerAngryMode = (type = 'angry', durationMs = 60000, speechText = null) => {
         clearTimeout(angryTimer.current);
@@ -308,21 +313,20 @@ export default function ScreenPet() {
             }
 
             if (isVisible) {
-                setState(prev => {
-                    if (prev !== 'question' && prev !== 'sleep' && prev !== 'dragged') {
-                        const phrases = [
-                            userName ? `What are we choosing here, ${userName}?` : "What are we choosing here?",
-                            "Let's look at this option!",
-                            userName ? `Need help with this decision, ${userName}?` : "Need help with this decision?",
-                            "Interesting prompt!"
-                        ];
-                        triggerSpeech(phrases[Math.floor(Math.random() * phrases.length)], 3000);
-                        return 'question';
-                    }
-                    return prev;
-                });
+                if (stateRef.current !== 'question' && stateRef.current !== 'sleep' && stateRef.current !== 'dragged') {
+                    setState('question');
+                    const phrases = [
+                        userName ? `What are we choosing here, ${userName}?` : "What are we choosing here?",
+                        "Let's look at this option!",
+                        userName ? `Need help with this decision, ${userName}?` : "Need help with this decision?",
+                        "Interesting prompt!"
+                    ];
+                    triggerSpeech(phrases[Math.floor(Math.random() * phrases.length)], 3000);
+                }
             } else {
-                setState(prev => prev === 'question' ? 'idle' : prev);
+                if (stateRef.current === 'question') {
+                    setState('idle');
+                }
             }
         };
 
@@ -451,7 +455,7 @@ export default function ScreenPet() {
 
         // 1. User activity monitoring (sleep mode)
         const resetActivity = () => {
-            if (state === 'sleep') {
+            if (stateRef.current === 'sleep') {
                 setState('idle');
                 triggerSpeech(userName ? `Yawn... I'm awake, ${userName}!` : "Yawn... I'm awake!", 3000);
             }
@@ -466,12 +470,12 @@ export default function ScreenPet() {
             resetActivity();
 
             // Pupil tracking cursor when awake
-            if (petRef.current && state !== 'sleep') {
+            if (petRef.current && stateRef.current !== 'sleep') {
                 const currentEmotion = emotionRef.current;
 
                 // 1. When in aggrieved, happy, or when walking, don't move eyes with the cursor!
-                if (['aggrieved', 'happy'].includes(currentEmotion) || state === 'walking') {
-                    setEyeOffset({ x: 0, y: 0 });
+                if (['aggrieved', 'happy'].includes(currentEmotion) || stateRef.current === 'walking') {
+                    setEyeOffset(prev => (prev.x === 0 && prev.y === 0) ? prev : { x: 0, y: 0 });
                     return;
                 }
 
@@ -489,10 +493,10 @@ export default function ScreenPet() {
                     // 2. Emo angry eyes should invert cursor!
                     const directionMult = (currentEmotion === 'emo_angry' || currentEmotion === 'angry' || currentEmotion === 'furious') ? -1 : 1;
 
-                    setEyeOffset({
-                        x: Math.cos(angle) * offsetAmount * directionMult,
-                        y: Math.sin(angle) * offsetAmount * directionMult
-                    });
+                    const newX = parseFloat((Math.cos(angle) * offsetAmount * directionMult).toFixed(2));
+                    const newY = parseFloat((Math.sin(angle) * offsetAmount * directionMult).toFixed(2));
+
+                    setEyeOffset(prev => (Math.abs(prev.x - newX) < 0.1 && Math.abs(prev.y - newY) < 0.1) ? prev : { x: newX, y: newY });
                 }
             }
         };
@@ -573,12 +577,12 @@ export default function ScreenPet() {
             document.removeEventListener('click', handleDownloadClick, true);
             clearTimeout(activityTimer.current);
         };
-    }, [hidden, state]);
+    }, [hidden]);
 
     // Reset eye offset to original centered position when in static eye states
     useEffect(() => {
         if (emotion === 'happy' || state === 'walking' || state === 'sleep') {
-            setEyeOffset({ x: 0, y: 0 });
+            setEyeOffset(prev => (prev.x === 0 && prev.y === 0) ? prev : { x: 0, y: 0 });
         }
     }, [emotion, state]);
 
@@ -600,7 +604,7 @@ export default function ScreenPet() {
 
     // Set up random emotion cycles when idle or walking
     useEffect(() => {
-        if (hidden || !idleEmotionsEnabled || ['sleep', 'dragged', 'password'].includes(state)) {
+        if (hidden || !idleEmotionsEnabled || ['sleep', 'dragged', 'password'].includes(stateRef.current)) {
             if (Date.now() >= angryUntilRef.current && emotionRef.current !== 'emo_angry') {
                 setEmotion('normal');
             }
@@ -650,17 +654,17 @@ export default function ScreenPet() {
         }, 10000 + Math.random() * 5000);
 
         return () => clearInterval(emotionTimer.current);
-    }, [hidden, state, idleEmotionsEnabled]);
+    }, [hidden, idleEmotionsEnabled]);
 
     // Set up autonomous walking behavior
     useEffect(() => {
-        if (hidden || !walkingEnabled || state === 'sleep' || state === 'password' || state === 'searching' || state === 'copied' || state === 'downloading' || state === 'dragged') {
+        if (hidden || !walkingEnabled || ['sleep', 'password', 'searching', 'copied', 'downloading', 'dragged'].includes(stateRef.current)) {
             clearInterval(walkTimer.current);
             return;
         }
 
         const triggerRandomWalk = () => {
-            if (isDragging.current || state === 'sleep' || !walkingEnabled) return;
+            if (isDragging.current || stateRef.current === 'sleep' || !walkingEnabled) return;
 
             // Generate new random viewport percentages (avoiding extreme edges)
             const targetX = 5 + Math.random() * 80; // 5% to 85%
@@ -706,7 +710,7 @@ export default function ScreenPet() {
         walkTimer.current = setInterval(triggerRandomWalk, interval);
 
         return () => clearInterval(walkTimer.current);
-    }, [hidden, state, walkingEnabled]);
+    }, [hidden, walkingEnabled]);
 
     // Floating Zzzs particle generator during sleep state
     useEffect(() => {

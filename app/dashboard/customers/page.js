@@ -49,14 +49,14 @@ const numericOperatorFilterFn = (row, columnId, filterValue) => {
         const op = match[1];
         const num = parseFloat(match[2]);
         switch (op) {
-            case '>':  return value > num;
+            case '>': return value > num;
             case '>=': return value >= num;
-            case '<':  return value < num;
+            case '<': return value < num;
             case '<=': return value <= num;
             case '!=': return value !== num;
             case '=':
             case '==': return value === num;
-            default:   return true;
+            default: return true;
         }
     }
 
@@ -71,22 +71,22 @@ export default function CustomersPage() {
     const { settings } = useSettings();
     const currency = (settings?.currency || 'LKR');
     const router = useRouter();
-    const [data, setData]               = useState([]);
-    const [loading, setLoading]         = useState(true);
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState('');
     const [columnVisibility, setColumnVisibility] = useState({});
-    const [showImport, setShowImport]     = useState(false);
+    const [showImport, setShowImport] = useState(false);
     const [showBulkEdit, setShowBulkEdit] = useState(false);
     const [rowSelection, setRowSelection] = useState({});
 
     const copyPortalLink = async (customerId, e) => {
         e.stopPropagation();
         try {
-            const checkRes  = await fetch(`/api/customers/${customerId}/portal-token`);
+            const checkRes = await fetch(`/api/customers/${customerId}/portal-token`);
             const checkData = await checkRes.json();
             let url = checkData.url;
             if (!url) {
-                const genRes  = await fetch(`/api/customers/${customerId}/portal-token`, { method: 'POST' });
+                const genRes = await fetch(`/api/customers/${customerId}/portal-token`, { method: 'POST' });
                 const genData = await genRes.json();
                 url = genData.url;
             }
@@ -226,8 +226,8 @@ export default function CustomersPage() {
         },
         {
             accessorKey: 'category', header: 'Category', size: 120,
-            cell: ({ getValue }) => getValue() 
-                ? <span className="text-xs bg-white/5 text-amber-300 border border-white/10 px-2.5 py-0.5 rounded-full font-medium">{getValue()}</span>
+            cell: ({ getValue }) => getValue()
+                ? <span className="text-xs font-medium">{getValue()}</span>
                 : <span className="text-gray-600 text-sm">—</span>,
         },
         {

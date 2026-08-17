@@ -10,7 +10,8 @@ import {
     FiPlus, FiEdit2, FiTrash2, FiX, FiCopy, FiAlertTriangle,
     FiClock, FiSearch, FiChevronUp, FiChevronDown, FiChevronsLeft,
     FiChevronsRight, FiChevronLeft, FiChevronRight, FiUpload, FiGrid,
-    FiDollarSign, FiBox, FiPenTool, FiCheckCircle, FiDownload
+    FiDollarSign, FiBox, FiPenTool, FiCheckCircle, FiDownload,
+    FiLayers, FiZap
 } from 'react-icons/fi';
 import { FiMaximize } from 'react-icons/fi';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
@@ -119,6 +120,7 @@ export default function InventoryPage() {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('Paper');
+    const [paperSubFilter, setPaperSubFilter] = useState('All');
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState([]);
     const [rowSelection, setRowSelection] = useState({});
@@ -758,7 +760,33 @@ export default function InventoryPage() {
                 );
             },
         },
-        { accessorKey: 'type', header: 'Type', cell: ({ getValue }) => <span className="text-sm text-white/50">{getValue()}</span> },
+        {
+            accessorKey: 'type', header: 'Type / Method', cell: ({ row, getValue }) => {
+                const val = (getValue() || '').toUpperCase();
+                if (row.original.category === 'Paper') {
+                    if (val === 'DIGITAL') {
+                        return (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                <FiZap className="w-3 h-3 text-amber-400" /> Digital
+                            </span>
+                        );
+                    }
+                    if (val === 'BOTH') {
+                        return (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                Universal (Both)
+                            </span>
+                        );
+                    }
+                    return (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <FiLayers className="w-3 h-3 text-emerald-400" /> Offset
+                        </span>
+                    );
+                }
+                return <span className="text-sm text-white/50">{getValue()}</span>;
+            }
+        },
         { accessorKey: 'uom',  header: 'UoM',  cell: ({ getValue }) => <span className="text-xs text-white/40 font-mono">{getValue()}</span> },
         {
             id: 'stock_or_status', header: 'Stock / Status', size: 110,
@@ -815,8 +843,22 @@ export default function InventoryPage() {
         },
     ], [currency]);
 
+    const displayedItems = useMemo(() => {
+        if (activeCategory !== 'Paper' || paperSubFilter === 'All') return items;
+        return items.filter(item => {
+            const t = (item.type || '').toUpperCase();
+            if (paperSubFilter === 'Offset') {
+                return t === 'OFFSET' || t === 'BOTH' || (!t || t !== 'DIGITAL');
+            }
+            if (paperSubFilter === 'Digital') {
+                return t === 'DIGITAL' || t === 'BOTH';
+            }
+            return true;
+        });
+    }, [items, activeCategory, paperSubFilter]);
+
     const table = useReactTable({
-        data: items,
+        data: displayedItems,
         columns,
         state: { globalFilter, sorting, rowSelection, columnFilters, columnVisibility },
         onGlobalFilterChange: setGlobalFilter,
@@ -1019,12 +1061,56 @@ export default function InventoryPage() {
     };
     const f = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
+    const filteredItems = useMemo(() => {
+        return table.getFilteredRowModel().rows.map(row => row.original);
+    }, [table.getFilteredRowModel().rows]);
+
     const stats = useMemo(() => {
-        const totalItems = items.length;
-        const totalValue = items.reduce((acc, item) => acc + (Number(item.stock_quantity || 0) * Number(item.unit_cost || 0)), 0);
-        const lowStock = items.filter(item => item.category !== 'Statics' && item.stock_quantity < (item.min_stock || 0)).length;
+        const totalItems = filteredItems.length;
+        const totalValue = filteredItems.reduce((acc, item) => acc + (Number(item.stock_quantity || 0) * Number(item.unit_cost || 0)), 0);
+        const lowStock = filteredItems.filter(item => item.category !== 'Statics' && item.stock_quantity < (item.min_stock || 0)).length;
         return { totalItems, totalValue, lowStock };
-    }, [items]);
+    }, [filteredItems]);
+
+    const paperStats = useMemo(() => {
+        if (activeCategory !== 'Paper') return null;
+
+        const allCategoryPapers = items.filter(i => i.category === 'Paper');
+        const totalOffsetAll = allCategoryPapers.filter(item => {
+            const t = (item.type || '').toUpperCase();
+            return t === 'OFFSET' || t === 'BOTH' || (!t || (t !== 'DIGITAL' && t !== 'BOTH'));
+        }).length;
+        const totalDigitalAll = allCategoryPapers.filter(item => {
+            const t = (item.type || '').toUpperCase();
+            return t === 'DIGITAL' || t === 'BOTH';
+        }).length;
+
+        const offsetItems = filteredItems.filter(item => {
+            const t = (item.type || '').toUpperCase();
+            return t === 'OFFSET' || t === 'BOTH' || (!t || (t !== 'DIGITAL' && t !== 'BOTH'));
+        });
+
+        const digitalItems = filteredItems.filter(item => {
+            const t = (item.type || '').toUpperCase();
+            return t === 'DIGITAL' || t === 'BOTH';
+        });
+
+        const offsetValue = offsetItems.reduce((acc, item) => acc + (Number(item.stock_quantity || 0) * Number(item.unit_cost || 0)), 0);
+        const digitalValue = digitalItems.reduce((acc, item) => acc + (Number(item.stock_quantity || 0) * Number(item.unit_cost || 0)), 0);
+        const lowStock = filteredItems.filter(item => item.stock_quantity < (item.min_stock || 0)).length;
+
+        return {
+            totalCount: filteredItems.length,
+            totalAllCount: allCategoryPapers.length,
+            totalOffsetAll,
+            totalDigitalAll,
+            offsetCount: offsetItems.length,
+            offsetValue,
+            digitalCount: digitalItems.length,
+            digitalValue,
+            lowStock
+        };
+    }, [filteredItems, items, activeCategory]);
 
     const lowStockCount = stats.lowStock;
 
@@ -1124,12 +1210,62 @@ export default function InventoryPage() {
             {/* Category tabs */}
             <div className="flex gap-2 overflow-x-auto pb-1">
                 {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => { setActiveCategory(cat); setGlobalFilter(''); }}
+                    <button key={cat} onClick={() => { setActiveCategory(cat); setGlobalFilter(''); setPaperSubFilter('All'); }}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-white text-black' : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'}`}>
                         {cat}
                     </button>
                 ))}
             </div>
+
+            {/* Paper Sub-category Filter Tabs */}
+            {activeCategory === 'Paper' && (
+                <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-2xl border border-white/10 self-start w-fit">
+                    <button
+                        onClick={() => setPaperSubFilter('All')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                            paperSubFilter === 'All'
+                                ? 'bg-white text-black shadow-md'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <FiGrid className="text-sm" />
+                        <span>All Papers</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'All' ? 'bg-black/10 text-black' : 'bg-white/10 text-gray-300'}`}>
+                            {paperStats?.totalCount || 0}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setPaperSubFilter('Offset')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                            paperSubFilter === 'Offset'
+                                ? 'bg-emerald-500 text-black shadow-md'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <FiLayers className="text-sm" />
+                        <span>Offset Papers</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'Offset' ? 'bg-black/20 text-black' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                            {paperStats?.offsetCount || 0}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setPaperSubFilter('Digital')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                            paperSubFilter === 'Digital'
+                                ? 'bg-amber-500 text-black shadow-md'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                    >
+                        <FiZap className="text-sm" />
+                        <span>Digital Papers</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'Digital' ? 'bg-black/20 text-black' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {paperStats?.digitalCount || 0}
+                        </span>
+                    </button>
+                </div>
+            )}
 
             {/* Stats */}
             {activeCategory === 'Auto-Reorder' ? null : activeCategory === 'BOM Waiting List' ? (
@@ -1147,6 +1283,37 @@ export default function InventoryPage() {
                             </div>
                         </div>
                     ))}
+                </div>
+            ) : activeCategory === 'Paper' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className="p-3 rounded-xl bg-white/5 text-indigo-400"><FiBox className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Total Paper Items</div>
+                            <div className="text-xl font-bold">{paperStats?.totalCount || 0}</div>
+                        </div>
+                    </div>
+                    <div className="bg-emerald-500/[0.04] backdrop-blur-xl border border-emerald-500/20 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400"><FiLayers className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-emerald-400/70 mb-0.5">Offset Paper Stock ({paperStats?.offsetCount || 0})</div>
+                            <div className="text-xl font-bold text-emerald-400">{currency || 'LKR'} {Number(paperStats?.offsetValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                    </div>
+                    <div className="bg-amber-500/[0.04] backdrop-blur-xl border border-amber-500/20 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400"><FiZap className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-amber-400/70 mb-0.5">Digital Paper Stock ({paperStats?.digitalCount || 0})</div>
+                            <div className="text-xl font-bold text-amber-400">{currency || 'LKR'} {Number(paperStats?.digitalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                    </div>
+                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+                        <div className="p-3 rounded-xl bg-white/5 text-red-400"><FiAlertTriangle className="w-5 h-5" /></div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Low Stock Papers</div>
+                            <div className={`text-xl font-bold ${paperStats?.lowStock > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{paperStats?.lowStock || 0}</div>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
