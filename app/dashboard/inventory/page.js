@@ -1231,7 +1231,7 @@ export default function InventoryPage() {
                         <FiGrid className="text-sm" />
                         <span>All Papers</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'All' ? 'bg-black/10 text-black' : 'bg-white/10 text-gray-300'}`}>
-                            {paperStats?.totalCount || 0}
+                            {paperStats?.totalAllCount || 0}
                         </span>
                     </button>
 
@@ -1246,7 +1246,7 @@ export default function InventoryPage() {
                         <FiLayers className="text-sm" />
                         <span>Offset Papers</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'Offset' ? 'bg-black/20 text-black' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                            {paperStats?.offsetCount || 0}
+                            {paperStats?.totalOffsetAll || 0}
                         </span>
                     </button>
 
@@ -1261,7 +1261,7 @@ export default function InventoryPage() {
                         <FiZap className="text-sm" />
                         <span>Digital Papers</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${paperSubFilter === 'Digital' ? 'bg-black/20 text-black' : 'bg-amber-500/20 text-amber-400'}`}>
-                            {paperStats?.digitalCount || 0}
+                            {paperStats?.totalDigitalAll || 0}
                         </span>
                     </button>
                 </div>
