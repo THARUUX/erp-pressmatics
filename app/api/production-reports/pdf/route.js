@@ -46,14 +46,18 @@ export async function GET(req) {
         // Compute summary statistics
         const totalTasks = tasks.length;
         const completedTasks = tasks.filter(t => t.status === 'done').length;
-        const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
-        const totalActualMinutes = tasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
+        const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
+        const totalActualMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.actual_minutes) || 0), 0);
+        const totalRunQty = tasks.reduce((sum, t) => sum + (parseFloat(t.run_quantity || t.quantity || t.sheet_count || 0) || 0), 0);
+        const totalActualOutput = tasks.reduce((sum, t) => sum + (t.actual_sheets_printed != null ? parseFloat(t.actual_sheets_printed) : 0), 0);
 
         const stats = {
             totalTasks,
             completedTasks,
             totalEstimatedMinutes,
-            totalActualMinutes
+            totalActualMinutes,
+            totalRunQty,
+            totalActualOutput
         };
 
         const pdfBuffer = await renderToBuffer(

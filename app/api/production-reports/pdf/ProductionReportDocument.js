@@ -99,12 +99,22 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                     <View style={s.statCell}>
                         <Text style={s.statLabel}>Daily Task Load</Text>
                         <Text style={s.statValue}>{stats.totalTasks} Tasks</Text>
-                        <Text style={s.statSub}>Scheduled across all machines</Text>
+                        <Text style={s.statSub}>Scheduled across machines</Text>
                     </View>
                     <View style={s.statCell}>
                         <Text style={s.statLabel}>Completed Tasks</Text>
                         <Text style={s.statValue}>{stats.completedTasks} / {stats.totalTasks}</Text>
                         <Text style={s.statSub}>{completionRate}% Completion Rate</Text>
+                    </View>
+                    <View style={s.statCell}>
+                        <Text style={s.statLabel}>Total Run Qty</Text>
+                        <Text style={s.statValue}>{(stats.totalRunQty || 0).toLocaleString()}</Text>
+                        <Text style={s.statSub}>Planned run quantity</Text>
+                    </View>
+                    <View style={s.statCell}>
+                        <Text style={s.statLabel}>Actual Output</Text>
+                        <Text style={s.statValue}>{(stats.totalActualOutput || 0).toLocaleString()}</Text>
+                        <Text style={s.statSub}>Completed units printed</Text>
                     </View>
                     <View style={s.statCell}>
                         <Text style={s.statLabel}>Estimated Time</Text>
@@ -114,7 +124,7 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                     <View style={s.statCell}>
                         <Text style={s.statLabel}>Actual Production Time</Text>
                         <Text style={s.statValue}>{totalHoursAct} Hours</Text>
-                        <Text style={s.statSub}>{stats.totalActualMinutes} total minutes for completed tasks</Text>
+                        <Text style={s.statSub}>{stats.totalActualMinutes} total minutes</Text>
                     </View>
                 </View>
 
@@ -130,6 +140,8 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                         const mTasks = m.tasks || [];
                         const mEstimated = mTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0);
                         const mActual = mTasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0);
+                        const mRunQty = mTasks.reduce((sum, t) => sum + (parseFloat(t.run_quantity || t.quantity || t.sheet_count || 0) || 0), 0);
+                        const mActQty = mTasks.reduce((sum, t) => sum + (t.actual_sheets_printed != null ? parseFloat(t.actual_sheets_printed) : 0), 0);
 
                         return (
                             <View key={m.id} style={s.machineSection}>
@@ -137,7 +149,7 @@ export default function ProductionReportDocument({ dateStr, stats, machines }) {
                                 <View style={s.machineTitleRow}>
                                     <Text style={s.machineTitle}>{m.name} ({m.type})</Text>
                                     <Text style={s.machineMeta}>
-                                        {mTasks.length} tasks • Est: {formatDuration(mEstimated)} • Act: {formatDuration(mActual)}
+                                        {mTasks.length} tasks • Run Qty: {mRunQty.toLocaleString()} • Act Output: {mActQty.toLocaleString()} • Est: {formatDuration(mEstimated)} • Act: {formatDuration(mActual)}
                                     </Text>
                                 </View>
 

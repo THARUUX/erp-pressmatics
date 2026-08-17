@@ -59,7 +59,7 @@ async function syncSalesOrderStatus(salesOrderId) {
             console.log(`[Auto-Transition] Sales Order #${salesOrderId} status from ${currentSoStatus} → ${newSoStatus}`);
             await pool.execute('UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?', [newSoStatus, salesOrderId]);
 
-            if (newSoStatus === 'Ready') {
+            if (newSoStatus === 'Ready' || newSoStatus === 'In Production') {
                 try {
                     await syncSalesOrderToDeliveryQueue(salesOrderId, pool);
                 } catch (e) {

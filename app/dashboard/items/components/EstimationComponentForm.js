@@ -49,12 +49,16 @@ function getCutSheetDimensions(W, H, factor) {
     };
 }
 
-function calculateAutoUps(compW, compH, targetW, targetH) {
-    const cW = parseFloat(compW) || 0;
-    const cH = parseFloat(compH) || 0;
+function calculateAutoUps(compW, compH, targetW, targetH, bleedMm = 3) {
+    const cW_raw = parseFloat(compW) || 0;
+    const cH_raw = parseFloat(compH) || 0;
     const tW = parseFloat(targetW) || 0;
     const tH = parseFloat(targetH) || 0;
-    if (cW <= 0 || cH <= 0 || tW <= 0 || tH <= 0) return null;
+    if (cW_raw <= 0 || cH_raw <= 0 || tW <= 0 || tH <= 0) return null;
+
+    const bleedCm = (parseFloat(bleedMm) || 0) / 10;
+    const cW = cW_raw + (2 * bleedCm);
+    const cH = cH_raw + (2 * bleedCm);
 
     const normal = Math.floor(tW / cW) * Math.floor(tH / cH);
     const rotated = Math.floor(tW / cH) * Math.floor(tH / cW);
@@ -444,22 +448,23 @@ export default function EstimationComponentForm({
             }
         }
 
-        if (['size', 'pressSheetSize', 'compWidthCm', 'compHeightCm', 'cutWidthCm', 'cutHeightCm', 'paperWidthCm', 'paperHeightCm'].includes(name)) {
-            const autoUps = calculateAutoUps(newParams.compWidthCm, newParams.compHeightCm, newParams.cutWidthCm, newParams.cutHeightCm);
+        if (['size', 'pressSheetSize', 'compWidthCm', 'compHeightCm', 'cutWidthCm', 'cutHeightCm', 'paperWidthCm', 'paperHeightCm', 'bleedMm'].includes(name)) {
+            const autoUps = calculateAutoUps(newParams.compWidthCm, newParams.compHeightCm, newParams.cutWidthCm, newParams.cutHeightCm, newParams.bleedMm);
             if (autoUps !== null) {
                 newParams.ups = autoUps;
             }
 
-            const autoPressUps = calculateAutoUps(newParams.cutWidthCm, newParams.cutHeightCm, newParams.paperWidthCm, newParams.paperHeightCm);
+            const autoPressUps = calculateAutoUps(newParams.cutWidthCm, newParams.cutHeightCm, newParams.paperWidthCm, newParams.paperHeightCm, 0);
             if (autoPressUps !== null) {
                 newParams.pressUps = autoPressUps;
             }
         }
 
-        if (['digitalPricePerSqCm', 'compWidthCm', 'compHeightCm', 'ups'].includes(name)) {
+        if (['digitalPricePerSqCm', 'compWidthCm', 'compHeightCm', 'ups', 'bleedMm'].includes(name)) {
             const sqCm = parseFloat(name === 'digitalPricePerSqCm' ? value : newParams.digitalPricePerSqCm) || 0;
-            const cW = parseFloat(name === 'compWidthCm' ? value : newParams.compWidthCm) || 0;
-            const cH = parseFloat(name === 'compHeightCm' ? value : newParams.compHeightCm) || 0;
+            const bleedCm = (parseFloat(name === 'bleedMm' ? value : newParams.bleedMm) || 0) / 10;
+            const cW = (parseFloat(name === 'compWidthCm' ? value : newParams.compWidthCm) || 0) + (2 * bleedCm);
+            const cH = (parseFloat(name === 'compHeightCm' ? value : newParams.compHeightCm) || 0) + (2 * bleedCm);
             const u = parseInt(name === 'ups' ? value : newParams.ups) || 1;
             if (sqCm > 0 && cW > 0 && cH > 0) {
                 newParams.digitalPricePerUnit = (sqCm * cW * cH * u).toFixed(3);
@@ -960,8 +965,8 @@ export default function EstimationComponentForm({
                                                                     const cutDims = getCutSheetDimensions(p.width_cm || 0, p.height_cm || 0, factor);
                                                                     const paperW = p.width_cm || 0;
                                                                     const paperH = p.height_cm || 0;
-                                                                    const autoPressUps = calculateAutoUps(cutDims.width, cutDims.height, paperW, paperH);
-                                                                    const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, cutDims.width, cutDims.height);
+                                                                    const autoPressUps = calculateAutoUps(cutDims.width, cutDims.height, paperW, paperH, 0);
+                                                                    const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, cutDims.width, cutDims.height, params.bleedMm);
                                                                     const newParams = {
                                                                         ...params,
                                                                         paperCostPerSheet: p.unit_cost,
@@ -1052,6 +1057,10 @@ export default function EstimationComponentForm({
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Comp Height (cm)</label>
                                                     <Input type="number" name="compHeightCm" value={params.compHeightCm} onChange={handleChange} className="bg-secondary border-white/10" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Bleed (mm)</label>
+                                                    <Input type="number" step="0.1" name="bleedMm" value={params.bleedMm ?? 3} onChange={handleChange} className="bg-secondary border-white/10 font-mono" min="0" placeholder="3.0" />
                                                 </div>
                                             </>
                                         )}
@@ -1272,7 +1281,7 @@ export default function EstimationComponentForm({
                                         <h4 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                                             <RiLayoutGridLine className="text-blue-400 text-sm" /> Component Specifications & Layout
                                         </h4>
-                                        <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="grid md:grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-sm text-gray-400 mb-1">Comp Size</label>
                                                 <select
@@ -1299,6 +1308,22 @@ export default function EstimationComponentForm({
                                                     value={params.ups || 0}
                                                     onChange={handleChange}
                                                     className="bg-secondary border-white/10"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm text-gray-400 mb-1">
+                                                    Bleed (mm)
+                                                </label>
+                                                <Input
+                                                    type="number"
+                                                    step="0.1"
+                                                    name="bleedMm"
+                                                    value={params.bleedMm ?? 3}
+                                                    onChange={handleChange}
+                                                    className="bg-secondary border-white/10 font-mono"
+                                                    placeholder="3.0"
+                                                    min="0"
                                                 />
                                             </div>
                                         </div>
@@ -1335,8 +1360,8 @@ export default function EstimationComponentForm({
                                                                     <li key={p.id} onClick={() => {
                                                                         const paperW = p.width_cm || 0;
                                                                         const paperH = p.height_cm || 0;
-                                                                        const autoPressUps = calculateAutoUps(params.cutWidthCm, params.cutHeightCm, paperW, paperH);
-                                                                        const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, params.cutWidthCm, params.cutHeightCm);
+                                                                        const autoPressUps = calculateAutoUps(params.cutWidthCm, params.cutHeightCm, paperW, paperH, 0);
+                                                                        const autoUps = calculateAutoUps(params.compWidthCm, params.compHeightCm, params.cutWidthCm, params.cutHeightCm, params.bleedMm);
                                                                         const newParams = {
                                                                             ...params,
                                                                             paperCostPerSheet: p.unit_cost,
@@ -1384,9 +1409,10 @@ export default function EstimationComponentForm({
                                                 <span className={`transition-transform duration-200 text-amber-400 ${showDimensions ? 'rotate-90' : ''}`}>▶</span>
                                                 {showDimensions ? 'Hide' : 'Show'} Dimensions (Component, Press & Stock Sheet)
                                             </button>
-                                            {!showDimensions && (params.compWidthCm || params.cutWidthCm || params.paperWidthCm) && (
+                                            {!showDimensions && (params.compWidthCm || params.cutWidthCm || params.paperWidthCm || params.bleedMm) && (
                                                 <span className="text-xs text-amber-400 font-mono">
                                                     {params.compWidthCm ? `Comp: ${params.compWidthCm}×${params.compHeightCm}cm` : ''}
+                                                    {params.bleedMm ? ` (${params.bleedMm}mm bleed)` : ''}
                                                     {params.cutWidthCm ? `${params.compWidthCm ? ' · ' : ''}Press: ${params.cutWidthCm}×${params.cutHeightCm}cm` : ''}
                                                     {params.paperWidthCm ? `${params.compWidthCm || params.cutWidthCm ? ' · ' : ''}Stock: ${params.paperWidthCm}×${params.paperHeightCm}cm` : ''}
                                                 </span>
@@ -1419,7 +1445,19 @@ export default function EstimationComponentForm({
                                                         placeholder="Comp height"
                                                     />
                                                 </div>
-                                                <div className="hidden md:block"></div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-400 mb-1">Bleed (mm)</label>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.1"
+                                                        name="bleedMm"
+                                                        value={params.bleedMm ?? 3}
+                                                        onChange={handleChange}
+                                                        className="bg-secondary border-white/10 font-mono"
+                                                        placeholder="Bleed mm"
+                                                        min="0"
+                                                    />
+                                                </div>
 
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Press Sheet Width (cm)</label>
@@ -1829,30 +1867,30 @@ export default function EstimationComponentForm({
                                         <div className="flex justify-between text-gray-300">
                                             <span>Impressions:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.TotalImpressions.toLocaleString()}
+                                                {(calculationResult.TotalImpressions ?? 0).toLocaleString()}
                                                 {calculationResult.customImpressions && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{calculationResult.plateCount.toLocaleString()}</span></div>
-                                        <div className="flex justify-between text-gray-300"><span>{String(machines.find(m => m.id == params.machineId)?.sheet_factor) == 1 ? 'Sheets' : 'Cut Sheets'}:</span> <span className="font-mono text-white">{parseFloat(calculationResult.cutSheets).toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>Plate Count:</span> <span className="font-mono text-white">{(calculationResult.plateCount ?? 0).toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300"><span>{String(machines.find(m => m.id == params.machineId)?.sheet_factor) == 1 ? 'Sheets' : 'Cut Sheets'}:</span> <span className="font-mono text-white">{(parseFloat(calculationResult.cutSheets) || 0).toLocaleString()}</span></div>
                                         <div className="flex justify-between text-gray-300">
                                             <span>Wastage Sheets:</span>
                                             <span className="font-mono text-white text-right">
-                                                {calculationResult.wastageSheets.toLocaleString()}
+                                                {(calculationResult.wastageSheets ?? 0).toLocaleString()}
                                                 {calculationResult.customWastageSheets != null && (
                                                     <span className="text-xs text-blue-400 ml-1.5 font-sans">(Custom)</span>
                                                 )}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{calculationResult.totalSheetsRequired.toLocaleString()}</span></div>
+                                        <div className="flex justify-between text-gray-300 border-t border-white/10 pt-2"><span>Total Sheets:</span> <span className="font-mono font-bold text-white">{(calculationResult.totalSheetsRequired ?? 0).toLocaleString()}</span></div>
                                     </div>
 
                                     <div className="space-y-2 pt-2">
-                                        <div className="flex justify-between text-gray-400"><span>Plate Cost:</span> <span>{currency}{(calculationResult.costs.plate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                        <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                        <div className="flex justify-between text-gray-400"><span>Plate Cost:</span> <span>{currency}{(calculationResult.costs?.plate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                        <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs?.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                        <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs?.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                     </div>
                                 </>
                             )}
@@ -1876,15 +1914,15 @@ export default function EstimationComponentForm({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                    <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between text-gray-400"><span>Paper Cost:</span> <span>{currency}{(calculationResult.costs?.paper || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                    <div className="flex justify-between text-gray-400"><span>Print Cost:</span> <span>{currency}{(calculationResult.costs?.printing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                 </div>
                             )}
 
-                            <div className="flex justify-between text-gray-400 pt-2 border-t border-white/10"><span>Finishings:</span> <span>{currency}{(calculationResult.costs.finishing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="flex justify-between text-gray-400 pt-2 border-t border-white/10"><span>Finishings:</span> <span>{currency}{(calculationResult.costs?.finishing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                             <div className="flex justify-between text-white font-bold pt-2 border-t border-white/20 text-lg">
                                 <span>Subtotal:</span>
-                                <span>{currency}{calculationResult.costs.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span>{currency}{(calculationResult.costs?.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                             {calculationResult.time && calculationResult.time.total > 0 && (
                                 <div className="mt-2 pt-2 border-t border-white/10 space-y-1 text-xs">

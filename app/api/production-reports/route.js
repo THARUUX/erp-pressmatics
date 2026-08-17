@@ -45,6 +45,8 @@ export async function GET(req) {
         const completedTasks = tasks.filter(t => t.status === 'done').length;
         const totalEstimatedMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.estimated_minutes) || 0), 0);
         const totalActualMinutes = tasks.reduce((sum, t) => sum + (parseFloat(t.actual_minutes) || 0), 0);
+        const totalRunQty = tasks.reduce((sum, t) => sum + (parseFloat(t.run_quantity || t.quantity || t.sheet_count || 0) || 0), 0);
+        const totalActualOutput = tasks.reduce((sum, t) => sum + (t.actual_sheets_printed != null ? parseFloat(t.actual_sheets_printed) : 0), 0);
 
         return NextResponse.json({
             date: dateStr,
@@ -52,7 +54,9 @@ export async function GET(req) {
                 totalTasks,
                 completedTasks,
                 totalEstimatedMinutes,
-                totalActualMinutes
+                totalActualMinutes,
+                totalRunQty,
+                totalActualOutput
             },
             machines: reportData.map(m => ({
                 ...m,

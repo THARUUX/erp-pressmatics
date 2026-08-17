@@ -176,7 +176,7 @@ export async function PUT(req, { params }) {
             queryParams.push(id);
             await pool.execute(query, queryParams);
 
-            if (status === 'Ready') {
+            if (status === 'Ready' || status === 'In Production') {
                 await syncSalesOrderToDeliveryQueue(id, pool);
             }
         }

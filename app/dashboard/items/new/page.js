@@ -105,7 +105,7 @@ export default function NewQuotationPage() {
                  compHeightCm: 84.1,
                  cutWidthCm: '',
                  cutHeightCm: '',
-                 bleedMm: 0,
+                 bleedMm: 3,
                  customImpressions: '',
                  customWastageSheets: '',
                  customPlateCount: ''
@@ -245,7 +245,7 @@ export default function NewQuotationPage() {
                     compHeightCm: 84.1,
                     cutWidthCm: '',
                     cutHeightCm: '',
-                    bleedMm: 0,
+                    bleedMm: 3,
                     digitalPricePerSqCm: '',
                     colorQuality: '',
                     customImpressions: '',

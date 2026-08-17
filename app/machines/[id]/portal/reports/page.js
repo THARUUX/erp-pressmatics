@@ -6,7 +6,7 @@ import {
     FiBarChart2, FiPieChart, FiCheckCircle, FiClock, FiCalendar,
     FiUser, FiLayers, FiPrinter, FiMonitor, FiTool, FiTrendingUp,
     FiRefreshCw, FiPrinter as FiPrintIcon, FiDownload, FiEye, FiX,
-    FiActivity, FiChevronRight, FiFilter, FiInfo, FiPackage, FiAlertTriangle
+    FiActivity, FiChevronRight, FiFilter, FiInfo, FiPackage, FiAlertTriangle, FiEdit3
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { SpotlightCard } from '@/components/magicui/spotlight-card';
@@ -86,6 +86,57 @@ export default function MachinePortalReportsPage({ params }) {
     // Detailed Task Explorer Modal State
     const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
     const [selectedTaskDetailLoading, setSelectedTaskDetailLoading] = useState(false);
+
+    // Edit Task State
+    const [editingTask, setEditingTask] = useState(null);
+    const [editingTaskSaving, setEditingTaskSaving] = useState(false);
+
+    const handleSaveEditedTask = async () => {
+        if (!editingTask || !editingTask.id) return;
+        setEditingTaskSaving(true);
+        try {
+            const res = await fetch('/api/analytics/task-explorer', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    taskId: editingTask.id,
+                    status: editingTask.status,
+                    actual_sheets_printed: editingTask.actual_sheets_printed,
+                    actual_sheets_wasted: editingTask.actual_sheets_wasted,
+                    quantity: editingTask.quantity,
+                    estimated_minutes: editingTask.estimated_minutes,
+                    assigned_to: editingTask.assigned_to,
+                    helper_name: editingTask.helper_name,
+                    completed_by: editingTask.completed_by,
+                    completed_by_helper: editingTask.completed_by_helper,
+                    downtime_minutes: editingTask.downtime_minutes,
+                    downtime_reason: editingTask.downtime_reason,
+                    actual_plates_used: editingTask.actual_plates_used,
+                    description: editingTask.description
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                toast.success('Task details updated successfully');
+
+                if (selectedTaskDetail?.task?.id === editingTask.id) {
+                    setSelectedTaskDetail(data);
+                }
+
+                loadData();
+                setEditingTask(null);
+            } else {
+                const errData = await res.json();
+                toast.error(errData.error || 'Failed to save task updates');
+            }
+        } catch (err) {
+            console.error('Error saving task edits:', err);
+            toast.error('Failed to save task updates');
+        } finally {
+            setEditingTaskSaving(false);
+        }
+    };
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -570,25 +621,37 @@ export default function MachinePortalReportsPage({ params }) {
                     </div>
 
                     {/* Daily Summary Pill Badges */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
-                            <span className="text-[10px]  text-white/50 uppercase tracking-wider block">Selected Date</span>
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Selected Date</span>
                             <span className="text-lg font-black text-white font-mono">{dailyReportDate || 'All'}</span>
                         </div>
                         <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
-                            <span className="text-[10px]  text-white/50 uppercase tracking-wider block">Completed Tasks</span>
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Completed Tasks</span>
                             <span className="text-lg font-black text-white font-mono">
                                 {dailyReportTasks.length} tasks
                             </span>
                         </div>
                         <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
-                            <span className="text-[10px]  text-white/50 uppercase tracking-wider block">Total Actual Output</span>
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Total Run Qty</span>
+                            <span className="text-lg font-black text-white font-mono">
+                                {dailyReportTasks.reduce((sum, t) => sum + (parseFloat(t.quantity || t.sheet_count || 0) || 0), 0).toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Total Actual Output</span>
                             <span className="text-lg font-black text-white font-mono">
                                 {dailyReportTasks.reduce((sum, t) => sum + (parseFloat(t.actual_sheets_printed || t.quantity || t.sheet_count || 0) || 0), 0).toLocaleString()}
                             </span>
                         </div>
                         <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
-                            <span className="text-[10px]  text-white/50 uppercase tracking-wider block">Total Logged Time</span>
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Total Est. Time</span>
+                            <span className="text-lg font-black text-white font-mono">
+                                {formatMins(dailyReportTasks.reduce((sum, t) => sum + (parseFloat(t.estimated_minutes || 0) || 0), 0))}
+                            </span>
+                        </div>
+                        <div className="bg-white/3 border border-white/20 rounded-xl p-3.5">
+                            <span className="text-[10px] text-white/50 uppercase tracking-wider block">Total Logged Time</span>
                             <span className="text-lg font-black text-white font-mono">
                                 {formatMins(dailyReportTasks.reduce((sum, t) => sum + (t.actual_minutes != null ? parseFloat(t.actual_minutes) : (t.closed_seconds ? Math.round(t.closed_seconds / 60) : 0)), 0))}
                             </span>
@@ -790,12 +853,23 @@ export default function MachinePortalReportsPage({ params }) {
                                 </p>
                             </div>
 
-                            <button
-                                onClick={() => setSelectedTaskDetail(null)}
-                                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/15 text-gray-400 hover:text-white transition-all cursor-pointer"
-                            >
-                                <FiX className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {selectedTaskDetail.task && (
+                                    <button
+                                        onClick={() => setEditingTask({ ...selectedTaskDetail.task })}
+                                        className="px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                                    >
+                                        <FiEdit3 className="w-4 h-4" />
+                                        <span>Edit Task</span>
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setSelectedTaskDetail(null)}
+                                    className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/15 text-gray-400 hover:text-white transition-all cursor-pointer"
+                                >
+                                    <FiX className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
 
                         {selectedTaskDetailLoading ? (
@@ -1007,6 +1081,224 @@ export default function MachinePortalReportsPage({ params }) {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* Edit Task Modal */}
+            {editingTask && (
+                <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto print:hidden">
+                    <div className="bg-zinc-950 border border-white/15 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150 text-white">
+                        {/* Modal Header */}
+                        <div className="p-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-400">
+                                    <FiEdit3 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-white">Edit Task Details</h3>
+                                    <p className="text-xs text-gray-400">{editingTask.order_code ? `SO: ${editingTask.order_code}` : 'Task'} • {editingTask.name}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setEditingTask(null)}
+                                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors cursor-pointer"
+                            >
+                                <FiX className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Form Body */}
+                        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                            {/* Section 1: Output & Status */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Status & Production Output</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Task Status</label>
+                                        <select
+                                            value={editingTask.status || 'pending'}
+                                            onChange={e => setEditingTask({ ...editingTask, status: e.target.value })}
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        >
+                                            <option value="pending">Pending</option>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="paused">Paused</option>
+                                            <option value="done">Done (Completed)</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Actual Output (Sheets / Units)</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.actual_sheets_printed ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, actual_sheets_printed: e.target.value })}
+                                            placeholder="e.g. 5000"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Wasted Sheets</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.actual_sheets_wasted ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, actual_sheets_wasted: e.target.value })}
+                                            placeholder="e.g. 50"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 2: Planned Qty & Timings */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Planning & Timings</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Planned Run Quantity</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.quantity ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, quantity: e.target.value })}
+                                            placeholder="e.g. 5000"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Estimated Duration (Minutes)</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.estimated_minutes ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, estimated_minutes: e.target.value })}
+                                            placeholder="e.g. 120"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 3: Operators & Personnel */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Operators & Personnel</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Assigned Operator</label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.assigned_to ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, assigned_to: e.target.value })}
+                                            placeholder="Operator name"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Helper Name</label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.helper_name ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, helper_name: e.target.value })}
+                                            placeholder="Helper name"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Completed By (Operator)</label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.completed_by ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, completed_by: e.target.value })}
+                                            placeholder="Completed operator"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Completed By Helper</label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.completed_by_helper ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, completed_by_helper: e.target.value })}
+                                            placeholder="Completed helper"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 4: Downtime & Consumables */}
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Downtime & Consumables</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Downtime (Minutes)</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.downtime_minutes ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, downtime_minutes: e.target.value })}
+                                            placeholder="0"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Downtime Reason</label>
+                                        <input
+                                            type="text"
+                                            value={editingTask.downtime_reason ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, downtime_reason: e.target.value })}
+                                            placeholder="e.g. Paper jam / Machine maintenance"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-gray-300 mb-1">Plates Used (CTP)</label>
+                                        <input
+                                            type="number"
+                                            value={editingTask.actual_plates_used ?? ''}
+                                            onChange={e => setEditingTask({ ...editingTask, actual_plates_used: e.target.value })}
+                                            placeholder="0"
+                                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-white focus:outline-none focus:border-sky-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 5: Description */}
+                            <div className="space-y-1.5">
+                                <label className="block text-[11px] font-medium text-gray-300">Task Description / Instructions</label>
+                                <textarea
+                                    rows={3}
+                                    value={editingTask.description ?? ''}
+                                    onChange={e => setEditingTask({ ...editingTask, description: e.target.value })}
+                                    placeholder="Task specifications, instructions, or notes..."
+                                    className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-sky-500 resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t border-white/10 bg-white/[0.02] flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setEditingTask(null)}
+                                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={editingTaskSaving}
+                                onClick={handleSaveEditedTask}
+                                className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-xs font-bold text-white shadow-lg shadow-sky-600/20 transition-all cursor-pointer flex items-center gap-2"
+                            >
+                                {editingTaskSaving ? (
+                                    <>
+                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Saving...</span>
+                                    </>
+                                ) : (
+                                    <span>Save Changes</span>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

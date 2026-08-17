@@ -1,11 +1,22 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
+import {
+    useReactTable,
+    getCoreRowModel,
+    getSortedRowModel,
+    getFilteredRowModel,
+    getPaginationRowModel,
+    flexRender,
+} from '@tanstack/react-table';
+import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import { dateOperatorFilterFn } from '@/lib/dateFilter';
 import toast from 'react-hot-toast';
 import {
     FiSearch, FiTruck, FiClock, FiPackage, FiCheckCircle, 
     FiAlertTriangle, FiX, FiChevronDown, FiChevronUp, 
-    FiRefreshCw, FiBookOpen, FiUser, FiDownload
+    FiRefreshCw, FiBookOpen, FiUser, FiDownload,
+    FiChevronsLeft, FiChevronLeft, FiChevronRight, FiChevronsRight
 } from 'react-icons/fi';
 
 const STATUS_COLORS = {
@@ -23,11 +34,48 @@ function StatusBadge({ status }) {
     );
 }
 
+function SortIcon({ dir }) {
+    if (!dir) return <span className="opacity-20 text-xs">⇅</span>;
+    return dir === 'asc' ? <FiChevronUp className="w-3 h-3" /> : <FiChevronDown className="w-3 h-3" />;
+}
+
+function ColFilter({ column }) {
+    const val = column.getFilterValue() ?? '';
+    const isDateCol = column.id === 'so_delivery_date';
+    const placeholder = isDateCol
+        ? "Date (>=2026-08-01, today)..."
+        : "Filter…";
+
+    return (
+        <input
+            value={val}
+            onChange={e => column.setFilterValue(e.target.value)}
+            placeholder={placeholder}
+            onClick={e => e.stopPropagation()}
+            className="w-full mt-1.5 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-white/30 font-normal normal-case"
+        />
+    );
+}
+
+function PagBtn({ children, onClick, disabled }) {
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+        >
+            {children}
+        </button>
+    );
+}
+
 export default function DeliveriesPage() {
     const [deliveries, setDeliveries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('All');
-    const [searchQuery, setSearchQuery] = useState('');
+    const [globalFilter, setGlobalFilter] = useState('');
+    const [columnFilters, setColumnFilters] = useState([]);
+    const [columnVisibility, setColumnVisibility] = useState({});
     const [syncLoading, setSyncLoading] = useState(false);
 
     // Modal & Form States
@@ -47,12 +95,11 @@ export default function DeliveriesPage() {
     // Expanded Accordion State
     const [expandedDeliveryId, setExpandedDeliveryId] = useState(null);
 
-    // Fetch deliveries
+    // Fetch all deliveries
     const fetchDeliveries = useCallback(async () => {
         setLoading(true);
         try {
-            let url = `/api/deliveries?status=${statusFilter}&search=${encodeURIComponent(searchQuery)}`;
-            const res = await fetch(url);
+            const res = await fetch('/api/deliveries');
             if (res.ok) {
                 const data = await res.json();
                 setDeliveries(data.deliveries || []);
@@ -65,16 +112,16 @@ export default function DeliveriesPage() {
         } finally {
             setLoading(false);
         }
-    }, [statusFilter, searchQuery]);
+    }, []);
 
     useEffect(() => {
         fetchDeliveries();
     }, [fetchDeliveries]);
 
-    // Manual sync ready orders
+    // Manual sync ready & in-production orders
     const handleSync = async () => {
         setSyncLoading(true);
-        const loadToast = toast.loading('Scanning for ready sales orders...');
+        const loadToast = toast.loading('Scanning for ready & in-production sales orders...');
         try {
             const res = await fetch('/api/deliveries', { method: 'POST' });
             if (res.ok) {
@@ -95,7 +142,6 @@ export default function DeliveriesPage() {
     // Open Dispatch Modal
     const openDispatchModal = (delivery) => {
         setDispatchModalDelivery(delivery);
-        // Default quantity is the remaining undelivered amount
         setDispatchedQuantity(delivery.total_quantity - delivery.delivered_quantity);
         setBooksPerParcel(delivery.books_per_parcel || 50);
         setCarrierName('');
@@ -103,7 +149,7 @@ export default function DeliveriesPage() {
         setNotes('');
     };
 
-    // Handle Preview Download before submission
+    // Handle Preview Download
     const handlePreviewDownload = () => {
         if (!dispatchModalDelivery) return;
         const qty = parseInt(dispatchedQuantity);
@@ -205,7 +251,48 @@ export default function DeliveriesPage() {
         }
     };
 
-    // Derived Statistics
+    // Filter deliveries based on status tab selection
+    const filteredDeliveries = useMemo(() => {
+        return deliveries.filter(d => {
+            if (statusFilter === 'All') return true;
+            if (['Pending', 'Partially Delivered', 'Delivered'].includes(statusFilter)) {
+                return d.status === statusFilter;
+            }
+            if (['In Production', 'Ready'].includes(statusFilter)) {
+                return d.sales_order_status === statusFilter;
+            }
+            return true;
+        });
+    }, [deliveries, statusFilter]);
+
+    // Status Tab counts
+    const statusCounts = useMemo(() => {
+        let pending = 0;
+        let partial = 0;
+        let delivered = 0;
+        let inProd = 0;
+        let ready = 0;
+
+        deliveries.forEach(d => {
+            if (d.status === 'Pending') pending++;
+            else if (d.status === 'Partially Delivered') partial++;
+            else if (d.status === 'Delivered') delivered++;
+
+            if (d.sales_order_status === 'In Production') inProd++;
+            else if (d.sales_order_status === 'Ready') ready++;
+        });
+
+        return {
+            all: deliveries.length,
+            pending,
+            partial,
+            delivered,
+            inProd,
+            ready,
+        };
+    }, [deliveries]);
+
+    // Derived Statistics for Cards
     const stats = useMemo(() => {
         let pendingCount = 0;
         let partialCount = 0;
@@ -215,7 +302,6 @@ export default function DeliveriesPage() {
             if (d.status === 'Pending') pendingCount++;
             else if (d.status === 'Partially Delivered') partialCount++;
 
-            // Count up all parcels historically logged
             if (d.dispatches && Array.isArray(d.dispatches)) {
                 d.dispatches.forEach(disp => {
                     totalParcels += (disp.parcels_count || 0);
@@ -233,6 +319,166 @@ export default function DeliveriesPage() {
         return Math.ceil(qty / per);
     }, [dispatchedQuantity, booksPerParcel]);
 
+    // TanStack Table Columns
+    const columns = useMemo(() => [
+        {
+            accessorKey: 'sales_order_code',
+            id: 'sales_order_code',
+            header: 'SO Code',
+            size: 130,
+            cell: ({ row }) => {
+                const d = row.original;
+                return (
+                    <div className="flex flex-col gap-1.5 items-start">
+                        <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/5 border border-blue-500/20 px-2.5 py-1 rounded-lg">
+                            {d.sales_order_code}
+                        </span>
+                        {d.sales_order_status && (
+                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${
+                                d.sales_order_status === 'In Production'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                    : d.sales_order_status === 'Ready'
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                    : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                            }`}>
+                                {d.sales_order_status}
+                            </span>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'customer_name',
+            id: 'customer_name',
+            header: 'Customer',
+            cell: ({ row }) => {
+                const d = row.original;
+                return (
+                    <div>
+                        <div className="font-semibold text-white">
+                            {d.customer_name}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                            <span className="truncate max-w-[200px]" title={d.delivery_address || 'No custom address set (falls back to default customer address)'}>
+                                {d.delivery_address || 'Default Customer Address'}
+                            </span>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); openAddressModal(d); }}
+                                className="text-blue-400 hover:text-blue-300 font-bold hover:underline cursor-pointer"
+                            >
+                                Edit
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'estimation_name',
+            id: 'estimation_name',
+            header: 'Estimation Item',
+            cell: ({ getValue }) => <span className="text-white/80">{getValue()}</span>
+        },
+        {
+            accessorKey: 'so_delivery_date',
+            id: 'so_delivery_date',
+            header: 'Delivery Date',
+            size: 130,
+            filterFn: dateOperatorFilterFn,
+            cell: ({ getValue }) => {
+                const val = getValue();
+                return (
+                    <span className="text-xs text-orange-300">
+                        {val ? new Date(val).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                    </span>
+                );
+            }
+        },
+        {
+            id: 'progress',
+            header: 'Progress',
+            size: 160,
+            accessorFn: row => (row.total_quantity > 0 ? (row.delivered_quantity / row.total_quantity) * 100 : 0),
+            cell: ({ row }) => {
+                const d = row.original;
+                const pct = d.total_quantity > 0 ? (d.delivered_quantity / d.total_quantity) * 100 : 0;
+                return (
+                    <div className="space-y-1 min-w-[140px]">
+                        <div className="flex justify-between text-[11px] font-mono text-gray-400">
+                            <span>{d.delivered_quantity.toLocaleString()} / {d.total_quantity.toLocaleString()}</span>
+                            <span>{Math.round(pct)}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                        </div>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: 'status',
+            id: 'status',
+            header: 'Status',
+            size: 130,
+            cell: ({ getValue }) => (
+                <div className="text-center">
+                    <StatusBadge status={getValue()} />
+                </div>
+            )
+        },
+        {
+            id: 'actions',
+            header: 'Actions',
+            size: 150,
+            enableSorting: false,
+            enableColumnFilter: false,
+            cell: ({ row }) => {
+                const d = row.original;
+                const isExpanded = expandedDeliveryId === d.id;
+                return (
+                    <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                        {d.dispatches && d.dispatches.length > 0 && (
+                            <button
+                                onClick={() => setExpandedDeliveryId(isExpanded ? null : d.id)}
+                                className="px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                                {isExpanded ? <FiChevronUp /> : <FiChevronDown />}
+                                Log ({d.dispatches.length})
+                            </button>
+                        )}
+                        {d.status !== 'Delivered' && (
+                            <button
+                                onClick={() => openDispatchModal(d)}
+                                className="px-3 py-1.5 rounded-lg bg-white hover:opacity-90 text-black text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Log Dispatch
+                            </button>
+                        )}
+                    </div>
+                );
+            }
+        }
+    ], [expandedDeliveryId]);
+
+    // TanStack Table Instance
+    const table = useReactTable({
+        data: filteredDeliveries,
+        columns,
+        state: { globalFilter, columnVisibility, columnFilters },
+        onGlobalFilterChange: setGlobalFilter,
+        onColumnVisibilityChange: setColumnVisibility,
+        onColumnFiltersChange: setColumnFilters,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        initialState: { pagination: { pageSize: 15 } },
+    });
+
+    const { pageIndex, pageSize } = table.getState().pagination;
+    const pageCount = table.getPageCount();
+
     return (
         <div className="text-white space-y-6">
             {/* Header */}
@@ -240,7 +486,7 @@ export default function DeliveriesPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tighter">Deliveries & Dispatch</h1>
                     <p className="text-gray-500 text-sm mt-0.5">
-                        Manage parcels, partial dispatches, and carrier tracking for ready orders.
+                        Manage parcels, partial dispatches, and carrier tracking for ready &amp; in-production orders.
                     </p>
                 </div>
                 <div className="flex gap-3 items-center">
@@ -248,19 +494,20 @@ export default function DeliveriesPage() {
                         <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                         <input
                             type="text"
-                            placeholder="Search by SO, customer..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search all columns..."
+                            value={globalFilter}
+                            onChange={e => setGlobalFilter(e.target.value)}
                             className="bg-black/30 backdrop-blur border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm w-60 outline-none focus:border-white/30 placeholder-gray-600"
                         />
                     </div>
+                    <ColumnToggle table={table} />
                     <button
                         onClick={handleSync}
                         disabled={syncLoading}
-                        className="flex items-center gap-2 bg-white text-black font-semibold px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                        className="flex items-center gap-2 bg-white text-black font-semibold px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
                     >
                         <FiRefreshCw className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} />
-                        Sync Ready Orders
+                        Sync Orders Queue
                     </button>
                 </div>
             </header>
@@ -283,20 +530,35 @@ export default function DeliveriesPage() {
             </div>
 
             {/* Status Tabs */}
-            <div className="flex flex-wrap gap-1.5 border-b border-white/10 pb-4">
-                {['All', 'Pending', 'Partially Delivered', 'Delivered'].map(s => (
-                    <button
-                        key={s}
-                        onClick={() => setStatusFilter(s)}
-                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
-                            statusFilter === s
-                                ? 'bg-white text-black border-white'
-                                : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-                        }`}
-                    >
-                        {s}
-                    </button>
-                ))}
+            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                {[
+                    { key: 'All', label: 'All Items', count: statusCounts.all },
+                    { key: 'Pending', label: 'Pending Delivery', count: statusCounts.pending },
+                    { key: 'Partially Delivered', label: 'Partially Delivered', count: statusCounts.partial },
+                    { key: 'Delivered', label: 'Fully Delivered', count: statusCounts.delivered },
+                    { key: 'In Production', label: 'In Production Jobs', count: statusCounts.inProd },
+                    { key: 'Ready', label: 'Ready Jobs', count: statusCounts.ready }
+                ].map(tab => {
+                    const isActive = statusFilter === tab.key;
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setStatusFilter(tab.key)}
+                            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
+                                isActive
+                                    ? 'bg-white text-black border-white shadow-lg'
+                                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                            }`}
+                        >
+                            <span>{tab.label}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                                isActive ? 'bg-black/20 text-black font-extrabold' : 'bg-white/10 text-gray-400'
+                            }`}>
+                                {tab.count}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Queue Table */}
@@ -306,108 +568,57 @@ export default function DeliveriesPage() {
                         <div className="w-5 h-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
                         Loading delivery queue...
                     </div>
-                ) : deliveries.length === 0 ? (
+                ) : filteredDeliveries.length === 0 ? (
                     <div className="py-24 text-center">
                         <FiTruck className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-                        <p className="text-gray-500">No ready delivery items found</p>
+                        <p className="text-gray-500">No delivery items found for the selected filter</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
                             <thead>
-                                <tr className="border-b border-white/[0.06] bg-black/20 text-xs font-bold uppercase tracking-widest text-gray-500">
-                                    <th className="px-5 py-4 text-left">SO Code</th>
-                                    <th className="px-5 py-4 text-left">Customer</th>
-                                    <th className="px-5 py-4 text-left">Estimation Item</th>
-                                    <th className="px-5 py-4 text-left">Delivery Date</th>
-                                    <th className="px-5 py-4 text-left">Progress</th>
-                                    <th className="px-5 py-4 text-center">Status</th>
-                                    <th className="px-5 py-4 text-right">Actions</th>
-                                </tr>
+                                {table.getHeaderGroups().map(hg => (
+                                    <tr key={hg.id} className="border-b border-white/[0.06] bg-black/20 text-xs font-bold uppercase tracking-widest text-gray-500">
+                                        {hg.headers.map(h => (
+                                            <th key={h.id} style={{ width: h.getSize() }} className="px-5 py-4 text-left select-none">
+                                                {h.column.getCanSort() ? (
+                                                    <button
+                                                        onClick={h.column.getToggleSortingHandler()}
+                                                        className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+                                                    >
+                                                        {flexRender(h.column.columnDef.header, h.getContext())}
+                                                        <SortIcon dir={h.column.getIsSorted()} />
+                                                    </button>
+                                                ) : flexRender(h.column.columnDef.header, h.getContext())}
+                                                {h.column.getCanFilter() && <ColFilter column={h.column} />}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                ))}
                             </thead>
                             <tbody>
-                                {deliveries.map(d => {
+                                {table.getRowModel().rows.map(row => {
+                                    const d = row.original;
                                     const isExpanded = expandedDeliveryId === d.id;
-                                    const remaining = d.total_quantity - d.delivered_quantity;
-                                    const pct = d.total_quantity > 0 ? (d.delivered_quantity / d.total_quantity) * 100 : 0;
 
                                     return (
-                                        <Fragment key={d.id}>
+                                        <Fragment key={row.id}>
                                             <tr
                                                 className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.02] ${
                                                     isExpanded ? 'bg-white/[0.02]' : ''
                                                 }`}
                                             >
-                                                <td className="px-5 py-4">
-                                                    <span className="font-mono text-xs font-bold text-blue-400 bg-blue-500/5 border border-blue-500/20 px-2.5 py-1 rounded-lg">
-                                                        {d.sales_order_code}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-4">
-                                                    <div className="font-semibold text-white">
-                                                        {d.customer_name}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
-                                                        <span className="truncate max-w-[200px]" title={d.delivery_address || 'No custom address set (falls back to default customer address)'}>
-                                                            {d.delivery_address || 'Default Customer Address'}
-                                                        </span>
-                                                        <button 
-                                                            onClick={() => openAddressModal(d)}
-                                                            className="text-blue-400 hover:text-blue-300 font-bold hover:underline cursor-pointer"
-                                                        >
-                                                            Edit
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-4 text-white/80">
-                                                    {d.estimation_name}
-                                                </td>
-                                                <td className="px-5 py-4 text-xs text-orange-300">
-                                                    {d.so_delivery_date 
-                                                        ? new Date(d.so_delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
-                                                        : '—'}
-                                                </td>
-                                                <td className="px-5 py-4 min-w-[150px]">
-                                                    <div className="space-y-1">
-                                                        <div className="flex justify-between text-[11px] font-mono text-gray-400">
-                                                            <span>{d.delivered_quantity.toLocaleString()} / {d.total_quantity.toLocaleString()}</span>
-                                                            <span>{Math.round(pct)}%</span>
-                                                        </div>
-                                                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-4 text-center">
-                                                    <StatusBadge status={d.status} />
-                                                </td>
-                                                <td className="px-5 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        {d.dispatches && d.dispatches.length > 0 && (
-                                                            <button
-                                                                onClick={() => setExpandedDeliveryId(isExpanded ? null : d.id)}
-                                                                className="px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
-                                                            >
-                                                                {isExpanded ? <FiChevronUp /> : <FiChevronDown />}
-                                                                Log ({d.dispatches.length})
-                                                            </button>
-                                                        )}
-                                                        {d.status !== 'Delivered' && (
-                                                            <button
-                                                                onClick={() => openDispatchModal(d)}
-                                                                className="px-3 py-1.5 rounded-lg bg-white hover:opacity-90 text-black text-xs font-bold transition-all"
-                                                            >
-                                                                Log Dispatch
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
+                                                {row.getVisibleCells().map(cell => (
+                                                    <td key={cell.id} className="px-5 py-4 align-middle">
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </td>
+                                                ))}
                                             </tr>
 
                                             {/* Historic Dispatch Logs Expanded Row */}
                                             {isExpanded && d.dispatches && d.dispatches.length > 0 && (
                                                 <tr className="bg-black/30 border-b border-white/[0.04]">
-                                                    <td colSpan={7} className="px-8 py-4">
+                                                    <td colSpan={columns.length} className="px-8 py-4">
                                                         <div className="space-y-3">
                                                             <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
                                                                 <FiBookOpen className="text-emerald-400" />
@@ -468,6 +679,54 @@ export default function DeliveriesPage() {
                         </table>
                     </div>
                 )}
+
+                {/* Pagination Controls */}
+                {!loading && filteredDeliveries.length > 0 && (
+                    <div className="flex items-center justify-between px-5 py-4 border-t border-white/[0.06] bg-black/20 flex-wrap gap-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>Rows per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={e => table.setPageSize(Number(e.target.value))}
+                                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-gray-300 outline-none"
+                            >
+                                {[10, 15, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                            Page <strong className="text-gray-300">{pageIndex + 1}</strong> of{' '}
+                            <strong className="text-gray-300">{pageCount || 1}</strong>
+                            {' · '}{table.getFilteredRowModel().rows.length} total items
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <PagBtn onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
+                                <FiChevronsLeft className="w-3.5 h-3.5" />
+                            </PagBtn>
+                            <PagBtn onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                                <FiChevronLeft className="w-3.5 h-3.5" />
+                            </PagBtn>
+                            {Array.from({ length: pageCount }, (_, i) => i)
+                                .filter(i => Math.abs(i - pageIndex) <= 2)
+                                .map(i => (
+                                    <button
+                                        key={i}
+                                        onClick={() => table.setPageIndex(i)}
+                                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                                            i === pageIndex ? 'bg-white text-black font-bold' : 'text-gray-400 hover:bg-white/10'
+                                        }`}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                            <PagBtn onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                                <FiChevronRight className="w-3.5 h-3.5" />
+                            </PagBtn>
+                            <PagBtn onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()}>
+                                <FiChevronsRight className="w-3.5 h-3.5" />
+                            </PagBtn>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Log Dispatch Modal */}
@@ -487,7 +746,7 @@ export default function DeliveriesPage() {
                             </div>
                             <button
                                 onClick={() => setDispatchModalDelivery(null)}
-                                className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white transition-colors cursor-pointer"
                             >
                                 <FiX />
                             </button>
@@ -579,14 +838,14 @@ export default function DeliveriesPage() {
                                 <button
                                     type="button"
                                     onClick={() => setDispatchModalDelivery(null)}
-                                    className="px-4 py-2 border border-white/10 hover:bg-white/5 rounded-xl text-xs text-white/70 transition-colors"
+                                    className="px-4 py-2 border border-white/10 hover:bg-white/5 rounded-xl text-xs text-white/70 transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handlePreviewDownload}
-                                    className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <FiDownload className="w-3.5 h-3.5" />
                                     Download Preview
@@ -594,7 +853,7 @@ export default function DeliveriesPage() {
                                 <button
                                     type="submit"
                                     disabled={isSubmittingDispatch}
-                                    className="px-5 py-2 bg-white text-black font-bold rounded-xl text-xs hover:opacity-90 transition-opacity disabled:opacity-50"
+                                    className="px-5 py-2 bg-white text-black font-bold rounded-xl text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
                                 >
                                     {isSubmittingDispatch ? 'Saving...' : 'Submit Shipment'}
                                 </button>
@@ -603,6 +862,7 @@ export default function DeliveriesPage() {
                     </div>
                 </div>
             )}
+
             {/* Edit Address Modal */}
             {addressModalDelivery && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -666,3 +926,4 @@ export default function DeliveriesPage() {
         </div>
     );
 }
+

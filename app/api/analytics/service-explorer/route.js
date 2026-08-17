@@ -53,14 +53,14 @@ export async function GET(req) {
             const [types] = await pool.execute(`
                 SELECT DISTINCT
                     CASE
-                        WHEN name LIKE 'Service: %' THEN SUBSTRING(name, 10)
-                        ELSE name
+                        WHEN jt.name LIKE 'Service: %' THEN SUBSTRING(jt.name, 10)
+                        ELSE jt.name
                     END AS display_name,
                     CASE
-                        WHEN name LIKE 'Service: %' THEN name
-                        ELSE name
+                        WHEN jt.name LIKE 'Service: %' THEN jt.name
+                        ELSE jt.name
                     END AS filter_name
-                FROM job_tasks
+                FROM job_tasks jt
                 WHERE ${SERVICE_TASK_CONDITION.trim()}
                 ORDER BY display_name ASC
             `);
