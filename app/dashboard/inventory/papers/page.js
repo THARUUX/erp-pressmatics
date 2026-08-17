@@ -274,11 +274,10 @@ export default function PapersPage() {
                     </div>
                 </div>
 
-                <div className={`backdrop-blur-md p-5 rounded-2xl border flex flex-col justify-between shadow-xl ${
-                    stats.lowStockCount > 0
-                        ? 'bg-red-500/[0.06] border-red-500/30'
-                        : 'bg-white/[0.03] border-white/10'
-                }`}>
+                <div className={`backdrop-blur-md p-5 rounded-2xl border flex flex-col justify-between shadow-xl ${stats.lowStockCount > 0
+                    ? 'bg-red-500/[0.06] border-red-500/30'
+                    : 'bg-white/[0.03] border-white/10'
+                    }`}>
                     <div className="flex items-center justify-between">
                         <span className={`text-xs font-medium uppercase tracking-wider ${stats.lowStockCount > 0 ? 'text-red-400' : 'text-gray-400'}`}>
                             Low Stock Alert
@@ -332,9 +331,9 @@ export default function PapersPage() {
                                 onChange={e => setFormData({ ...formData, category: e.target.value })}
                                 className="w-full bg-secondary border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500/50"
                             >
-                                <option value="Offset">🖨️ Offset Only</option>
-                                <option value="Digital">⚡ Digital Only</option>
-                                <option value="Both">🌐 Both (Universal)</option>
+                                <option value="Offset">Offset</option>
+                                <option value="Digital">Digital</option>
+                                <option value="Both">Both</option>
                             </select>
                         </div>
 
@@ -413,11 +412,10 @@ export default function PapersPage() {
                 <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-2xl border border-white/10 self-start">
                     <button
                         onClick={() => setActiveTab('All')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                            activeTab === 'All'
-                                ? 'bg-white text-black shadow-md'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'All'
+                            ? 'bg-white text-black shadow-md'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            }`}
                     >
                         <FiGrid className="text-base" />
                         <span>All Papers</span>
@@ -428,26 +426,24 @@ export default function PapersPage() {
 
                     <button
                         onClick={() => setActiveTab('Offset')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                            activeTab === 'Offset'
-                                ? 'bg-emerald-500 text-black shadow-md'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'Offset'
+                            ? 'bg-black/10 text-black'
+                            : 'bg-white/10 text-gray-300'
+                            }`}
                     >
                         <FiLayers className="text-base" />
                         <span>Offset Papers</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono ${activeTab === 'Offset' ? 'bg-black/20 text-black' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-mono ${activeTab === 'Offset' ? 'bg-black/20 text-black' : 'bg-white/10 text-gray-300'}`}>
                             {stats.offsetItems}
                         </span>
                     </button>
 
                     <button
                         onClick={() => setActiveTab('Digital')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                            activeTab === 'Digital'
-                                ? 'bg-amber-500 text-black shadow-md'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'Digital'
+                            ? 'bg-black/10 text'
+                            : 'bg-white/10 text-gray-300'
+                            }`}
                     >
                         <FiZap className="text-base" />
                         <span>Digital Papers</span>
