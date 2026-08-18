@@ -34,7 +34,9 @@ async function syncAndGetConfigs() {
                 display_order: m.type === 'offset' ? 40 : 50,
                 is_bb_separated: m.type === 'offset' ? 1 : 0,
                 estimated_minutes: null,
-                is_enabled: 1
+                is_enabled: 1,
+                machine_id: m.id,
+                finishing_id: null
             });
         }
     }
@@ -50,7 +52,9 @@ async function syncAndGetConfigs() {
                 display_order: 60,
                 is_bb_separated: 0,
                 estimated_minutes: null,
-                is_enabled: 1
+                is_enabled: 1,
+                machine_id: null,
+                finishing_id: f.id
             });
         }
     }
@@ -58,9 +62,9 @@ async function syncAndGetConfigs() {
     if (missing.length > 0) {
         for (const item of missing) {
             await pool.execute(
-                `INSERT INTO task_configurations (task_key, name, description, display_order, is_bb_separated, estimated_minutes, is_enabled)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [item.task_key, item.name, item.description, item.display_order, item.is_bb_separated, item.estimated_minutes, item.is_enabled]
+                `INSERT INTO task_configurations (task_key, name, description, display_order, is_bb_separated, estimated_minutes, is_enabled, machine_id, finishing_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [item.task_key, item.name, item.description, item.display_order, item.is_bb_separated, item.estimated_minutes, item.is_enabled, item.machine_id || null, item.finishing_id || null]
             );
         }
     }
@@ -74,7 +78,8 @@ export async function GET() {
     try {
         const configs = await syncAndGetConfigs();
         const [machines] = await pool.execute('SELECT id, name, type FROM machines ORDER BY name ASC');
-        return NextResponse.json({ configs, machines });
+        const [finishings] = await pool.execute('SELECT id, name FROM finishings ORDER BY name ASC');
+        return NextResponse.json({ configs, machines, finishings });
     } catch (error) {
         console.error('Error fetching task configs:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -107,10 +112,12 @@ export async function POST(req) {
 
             for (const c of configs) {
                 const machineIdVal = c.machine_id !== null && c.machine_id !== undefined && c.machine_id !== '' ? parseInt(c.machine_id) : null;
+                const finishingIdVal = c.finishing_id !== null && c.finishing_id !== undefined && c.finishing_id !== '' ? parseInt(c.finishing_id) : null;
+
                 if (c.id) {
                     await connection.execute(
                         `UPDATE task_configurations 
-                         SET task_key = ?, name = ?, description = ?, display_order = ?, is_bb_separated = ?, estimated_minutes = ?, is_enabled = ?, machine_id = ?
+                         SET task_key = ?, name = ?, description = ?, display_order = ?, is_bb_separated = ?, estimated_minutes = ?, is_enabled = ?, machine_id = ?, finishing_id = ?
                          WHERE id = ?`,
                         [
                             c.task_key || 'custom',
@@ -121,13 +128,14 @@ export async function POST(req) {
                             c.estimated_minutes !== null && c.estimated_minutes !== undefined && c.estimated_minutes !== '' ? parseInt(c.estimated_minutes) : null,
                             c.is_enabled ? 1 : 0,
                             machineIdVal,
+                            finishingIdVal,
                             c.id
                         ]
                     );
                 } else {
                     await connection.execute(
-                        `INSERT INTO task_configurations (task_key, name, description, display_order, is_bb_separated, estimated_minutes, is_enabled, machine_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        `INSERT INTO task_configurations (task_key, name, description, display_order, is_bb_separated, estimated_minutes, is_enabled, machine_id, finishing_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                             c.task_key || 'custom',
                             c.name,
@@ -136,7 +144,8 @@ export async function POST(req) {
                             c.is_bb_separated ? 1 : 0,
                             c.estimated_minutes !== null && c.estimated_minutes !== undefined && c.estimated_minutes !== '' ? parseInt(c.estimated_minutes) : null,
                             c.is_enabled ? 1 : 0,
-                            machineIdVal
+                            machineIdVal,
+                            finishingIdVal
                         ]
                     );
                 }

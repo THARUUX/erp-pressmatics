@@ -8,7 +8,7 @@ import {
     FiTrash2, FiChevronRight, FiChevronDown, FiSearch, FiPlus,
     FiHome, FiGrid, FiList, FiGlobe,
     FiCode, FiBook, FiDatabase, FiLayers, FiShield, FiCpu, FiStar,
-    FiCheck, FiX, FiRefreshCw, FiServer, FiFileText
+    FiCheck, FiX, FiRefreshCw, FiServer, FiFileText, FiDroplet
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -22,6 +22,135 @@ const COLOR_PRESETS = [
     { id: 'cyan', label: 'Cyan Glow', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', glow: 'shadow-cyan-500/20' },
     { id: 'indigo', label: 'Deep Indigo', bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', text: 'text-indigo-400', glow: 'shadow-indigo-500/20' },
 ];
+
+const THEME_CONFIGS = {
+    blue: {
+        id: 'blue',
+        label: 'Sky Blue',
+        dot: 'bg-blue-500',
+        text: 'text-blue-400',
+        textHover: 'hover:text-blue-400',
+        textLight: 'text-blue-300',
+        bgBtn: 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20',
+        bgSubtle: 'bg-blue-500/10',
+        borderSubtle: 'border-blue-500/20',
+        borderFocus: 'focus:border-blue-500',
+        activeNav: 'bg-blue-600/20 text-white font-bold border border-blue-500/30',
+        badge: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        gradient: 'from-blue-500/20 via-purple-500/20 to-emerald-500/20',
+        contextHover: 'hover:bg-blue-500/20 hover:text-blue-300',
+        emptyBtn: 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/30',
+        groupHoverText: 'group-hover:text-blue-400',
+    },
+    emerald: {
+        id: 'emerald',
+        label: 'Emerald Green',
+        dot: 'bg-emerald-500',
+        text: 'text-emerald-400',
+        textHover: 'hover:text-emerald-400',
+        textLight: 'text-emerald-300',
+        bgBtn: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20',
+        bgSubtle: 'bg-emerald-500/10',
+        borderSubtle: 'border-emerald-500/20',
+        borderFocus: 'focus:border-emerald-500',
+        activeNav: 'bg-emerald-600/20 text-white font-bold border border-emerald-500/30',
+        badge: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+        gradient: 'from-emerald-500/20 via-teal-500/20 to-blue-500/20',
+        contextHover: 'hover:bg-emerald-500/20 hover:text-emerald-300',
+        emptyBtn: 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30',
+        groupHoverText: 'group-hover:text-emerald-400',
+    },
+    purple: {
+        id: 'purple',
+        label: 'Electric Purple',
+        dot: 'bg-purple-500',
+        text: 'text-purple-400',
+        textHover: 'hover:text-purple-400',
+        textLight: 'text-purple-300',
+        bgBtn: 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/20',
+        bgSubtle: 'bg-purple-500/10',
+        borderSubtle: 'border-purple-500/20',
+        borderFocus: 'focus:border-purple-500',
+        activeNav: 'bg-purple-600/20 text-white font-bold border border-purple-500/30',
+        badge: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+        gradient: 'from-purple-500/20 via-pink-500/20 to-indigo-500/20',
+        contextHover: 'hover:bg-purple-500/20 hover:text-purple-300',
+        emptyBtn: 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border-purple-500/30',
+        groupHoverText: 'group-hover:text-purple-400',
+    },
+    amber: {
+        id: 'amber',
+        label: 'Warm Amber',
+        dot: 'bg-amber-500',
+        text: 'text-amber-400',
+        textHover: 'hover:text-amber-400',
+        textLight: 'text-amber-300',
+        bgBtn: 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20',
+        bgSubtle: 'bg-amber-500/10',
+        borderSubtle: 'border-amber-500/20',
+        borderFocus: 'focus:border-amber-500',
+        activeNav: 'bg-amber-600/20 text-white font-bold border border-amber-500/30',
+        badge: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+        gradient: 'from-amber-500/20 via-orange-500/20 to-rose-500/20',
+        contextHover: 'hover:bg-amber-500/20 hover:text-amber-300',
+        emptyBtn: 'bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border-amber-500/30',
+        groupHoverText: 'group-hover:text-amber-400',
+    },
+    rose: {
+        id: 'rose',
+        label: 'Neon Rose',
+        dot: 'bg-rose-500',
+        text: 'text-rose-400',
+        textHover: 'hover:text-rose-400',
+        textLight: 'text-rose-300',
+        bgBtn: 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20',
+        bgSubtle: 'bg-rose-500/10',
+        borderSubtle: 'border-rose-500/20',
+        borderFocus: 'focus:border-rose-500',
+        activeNav: 'bg-rose-600/20 text-white font-bold border border-rose-500/30',
+        badge: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+        gradient: 'from-rose-500/20 via-red-500/20 to-pink-500/20',
+        contextHover: 'hover:bg-rose-500/20 hover:text-rose-300',
+        emptyBtn: 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border-rose-500/30',
+        groupHoverText: 'group-hover:text-rose-400',
+    },
+    cyan: {
+        id: 'cyan',
+        label: 'Cyan Glow',
+        dot: 'bg-cyan-500',
+        text: 'text-cyan-400',
+        textHover: 'hover:text-cyan-400',
+        textLight: 'text-cyan-300',
+        bgBtn: 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/20',
+        bgSubtle: 'bg-cyan-500/10',
+        borderSubtle: 'border-cyan-500/20',
+        borderFocus: 'focus:border-cyan-500',
+        activeNav: 'bg-cyan-600/20 text-white font-bold border border-cyan-500/30',
+        badge: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+        gradient: 'from-cyan-500/20 via-blue-500/20 to-teal-500/20',
+        contextHover: 'hover:bg-cyan-500/20 hover:text-cyan-300',
+        emptyBtn: 'bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border-cyan-500/30',
+        groupHoverText: 'group-hover:text-cyan-400',
+    },
+    indigo: {
+        id: 'indigo',
+        label: 'Deep Indigo',
+        dot: 'bg-indigo-500',
+        text: 'text-indigo-400',
+        textHover: 'hover:text-indigo-400',
+        textLight: 'text-indigo-300',
+        bgBtn: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20',
+        bgSubtle: 'bg-indigo-500/10',
+        borderSubtle: 'border-indigo-500/20',
+        borderFocus: 'focus:border-indigo-500',
+        activeNav: 'bg-indigo-600/20 text-white font-bold border border-indigo-500/30',
+        badge: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+        gradient: 'from-indigo-500/20 via-purple-500/20 to-blue-500/20',
+        contextHover: 'hover:bg-indigo-500/20 hover:text-indigo-300',
+        emptyBtn: 'bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border-indigo-500/30',
+        groupHoverText: 'group-hover:text-indigo-400',
+    }
+};
 
 const ICON_MAP = {
     folder: FiFolder,
@@ -52,6 +181,28 @@ function ResourcesExplorerContent() {
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
     const [copiedLinkId, setCopiedLinkId] = useState(null);
+
+    // Page Theme State
+    const [themeKey, setThemeKey] = useState('blue');
+    const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('resources_page_theme');
+            if (saved && THEME_CONFIGS[saved]) {
+                setThemeKey(saved);
+            }
+        }
+    }, []);
+
+    const changeTheme = (newKey) => {
+        setThemeKey(newKey);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('resources_page_theme', newKey);
+        }
+    };
+
+    const theme = THEME_CONFIGS[themeKey] || THEME_CONFIGS.blue;
 
     // Right Click Context Menu State
     const [contextMenu, setContextMenu] = useState({
@@ -494,7 +645,7 @@ function ResourcesExplorerContent() {
                             <span className="w-3.5 inline-block" />
                         )}
 
-                        <FiFolder className={`w-4 h-4 shrink-0 ${isSelected ? colorPreset.text : 'text-blue-400/80 group-hover:text-blue-400'}`} />
+                        <FiFolder className={`w-4 h-4 shrink-0 ${isSelected ? colorPreset.text : `${theme.text}/80 ${theme.groupHoverText}`}`} />
                         <span className="text-xs truncate">{node.name}</span>
                     </div>
 
@@ -537,16 +688,8 @@ function ResourcesExplorerContent() {
             {/* Header Title & Global Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-6">
                 <div>
-                    {/* <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            Knowledge & Quick Access
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            URL Linked
-                        </span>
-                    </div> */}
                     <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-emerald-500/20 border border-white/10 flex items-center justify-center text-blue-400 shadow-lg">
+                        <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${theme.gradient} border border-white/10 flex items-center justify-center ${theme.text} shadow-lg`}>
                             <FiLayers className="w-5 h-5" />
                         </div>
                         Resources Explorer
@@ -558,9 +701,57 @@ function ResourcesExplorerContent() {
 
                 {/* Main Control Actions */}
                 <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Theme Selector Popover */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                            className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                            title="Change Theme Color"
+                        >
+                            <FiDroplet className={`w-4 h-4 ${theme.text}`} />
+                            <span className="hidden sm:inline">Theme</span>
+                            <span className={`w-2.5 h-2.5 rounded-full ${theme.dot}`} />
+                        </button>
+
+                        <AnimatePresence>
+                            {themeDropdownOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    className="absolute right-0 mt-2 z-50 w-52 bg-black border border-white/20 rounded-2xl p-2 shadow-2xl backdrop-blur-xl space-y-1"
+                                >
+                                    <div className="px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 border-b border-white/10 mb-1 flex items-center justify-between">
+                                        <span>Select Page Theme</span>
+                                        <FiDroplet className={theme.text} />
+                                    </div>
+                                    {Object.values(THEME_CONFIGS).map(t => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => {
+                                                changeTheme(t.id);
+                                                setThemeDropdownOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${themeKey === t.id
+                                                ? `${t.bgSubtle} ${t.text} border ${t.borderSubtle}`
+                                                : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <span className={`w-3 h-3 rounded-full ${t.dot}`} />
+                                                <span>{t.label}</span>
+                                            </div>
+                                            {themeKey === t.id && <FiCheck className="w-3.5 h-3.5" />}
+                                        </button>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
                     <button
                         onClick={() => openCreateFolderModal(currentFolderId)}
-                        className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                        className={`px-3.5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-lg transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${theme.bgBtn}`}
                     >
                         <FiFolderPlus className="w-4 h-4" />
                         <span>New Folder</span>
@@ -592,9 +783,9 @@ function ResourcesExplorerContent() {
                 <div className="lg:col-span-3 bg-black backdrop-blur-xl border border-white/10 rounded-2xl p-4 space-y-4 shadow-2xl">
                     <div className="flex items-center justify-between border-b border-white/10 pb-3">
                         <span className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                            <FiFolder className="text-blue-400" /> Directory Tree
+                            <FiFolder className={theme.text} /> Directory Tree
                         </span>
-                        <span className="text-[10px] font-bold font-mono text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                        <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border ${theme.badge}`}>
                             {categories.length} folders
                         </span>
                     </div>
@@ -604,12 +795,12 @@ function ResourcesExplorerContent() {
                         onClick={() => navigateToFolder(null)}
                         onContextMenu={(e) => handleContextMenu(e, 'canvas', null)}
                         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all ${currentFolderId === null && !searchQuery
-                            ? 'bg-blue-600/20 text-white font-bold border border-blue-500/30'
+                            ? theme.activeNav
                             : 'text-gray-300 hover:bg-white/5 hover:text-white'
                             }`}
                     >
                         <div className="flex items-center gap-2.5">
-                            <FiHome className="w-4 h-4 text-sky-400" />
+                            <FiHome className={`w-4 h-4 ${theme.text}`} />
                             <span className="text-xs font-semibold">Root Explorer</span>
                         </div>
                         <span className="text-[10px] font-mono text-gray-500">
@@ -639,9 +830,9 @@ function ResourcesExplorerContent() {
                         <div className="flex items-center gap-1.5 flex-wrap text-xs text-gray-300 w-full md:w-auto">
                             <button
                                 onClick={() => navigateToFolder(null)}
-                                className="flex items-center gap-1.5 font-bold hover:text-blue-400 transition-colors cursor-pointer"
+                                className={`flex items-center gap-1.5 font-bold ${theme.textHover} transition-colors cursor-pointer`}
                             >
-                                <FiHome className="w-3.5 h-3.5 text-blue-400" />
+                                <FiHome className={`w-3.5 h-3.5 ${theme.text}`} />
                                 <span>Root</span>
                             </button>
 
@@ -650,7 +841,7 @@ function ResourcesExplorerContent() {
                                     <FiChevronRight className="w-3.5 h-3.5 text-gray-600" />
                                     <button
                                         onClick={() => navigateToFolder(folder.id)}
-                                        className={`font-semibold hover:text-blue-400 transition-colors cursor-pointer ${idx === breadcrumbTrail.length - 1 ? 'text-white font-extrabold' : 'text-gray-400'
+                                        className={`font-semibold ${theme.textHover} transition-colors cursor-pointer ${idx === breadcrumbTrail.length - 1 ? 'text-white font-extrabold' : 'text-gray-400'
                                             }`}
                                     >
                                         {folder.name}
@@ -675,7 +866,7 @@ function ResourcesExplorerContent() {
                                     placeholder="Search folders or links..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-black border border-white/20 text-white placeholder-gray-500 text-xs rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:border-blue-500 transition-all"
+                                    className={`w-full bg-black border border-white/20 text-white placeholder-gray-500 text-xs rounded-xl pl-9 pr-8 py-2 focus:outline-none ${theme.borderFocus} transition-all`}
                                 />
                                 {searchQuery && (
                                     <button
@@ -709,7 +900,7 @@ function ResourcesExplorerContent() {
                     {/* Canvas Main Content View */}
                     {loading ? (
                         <div className="py-24 text-center space-y-3">
-                            <FiRefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+                            <FiRefreshCw className={`w-8 h-8 ${theme.text} animate-spin mx-auto`} />
                             <p className="text-xs text-gray-400 font-mono">Loading Resource Explorer...</p>
                         </div>
                     ) : (
@@ -720,13 +911,13 @@ function ResourcesExplorerContent() {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                                            <FiFolder className="text-blue-400" />
+                                            <FiFolder className={theme.text} />
                                             Child Folders ({currentSubfolders.length})
                                         </h3>
                                     </div>
 
                                     <div className={viewMode === 'grid'
-                                        ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
+                                        ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4"
                                         : "space-y-2"
                                     }>
                                         <AnimatePresence>
@@ -743,7 +934,9 @@ function ResourcesExplorerContent() {
                                                         exit={{ opacity: 0, scale: 0.95 }}
                                                         onClick={() => navigateToFolder(folder.id)}
                                                         onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
-                                                        className={`group relative bg-black hover:bg-white/[0.08] border ${preset.border} rounded-2xl p-4 cursor-pointer transition-all duration-200 shadow-xl hover:${preset.glow} hover:-translate-y-0.5`}
+                                                        title={folder.description && folder.description}
+                                                        // className={`group relative bg-black hover:bg-white/[0.08] border ${preset.border} rounded-2xl p-4 cursor-pointer transition-all duration-200 shadow-xl hover:${preset.glow} hover:-translate-y-0.5`}
+                                                        className={`group relative rounded-2xl p-4 cursor-pointer transition-all duration-200  hover:${preset.glow} hover:-translate-y-0.5`}
                                                     >
                                                         <div className="flex items-start justify-between gap-3">
                                                             <div className="flex items-center gap-3">
@@ -751,7 +944,7 @@ function ResourcesExplorerContent() {
                                                                     <FiFolder className="w-5 h-5" />
                                                                 </div>
                                                                 <div className="min-w-0">
-                                                                    <h4 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors truncate">
+                                                                    <h4 className={`text-sm font-bold text-white ${theme.groupHoverText} transition-colors truncate`}>
                                                                         {folder.name}
                                                                     </h4>
                                                                     <p className="text-[11px] text-gray-400 font-mono mt-0.5">
@@ -761,7 +954,7 @@ function ResourcesExplorerContent() {
                                                             </div>
 
                                                             {/* Action buttons */}
-                                                            <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                            {/* <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
@@ -789,14 +982,14 @@ function ResourcesExplorerContent() {
                                                                 >
                                                                     <FiTrash2 className="w-3.5 h-3.5" />
                                                                 </button>
-                                                            </div>
+                                                            </div> */}
                                                         </div>
 
-                                                        {folder.description && (
+                                                        {/* {folder.description && (
                                                             <p className="text-xs text-gray-400/80 mt-3 line-clamp-2 leading-relaxed">
                                                                 {folder.description}
                                                             </p>
-                                                        )}
+                                                        )} */}
                                                     </motion.div>
                                                 );
                                             })}
@@ -840,7 +1033,7 @@ function ResourcesExplorerContent() {
                                         <div className="flex items-center justify-center gap-3 pt-2">
                                             <button
                                                 onClick={() => openCreateFolderModal(currentFolderId)}
-                                                className="px-3.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition-all cursor-pointer"
+                                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${theme.emptyBtn}`}
                                             >
                                                 + Create Subfolder
                                             </button>
@@ -991,9 +1184,9 @@ function ResourcesExplorerContent() {
                                         navigateToFolder(contextMenu.item.id);
                                         setContextMenu(prev => ({ ...prev, visible: false }));
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-blue-500/20 hover:text-blue-300 text-gray-200 transition-colors text-left"
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl ${theme.contextHover} text-gray-200 transition-colors text-left`}
                                 >
-                                    <FiFolder className="w-4 h-4 text-blue-400" />
+                                    <FiFolder className={`w-4 h-4 ${theme.text}`} />
                                     <span>Open Folder</span>
                                 </button>
                                 <button
@@ -1058,9 +1251,9 @@ function ResourcesExplorerContent() {
                                         copyToClipboard(contextMenu.item.url, contextMenu.item.id, e);
                                         setContextMenu(prev => ({ ...prev, visible: false }));
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-blue-500/20 hover:text-blue-300 text-gray-200 transition-colors text-left"
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl ${theme.contextHover} text-gray-200 transition-colors text-left`}
                                 >
-                                    <FiCopy className="w-4 h-4 text-blue-400" />
+                                    <FiCopy className={`w-4 h-4 ${theme.text}`} />
                                     <span>Copy URL</span>
                                 </button>
                                 <button
@@ -1095,9 +1288,9 @@ function ResourcesExplorerContent() {
                                         openCreateFolderModal(currentFolderId);
                                         setContextMenu(prev => ({ ...prev, visible: false }));
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-blue-500/20 hover:text-blue-300 text-gray-200 transition-colors text-left"
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl ${theme.contextHover} text-gray-200 transition-colors text-left`}
                                 >
-                                    <FiFolderPlus className="w-4 h-4 text-blue-400" />
+                                    <FiFolderPlus className={`w-4 h-4 ${theme.text}`} />
                                     <span>New Folder Here</span>
                                 </button>
                                 <button
@@ -1139,7 +1332,7 @@ function ResourcesExplorerContent() {
                         >
                             <div className="flex items-center justify-between border-b border-white/10 pb-4">
                                 <h3 className="text-base font-extrabold flex items-center gap-2">
-                                    <FiFolder className="text-blue-400" />
+                                    <FiFolder className={theme.text} />
                                     {editingFolder ? 'Edit Folder' : 'Create New Folder'}
                                 </h3>
                                 <button onClick={() => setFolderModalOpen(false)} className="text-gray-400 hover:text-white">
@@ -1155,7 +1348,7 @@ function ResourcesExplorerContent() {
                                         placeholder="e.g. Documentation, Design Assets, Internal Tools..."
                                         value={folderForm.name}
                                         onChange={(e) => setFolderForm(prev => ({ ...prev, name: e.target.value }))}
-                                        className="w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                        className={`w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none ${theme.borderFocus}`}
                                         required
                                     />
                                 </div>
@@ -1165,7 +1358,7 @@ function ResourcesExplorerContent() {
                                     <select
                                         value={folderForm.parent_id}
                                         onChange={(e) => setFolderForm(prev => ({ ...prev, parent_id: e.target.value }))}
-                                        className="w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                        className={`w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none ${theme.borderFocus}`}
                                     >
                                         <option value="">📁 Root (Top Level)</option>
                                         {flatSelectOptions.map(opt => (
@@ -1203,7 +1396,7 @@ function ResourcesExplorerContent() {
                                         placeholder="Brief summary of what resources are inside this folder..."
                                         value={folderForm.description}
                                         onChange={(e) => setFolderForm(prev => ({ ...prev, description: e.target.value }))}
-                                        className="w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                        className={`w-full bg-[#0d0d0d] border border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none ${theme.borderFocus}`}
                                     />
                                 </div>
 
@@ -1217,7 +1410,7 @@ function ResourcesExplorerContent() {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-lg shadow-blue-600/20"
+                                        className={`px-5 py-2 rounded-xl text-xs font-bold text-white shadow-lg ${theme.bgBtn}`}
                                     >
                                         {editingFolder ? 'Save Changes' : 'Create Folder'}
                                     </button>
@@ -1422,7 +1615,7 @@ export default function ResourcesExplorerPage() {
     return (
         <Suspense fallback={
             <div className="py-24 text-center text-white">
-                <FiRefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-400" />
+                <FiRefreshCw className="w-8 h-8 animate-spin mx-auto text-emerald-400" />
                 <p className="text-xs text-gray-400 font-mono mt-2">Loading Explorer...</p>
             </div>
         }>

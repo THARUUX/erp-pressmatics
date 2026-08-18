@@ -133,6 +133,7 @@ export default function SettingsPage() {
     // Tasks Configuration
     const [taskConfigs, setTaskConfigs] = useState([]);
     const [machines, setMachines] = useState([]);
+    const [finishings, setFinishings] = useState([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
     const [savingTasks, setSavingTasks] = useState(false);
 
@@ -145,6 +146,7 @@ export default function SettingsPage() {
                 const sorted = (data.configs || []).sort((a, b) => a.display_order - b.display_order);
                 setTaskConfigs(sorted);
                 setMachines(data.machines || []);
+                setFinishings(data.finishings || []);
             } else {
                 toast.error('Failed to load task configurations');
             }
@@ -942,7 +944,7 @@ export default function SettingsPage() {
                                             <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
                                             <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Task Name / Label</th>
                                             <th className="p-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</th>
-                                            <th className="p-4 w-44 text-xs font-semibold text-gray-400 uppercase tracking-wider">Assigned Machine</th>
+                                            <th className="p-4 w-52 text-xs font-semibold text-gray-400 uppercase tracking-wider">Assigned Resource</th>
                                             <th className="p-4 w-32 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Order</th>
                                             <th className="p-4 w-28 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">BB Separate</th>
                                             <th className="p-4 w-32 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Est. Mins</th>
@@ -985,21 +987,48 @@ export default function SettingsPage() {
                                                 </td>
                                                 <td className="p-4">
                                                     {c.task_key.startsWith('machine_') ? (
-                                                        <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-md font-semibold uppercase tracking-wider">Auto-Bound</span>
+                                                        <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-1 rounded-md font-semibold uppercase tracking-wider">Auto-Bound (Machine)</span>
+                                                    ) : c.task_key.startsWith('finishing_') ? (
+                                                        <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md font-semibold uppercase tracking-wider">Auto-Bound (Finishing)</span>
                                                     ) : (
-                                                        <select value={c.machine_id || ''}
+                                                        <select
+                                                            value={c.machine_id ? `machine:${c.machine_id}` : (c.finishing_id ? `finishing:${c.finishing_id}` : '')}
                                                             onChange={(e) => {
+                                                                const val = e.target.value;
                                                                 const copy = [...taskConfigs];
-                                                                copy[index].machine_id = e.target.value === '' ? null : parseInt(e.target.value);
+                                                                if (!val) {
+                                                                    copy[index].machine_id = null;
+                                                                    copy[index].finishing_id = null;
+                                                                } else if (val.startsWith('machine:')) {
+                                                                    copy[index].machine_id = parseInt(val.split(':')[1]);
+                                                                    copy[index].finishing_id = null;
+                                                                } else if (val.startsWith('finishing:')) {
+                                                                    copy[index].finishing_id = parseInt(val.split(':')[1]);
+                                                                    copy[index].machine_id = null;
+                                                                }
                                                                 setTaskConfigs(copy);
                                                             }}
-                                                            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-white/30 w-full max-w-[170px] transition-colors cursor-pointer">
+                                                            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-white/30 w-full max-w-[200px] transition-colors cursor-pointer"
+                                                        >
                                                             <option value="" className="bg-[#18181b] text-gray-400">None (Dynamic)</option>
-                                                            {machines.map(m => (
-                                                                <option key={m.id} value={m.id} className="bg-[#18181b] text-white">
-                                                                    {m.name} ({m.type})
-                                                                </option>
-                                                            ))}
+                                                            {machines.length > 0 && (
+                                                                <optgroup label="Machines" className="bg-[#18181b] text-gray-400 font-bold">
+                                                                    {machines.map(m => (
+                                                                        <option key={`m_${m.id}`} value={`machine:${m.id}`} className="bg-[#18181b] text-white font-normal">
+                                                                            ⚙️ {m.name} ({m.type})
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            )}
+                                                            {finishings.length > 0 && (
+                                                                <optgroup label="Finishings" className="bg-[#18181b] text-gray-400 font-bold">
+                                                                    {finishings.map(f => (
+                                                                        <option key={`f_${f.id}`} value={`finishing:${f.id}`} className="bg-[#18181b] text-white font-normal">
+                                                                            ✨ {f.name} (Finishing)
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            )}
                                                         </select>
                                                     )}
                                                 </td>
