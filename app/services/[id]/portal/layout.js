@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
     FiGrid, FiFileText, FiShoppingCart, FiCheckSquare,
     FiArrowLeft, FiBriefcase, FiChevronRight, FiUsers, FiActivity,
-    FiBarChart2, FiDollarSign
+    FiBarChart2, FiDollarSign, FiCheckCircle
 } from 'react-icons/fi';
 import ScreenPet from '@/components/ui/ScreenPet';
 
@@ -52,6 +52,7 @@ export default function ServicePortalLayout({ children, params }) {
         { href: `/services/${id}/portal/analytics`, label: 'Analytics & Charts', icon: FiBarChart2 },
         { href: `/services/${id}/portal/employees`, label: 'Employees', icon: FiUsers },
         { href: `/services/${id}/portal/tasks`, label: 'Task Timers', icon: FiCheckSquare },
+        { href: `/services/${id}/portal/completed-tasks`, label: 'Completed Tasks', icon: FiCheckCircle },
     ];
 
     const isActive = (href) => {

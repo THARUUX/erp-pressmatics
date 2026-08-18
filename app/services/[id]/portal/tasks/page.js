@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useState, useCallback, useMemo } from 'react';
-import { FiList, FiGrid, FiClock, FiUser, FiPlay, FiSquare, FiCheck, FiX, FiInfo, FiBarChart2 } from 'react-icons/fi';
+import { FiList, FiGrid, FiClock, FiUser, FiPlay, FiSquare, FiCheck, FiX, FiInfo, FiBarChart2, FiRotateCcw } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import TaskTimeAnalysisTable from '../components/TaskTimeAnalysisTable';
 
@@ -9,7 +9,7 @@ const COLUMNS = [
     { id: 'pending', label: 'Pending', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-amber-400' },
     { id: 'in_progress', label: 'In Progress', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-blue-400' },
     { id: 'paused', label: 'Paused', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-orange-400' },
-    { id: 'done', label: 'Ready / Done', color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-emerald-400' },
+    { id: 'done', label: "Today's Ready / Done", color: 'border-zinc-800/80 bg-[#0e0e12]', dot: 'bg-emerald-400' },
 ];
 
 const STATUS_COLORS = {
@@ -28,6 +28,15 @@ function formatSeconds(secs) {
     const h = Math.floor(m / 60);
     const remM = m % 60;
     return `${h}h ${remM}m`;
+}
+
+function isToday(dateStr) {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate();
 }
 
 function TaskCard({ task, onRefresh }) {
@@ -78,6 +87,23 @@ function TaskCard({ task, onRefresh }) {
         finally { setUpdating(false); }
     };
 
+    const handleReopen = async () => {
+        setUpdating(true);
+        try {
+            const orderId = task.sales_order_id || 'manual';
+            const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}/work-log`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reopen', target_status: 'paused', employee_name: task.assigned_to }),
+            });
+            if (res.ok) {
+                toast.success('Task re-opened! Accumulated time preserved.');
+                onRefresh();
+            } else toast.error('Failed to re-open task');
+        } catch { toast.error('Error re-opening task'); }
+        finally { setUpdating(false); }
+    };
+
     const handleChangeStatus = async (newStatus) => {
         setUpdating(true);
         try {
@@ -123,7 +149,7 @@ function TaskCard({ task, onRefresh }) {
 
             {/* Controls */}
             <div className="flex items-center gap-2">
-                {task.is_running ? (
+                {/* {task.is_running ? (
                     <button onClick={handleStopTimer} disabled={updating}
                         className="flex-1 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer animate-pulse">
                         <FiSquare size={12} /> Stop
@@ -135,21 +161,34 @@ function TaskCard({ task, onRefresh }) {
                     </button>
                 ) : null}
 
-                {task.status !== 'done' && (
+                {task.status !== 'done' ? (
                     <button onClick={handlePushReady} disabled={updating}
                         className="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer">
                         <FiCheck size={12} /> Ready
                     </button>
+                ) : (
+                    <button onClick={handleReopen} disabled={updating}
+                        className="w-full py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors">
+                        <FiRotateCcw size={12} /> Re-open Task
+                    </button>
+                )} */}
+                {task.status == 'done' ? (
+                    <button onClick={handleReopen} disabled={updating}
+                        className="w-full py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors">
+                        <FiRotateCcw size={12} /> Re-open Task
+                    </button>
+                ) : (
+                    <></>
                 )}
             </div>
 
-            <select value={task.status} onChange={e => handleChangeStatus(e.target.value)} disabled={updating}
+            {/* <select value={task.status} onChange={e => handleChangeStatus(e.target.value)} disabled={updating}
                 className="w-full bg-zinc-900 border border-zinc-700/80 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none cursor-pointer disabled:opacity-40">
                 <option value="pending" className="bg-zinc-900">Pending</option>
                 <option value="in_progress" className="bg-zinc-900">In Progress</option>
                 <option value="paused" className="bg-zinc-900">Paused</option>
                 <option value="done" className="bg-zinc-900">Done / Ready</option>
-            </select>
+            </select> */}
         </div>
     );
 }
@@ -172,6 +211,21 @@ function TaskRow({ task, onRefresh }) {
         } catch { toast.error('Error'); }
     };
 
+    const handleReopen = async () => {
+        try {
+            const orderId = task.sales_order_id || 'manual';
+            const res = await fetch(`/api/sales-orders/${orderId}/tasks/${task.id}/work-log`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reopen', target_status: 'paused', employee_name: task.assigned_to }),
+            });
+            if (res.ok) {
+                toast.success('Task re-opened! Accumulated time preserved.');
+                onRefresh();
+            } else toast.error('Failed to re-open task');
+        } catch { toast.error('Error'); }
+    };
+
     return (
         <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
             <td className="px-4 py-3">
@@ -187,9 +241,9 @@ function TaskRow({ task, onRefresh }) {
                         <FiCheck size={12} /> Push Ready
                     </button>
                 ) : (
-                    <span className="text-xs font-bold text-emerald-400 inline-flex items-center gap-1">
-                        <FiCheck size={12} /> Ready
-                    </span>
+                    <button onClick={handleReopen} className="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 hover:text-white text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition-colors">
+                        <FiRotateCcw size={12} /> Re-open Task
+                    </button>
                 )}
             </td>
         </tr>
@@ -215,7 +269,13 @@ export default function PortalTasksPage({ params }) {
 
     const byStatus = useMemo(() => {
         const map = {};
-        COLUMNS.forEach(c => { map[c.id] = tasks.filter(t => t.status === c.id); });
+        COLUMNS.forEach(c => {
+            if (c.id === 'done') {
+                map[c.id] = tasks.filter(t => t.status === 'done' && isToday(t.completed_at || t.updated_at));
+            } else {
+                map[c.id] = tasks.filter(t => t.status === c.id);
+            }
+        });
         return map;
     }, [tasks]);
 

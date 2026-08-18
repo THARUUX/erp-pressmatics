@@ -117,6 +117,41 @@ export async function POST(req, { params }) {
             return NextResponse.json({ success: true, message: 'Task marked as Ready / Completed' });
         }
 
+        if (action === 'reopen') {
+            const targetStatus = body.target_status || 'paused'; // 'paused', 'in_progress', or 'pending'
+
+            // 1. Stop any unclosed timer
+            await pool.execute(
+                `UPDATE job_task_work_logs 
+                 SET stopped_at = NOW(), 
+                     duration_seconds = TIMESTAMPDIFF(SECOND, started_at, NOW())
+                 WHERE task_id = ? AND stopped_at IS NULL`,
+                [taskId]
+            );
+
+            // 2. If target is in_progress, start a new work session
+            if (targetStatus === 'in_progress') {
+                await pool.execute(
+                    `INSERT INTO job_task_work_logs (task_id, employee_name, started_at) 
+                     VALUES (?, ?, NOW())`,
+                    [taskId, activeEmp]
+                );
+            }
+
+            // 3. Update task status, clear completed_at and completed_by (preserving past work logs)
+            await pool.execute(
+                `UPDATE job_tasks 
+                 SET status = ?, completed_at = NULL, completed_by = NULL, updated_at = NOW() 
+                 WHERE id = ?`,
+                [targetStatus, taskId]
+            );
+
+            return NextResponse.json({
+                success: true,
+                message: `Task re-opened with status '${targetStatus}'. Accumulated past duration preserved.`
+            });
+        }
+
         if (action === 'update_estimate') {
             const mins = parseInt(estimated_minutes) || 0;
             await pool.execute(
