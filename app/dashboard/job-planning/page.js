@@ -55,10 +55,11 @@ function JobPlanningPageInner() {
     }, [searchParams]);
 
     const load = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
+        const isSilent = typeof silent === 'boolean' ? silent : false;
+        if (!isSilent) setLoading(true);
         setError(null);
         try {
-            const res = await fetch('/api/job-planning');
+            const res = await fetch(`/api/job-planning?t=${Date.now()}`, { cache: 'no-store' });
             const json = await res.json();
             if (json.error) throw new Error(json.error);
             setData(json);
@@ -118,7 +119,7 @@ function JobPlanningPageInner() {
                     </p>
                 </div>
                 <button
-                    onClick={load}
+                    onClick={() => load(false)}
                     disabled={loading}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 8,
@@ -157,7 +158,14 @@ function JobPlanningPageInner() {
                 {tabs.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
-                        onClick={() => setTab(key)}
+                        onClick={() => {
+                            setTab(key);
+                            if (typeof window !== 'undefined') {
+                                const url = new URL(window.location.href);
+                                url.searchParams.set('tab', key);
+                                window.history.replaceState({}, '', url.toString());
+                            }
+                        }}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 8,
                             padding: '9px 20px', borderRadius: 9, cursor: 'pointer',

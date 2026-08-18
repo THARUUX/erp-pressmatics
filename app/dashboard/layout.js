@@ -8,7 +8,7 @@ import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
     FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
-    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX, FiCreditCard,
+    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX, FiCreditCard, FiShield, FiTool,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -38,9 +38,11 @@ const NAV_GROUPS = [
         label: 'Production',
         items: [
             { icon: FiPrinter, label: 'Estimations', href: '/dashboard/items', permission: 'access_production' },
-            // { icon: FiBox, label: 'Items', href: '/dashboard/items', permission: 'access_production' },
+            { icon: FiBookOpen, label: 'Product Recipes', href: '/dashboard/recipes', permission: 'access_production' },
             { icon: FiBriefcase, label: 'Services', href: '/dashboard/services', permission: 'access_production' },
             { icon: FiCalendar, label: 'Planning', href: '/dashboard/job-planning', permission: 'access_production' },
+            { icon: FiShield, label: 'Quality & Packing', href: '/dashboard/quality-packing', permission: 'access_production' },
+            { icon: FiTool, label: 'Tools', href: '/dashboard/tools', permission: 'access_production' },
         ],
     },
     {

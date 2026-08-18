@@ -1648,8 +1648,55 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
     });
     const [localOrders, setLocalOrders] = useState(orders);
     const [activeMachineId, setActiveMachineId] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mId = urlParams.get('machineId');
+            if (mId) {
+                const parsed = parseInt(mId, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+            const stored = localStorage.getItem('erp_active_machine_id');
+            if (stored) {
+                const parsed = parseInt(stored, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+        }
         return machines.length > 0 ? machines[0].id : null;
     });
+
+    const handleSelectMachine = (id) => {
+        setActiveMachineId(id);
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('erp_active_machine_id', String(id));
+                const url = new URL(window.location.href);
+                url.searchParams.set('machineId', String(id));
+                window.history.replaceState({}, '', url.toString());
+            } catch {}
+        }
+    };
+
+    useEffect(() => {
+        if (machines.length > 0) {
+            const exists = machines.some(m => m.id === activeMachineId);
+            if (!exists) {
+                let restoredId = null;
+                if (typeof window !== 'undefined') {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const mId = urlParams.get('machineId');
+                    const stored = localStorage.getItem('erp_active_machine_id');
+                    const candidate = mId || stored;
+                    if (candidate) {
+                        const parsed = parseInt(candidate, 10);
+                        if (!isNaN(parsed) && machines.some(m => m.id === parsed)) {
+                            restoredId = parsed;
+                        }
+                    }
+                }
+                setActiveMachineId(restoredId || machines[0].id);
+            }
+        }
+    }, [machines, activeMachineId]);
 
     const [filterText, setFilterText] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
@@ -2858,7 +2905,7 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
                                                     <button
                                                         key={m.id}
                                                         onClick={() => {
-                                                            setActiveMachineId(m.id);
+                                                            handleSelectMachine(m.id);
                                                         }}
                                                         className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isSelected
                                                             ? 'bg-white/[0.08] text-white font-semibold'

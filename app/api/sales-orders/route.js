@@ -38,8 +38,22 @@ export async function GET(req) {
         }
 
         if (search) {
-            query += ' AND (so.code LIKE ? OR so.customer_name LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`);
+            const q = `%${search}%`;
+            query += ` AND (
+                so.code LIKE ? OR 
+                so.customer_name LIKE ? OR 
+                so.job_notes LIKE ? OR
+                EXISTS (
+                    SELECT 1 FROM quotation_line_items qli
+                    JOIN quotation_items qi ON qli.quotation_item_id = qi.id
+                    WHERE qli.quotation_id = so.quotation_id AND qi.estimation_name LIKE ?
+                ) OR
+                EXISTS (
+                    SELECT 1 FROM job_tasks jt
+                    WHERE jt.sales_order_id = so.id AND (jt.name LIKE ? OR jt.description LIKE ?)
+                )
+            )`;
+            params.push(q, q, q, q, q, q);
         }
         if (status && status !== 'All') {
             query += ' AND so.status = ?';

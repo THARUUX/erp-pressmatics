@@ -1463,8 +1463,55 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
     });
     const [localOrders, setLocalOrders] = useState(orders);
     const [activeFinishingId, setActiveFinishingId] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const fId = urlParams.get('finishingId');
+            if (fId) {
+                const parsed = parseInt(fId, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+            const stored = localStorage.getItem('erp_active_finishing_id');
+            if (stored) {
+                const parsed = parseInt(stored, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+        }
         return finishings.length > 0 ? finishings[0].id : null;
     });
+
+    const handleSelectFinishing = (id) => {
+        setActiveFinishingId(id);
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('erp_active_finishing_id', String(id));
+                const url = new URL(window.location.href);
+                url.searchParams.set('finishingId', String(id));
+                window.history.replaceState({}, '', url.toString());
+            } catch {}
+        }
+    };
+
+    useEffect(() => {
+        if (finishings.length > 0) {
+            const exists = finishings.some(f => f.id === activeFinishingId);
+            if (!exists) {
+                let restoredId = null;
+                if (typeof window !== 'undefined') {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const fId = urlParams.get('finishingId');
+                    const stored = localStorage.getItem('erp_active_finishing_id');
+                    const candidate = fId || stored;
+                    if (candidate) {
+                        const parsed = parseInt(candidate, 10);
+                        if (!isNaN(parsed) && finishings.some(f => f.id === parsed)) {
+                            restoredId = parsed;
+                        }
+                    }
+                }
+                setActiveFinishingId(restoredId || finishings[0].id);
+            }
+        }
+    }, [finishings, activeFinishingId]);
 
     const [currentWeekStart, setCurrentWeekStart] = useState(() => {
         return getStartOfWeek(new Date());
@@ -2644,7 +2691,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                                     <button
                                         key={f.id}
                                         onClick={() => {
-                                            setActiveFinishingId(f.id);
+                                            handleSelectFinishing(f.id);
                                         }}
                                         className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isSelected
                                             ? 'bg-white/[0.08] text-white font-semibold'
