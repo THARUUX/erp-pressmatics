@@ -240,9 +240,11 @@ export default function QueueScheduleReport({ machines = [], finishings = [], or
     const allTasks = useMemo(() => {
         const result = [];
         orders.forEach(o => {
-            if ((o.status || '').toLowerCase().trim() === 'ready') return;
+            const orderStatus = (o.status || '').toLowerCase().trim();
+            if (orderStatus === 'ready' || orderStatus === 'delivered') return;
             (o.tasks || []).forEach(t => {
-                if ((t.status || '').toLowerCase().trim() === 'ready') return;
+                const taskStatus = (t.status || '').toLowerCase().trim();
+                if (taskStatus === 'ready' || taskStatus === 'delivered') return;
                 result.push({
                     ...t,
                     order_code: o.code || '—',
