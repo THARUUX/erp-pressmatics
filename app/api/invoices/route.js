@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { cookies } from 'next/headers';
+import { logActivity } from '@/lib/activityLogger';
 
 // GET /api/invoices  — list with filters
 export async function GET(req) {
@@ -49,6 +51,13 @@ export async function GET(req) {
             `SELECT COUNT(*) AS total FROM invoices i LEFT JOIN quotations q ON i.quotation_id = q.id ${where}`,
             params
         );
+
+        let activeCompanyId = 1;
+        try {
+            const cookieStore = await cookies();
+            const c = cookieStore.get('company_id');
+            if (c && c.value) activeCompanyId = parseInt(c.value, 10);
+        } catch (e) {}
 
         // Stats
         let statsWhere = 'WHERE (i.company_id = ? OR (i.company_id IS NULL AND ? = 1))';
@@ -113,6 +122,14 @@ export async function POST(req) {
             status       || 'draft',
             activeCompanyId
         ]);
+
+        logActivity({
+            req,
+            action: 'CREATE',
+            entity_type: 'invoice',
+            entity_id: code,
+            details: `Created invoice "${code}" for customer "${customer_name}" (LKR ${parseFloat(amount_due || 0).toFixed(2)})`
+        });
 
         return NextResponse.json({ id: result.insertId, code }, { status: 201 });
     } catch (err) {

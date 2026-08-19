@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { calculateOffset, calculateDigital } from '@/lib/calculations';
 import pool from '@/lib/db';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function POST(req) {
     try {
@@ -387,6 +388,15 @@ export async function POST(req) {
             }
 
             await connection.commit();
+
+            logActivity({
+                req,
+                action: 'CREATE',
+                entity_type: 'estimation',
+                entity_id: code,
+                details: `Created estimation "${estimation_name || code}" for customer "${customer_name}" (LKR ${grandTotal.toFixed(2)})`
+            });
+
             return NextResponse.json({ success: true, itemId, amount: grandTotal });
         } catch (error) {
             try {

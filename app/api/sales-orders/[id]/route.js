@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
 import { syncSalesOrderToDeliveryQueue } from '@/lib/delivery-helper';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function GET(req, { params }) {
     try {
@@ -179,6 +180,14 @@ export async function PUT(req, { params }) {
             if (status === 'Ready' || status === 'In Production') {
                 await syncSalesOrderToDeliveryQueue(id, pool);
             }
+
+            logActivity({
+                req,
+                action: status && status !== oldOrder.status ? 'STATUS_CHANGE' : 'UPDATE',
+                entity_type: 'sales_order',
+                entity_id: oldOrder.code || String(id),
+                details: `Updated sales order ${oldOrder.code || '#' + id}${status ? ` status to "${status}"` : ''}`
+            });
         }
 
         // If status changed to Delivered, check if we should notify via WhatsApp
@@ -243,7 +252,8 @@ export async function DELETE(req, { params }) {
         const { id } = await params;
 
         // Reset quotation status when SO is deleted so Convert to Sales Order is enabled again
-        const [salesOrders] = await pool.execute('SELECT quotation_id FROM sales_orders WHERE id = ?', [id]);
+        const [salesOrders] = await pool.execute('SELECT code, quotation_id FROM sales_orders WHERE id = ?', [id]);
+        const soCode = salesOrders.length > 0 ? salesOrders[0].code : String(id);
         if (salesOrders.length > 0 && salesOrders[0].quotation_id) {
             await pool.execute("UPDATE quotations SET status = 'approved' WHERE id = ?", [salesOrders[0].quotation_id]);
         }
@@ -257,6 +267,15 @@ export async function DELETE(req, { params }) {
         }
 
         await pool.execute('DELETE FROM sales_orders WHERE id = ?', [id]);
+
+        logActivity({
+            req,
+            action: 'DELETE',
+            entity_type: 'sales_order',
+            entity_id: soCode,
+            details: `Deleted sales order ${soCode}`
+        });
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("Delete Sales Order Error:", error);

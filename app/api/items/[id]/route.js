@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { calculateOffset, calculateDigital } from '@/lib/calculations';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function GET(req, { params }) {
     try {
@@ -515,6 +516,15 @@ export async function PUT(req, { params }) {
             }
 
             await connection.commit();
+
+            logActivity({
+                req,
+                action: 'UPDATE',
+                entity_type: 'estimation',
+                entity_id: String(id),
+                details: `Updated estimation #${id} ("${estimation_name || 'Estimation'}") for customer "${customer_name}" (LKR ${grandTotal.toFixed(2)})`
+            });
+
             return NextResponse.json({ success: true, amount: grandTotal });
         } catch (error) {
             try {
@@ -541,6 +551,14 @@ export async function DELETE(req, { params }) {
         await pool.execute('DELETE FROM quotation_item_finishings WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_item_details WHERE quotation_item_id = ?', [id]);
         await pool.execute('DELETE FROM quotation_items WHERE id = ?', [id]);
+
+        logActivity({
+            req,
+            action: 'DELETE',
+            entity_type: 'estimation',
+            entity_id: String(id),
+            details: `Deleted estimation #${id}`
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

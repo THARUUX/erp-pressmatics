@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool, { getWhatsAppDaemonUrl } from '@/lib/db';
 import { generateJobTasks } from '@/lib/task-generator';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function GET(req) {
     try {
@@ -442,6 +443,14 @@ export async function POST(req) {
 
         await conn.commit();
         conn.release();
+
+        logActivity({
+            req,
+            action: 'CREATE',
+            entity_type: 'sales_order',
+            entity_id: code,
+            details: `Created sales order "${code}" for customer "${q.customer_name}" (LKR ${parseFloat(q.total_amount || 0).toFixed(2)})`
+        });
 
         if (phone && waSettings['whatsapp_enabled'] === 'true' && waSettings['whatsapp_auto_send_order'] === 'true') {
             const origin = req.headers.get('origin') || 'http://localhost:3000';

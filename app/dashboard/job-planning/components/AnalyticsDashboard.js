@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import {
     FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock,
-    FiCpu, FiInbox, FiLayers, FiList, FiTrendingUp, FiZap,
+    FiCpu, FiInbox, FiLayers, FiList, FiTrendingUp, FiZap, FiFileText,
 } from 'react-icons/fi';
+import QueueScheduleReport from './QueueScheduleReport';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function fmt(val) {
@@ -106,6 +107,7 @@ function StatusBadge({ count, label, color, grad }) {
 export default function AnalyticsDashboard({ machines, finishings, orders }) {
     const weekStart = useMemo(() => getWeekStart(), []);
     const [chartMetric, setChartMetric] = useState('rate');
+    const [dashTab, setDashTab] = useState('overview');
 
     const allTasks = useMemo(() => orders.flatMap(o => o.tasks || []), [orders]);
 
@@ -289,6 +291,37 @@ export default function AnalyticsDashboard({ machines, finishings, orders }) {
 
     return (
         <div className="flex flex-col gap-6">
+
+            {/* ── Tab Switcher ─────────────────────────────────────────── */}
+            <div className="flex items-center gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
+                <button
+                    onClick={() => setDashTab('overview')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        dashTab === 'overview'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <FiBarChart2 className="w-3.5 h-3.5" /> Overview
+                </button>
+                <button
+                    onClick={() => setDashTab('report')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        dashTab === 'report'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                    <FiFileText className="w-3.5 h-3.5" /> Queue &amp; Schedule Report
+                </button>
+            </div>
+
+            {/* ── Queue & Schedule Report Tab ────────────────────────── */}
+            {dashTab === 'report' && (
+                <QueueScheduleReport machines={machines} finishings={finishings} orders={orders} />
+            )}
+
+            {dashTab === 'overview' && (<>
 
             {/* ── KPI row ─────────────────────────────────────────────────── */}
             <div className="flex flex-wrap gap-3">
@@ -517,6 +550,7 @@ export default function AnalyticsDashboard({ machines, finishings, orders }) {
                 </div>
             </div>
 
+            </>)}
         </div>
     );
 }

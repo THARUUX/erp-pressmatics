@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function POST(req) {
     try {
@@ -208,6 +209,14 @@ export async function POST(req) {
                 [itemId]
             );
         }
+
+        logActivity({
+            req,
+            action: 'CREATE',
+            entity_type: 'quotation',
+            entity_id: code,
+            details: `Created quotation "${code}" for customer "${customer_name}" (LKR ${totalAmount.toFixed(2)})`
+        });
 
         return NextResponse.json({ success: true, quotationId });
 

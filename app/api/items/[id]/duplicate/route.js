@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { logActivity } from '@/lib/activityLogger';
 
 export async function POST(req, { params }) {
     try {
@@ -166,6 +167,14 @@ export async function POST(req, { params }) {
                 ]
             );
         }
+
+        logActivity({
+            req,
+            action: 'DUPLICATE',
+            entity_type: 'estimation',
+            entity_id: code,
+            details: `Duplicated estimation #${id} ("${sourceItem.estimation_name || sourceItem.code}") to new code ${code}`
+        });
 
         return NextResponse.json({ success: true, newId: newItemId });
 

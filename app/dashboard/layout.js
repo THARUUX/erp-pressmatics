@@ -8,7 +8,7 @@ import {
     FiUser, FiBox, FiPrinter, FiSettings, FiLogOut, FiFileText, FiHome,
     FiLayers, FiShoppingCart, FiCalendar, FiBookOpen, FiDollarSign,
     FiAlertTriangle, FiUsers, FiBarChart2, FiTarget, FiChevronRight, FiInfo,
-    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX, FiCreditCard, FiShield, FiTool,
+    FiTruck, FiBriefcase, FiUserCheck, FiBell, FiMessageCircle, FiX, FiCreditCard, FiShield, FiTool, FiActivity,
 } from 'react-icons/fi';
 import Link from 'next/link';
 import { Toaster, toast } from 'react-hot-toast';
@@ -72,6 +72,7 @@ const NAV_GROUPS = [
     {
         label: 'System',
         items: [
+            { icon: FiActivity, label: 'Activity Logs', href: '/dashboard/activity-logs', permission: 'access_system' },
             { icon: FiLayers, label: 'Resources', href: '/dashboard/resources' },
             { icon: FiUsers, label: 'Users', href: '/dashboard/users', permission: 'access_system' },
             { icon: FiSettings, label: 'Settings', href: '/dashboard/settings', permission: 'access_system' },
