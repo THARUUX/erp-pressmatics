@@ -144,7 +144,7 @@ const parseTimeInput = (val) => {
 
 // ── Sortable Task Card ───────────────────────────────────────────
 function TaskCard({
-    task, order, onUpdateTask, onTaskClick, onViewJobTicket, onQuickCalc, machine, accent,
+    task, order, onUpdateTask, onTaskClick, onViewJobTicket, onQuickCalc, machine, finishing, accent,
     draggedTaskId, setDraggedTaskId,
     dragOverTaskId, setDragOverTaskId,
     dragOverPosition, setDragOverPosition,
@@ -229,8 +229,10 @@ function TaskCard({
     };
 
     const isStandalone = task.sales_order_id === null;
+    const parts = task.name ? task.name.split('—') : [];
+    const cleanName = parts.length >= 2 ? parts[parts.length - 2]?.trim() : (task.name || '');
     const jobName = isStandalone
-        ? 'Standalone Task'
+        ? (cleanName || 'Standalone Task')
         : (order?.estimation_names || order?.customer_name || 'No Job Name');
     const customerName = isStandalone ? '' : (order?.customer_name || '');
     const orderCode = order?.code || '—';
@@ -241,7 +243,7 @@ function TaskCard({
     const deliveryRisk = calculateJobDeliveryRisk(
         { ...task, delivery_date: order?.delivery_date },
         0,
-        finishing?.shift_limit || 8
+        finishing?.shift_limit || machine?.shift_limit || 8
     );
 
     return (
