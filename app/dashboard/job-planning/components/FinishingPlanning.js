@@ -1714,8 +1714,11 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
         const isCompletedOrCancelled = ['delivered', 'cancelled', 'completed', 'ready'].includes(String(o.status || '').toLowerCase());
 
         (o.tasks || []).forEach(t => {
+            const isDoneTask = String(t.status || '').toLowerCase() === 'done';
+            const isInactive = isCompletedOrCancelled || isDoneTask;
+
             // A task belongs to a finishing operation if it does not have a machine assigned and name matches
-            if (t.machine_id === null && !isCompletedOrCancelled) {
+            if (t.machine_id === null && !isInactive) {
                 const matchingFin = finishings.find(f => matchesFinishing(t.name, f.name));
                 if (matchingFin) {
                     if (!t.scheduled_date) {
@@ -1727,7 +1730,9 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             const isAssignedToActive = t.machine_id === null && selectedFinishing && matchesFinishing(t.name, selectedFinishing.name);
             if (isAssignedToActive) {
                 if (!t.scheduled_date) {
-                    unplannedTasks.push(t);
+                    if (!isInactive) {
+                        unplannedTasks.push(t);
+                    }
                 } else {
                     const dStr = getLocalDateString(t.scheduled_date);
                     if (dailyTasksMap[dStr]) {
@@ -1737,7 +1742,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
             }
 
             // Daily groupings
-            if (!isCompletedOrCancelled) {
+            if (!isInactive) {
                 if (isAssignedToActive) {
                     if (!t.scheduled_date) {
                         backlogTasks.push(t);

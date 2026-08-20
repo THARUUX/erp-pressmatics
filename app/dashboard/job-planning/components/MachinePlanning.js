@@ -1891,7 +1891,10 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
         const isCompletedOrCancelled = ['delivered', 'cancelled', 'completed', 'ready'].includes(String(o.status || '').toLowerCase());
 
         (o.tasks || []).forEach(t => {
-            if (!t.scheduled_date && !isCompletedOrCancelled) {
+            const isDoneTask = String(t.status || '').toLowerCase() === 'done';
+            const isInactive = isCompletedOrCancelled || isDoneTask;
+
+            if (!t.scheduled_date && !isInactive) {
                 if (t.machine_id !== null) {
                     if (machineUnplannedCounts[t.machine_id] !== undefined) {
                         machineUnplannedCounts[t.machine_id]++;
@@ -1902,7 +1905,9 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
             const isAssignedToActive = (t.machine_id === activeMachineId);
             if (isAssignedToActive) {
                 if (!t.scheduled_date) {
-                    unplannedTasks.push(t);
+                    if (!isInactive) {
+                        unplannedTasks.push(t);
+                    }
                 } else {
                     const dStr = getLocalDateString(t.scheduled_date);
                     if (dailyTasksMap[dStr]) {
@@ -1910,13 +1915,13 @@ export default function MachinePlanning({ machines, finishings = [], orders, emp
                     }
                 }
             } else if (t.machine_id === null) {
-                if (!isCompletedOrCancelled && !isManualFinishing(t.name)) {
+                if (!isInactive && !isManualFinishing(t.name)) {
                     unassignedTasks.push(t);
                 }
             }
 
             // Daily groupings
-            if (!isCompletedOrCancelled) {
+            if (!isInactive) {
                 if (t.machine_id === activeMachineId) {
                     if (!t.scheduled_date) {
                         backlogTasks.push(t);

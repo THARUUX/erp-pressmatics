@@ -483,7 +483,7 @@ export async function PUT(req, { params }) {
                                 parseFloat(s.rate) || 0.00,
                                 parseFloat(s.multiply_by) || 1.00,
                                 s.note || null,
-                                (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
+                                s.total_cost !== undefined && s.total_cost !== null && !isNaN(parseFloat(s.total_cost)) ? parseFloat(s.total_cost) : (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1.00)
                             ]
                         );
                     }

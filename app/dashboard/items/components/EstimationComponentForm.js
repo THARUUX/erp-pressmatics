@@ -555,67 +555,67 @@ export default function EstimationComponentForm({
                 <div className="lg:col-span-2 space-y-6">
                     {isServicesComponent ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
+                            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+                                <div className="flex-1">
                                     <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Service</label>
                                     <select
                                         value={selectedServiceId}
                                         onChange={(e) => {
-                                            setSelectedServiceId(e.target.value);
+                                            const sId = e.target.value;
+                                            if (!sId) return;
+                                            const svc = allServices.find(s => s.id === parseInt(sId));
+                                            if (svc) {
+                                                const defaultEmp = svc.employees?.[0];
+                                                const defaultRate = defaultEmp ? parseFloat(defaultEmp.rate) || 0 : 0;
+                                                const defaultMult = defaultEmp?.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1;
+                                                const newSvcLine = {
+                                                    id: `svc-${Date.now()}-${Math.random()}`,
+                                                    service_id: svc.id,
+                                                    service_name: svc.name,
+                                                    employee_name: defaultEmp ? defaultEmp.employee_name : '',
+                                                    rate_unit: defaultEmp ? defaultEmp.default_rate_unit : 'per job',
+                                                    rate: defaultRate,
+                                                    multiply_by: defaultMult,
+                                                    note: '',
+                                                    total_cost: defaultRate * defaultMult
+                                                };
+                                                const alreadyAdded = (data.services || []).some(s => s.service_id === svc.id);
+                                                if (!alreadyAdded) {
+                                                    onChange(index, 'services', [...(data.services || []), newSvcLine]);
+                                                }
+                                                setSelectedServiceId('');
+                                            }
                                         }}
                                         className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
                                     >
-                                        <option value="">Select Service...</option>
+                                        <option value="">Select Existing Service...</option>
                                         {allServices.map(s => (
                                             <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
                                     </select>
                                 </div>
-
-                                {selectedServiceId && (
-                                    <div>
-                                        <label className="block text-sm text-gray-400 mb-1.5 font-medium">Select Employee</label>
-                                        <select
-                                            value=""
-                                            onChange={(e) => {
-                                                const empName = e.target.value;
-                                                if (!empName) return;
-                                                const svc = allServices.find(s => s.id === parseInt(selectedServiceId));
-                                                if (svc) {
-                                                    const emp = svc.employees.find(em => em.employee_name === empName);
-                                                    if (emp) {
-                                                        const newSvcLine = {
-                                                            id: `svc-emp-${Date.now()}-${Math.random()}`,
-                                                            service_id: svc.id,
-                                                            service_name: svc.name,
-                                                            employee_name: emp.employee_name,
-                                                            rate_unit: emp.default_rate_unit,
-                                                            rate: emp.rate,
-                                                            multiply_by: emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1,
-                                                            note: '',
-                                                            total_cost: emp.rate * (emp.default_rate_unit === 'per unit' ? (parseFloat(data.quantity) || 1) : 1)
-                                                        };
-                                                        // Check if already added to prevent duplicates
-                                                        const alreadyAdded = (data.services || []).some(s => s.service_id === svc.id && s.employee_name === emp.employee_name);
-                                                        if (!alreadyAdded) {
-                                                            onChange(index, 'services', [...(data.services || []), newSvcLine]);
-                                                        }
-                                                        // Reset selection
-                                                        setSelectedServiceId('');
-                                                    }
-                                                }
-                                            }}
-                                            className="w-full bg-secondary border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/30"
-                                        >
-                                            <option value="">Select Employee...</option>
-                                            {allServices.find(s => s.id === parseInt(selectedServiceId))?.employees.map(emp => (
-                                                <option key={emp.employee_name} value={emp.employee_name}>
-                                                    {emp.employee_name} — {emp.default_rate_unit} ({currency}{parseFloat(emp.rate).toFixed(2)})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newSvcLine = {
+                                                id: `svc-${Date.now()}-${Math.random()}`,
+                                                service_id: null,
+                                                service_name: 'Custom Service',
+                                                employee_name: '',
+                                                rate_unit: 'per job',
+                                                rate: 0,
+                                                multiply_by: 1,
+                                                note: '',
+                                                total_cost: 0
+                                            };
+                                            onChange(index, 'services', [...(data.services || []), newSvcLine]);
+                                        }}
+                                        className="px-4 py-2 bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 text-violet-200 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 h-[38px] shrink-0"
+                                    >
+                                        <FiPlus size={16} /> Add Custom Service
+                                    </button>
+                                </div>
                             </div>
 
                             {data.services && data.services.length > 0 ? (
@@ -624,9 +624,22 @@ export default function EstimationComponentForm({
                                         <div key={line.id || lIdx} className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4 relative">
                                             {/* Header with Title and Delete Button */}
                                             <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h4 className="font-bold text-white text-base">{line.service_name}</h4>
-                                                    <p className="text-sm text-gray-400 mt-0.5">Employee: <span className="text-gray-300 font-medium">{line.employee_name}</span></p>
+                                                <div className="flex-1">
+                                                    {line.service_id ? (
+                                                        <h4 className="font-bold text-white text-base">{line.service_name}</h4>
+                                                    ) : (
+                                                        <input
+                                                            type="text"
+                                                            value={line.service_name || ''}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                const updated = data.services.map((s, idx) => idx === lIdx ? { ...s, service_name: val } : s);
+                                                                onChange(index, 'services', updated);
+                                                            }}
+                                                            placeholder="Enter Service Name..."
+                                                            className="bg-secondary border border-white/15 rounded-lg px-3 py-1 text-white font-bold text-base focus:outline-none focus:border-violet-500 w-full max-w-sm"
+                                                        />
+                                                    )}
                                                 </div>
                                                 <button
                                                     type="button"
@@ -707,9 +720,22 @@ export default function EstimationComponentForm({
 
                                                 <div>
                                                     <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Cost ({currency})</label>
-                                                    <div className="w-full bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-right text-emerald-400 font-mono font-bold text-sm">
-                                                        {(parseFloat(line.total_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={line.total_cost ?? ''}
+                                                        onChange={(e) => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            const mult = parseFloat(line.multiply_by) || 1;
+                                                            const updated = data.services.map((s, idx) => idx === lIdx ? {
+                                                                ...s,
+                                                                total_cost: val,
+                                                                rate: mult > 0 ? val / mult : val
+                                                            } : s);
+                                                            onChange(index, 'services', updated);
+                                                        }}
+                                                        className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 text-right text-emerald-400 font-mono font-bold text-sm focus:outline-none focus:border-emerald-500/60"
+                                                    />
                                                 </div>
                                             </div>
 
@@ -1923,11 +1949,24 @@ export default function EstimationComponentForm({
                                 </div>
                             )}
 
-                            <div className="flex justify-between text-gray-400 pt-2 border-t border-white/10"><span>Finishings:</span> <span>{currency}{(calculationResult.costs?.finishing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                            <div className="flex justify-between text-white font-bold pt-2 border-t border-white/20 text-lg">
-                                <span>Subtotal:</span>
-                                <span>{currency}{(calculationResult.costs?.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </div>
+                             {isServicesComponent && (
+                                 <div className="space-y-2 mb-2 pb-2 border-b border-white/10">
+                                     <div className="flex justify-between text-gray-400">
+                                         <span>Services ({(data.services || []).length}):</span>
+                                         <span className="font-mono text-emerald-400 font-bold">
+                                             {currency}{((data.services || []).reduce((acc, s) => acc + (parseFloat(s.total_cost) !== undefined && s.total_cost !== null && !isNaN(parseFloat(s.total_cost)) ? parseFloat(s.total_cost) : (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1)), 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                         </span>
+                                     </div>
+                                 </div>
+                             )}
+
+                             {!isServicesComponent && (
+                                 <div className="flex justify-between text-gray-400 pt-2 border-t border-white/10"><span>Finishings:</span> <span>{currency}{(calculationResult.costs?.finishing || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                             )}
+                             <div className="flex justify-between text-white font-bold pt-2 border-t border-white/20 text-lg">
+                                 <span>Subtotal:</span>
+                                 <span>{currency}{(calculationResult.costs?.total !== undefined ? calculationResult.costs.total : ((data.services || []).reduce((acc, s) => acc + (parseFloat(s.total_cost) !== undefined && s.total_cost !== null && !isNaN(parseFloat(s.total_cost)) ? parseFloat(s.total_cost) : (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1)), 0))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                             </div>
                             {calculationResult.time && calculationResult.time.total > 0 && (
                                 <div className="mt-2 pt-2 border-t border-white/10 space-y-1 text-xs">
                                     {calculationResult.time.printing > 0 && (

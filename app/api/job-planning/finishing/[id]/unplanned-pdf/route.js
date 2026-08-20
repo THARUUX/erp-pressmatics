@@ -128,8 +128,10 @@ export async function GET(req, { params }) {
                      JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                      WHERE qli.quotation_id = so.quotation_id) AS estimation_names
              FROM job_tasks jt
-             JOIN sales_orders so ON jt.sales_order_id = so.id
+             LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
              WHERE jt.machine_id IS NULL AND jt.scheduled_date IS NULL
+               AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
+               AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
              ORDER BY so.delivery_date ASC, jt.display_order ASC`
         );
 

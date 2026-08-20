@@ -15,6 +15,21 @@ export async function GET(req, { params }) {
 
         const salesOrder = salesOrders[0];
 
+        const { searchParams } = new URL(req.url);
+        const serviceId = searchParams.get('service_id');
+        if (serviceId && salesOrder.quotation_id) {
+            const [svcCostRows] = await pool.execute(
+                `SELECT SUM(qis.total_cost) as service_total
+                 FROM quotation_item_services qis
+                 JOIN quotation_line_items qli ON qli.quotation_item_id = qis.quotation_item_id
+                 WHERE qli.quotation_id = ? AND qis.service_id = ?`,
+                [salesOrder.quotation_id, serviceId]
+            );
+            if (svcCostRows.length > 0 && svcCostRows[0].service_total !== null) {
+                salesOrder.service_total_amount = parseFloat(svcCostRows[0].service_total);
+            }
+        }
+
         // Fetch Customer Phone & Portal Token for WhatsApp
         salesOrder.customer_phone = null;
         salesOrder.customer_portal_token = null;

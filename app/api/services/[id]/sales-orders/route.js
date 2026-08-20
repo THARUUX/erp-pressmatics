@@ -8,15 +8,30 @@ export async function GET(req, { params }) {
 
         // SOs linked via tasks, direct service_id, or converted quotations for this service
         const [salesOrders] = await pool.execute(
-            `SELECT DISTINCT so.id, so.code, so.customer_name, so.status, so.total_amount, so.delivery_date, so.created_at,
-                    COUNT(jt.id) AS task_count
+            `SELECT DISTINCT 
+                so.id, 
+                so.code, 
+                so.customer_name, 
+                so.status, 
+                COALESCE(
+                    (
+                        SELECT SUM(qis.total_cost)
+                        FROM quotation_item_services qis
+                        JOIN quotation_line_items qli ON qli.quotation_item_id = qis.quotation_item_id
+                        WHERE qli.quotation_id = so.quotation_id AND qis.service_id = ?
+                    ),
+                    so.total_amount
+                ) AS total_amount,
+                so.delivery_date, 
+                so.created_at,
+                COUNT(DISTINCT jt.id) AS task_count
              FROM sales_orders so
              LEFT JOIN job_tasks jt ON jt.sales_order_id = so.id
              LEFT JOIN quotations q ON so.quotation_id = q.id
              WHERE jt.service_id = ? OR so.service_id = ? OR q.service_id = ?
-             GROUP BY so.id
+             GROUP BY so.id, so.code, so.customer_name, so.status, so.total_amount, so.delivery_date, so.created_at
              ORDER BY so.created_at DESC`,
-            [id, id, id]
+            [id, id, id, id]
         );
 
         return NextResponse.json({ salesOrders });

@@ -157,6 +157,8 @@ export async function GET(req, { params }) {
               WHERE jt.machine_id IS NULL AND (
                   (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
               )
+                AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
+                AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
               ORDER BY jt.scheduled_date ASC, jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
             [startDateStr, endDateStr]
         );

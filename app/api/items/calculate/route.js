@@ -25,8 +25,12 @@ export async function POST(req) {
             let result;
 
             if (isServicesComp) {
-                const servicesCost = (comp.services || []).reduce((acc, s) =>
-                    acc + (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 0), 0);
+                const servicesCost = (comp.services || []).reduce((acc, s) => {
+                    const cost = (s.total_cost !== undefined && s.total_cost !== null && !isNaN(parseFloat(s.total_cost)))
+                        ? parseFloat(s.total_cost)
+                        : (parseFloat(s.rate) || 0) * (parseFloat(s.multiply_by) || 1);
+                    return acc + (isNaN(cost) ? 0 : cost);
+                }, 0);
                 result = {
                     costs: { paper: 0, plate: 0, printing: 0, finishing: 0, total: servicesCost },
                     printedSheets: 0, fullSheetsUsed: 0, wastageSheets: 0,

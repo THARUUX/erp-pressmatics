@@ -50,8 +50,7 @@ export async function GET() {
                          JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
                          WHERE qli.quotation_id = so.quotation_id) AS estimation_names
                  FROM sales_orders so
-                 WHERE (so.status NOT IN ('Delivered','Cancelled','Ready')
-                        OR so.id IN (SELECT DISTINCT sales_order_id FROM job_tasks WHERE machine_id IS NOT NULL))
+                 WHERE (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready'))
                  ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
             )
         ]);

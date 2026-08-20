@@ -241,10 +241,10 @@ export default function QueueScheduleReport({ machines = [], finishings = [], or
         const result = [];
         orders.forEach(o => {
             const orderStatus = (o.status || '').toLowerCase().trim();
-            if (orderStatus === 'ready' || orderStatus === 'delivered') return;
+            if (['ready', 'delivered', 'cancelled', 'completed'].includes(orderStatus)) return;
             (o.tasks || []).forEach(t => {
                 const taskStatus = (t.status || '').toLowerCase().trim();
-                if (taskStatus === 'ready' || taskStatus === 'delivered') return;
+                if (['ready', 'delivered', 'cancelled', 'completed', 'done'].includes(taskStatus)) return;
                 result.push({
                     ...t,
                     order_code: o.code || '—',

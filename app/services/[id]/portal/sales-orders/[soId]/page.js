@@ -123,7 +123,7 @@ export default function SimpleServiceSalesOrderPage({ params }) {
     const fetchOrder = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/sales-orders/${soId}`);
+            const res = await fetch(`/api/sales-orders/${soId}?service_id=${id}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             setOrder(data.salesOrder);
@@ -368,10 +368,10 @@ export default function SimpleServiceSalesOrderPage({ params }) {
 
                     <div>
                         <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
-                            <FiDollarSign size={13} className="text-indigo-400" /> Total Value
+                            <FiDollarSign size={13} className="text-indigo-400" /> Service Value
                         </span>
                         <p className="text-base font-bold font-mono text-white">
-                            LKR {Number(order.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            LKR {Number(order.service_total_amount !== undefined && order.service_total_amount !== null ? order.service_total_amount : (order.total_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </p>
                     </div>
                 </div>

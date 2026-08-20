@@ -144,6 +144,8 @@ export async function GET(req, { params }) {
              LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
              WHERE jt.assigned_to = ?
                AND ((jt.scheduled_date BETWEEN ? AND ?) OR jt.scheduled_date IS NULL)
+               AND (so.id IS NULL OR (so.status != 'Cancelled' AND LOWER(so.status) != 'cancelled'))
+               AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
              ORDER BY jt.scheduled_date ASC, jt.display_order ASC, jt.id ASC`,
             [employee.name, startDateStr, endDateStr]
         );
