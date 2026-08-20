@@ -135,7 +135,7 @@ const parseTimeInput = (val) => {
                 return Math.round(res);
             }
         }
-    } catch {}
+    } catch { }
 
     // Fallback: raw number is treated as minutes
     const num = parseFloat(clean);
@@ -257,212 +257,154 @@ function TaskCard({
                     className={`w-full text-left bg-transparent border-b border-white/10 py-3.5 px-1.5 cursor-grab select-none relative group transition-all hover:bg-white/[0.01] last:border-b-0 ${isDragged ? 'opacity-25' : 'opacity-100'
                         }`}
                 >
-            {dragOverTaskId === task.id && dragOverPosition === 'before' && (
-                <div
-                    className="absolute top-0 left-0 right-0 h-[3px] rounded z-[99] animate-pulse"
-                    style={{ backgroundColor: accent || '#a78bfa' }}
-                />
-            )}
-
-            <div className="flex items-center justify-between gap-1.5">
-                <div className="flex items-center gap-2 min-w-0">
-                    <div
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        style={{
-                            backgroundColor: dot,
-                            boxShadow: task.status === 'done' ? `0 0 6px ${dot}` : 'none'
-                        }}
-                    />
-                    {order?.id ? (
-                        <Link
-                            href={`/dashboard/sales-orders/${order.id}`}
-                            target="_blank"
-                            onMouseDown={e => e.stopPropagation()}
-                            className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0 flex items-center gap-0.5 hover:underline"
-                            title="Open Sales Order"
-                        >
-                            {orderCode} <FiExternalLink className="w-2.5 h-2.5 opacity-70" />
-                        </Link>
-                    ) : (
-                        <span className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0">
-                            {orderCode}
-                        </span>
-                    )}
-                    <span className="text-[12px] font-bold text-white truncate block max-w-[140px]" title={jobName}>
-                        {jobName}
-                    </span>
-                    {deliveryRisk.isHighRisk && (
-                        <span
-                            className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wide animate-pulse bg-rose-500/20 text-rose-300 border border-rose-500/40 flex-shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.3)]"
-                            title={`Delayed Risk: Delivery is ${order?.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : '—'}`}
-                        >
-                            🔴 {deliveryRisk.badgeLabel}
-                        </span>
-                    )}
-                    {deliveryRisk.isMediumRisk && (
-                        <span
-                            className="text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0"
-                            title="Tight Deadline"
-                        >
-                            🟡 {deliveryRisk.badgeLabel}
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {order?.id && onViewJobTicket && (
-                        <button
-                            onClick={e => {
-                                e.stopPropagation();
-                                onViewJobTicket(order.id);
-                            }}
-                            onMouseDown={e => e.stopPropagation()}
-                            className="bg-white/10 border border-white/25 text-white hover:bg-amber-500/20 rounded p-1 flex items-center transition-all"
-                            title="View Job Ticket"
-                        >
-                            <FiFileText className="w-2.5 h-2.5" />
-                        </button>
-                    )}
-                    {isEditingTime ? (
-                        <input
-                            type="text"
-                            value={timeInputValue}
-                            onChange={e => setTimeInputValue(e.target.value)}
-                            onBlur={handleTimeSubmit}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') handleTimeSubmit();
-                                if (e.key === 'Escape') setIsEditingTime(false);
-                            }}
-                            autoFocus
-                            className="text-[9.5px] font-bold text-white bg-purple-950/80 border border-purple-500 rounded px-1.5 py-0.5 w-[55px] text-center focus:outline-none"
-                            onMouseDown={e => e.stopPropagation()}
-                            onClick={e => e.stopPropagation()}
+                    {dragOverTaskId === task.id && dragOverPosition === 'before' && (
+                        <div
+                            className="absolute top-0 left-0 right-0 h-[3px] rounded z-[99] animate-pulse"
+                            style={{ backgroundColor: accent || '#a78bfa' }}
                         />
-                    ) : (
-                        <span
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setTimeInputValue(formatTimeDisplay(task.estimated_minutes));
-                                setIsEditingTime(true);
-                            }}
-                            className="text-[9.5px] font-bold text-white/50 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white/10 hover:text-white transition-all select-none"
-                            title="Click to edit time (e.g. 45m or 1.5h)"
-                            onMouseDown={e => e.stopPropagation()}
-                        >
-                            {formatTimeDisplay(task.estimated_minutes)}
-                        </span>
-                    )}
-                    {canCalc && (
-                        <button
-                            onClick={handleQuickCalc}
-                            onMouseDown={e => e.stopPropagation()}
-                            disabled={calcLoading}
-                            className="bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
-                            title={`Recalculate: ${parseFloat(task.quantity) || 0} qty ÷ ${parseFloat(task.custom_speed || machine?.speed) || 0} speed + ${parseFloat(task.custom_make_ready_minutes ?? machine?.make_ready_minutes ?? 0)}m setup`}
-                        >
-                            <FiZap className="w-2.5 h-2.5" />
-                        </button>
                     )}
 
-                    {/* Transfer Button & Dropdown */}
-                    <div className="relative">
-                        <button
-                            onClick={e => {
-                                e.stopPropagation();
-                                setShowTransferDropdown(!showTransferDropdown);
-                            }}
-                            onMouseDown={e => e.stopPropagation()}
-                            className="bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded p-1 flex items-center transition-all"
-                            title="Transfer to another operation"
-                        >
-                            <FiMove className="w-2.5 h-2.5" />
-                        </button>
-                        {showTransferDropdown && (
-                            <>
-                                <div
-                                    className="fixed inset-0 z-[998]"
+                    <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div
+                                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style={{
+                                    backgroundColor: dot,
+                                    boxShadow: task.status === 'done' ? `0 0 6px ${dot}` : 'none'
+                                }}
+                            />
+                            {order?.id ? (
+                                <Link
+                                    href={`/dashboard/sales-orders/${order.id}`}
+                                    target="_blank"
+                                    onMouseDown={e => e.stopPropagation()}
+                                    className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0 flex items-center gap-0.5 hover:underline"
+                                    title="Open Sales Order"
+                                >
+                                    {orderCode} <FiExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                </Link>
+                            ) : (
+                                <span className="text-[9.5px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded tracking-wider flex-shrink-0">
+                                    {orderCode}
+                                </span>
+                            )}
+                            <span className="text-[12px] font-bold text-white truncate block max-w-[140px]" title={jobName}>
+                                {jobName}
+                            </span>
+                            {deliveryRisk.isHighRisk && (
+                                <span
+                                    className="text-[9px] font-black px-1.5 py-0.5 rounded tracking-wide animate-pulse bg-rose-500/20 text-rose-300 border border-rose-500/40 flex-shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.3)]"
+                                    title={`Delayed Risk: Delivery is ${order?.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : '—'}`}
+                                >
+                                    {deliveryRisk.badgeLabel}
+                                </span>
+                            )}
+                            {deliveryRisk.isMediumRisk && (
+                                <span
+                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0"
+                                    title="Tight Deadline"
+                                >
+                                    🟡 {deliveryRisk.badgeLabel}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {order?.id && onViewJobTicket && (
+                                <button
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        onViewJobTicket(order.id);
+                                    }}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    className="bg-white/10 border border-white/25 text-white hover:bg-amber-500/20 rounded p-1 flex items-center transition-all"
+                                    title="View Job Ticket"
+                                >
+                                    <FiFileText className="w-2.5 h-2.5" />
+                                </button>
+                            )}
+                            {isEditingTime ? (
+                                <input
+                                    type="text"
+                                    value={timeInputValue}
+                                    onChange={e => setTimeInputValue(e.target.value)}
+                                    onBlur={handleTimeSubmit}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') handleTimeSubmit();
+                                        if (e.key === 'Escape') setIsEditingTime(false);
+                                    }}
+                                    autoFocus
+                                    className="text-[9.5px] font-bold text-white bg-purple-950/80 border border-purple-500 rounded px-1.5 py-0.5 w-[55px] text-center focus:outline-none"
+                                    onMouseDown={e => e.stopPropagation()}
+                                    onClick={e => e.stopPropagation()}
+                                />
+                            ) : (
+                                <span
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setShowTransferDropdown(false);
+                                        setTimeInputValue(formatTimeDisplay(task.estimated_minutes));
+                                        setIsEditingTime(true);
                                     }}
-                                />
-                                <div
-                                    className="absolute right-0 mt-1 z-[999] w-[180px] bg-black border border-white/15 rounded-lg shadow-2xl py-1 text-left"
-                                    onClick={e => e.stopPropagation()}
+                                    className="text-[9.5px] font-bold text-white/50 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded cursor-pointer hover:bg-white/10 hover:text-white transition-all select-none"
+                                    title="Click to edit time (e.g. 45m or 1.5h)"
                                     onMouseDown={e => e.stopPropagation()}
                                 >
-                                    <div className="px-2.5 py-1 text-[8.5px] font-extrabold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                                        Transfer to Operation
-                                    </div>
-                                    <div className="max-h-[180px] overflow-y-auto">
-                                        {finishings.map(f => (
-                                            <button
-                                                key={f.id}
-                                                onClick={() => {
-                                                    handleTransfer(f);
-                                                    setShowTransferDropdown(false);
-                                                }}
-                                                className="w-full px-2.5 py-1.5 text-left text-xs text-gray-300 hover:bg-white/5 truncate block font-medium"
-                                            >
-                                                {f.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
+                                    {formatTimeDisplay(task.estimated_minutes)}
+                                </span>
+                            )}
+                            {canCalc && (
+                                <button
+                                    onClick={handleQuickCalc}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    disabled={calcLoading}
+                                    className="bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 rounded p-1 flex items-center transition-all disabled:opacity-50"
+                                    title={`Recalculate: ${parseFloat(task.quantity) || 0} qty ÷ ${parseFloat(task.custom_speed || machine?.speed) || 0} speed + ${parseFloat(task.custom_make_ready_minutes ?? machine?.make_ready_minutes ?? 0)}m setup`}
+                                >
+                                    <FiZap className="w-2.5 h-2.5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-gray-400 pl-3.5">
+                        <span className="font-semibold text-gray-200 truncate pr-2 max-w-[160px]">
+                            {(() => {
+                                const parts = task.name ? task.name.split('—') : [];
+                                if (parts.length >= 2) {
+                                    return parts[parts.length - 2]?.trim();
+                                }
+                                return task.name || '';
+                            })()}
+                        </span>
+                        {customerName && (
+                            <span className="text-[9.5px] text-gray-500 truncate max-w-[100px]">
+                                {customerName}
+                            </span>
                         )}
                     </div>
 
-                    <button
-                        onClick={e => { e.stopPropagation(); onTaskClick && onTaskClick(task, order); }}
-                        onMouseDown={e => e.stopPropagation()}
-                        className="bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 rounded p-1 flex items-center transition-all"
-                        title="View / edit task details"
-                    >
-                        <FiEdit2 className="w-2.5 h-2.5" />
-                    </button>
-                </div>
-            </div>
-
-            <div className="mt-1.5 flex items-center justify-between text-[11px] text-gray-400 pl-3.5">
-                <span className="font-semibold text-gray-200 truncate pr-2 max-w-[160px]">
-                    {(() => {
-                        const parts = task.name ? task.name.split('—') : [];
-                        if (parts.length >= 2) {
-                            return parts[parts.length - 2]?.trim();
-                        }
-                        return task.name || '';
-                    })()}
-                </span>
-                {customerName && (
-                    <span className="text-[9.5px] text-gray-500 truncate max-w-[100px]">
-                        {customerName}
-                    </span>
-                )}
-            </div>
-
-            {(task.assigned_to || task.helper_name) && (
-                <div className="mt-1 pl-3.5 flex flex-wrap gap-1">
-                    {task.assigned_to && (
-                        <span className="inline-flex items-center gap-1 text-[9px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Operator: ${task.assigned_to}`}>
-                            <FiUser className="w-2.5 h-2.5" />
-                            {task.assigned_to}
-                        </span>
+                    {(task.assigned_to || task.helper_name) && (
+                        <div className="mt-1 pl-3.5 flex flex-wrap gap-1">
+                            {task.assigned_to && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Operator: ${task.assigned_to}`}>
+                                    <FiUser className="w-2.5 h-2.5" />
+                                    {task.assigned_to}
+                                </span>
+                            )}
+                            {task.helper_name && (
+                                <span className="inline-flex items-center gap-1 text-[9px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Helper: ${task.helper_name}`}>
+                                    <FiUser className="w-2.5 h-2.5" />
+                                    {task.helper_name}
+                                </span>
+                            )}
+                        </div>
                     )}
-                    {task.helper_name && (
-                        <span className="inline-flex items-center gap-1 text-[9px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded font-medium" title={`Assigned Helper: ${task.helper_name}`}>
-                            <FiUser className="w-2.5 h-2.5" />
-                            {task.helper_name}
-                        </span>
-                    )}
-                </div>
-            )}
 
-            {dragOverTaskId === task.id && dragOverPosition === 'after' && (
-                <div
-                    className="absolute bottom-0 left-0 right-0 h-[3px] rounded z-[99] animate-pulse"
-                    style={{ backgroundColor: accent || '#a78bfa' }}
-                />
-            )}
+                    {dragOverTaskId === task.id && dragOverPosition === 'after' && (
+                        <div
+                            className="absolute bottom-0 left-0 right-0 h-[3px] rounded z-[99] animate-pulse"
+                            style={{ backgroundColor: accent || '#a78bfa' }}
+                        />
+                    )}
 
                 </div>
             </ContextMenu.Trigger>
@@ -1619,7 +1561,7 @@ export default function FinishingPlanning({ finishings = [], machines = [], orde
                 const url = new URL(window.location.href);
                 url.searchParams.set('finishingId', String(id));
                 window.history.replaceState({}, '', url.toString());
-            } catch {}
+            } catch { }
         }
     };
 
