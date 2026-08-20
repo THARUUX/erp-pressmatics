@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import React from 'react';
 import pool from '@/lib/db';
+import JobTaskRepository from '@/lib/repositories/JobTaskRepository';
 import EmployeeTasksDocument from './EmployeeTasksDocument';
 
 function generateCSVForSchedule(tasks, columnsToExport) {
@@ -131,24 +132,7 @@ export async function GET(req, { params }) {
         }
 
         // Fetch tasks for this employee
-        const [rawTasks] = await pool.execute(
-            `SELECT jt.*,
-                    so.code AS order_code,
-                    so.customer_name,
-                    so.delivery_date AS order_delivery_date,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM job_tasks jt
-             LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.assigned_to = ?
-               AND ((jt.scheduled_date BETWEEN ? AND ?) OR jt.scheduled_date IS NULL)
-               AND (so.id IS NULL OR (so.status != 'Cancelled' AND LOWER(so.status) != 'cancelled'))
-               AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
-             ORDER BY jt.scheduled_date ASC, jt.display_order ASC, jt.id ASC`,
-            [employee.name, startDateStr, endDateStr]
-        );
+        const rawTasks = await JobTaskRepository.getScheduleTasksForEmployee(pool, employee.name, startDateStr, endDateStr);
 
         let tasks = excludeCompleted ? rawTasks.filter(t => t.status !== 'done') : rawTasks;
 

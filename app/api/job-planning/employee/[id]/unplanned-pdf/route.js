@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import React from 'react';
 import pool from '@/lib/db';
+import JobTaskRepository from '@/lib/repositories/JobTaskRepository';
 import EmployeeUnplannedPdfDocument from './EmployeeUnplannedPdfDocument';
 
 export async function GET(req, { params }) {
@@ -29,24 +30,7 @@ export async function GET(req, { params }) {
         );
         if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
 
-        const [tasks] = await pool.execute(
-            `SELECT jt.*,
-                    so.code AS order_code,
-                    so.customer_name,
-                    so.delivery_date AS order_delivery_date,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM job_tasks jt
-             LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.assigned_to = ?
-               AND jt.scheduled_date IS NULL
-               AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
-               AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
-             ORDER BY jt.display_order ASC, jt.id ASC`,
-            [employee.name]
-        );
+        const tasks = await JobTaskRepository.getUnplannedTasksForEmployee(pool, employee.name);
 
         const totalTasks = tasks.length;
         const totalQty = tasks.reduce((s, t) => s + (parseFloat(t.quantity) || 0), 0);

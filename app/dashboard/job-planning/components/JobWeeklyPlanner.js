@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     FiCalendar, FiChevronLeft, FiChevronRight, FiSearch,
     FiCpu, FiClock, FiAlertCircle, FiRefreshCw, FiLayers, FiX, FiGrid,
@@ -61,12 +62,24 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
     const [redoStack, setRedoStack] = useState([]);
     const [showJobTicket, setShowJobTicket] = useState(false);
 
+    const searchParams = useSearchParams();
+
     // Initialize week and sync orders
     useEffect(() => {
         setLocalOrders(orders);
         if (!currentWeekStart) {
             setCurrentWeekStart(getMonday(new Date()));
         }
+        
+        const soParam = searchParams.get('so');
+        if (soParam && orders.length > 0) {
+            const matchedOrder = orders.find(o => String(o.id) === String(soParam) || String(o.code) === String(soParam));
+            if (matchedOrder) {
+                setSelectedOrderId(matchedOrder.id);
+                return;
+            }
+        }
+
         if (orders.length > 0 && !selectedOrderId) {
             // Auto-select first active order
             const firstActive = orders.find(o => !['cancelled', 'delivered'].includes(String(o.status || '').toLowerCase()));
@@ -76,7 +89,7 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
                 setSelectedOrderId(orders[0].id);
             }
         }
-    }, [orders]);
+    }, [orders, searchParams]);
 
     // Calculate dates for the 7 days of the active week
     const weekDates = [];
@@ -129,9 +142,14 @@ export default function JobWeeklyPlanner({ machines = [], finishings = [], order
         const matchesQuery = code.includes(q) || customer.includes(q) || estimation.includes(q);
         if (!matchesQuery) return false;
 
-        // Hide inactive/cancelled/delivered orders to keep it clean
+        // Hide cancelled orders, or delivered/completed orders that have no scheduled tasks
         const status = String(order.status || '').toLowerCase();
-        return !['cancelled', 'delivered'].includes(status);
+        if (status === 'cancelled') return false;
+        if (['delivered', 'completed'].includes(status)) {
+            const hasScheduledTasks = (order.tasks || []).some(t => t.scheduled_date !== null);
+            return hasScheduledTasks;
+        }
+        return true;
     });
 
     // Currently selected order

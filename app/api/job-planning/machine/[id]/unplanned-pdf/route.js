@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import React from 'react';
 import pool from '@/lib/db';
+import JobTaskRepository from '@/lib/repositories/JobTaskRepository';
 import MachineUnplannedPdfDocument from './MachineUnplannedPdfDocument';
 
 // Resolve run quantity based on speed unit
@@ -114,20 +115,7 @@ export async function GET(req, { params }) {
         const machine = machines[0];
 
         // Fetch unplanned tasks for this machine
-        const [rawTasks] = await pool.execute(
-            `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date, so.job_notes,
-                    (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                     FROM quotation_items qi
-                     JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                     WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-             FROM job_tasks jt
-             LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-             WHERE jt.machine_id = ? AND jt.scheduled_date IS NULL
-               AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
-               AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
-             ORDER BY jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
-            [id]
-        );
+        const rawTasks = await JobTaskRepository.getUnplannedTasksForMachine(pool, id);
 
         // Filter out completed tasks if requested
         let tasks = rawTasks;

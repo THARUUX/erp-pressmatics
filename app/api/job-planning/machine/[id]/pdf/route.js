@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import React from 'react';
 import pool from '@/lib/db';
+import JobTaskRepository from '@/lib/repositories/JobTaskRepository';
 import MachineTasksDocument from './MachineTasksDocument';
 
 function generateCSVForSchedule(tasks, columnsToExport) {
@@ -134,48 +135,18 @@ export async function GET(req, { params }) {
             weekRangeStr = `${new Date(startDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(endDateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
         }
 
-        if (id === 'manual') {
-            machine = { id: 'manual', name: 'Manual / Hand Operations', type: 'finishing', speed: 0, make_ready_minutes: 0, shift_limit: 8 };
-            
-            const [rows] = await pool.execute(
-                `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date,
-                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                         FROM quotation_items qi
-                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-                  FROM job_tasks jt
-                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-                  WHERE jt.machine_id IS NULL AND (
-                      (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
-                  )
-                    AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
-                    AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
-                  ORDER BY jt.scheduled_date ASC, jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
-                [startDateStr, endDateStr]
-            );
-            rawTasks = rows;
+        if (id === 'manual' || id === 'all_finishing') {
+            machine = id === 'manual'
+                ? { id: 'manual', name: 'Manual / Hand Operations', type: 'finishing', speed: 0, make_ready_minutes: 0, shift_limit: 8 }
+                : { id: 'all_finishing', name: 'All Finishing / Manual Tasks', type: 'finishing', speed: 0, make_ready_minutes: 0, shift_limit: 8 };
+
+            rawTasks = await JobTaskRepository.getScheduleTasksForMachine(pool, null, startDateStr, endDateStr);
         } else {
             const [machines] = await pool.execute('SELECT * FROM machines WHERE id = ?', [id]);
             if (!machines.length) return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
             machine = machines[0];
 
-            const [rows] = await pool.execute(
-                `SELECT jt.*, so.code as order_code, so.customer_name, so.delivery_date as order_delivery_date,
-                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                         FROM quotation_items qi
-                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-                  FROM job_tasks jt
-                  LEFT JOIN sales_orders so ON jt.sales_order_id = so.id
-                  WHERE jt.machine_id = ? AND (
-                      (jt.scheduled_date BETWEEN ? AND ?) OR (jt.scheduled_date IS NULL)
-                  )
-                    AND (so.id IS NULL OR (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready')))
-                    AND (jt.status IS NULL OR LOWER(jt.status) != 'done')
-                  ORDER BY jt.scheduled_date ASC, jt.machine_position ASC, jt.display_order ASC, jt.id ASC`,
-                [id, startDateStr, endDateStr]
-            );
-            rawTasks = rows;
+            rawTasks = await JobTaskRepository.getScheduleTasksForMachine(pool, id, startDateStr, endDateStr);
         }
 
         // Filter out completed tasks if requested

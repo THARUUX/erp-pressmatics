@@ -2,6 +2,8 @@
 
 import { useState, useRef, useMemo } from 'react';
 import { FiCalendar, FiCpu, FiLayers, FiDownload, FiEye, FiSliders, FiCheckSquare, FiSquare } from 'react-icons/fi';
+import { isInactiveSOStatus, isDoneTaskStatus } from '@/lib/constants/status';
+import { calculateJobDeliveryRisk } from '@/lib/utils/bottleneckPredictor';
 
 function today() {
     return new Date().toISOString().split('T')[0];
@@ -240,11 +242,10 @@ export default function QueueScheduleReport({ machines = [], finishings = [], or
     const allTasks = useMemo(() => {
         const result = [];
         orders.forEach(o => {
-            const orderStatus = (o.status || '').toLowerCase().trim();
-            if (['ready', 'delivered', 'cancelled', 'completed'].includes(orderStatus)) return;
+            if (isInactiveSOStatus(o.status)) return;
             (o.tasks || []).forEach(t => {
-                const taskStatus = (t.status || '').toLowerCase().trim();
-                if (['ready', 'delivered', 'cancelled', 'completed', 'done'].includes(taskStatus)) return;
+                if (isDoneTaskStatus(t.status) || isInactiveSOStatus(t.status)) return;
+                const risk = calculateJobDeliveryRisk({ ...t, delivery_date: o.delivery_date }, 0, 8);
                 result.push({
                     ...t,
                     order_code: o.code || '—',
@@ -253,6 +254,8 @@ export default function QueueScheduleReport({ machines = [], finishings = [], or
                     est_time: t.estimated_minutes || 0,
                     actual_time: t.actual_minutes || 0,
                     notes: t.notes || '',
+                    delivery_date: o.delivery_date || t.delivery_date,
+                    deliveryRisk: risk
                 });
             });
         });

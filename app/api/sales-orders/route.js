@@ -102,7 +102,7 @@ export async function POST(req) {
     const conn = await pool.getConnection();
     try {
         const body = await req.json();
-        const { quotation_id, auto_deduct_stock = false, split_tasks = false } = body;
+        const { quotation_id, auto_deduct_stock = false, split_tasks = false, confirm_duplicate = false } = body;
 
         if (!quotation_id) {
             conn.release();
@@ -118,9 +118,9 @@ export async function POST(req) {
 
         const q = quotations[0];
 
-        // Fetch quotation item descriptions to use as job notes/floor instructions
+        // Fetch quotation item descriptions to use as job notes/floor instructions & job names
         const [qItems] = await conn.execute(
-            `SELECT qi.job_description 
+            `SELECT qi.estimation_name, qi.item_name, qi.job_description 
              FROM quotation_items qi
              JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
              WHERE qli.quotation_id = ?`,
@@ -128,11 +128,61 @@ export async function POST(req) {
         );
         const resolvedJobNotes = qItems.map(item => item.job_description).filter(Boolean).join(' / ');
 
-        // Ensure not already converted
+        // Ensure not already converted for this exact quotation
         const [existing] = await conn.execute('SELECT id FROM sales_orders WHERE quotation_id = ?', [quotation_id]);
         if (existing.length > 0) {
             conn.release();
             return NextResponse.json({ error: 'Sales order already exists for this quotation' }, { status: 400 });
+        }
+
+        // ── CHECK DUPLICATE SALES ORDER (SAME CUSTOMER & SAME JOB NAME) ─────
+        if (!confirm_duplicate && q.customer_name && q.customer_name.trim()) {
+            const currentJobNames = qItems
+                .map(i => (i.estimation_name || i.item_name || '').trim())
+                .filter(Boolean);
+
+            if (currentJobNames.length > 0) {
+                try {
+                    const [existingOrders] = await conn.execute(
+                        `SELECT so.id, so.code, so.status, so.created_at, so.total_amount,
+                                (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name SEPARATOR ' · ')
+                                 FROM quotation_items qi
+                                 JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
+                                 WHERE qli.quotation_id = so.quotation_id) AS qi_names,
+                                (SELECT GROUP_CONCAT(DISTINCT jt.name SEPARATOR ' · ')
+                                 FROM job_tasks jt WHERE jt.sales_order_id = so.id) AS jt_names
+                         FROM sales_orders so
+                         WHERE LOWER(TRIM(COALESCE(so.customer_name, ''))) = LOWER(TRIM(?))
+                           AND LOWER(so.status) NOT IN ('cancelled')`,
+                        [q.customer_name.trim()]
+                    );
+
+                    const duplicates = existingOrders.map(so => {
+                        const combinedNames = [so.qi_names, so.jt_names].filter(Boolean).join(' · ');
+                        return { ...so, job_names: combinedNames };
+                    }).filter(so => {
+                        if (!so.job_names) return false;
+                        const existingNamesStr = so.job_names.toLowerCase();
+                        return currentJobNames.some(cName => {
+                            const clean = cName.toLowerCase();
+                            return clean && existingNamesStr.includes(clean);
+                        });
+                    });
+
+                    if (duplicates.length > 0) {
+                        conn.release();
+                        return NextResponse.json({
+                            error: 'duplicate_sales_order',
+                            message: `Existing Sales Order(s) found for customer "${q.customer_name}" with matching job name.`,
+                            customerName: q.customer_name,
+                            matchingOrders: duplicates
+                        }, { status: 409 });
+                    }
+                } catch (dupErr) {
+                    console.error('Error performing duplicate check:', dupErr);
+                    // Non-fatal: if duplicate check query fails, allow conversion flow to proceed safely
+                }
+            }
         }
 
         // ── FETCH BOM REQUIREMENTS ──────────────────────────────────────────

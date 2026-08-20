@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettings } from '@/components/SettingsContext';
 import toast from 'react-hot-toast';
+import DuplicateSOWarningModal from '@/components/ui/DuplicateSOWarningModal';
 
 function SalesOrderProgress({ visible, progress, label }) {
     if (!visible) return null;
@@ -65,6 +66,7 @@ export default function QuotationViewPage({ params }) {
     const [convertingProgressVisible, setConvertingProgressVisible] = useState(false);
     const [convertingProgress, setConvertingProgress] = useState(0);
     const [convertingLabel, setConvertingLabel] = useState('');
+    const [duplicateWarning, setDuplicateWarning] = useState(null);
 
     // ── WhatsApp Quote Modal State ───────────────────────────────────────────
     const [waModal, setWaModal] = useState(false);
@@ -196,10 +198,16 @@ export default function QuotationViewPage({ params }) {
         setSplitTasks(false);
     };
 
-    const submitConvert = async () => {
-        if (!convertingId) return;
-        const id = convertingId;
-        setConvertingId(null);
+    const submitConvert = async (confirmDuplicate = false) => {
+        const isExplicitConfirm = confirmDuplicate === true;
+        const targetId = convertingId || duplicateWarning?.quotationId;
+        if (!targetId) return;
+
+        if (!isExplicitConfirm) {
+            setConvertingId(null);
+        } else {
+            setDuplicateWarning(null);
+        }
 
         setConvertingProgressVisible(true);
         setConvertingProgress(0);
@@ -226,9 +234,14 @@ export default function QuotationViewPage({ params }) {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct, split_tasks: splitTasks }),
+                body: JSON.stringify({
+                    quotation_id: targetId,
+                    auto_deduct_stock: autoDeduct,
+                    split_tasks: splitTasks,
+                    confirm_duplicate: isExplicitConfirm
+                }),
             });
-            const d = await res.json();
+            const d = await res.json().catch(() => ({}));
             clearInterval(tick);
 
             if (res.ok) {
@@ -240,14 +253,20 @@ export default function QuotationViewPage({ params }) {
                 router.push('/dashboard/sales-orders');
             } else {
                 setConvertingProgressVisible(false);
-                if (res.status === 422) {
+                if (res.status === 409 && d.error === 'duplicate_sales_order') {
+                    setDuplicateWarning({
+                        quotationId: targetId,
+                        customerName: d.customerName || quote?.customer_name,
+                        matchingOrders: d.matchingOrders || []
+                    });
+                } else if (res.status === 422) {
                     if (d.error === 'insufficient_stock' && d.shortages) {
                         setStockShortages(d.shortages);
                     } else {
                         toast.error(d.message || 'Insufficient stock to convert');
                     }
                 } else {
-                    toast.error('Failed to convert: ' + (d.error || 'Unknown error'));
+                    toast.error(d.message || d.error || 'Failed to convert to sales order');
                 }
             }
         } catch {
@@ -336,6 +355,14 @@ export default function QuotationViewPage({ params }) {
         <div className="min-h-screen bg-transparent text-white p-8 print:bg-white print:text-black print:p-0">
             <SalesOrderProgress visible={convertingProgressVisible} progress={convertingProgress} label={convertingLabel} />
 
+            <DuplicateSOWarningModal
+                isOpen={!!duplicateWarning}
+                customerName={duplicateWarning?.customerName}
+                matchingOrders={duplicateWarning?.matchingOrders}
+                onCancel={() => setDuplicateWarning(null)}
+                onConfirm={() => submitConvert(true)}
+            />
+
             {/* ── Conversion Modal ─────────────────────────────────────────── */}
             {convertingId && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -414,7 +441,7 @@ export default function QuotationViewPage({ params }) {
                                 Cancel
                             </button>
                             <button
-                                onClick={submitConvert}
+                                onClick={() => submitConvert(false)}
                                 className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-sm font-semibold text-white transition-colors"
                             >
                                 Convert

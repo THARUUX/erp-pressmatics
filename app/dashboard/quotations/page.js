@@ -23,6 +23,7 @@ import { useSettings } from '@/components/SettingsContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import toast from 'react-hot-toast';
 import { ColumnToggle } from '@/components/ui/ColumnToggle';
+import DuplicateSOWarningModal from '@/components/ui/DuplicateSOWarningModal';
 import { numericOperatorFilterFn } from '@/lib/numericFilter';
 
 /* ── Status badge ─────────────────────────────────────────────────────────── */
@@ -145,6 +146,7 @@ export default function QuotationsPage() {
     const [convertingLabel, setConvertingLabel] = useState('');
     const [columnFilters, setColumnFilters] = useState([]);
     const [exportingPdf, setExportingPdf] = useState(false);
+    const [duplicateWarning, setDuplicateWarning] = useState(null);
 
     /* ── Fetch all quotations ────────────────────────────────────────────── */
     const fetchAll = useCallback(() => {
@@ -317,10 +319,16 @@ export default function QuotationsPage() {
         }
     };
 
-    const submitConvert = async () => {
-        if (!convertingId) return;
-        const id = convertingId;
-        setConvertingId(null);
+    const submitConvert = async (confirmDuplicate = false) => {
+        const isExplicitConfirm = confirmDuplicate === true;
+        const id = convertingId || duplicateWarning?.quotationId;
+        if (!id) return;
+
+        if (!isExplicitConfirm) {
+            setConvertingId(null);
+        } else {
+            setDuplicateWarning(null);
+        }
 
         setConvertingProgressVisible(true);
         setConvertingProgress(0);
@@ -347,9 +355,14 @@ export default function QuotationsPage() {
             const res = await fetch('/api/sales-orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quotation_id: id, auto_deduct_stock: autoDeduct, split_tasks: splitTasks }),
+                body: JSON.stringify({
+                    quotation_id: id,
+                    auto_deduct_stock: autoDeduct,
+                    split_tasks: splitTasks,
+                    confirm_duplicate: isExplicitConfirm
+                }),
             });
-            const d = await res.json();
+            const d = await res.json().catch(() => ({}));
             clearInterval(tick);
 
             if (res.ok) {
@@ -361,14 +374,20 @@ export default function QuotationsPage() {
                 fetchAll();
             } else {
                 setConvertingProgressVisible(false);
-                if (res.status === 422) {
+                if (res.status === 409 && d.error === 'duplicate_sales_order') {
+                    setDuplicateWarning({
+                        quotationId: id,
+                        customerName: d.customerName,
+                        matchingOrders: d.matchingOrders || []
+                    });
+                } else if (res.status === 422) {
                     if (d.error === 'insufficient_stock' && d.shortages) {
                         setStockShortages(d.shortages);
                     } else {
                         toast.error(d.message || 'Insufficient stock to convert');
                     }
                 } else {
-                    toast.error('Failed to convert: ' + (d.error || 'Unknown error'));
+                    toast.error(d.message || d.error || 'Failed to convert to sales order');
                 }
             }
         } catch {
@@ -548,6 +567,14 @@ export default function QuotationsPage() {
     return (
         <div className="min-h-screen text-white">
             <SalesOrderProgress visible={convertingProgressVisible} progress={convertingProgress} label={convertingLabel} />
+
+            <DuplicateSOWarningModal
+                isOpen={!!duplicateWarning}
+                customerName={duplicateWarning?.customerName}
+                matchingOrders={duplicateWarning?.matchingOrders}
+                onCancel={() => setDuplicateWarning(null)}
+                onConfirm={() => submitConvert(true)}
+            />
             {/* ── Conversion Modal ─────────────────────────────────────────── */}
             {convertingId && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -626,7 +653,7 @@ export default function QuotationsPage() {
                                 Cancel
                             </button>
                             <button
-                                onClick={submitConvert}
+                                onClick={() => submitConvert(false)}
                                 className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-sm font-semibold text-white transition-colors"
                             >
                                 Convert

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import pool from '@/lib/db';
+import SalesOrderRepository from '@/lib/repositories/SalesOrderRepository';
+import ResourceRepository from '@/lib/repositories/ResourceRepository';
 
 // Resolve run quantity based on speed unit (mirrors tasks/route.js logic)
 function resolveRunQty(speedUnit, { totalCutSheets = 0, sidesVal = 1, totalImpressions = 0, itemQty = 0, isBB = false, ups = 1, pages = 1, sheets = 1 } = {}) {
@@ -29,30 +31,21 @@ export async function GET() {
         const c = cookieStore.get('activeCompanyId');
         let activeCompanyId = 1;
         if (c && c.value) activeCompanyId = parseInt(c.value, 10);
-        // Fetch employees, teams, team_members, machines, finishings, and sales orders concurrently in parallel
+        // Fetch employees, teams, team_members, machines, finishings, and sales orders concurrently in parallel (cached resources)
         const [
-            [employees],
-            [teams],
+            employees,
+            teams,
             teamMembersResult,
-            [machinesRaw],
-            [finishingsRaw],
-            [orders]
+            machinesRaw,
+            finishingsRaw,
+            orders
         ] = await Promise.all([
-            pool.execute(`SELECT id, name FROM employees`),
-            pool.execute(`SELECT id, name FROM teams`),
+            ResourceRepository.getEmployees(pool),
+            ResourceRepository.getTeams(pool),
             pool.execute(`SELECT team_id, employee_id FROM team_members`).catch(() => [[]]),
-            pool.execute(`SELECT * FROM machines ORDER BY name ASC`),
-            pool.execute(`SELECT * FROM finishings WHERE machine_id IS NULL OR is_machine = 0 ORDER BY name ASC`),
-            pool.execute(
-                `SELECT so.id, so.code, so.customer_name, so.status, so.delivery_date, so.quotation_id, so.kanban_position,
-                        (SELECT GROUP_CONCAT(DISTINCT qi.estimation_name ORDER BY qi.id ASC SEPARATOR ' · ')
-                         FROM quotation_items qi
-                         JOIN quotation_line_items qli ON qi.id = qli.quotation_item_id
-                         WHERE qli.quotation_id = so.quotation_id) AS estimation_names
-                 FROM sales_orders so
-                 WHERE (so.status NOT IN ('Delivered', 'Cancelled', 'Completed', 'Ready') AND LOWER(so.status) NOT IN ('delivered', 'cancelled', 'completed', 'ready'))
-                 ORDER BY COALESCE(so.kanban_position, 999999) ASC, so.delivery_date ASC, so.id DESC`
-            )
+            ResourceRepository.getMachines(pool),
+            ResourceRepository.getFinishings(pool),
+            SalesOrderRepository.getPlanningSalesOrders(pool)
         ]);
 
         const teamMembers = teamMembersResult[0] || [];
