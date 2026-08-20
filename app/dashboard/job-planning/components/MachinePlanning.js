@@ -469,7 +469,7 @@ function TaskCard({
 
                     {order?.id && (
                         <ContextMenu.Item
-                            onClick={() => window.open(`/dashboard/job-planning?tab=job_weekly&so=${order.id}`, '_self')}
+                            onClick={() => window.open(`/dashboard/job-planning?tab=job_weekly&so=${order.id}`, '_blank')}
                             className="w-full px-3 py-2 text-left hover:bg-white/10 outline-none flex items-center gap-2.5 transition-colors cursor-pointer text-neutral-200 hover:text-white font-medium select-none group"
                         >
                             <FiCalendar className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white" />
@@ -545,8 +545,8 @@ function TaskCard({
                                         disabled={m.id === task.machine_id}
                                         onClick={() => handleTransfer(m.id)}
                                         className={`w-full px-2.5 py-1.5 text-left text-xs outline-none truncate block cursor-pointer select-none ${m.id === task.machine_id
-                                                ? 'text-neutral-600 bg-white/[0.02] cursor-not-allowed'
-                                                : 'text-neutral-300 hover:bg-white/10 hover:text-white'
+                                            ? 'text-neutral-600 bg-white/[0.02] cursor-not-allowed'
+                                            : 'text-neutral-300 hover:bg-white/10 hover:text-white'
                                             }`}
                                     >
                                         {m.name}
