@@ -432,11 +432,12 @@ export default function NewQuotationPage() {
             if (data.results) {
                 setCalculationResults(data.results);
                 setGrandTotal(data.costs.total);
-                const updatedComps = [...components];
-                data.results.forEach((r, i) => {
+                const updatedComps = components.map((c, i) => {
+                    const r = data.results[i];
                     if (r && r.computedFinishings) {
-                        updatedComps[i].finishings = r.computedFinishings;
+                        return { ...c, finishings: r.computedFinishings };
                     }
+                    return c;
                 });
                 setComponents(updatedComps);
             }

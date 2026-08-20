@@ -265,11 +265,12 @@ export async function PUT(req, { params }) {
                     computedFinishings: computedFinishings
                 };
             } else {
+                const paramsObj = comp.params || comp;
                 const compParams = {
-                    ...comp.params,
+                    ...paramsObj,
                     quantity: comp.quantity,
                     finishings: comp.finishings || [],
-                    compName: comp.name
+                    compName: comp.name || comp.component_name
                 };
 
                 if (comp.type === 'offset') {
@@ -339,7 +340,7 @@ export async function PUT(req, { params }) {
             // Insert New Details
             for (const pComp of processedComponents) {
                 const { meta, calc } = pComp;
-                const params = meta.params;
+                const params = meta.params || meta;
                 const costs = calc.costs;
 
                 const isServicesComp = meta.type === 'services' || (meta.name || '').toLowerCase().includes('service');
@@ -538,7 +539,7 @@ export async function PUT(req, { params }) {
         }
     } catch (error) {
         console.error("Update Item Error:", error);
-        return NextResponse.json({ error: 'Failed to update item' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to update item: ' + error.message }, { status: 500 });
     }
 }
 

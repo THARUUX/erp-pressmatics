@@ -253,7 +253,7 @@ export default function EditQuotationPage({ params }) {
                         isBB: !!comp.is_bb,
                         customSheetFactor: comp.custom_sheet_factor != null ? comp.custom_sheet_factor : ''
                     },
-                    finishings: comp.finishings.map((f, i) => ({
+                    finishings: (comp.finishings || []).map((f, i) => ({
                         ...f,
                         id: f.id || `f-${i}`,
                         unit_cost: parseFloat(f.unit_cost),
@@ -494,11 +494,12 @@ export default function EditQuotationPage({ params }) {
             if (data.results) {
                 setCalculationResults(data.results);
                 setGrandTotal(data.costs.total);
-                const updatedComps = [...components];
-                data.results.forEach((r, i) => {
+                const updatedComps = components.map((c, i) => {
+                    const r = data.results[i];
                     if (r && r.computedFinishings) {
-                        updatedComps[i].finishings = r.computedFinishings;
+                        return { ...c, finishings: r.computedFinishings };
                     }
+                    return c;
                 });
                 setComponents(updatedComps);
             }
