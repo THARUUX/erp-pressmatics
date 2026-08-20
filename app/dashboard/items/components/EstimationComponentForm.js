@@ -127,6 +127,28 @@ export default function EstimationComponentForm({
         }
     }, [isServicesComponent, type, index, onChange]);
 
+    useEffect(() => {
+        if (index === 0) {
+            try {
+                const dielineRaw = sessionStorage.getItem('pressmatics_dieline_sheet');
+                if (dielineRaw) {
+                    const parsed = JSON.parse(dielineRaw);
+                    if (parsed && parsed.widthMm && parsed.heightMm) {
+                        const wCm = (parsed.widthMm / 10).toFixed(1);
+                        const hCm = (parsed.heightMm / 10).toFixed(1);
+                        onChange(0, 'params', {
+                            ...params,
+                            compWidthCm: parseFloat(wCm),
+                            compHeightCm: parseFloat(hCm),
+                            size: 'Custom'
+                        });
+                        sessionStorage.removeItem('pressmatics_dieline_sheet');
+                    }
+                }
+            } catch (e) { }
+        }
+    }, [index]);
+
     // Local state for searches (keep UI responsive)
     const [paperSearch, setPaperSearch] = useState(params.paperName || '');
     const [showPaperSuggestions, setShowPaperSuggestions] = useState(false);

@@ -5,12 +5,13 @@ import { motion } from 'framer-motion';
 import {
     FiTool, FiTag, FiBookOpen, FiBox, FiDroplet, FiSearch,
     FiPrinter, FiRefreshCw, FiCopy, FiCheck, FiInfo, FiSliders,
-    FiLayers, FiTruck, FiAlertCircle, FiMaximize2, FiSquare
+    FiLayers, FiTruck, FiAlertCircle, FiMaximize2, FiSquare, FiPackage
 } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
+import BoxDielineGenerator from './components/BoxDielineGenerator';
 
 export default function ToolsPage() {
-    const [activeTab, setActiveTab] = useState('labels'); // 'labels' | 'spine' | 'paper' | 'ink'
+    const [activeTab, setActiveTab] = useState('dieline'); // 'dieline' | 'labels' | 'spine' | 'paper' | 'ink'
 
     // ==========================================
     // TOOL 1: Sales Order Label Generator State
@@ -447,6 +448,17 @@ export default function ToolsPage() {
             {/* Navigation Tabs */}
             <div className="flex items-center gap-2 overflow-x-auto bg-black/40 backdrop-blur-xl border border-white/10 p-2 rounded-2xl print:hidden">
                 <button
+                    onClick={() => setActiveTab('dieline')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'dieline'
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                >
+                    <FiPackage className="w-4 h-4" />
+                    Packaging Box Dieline Generator
+                </button>
+
+                <button
                     onClick={() => setActiveTab('labels')}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'labels'
                         ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
@@ -490,6 +502,9 @@ export default function ToolsPage() {
                     Ink Usage Estimator
                 </button>
             </div>
+
+            {/* TAB 0: PACKAGING BOX DIELINE GENERATOR */}
+            {activeTab === 'dieline' && <BoxDielineGenerator />}
 
             {/* TAB 1: SALES ORDER LABEL GENERATOR */}
             {activeTab === 'labels' && (
